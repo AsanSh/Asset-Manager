@@ -1,0 +1,117 @@
+# See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
+
+# compiled output
+dist
+tmp
+out-tsc
+*.tsbuildinfo
+.expo
+.expo-shared
+
+# dependencies
+node_modules
+
+# IDEs and editors
+/.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# misc
+/.sass-cache
+/connect.lock
+/coverage
+/libpeerconnection.log
+npm-debug.log
+yarn-error.log
+testem.log
+/typings
+
+# System Files
+.DS_Store
+Thumbs.db
+
+.cursor/rules/nx-rules.mdc
+.github/instructions/nx.instructions.md
+
+# Replit
+.cache/
+.local/
+
+# Secrets (root-level)
+.env
+.env.*
+!.env.example
+
+# Archives and binaries
+*.zip
+*.docx
+*.pdf
+*.png
+*.jpg
+*.jpeg
+
+# Audit / generated docs at root level (keep only source)
+ARCHITECTURE_RECOMMENDATIONS.md
+AUDIT_SUMMARY.md
+BACKEND_SETUP.md
+CRITICAL_FIXES.md
+DEPLOY_RAILWAY.md
+FINAL_FIXES.md
+QUICK_BACKEND_SETUP.txt
+QUICK_FIX_GUIDE.md
+README_AUDIT.md
+SECURITY_AUDIT_REPORT.md
+VERCEL_DEPLOY_QUICK.md
+BACKEND_COMPLETE.md
+COMPLETE_SYSTEM_STATUS.md
+ENHANCEMENTS_COMPLETED.md
+FINAL_IMPLEMENTATION_REPORT.md
+FINAL_SECURITY_REPORT.md
+FINAL_STATUS.md
+FIXES_APPLIED.md
+FRONTEND_IMPLEMENTATION_GUIDE.md
+IMPLEMENTATION_COMPLETE.md
+IMPLEMENTATION_GUIDE.md
+IMPLEMENTATION_STATUS.md
+IMPROVEMENT_PLAN.md
+PRODUCT_AUDIT_2026.md
+QUICK_START_GUIDE.md
+SECURITY_PERFORMANCE_IMPLEMENTED.md
+SECURITY_SCAN_REPORT.md
+STAGE_2_3_PLAN.md
+STAGE_2_PROGRESS.md
+START_GUIDE.md
+START_PROJECT.md
+SUMMARY.md
+TECHNICAL_AUDIT.md
+TESTING_REPORT.md
+UI_IMPROVEMENTS_COMPLETE.md
+WHAT_WAS_DONE_TODAY.md
+ALL_PAGES_LIST.md
+
+# External reference files
+adesk/
+attached_assets/
+scripts/
+find-unsafe-arrays.sh
+test-all-endpoints.sh
+test-connection.html
+setup-neon.sh
+replit.md
+
+# Claude internal
+.claude/
+
+# Drizzle generated (keep migrations, skip studio cache)
+artifacts/api-server/drizzle/.drizzle/
