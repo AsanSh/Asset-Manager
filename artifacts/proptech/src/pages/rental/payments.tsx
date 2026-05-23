@@ -5,6 +5,7 @@ import {
 	ChevronDown,
 	CreditCard,
 	Plus,
+	Undo2,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -492,8 +493,27 @@ function PaymentDialog({ open, onClose }: PaymentDialogProps) {
 }
 
 export default function Payments() {
+	const qc = useQueryClient();
+	const { toast } = useToast();
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+	const handleCancel = async (payment: any) => {
+		if (!confirm(`Отменить платёж ${fmtCurrency(payment.amount)} от ${formatDate(payment.paymentDate)}? Начисление будет восстановлено.`)) return;
+		try {
+			const res = await fetch(`${BASE}/rental/payments/${payment.id}`, {
+				method: "DELETE",
+				headers: authHeaders(),
+			});
+			if (!res.ok) throw new Error("Ошибка отмены платежа");
+			toast({ title: "Платёж отменён", description: "Начисление восстановлено" });
+			qc.invalidateQueries({ queryKey: ["payments"] });
+			qc.invalidateQueries({ queryKey: ["accruals"] });
+			qc.invalidateQueries({ queryKey: ["rental-accounts"] });
+		} catch {
+			toast({ title: "Ошибка", description: "Не удалось отменить платёж", variant: "destructive" });
+		}
+	};
 
 	const toggleGroup = (key: string) => {
 		setExpandedGroups((prev) => {
@@ -628,6 +648,7 @@ export default function Payments() {
 												<TableHead>Сумма</TableHead>
 												<TableHead>Способ оплаты</TableHead>
 												<TableHead>Примечание</TableHead>
+												<TableHead className="text-center w-16"></TableHead>
 											</TableRow>
 										</TableHeader>
 										<TableBody>
@@ -653,6 +674,17 @@ export default function Payments() {
 													</TableCell>
 													<TableCell className="text-gray-500 text-sm">
 														{payment.note || "—"}
+													</TableCell>
+													<TableCell className="text-center">
+														<Button
+															size="sm"
+															variant="ghost"
+															className="h-7 w-7 p-0 text-gray-400 hover:text-rose-600"
+															title="Отменить платёж"
+															onClick={() => handleCancel(payment)}
+														>
+															<Undo2 className="w-3.5 h-3.5" />
+														</Button>
 													</TableCell>
 												</TableRow>
 											))}

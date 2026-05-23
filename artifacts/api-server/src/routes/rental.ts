@@ -602,6 +602,15 @@ router.post("/rental/payments", requireAuth, async (req: AuthenticatedRequest, r
     }
   }
 
+  // Update bank account balance
+  if (parsedAccountId) {
+    const [acc] = await db.select().from(bankAccountsTable).where(eq(bankAccountsTable.id, parsedAccountId));
+    if (acc) {
+      const newBal = (parseFloat(acc.currentBalance || "0") + paymentAmount).toFixed(2);
+      await db.update(bankAccountsTable).set({ currentBalance: newBal }).where(eq(bankAccountsTable.id, parsedAccountId));
+    }
+  }
+
   if (req.companyId) {
     await logOp(req.companyId, req.userId, "payment", payment.id, "create",
       `Добавлен платёж ${paymentAmount} ${currency} (договор #${leaseContractId})`, payment);
@@ -630,6 +639,16 @@ router.delete("/rental/payments/:id", requireAuth, async (req: AuthenticatedRequ
   }
   await db.delete(paymentAllocationsTable).where(eq(paymentAllocationsTable.paymentId, id));
   await db.delete(paymentsTable).where(and(...conds));
+
+  // Reverse bank account balance
+  if (snap.accountId) {
+    const [acc] = await db.select().from(bankAccountsTable).where(eq(bankAccountsTable.id, snap.accountId));
+    if (acc) {
+      const newBal = Math.max(0, parseFloat(acc.currentBalance || "0") - parseFloat(snap.amount)).toFixed(2);
+      await db.update(bankAccountsTable).set({ currentBalance: newBal }).where(eq(bankAccountsTable.id, snap.accountId));
+    }
+  }
+
   if (req.companyId) {
     await logOp(req.companyId, req.userId, "payment", id, "delete",
       `Удалён платёж ${snap.amount} ${snap.currency} от ${snap.paymentDate}`, snap);
