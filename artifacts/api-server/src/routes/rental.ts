@@ -169,6 +169,36 @@ router.delete("/rental/accounts/:id", requireAuth, async (req: AuthenticatedRequ
   res.json({ ok: true });
 });
 
+// Recalculate all rental account balances from actual payments/deposits minus expenses
+router.post("/rental/accounts/recalculate", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.companyId!;
+  const accounts = await db.select().from(bankAccountsTable)
+    .where(companyModuleAccountWhere(companyId, RENTAL_ACCOUNTS));
+
+  const updated: { id: number; newBalance: string }[] = [];
+  for (const acc of accounts) {
+    const [inRow] = await db.select({ total: sql<string>`COALESCE(SUM(amount::numeric), 0)` })
+      .from(paymentsTable)
+      .where(and(eq(paymentsTable.companyId, companyId), eq(paymentsTable.accountId, acc.id)));
+    const [depRow] = await db.select({ total: sql<string>`COALESCE(SUM(amount::numeric), 0)` })
+      .from(depositsTable)
+      .where(and(eq(depositsTable.companyId, companyId), eq(depositsTable.accountId, acc.id)));
+    const [outRow] = await db.select({ total: sql<string>`COALESCE(SUM(amount::numeric), 0)` })
+      .from(expensesTable)
+      .where(and(eq(expensesTable.companyId, companyId), eq(expensesTable.accountId, acc.id)));
+
+    const inflow = parseFloat(inRow?.total ?? "0") + parseFloat(depRow?.total ?? "0");
+    const outflow = parseFloat(outRow?.total ?? "0");
+    const newBalance = Math.max(0, inflow - outflow).toFixed(2);
+
+    await db.update(bankAccountsTable)
+      .set({ currentBalance: newBalance })
+      .where(eq(bankAccountsTable.id, acc.id));
+    updated.push({ id: acc.id, newBalance });
+  }
+  res.json({ ok: true, updated });
+});
+
 router.post("/rental/accounts/transfer", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
   const companyId = req.companyId!;
   const { fromAccountId, toAccountId, amount, rate, date, note } = req.body;

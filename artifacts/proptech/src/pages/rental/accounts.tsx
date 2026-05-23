@@ -102,6 +102,20 @@ export default function RentalAccounts() {
 	const [loadingRates, setLoadingRates] = useState(false);
 	const [loading, setLoading] = useState(false);
 	const [deleting, setDeleting] = useState<number | null>(null);
+	const [recalculating, setRecalculating] = useState(false);
+
+	const handleRecalculate = async () => {
+		setRecalculating(true);
+		try {
+			await api.post("/rental/accounts/recalculate");
+			await queryClient.invalidateQueries({ queryKey: ["rental-accounts"] });
+			toast({ title: "Балансы пересчитаны", description: "Данные синхронизированы с платежами и расходами" });
+		} catch {
+			toast({ title: "Ошибка пересчёта", variant: "destructive" });
+		} finally {
+			setRecalculating(false);
+		}
+	};
 
 	const { data: accounts = [], isLoading } = useQuery<any[]>({
 		queryKey: ["rental-accounts"],
@@ -254,6 +268,16 @@ export default function RentalAccounts() {
 					</p>
 				</div>
 				<div className="flex gap-2">
+					<Button
+						variant="outline"
+						onClick={handleRecalculate}
+						disabled={recalculating}
+						className="gap-2"
+						title="Пересчитать балансы из реальных платежей и расходов"
+					>
+						<RefreshCw className={`w-4 h-4 ${recalculating ? "animate-spin" : ""}`} />
+						{recalculating ? "..." : "Пересчитать"}
+					</Button>
 					<Button
 						variant="outline"
 						onClick={() => setTransferOpen(true)}
