@@ -433,7 +433,7 @@ function QuickPayDialog({
 	);
 	const [paymentMethod, setPaymentMethod] = useState("cash");
 	const [amount, setAmount] = useState("");
-	const [accountId, setAccountId] = useState<string>("");
+	const [accountId, setAccountId] = useState<string>("none");
 	const [note, setNote] = useState("");
 	const [loading, setLoading] = useState(false);
 	const [creatingAccount, setCreatingAccount] = useState(false);
@@ -453,7 +453,7 @@ function QuickPayDialog({
 			setNote("");
 			setPaymentDate(new Date().toISOString().split("T")[0]);
 			setPaymentMethod("cash");
-			setAccountId("");
+			setAccountId("none");
 			setCreatingAccount(false);
 			setNewAccountName("");
 		}

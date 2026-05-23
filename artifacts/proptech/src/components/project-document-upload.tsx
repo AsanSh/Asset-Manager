@@ -293,7 +293,7 @@ export function ProjectDocumentUploadDialog({
 /** Применить распознанные поля к форме проекта */
 export function applyParsedToProjectForm(
 	parsed: ParsedProjectDocument,
-): Record<string, string> & { documentMeta?: Record<string, unknown> } {
+) {
 	const bt = parsed.buildingType || "commercial";
 	const ct = parsed.constructionType || "monolith";
 	return {

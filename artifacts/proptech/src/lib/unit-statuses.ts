@@ -103,7 +103,7 @@ export function buildStatusGridCfg(
 		const preset =
 			STATUS_COLOR_PRESETS[s.colorKey as UnitStatusColorKey] ||
 			STATUS_COLOR_PRESETS.slate;
-		map[s.code] = { label: s.label, ...preset };
+		map[s.code] = { label: s.label, bg: preset.bg, text: preset.text, border: preset.border };
 	}
 	return map;
 }

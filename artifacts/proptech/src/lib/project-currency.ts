@@ -46,7 +46,7 @@ export function projectCostInCurrency(p: ProjectCurrencyFields) {
 }
 
 export function projectCostBreakdown(p: ProjectCurrencyFields) {
-	const { total, currency, area, cps } = projectCostInCurrency(p);
+	const { currency, area, cps } = projectCostInCurrency(p);
 	if (area <= 0 || cps <= 0) return null;
 	const sym = currencySymbol(currency);
 	return `${fmtProjectAmount(area)} м² × ${fmtProjectAmount(cps)} ${sym}`;

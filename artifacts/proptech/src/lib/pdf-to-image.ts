@@ -25,7 +25,7 @@ export async function pdfFirstPageToJpeg(
 	const ctx = canvas.getContext("2d");
 	if (!ctx) throw new Error("Canvas не поддерживается");
 
-	await page.render({ canvasContext: ctx, viewport, canvas }).promise;
+	await page.render({ canvasContext: ctx as unknown as CanvasRenderingContext2D, viewport }).promise;
 
 	const dataUrl = canvas.toDataURL("image/jpeg", 0.88);
 	const base64 = dataUrl.includes(",") ? dataUrl.split(",")[1]! : dataUrl;
