@@ -156,6 +156,10 @@ function PaymentDialog({ open, onClose }: PaymentDialogProps) {
 			toast({ title: "Заполните обязательные поля", variant: "destructive" });
 			return;
 		}
+		if (!formData.accountId || formData.accountId === "none") {
+			toast({ title: "Выберите расчётный счёт", description: "Без счёта зарегистрировать платёж невозможно", variant: "destructive" });
+			return;
+		}
 		setLoading(true);
 		try {
 			const body: any = {
@@ -197,6 +201,7 @@ function PaymentDialog({ open, onClose }: PaymentDialogProps) {
 			});
 			queryClient.invalidateQueries({ queryKey: ["payments"] });
 			queryClient.invalidateQueries({ queryKey: ["accruals"] });
+			queryClient.invalidateQueries({ queryKey: ["rental-accounts"] });
 			onClose();
 		} catch (err: any) {
 			toast({
@@ -338,23 +343,26 @@ function PaymentDialog({ open, onClose }: PaymentDialogProps) {
 					</div>
 
 					<div>
-						<Label>Расчётный счёт</Label>
+						<Label>Расчётный счёт *</Label>
 						<Select
 							value={formData.accountId || "none"}
 							onValueChange={(v) =>
 								setFormData({ ...formData, accountId: v === "none" ? "" : v })
 							}
 						>
-							<SelectTrigger className="mt-1">
-								<SelectValue placeholder="Выберите счёт (необязательно)" />
+							<SelectTrigger className={`mt-1 ${!formData.accountId || formData.accountId === "none" ? "border-rose-300" : ""}`}>
+								<SelectValue placeholder="Выберите счёт *" />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="none">— Без привязки к счёту —</SelectItem>
-								{(accounts as any[]).map((a: any) => (
-									<SelectItem key={a.id} value={String(a.id)}>
-										{a.name}
-									</SelectItem>
-								))}
+								{(accounts as any[]).length === 0 ? (
+									<SelectItem value="none" disabled>Нет счетов — создайте в Расчётных счетах</SelectItem>
+								) : (
+									(accounts as any[]).map((a: any) => (
+										<SelectItem key={a.id} value={String(a.id)}>
+											{a.name}
+										</SelectItem>
+									))
+								)}
 							</SelectContent>
 						</Select>
 					</div>

@@ -491,6 +491,10 @@ function QuickPayDialog({
 			toast({ title: "Ошибка", description: "Укажите сумму платежа", variant: "destructive" });
 			return;
 		}
+		if (!accountId || accountId === "none") {
+			toast({ title: "Выберите расчётный счёт", description: "Без счёта принять платёж невозможно", variant: "destructive" });
+			return;
+		}
 		setLoading(true);
 		try {
 			const res = await fetch(`${BASE}/rental/payments`, {
@@ -580,11 +584,10 @@ function QuickPayDialog({
 						{accounts.length > 0 && !creatingAccount ? (
 							<div className="flex gap-2 mt-1">
 								<Select value={accountId} onValueChange={setAccountId}>
-									<SelectTrigger className="flex-1">
-										<SelectValue placeholder="Без счёта" />
+									<SelectTrigger className={`flex-1 ${accountId === "none" ? "border-rose-300" : ""}`}>
+										<SelectValue placeholder="Выберите счёт *" />
 									</SelectTrigger>
 									<SelectContent>
-										<SelectItem value="none">Без счёта</SelectItem>
 										{accounts.map((a) => (
 											<SelectItem key={a.id} value={String(a.id)}>
 												{a.name} ({a.currency})
@@ -611,9 +614,9 @@ function QuickPayDialog({
 								</Button>
 							</div>
 						) : (
-							<div className="mt-1 flex items-center gap-2 rounded-lg border border-dashed border-amber-300 bg-amber-50 px-3 py-2">
-								<span className="text-xs text-amber-700 flex-1">Нет счетов для аренды</span>
-								<Button type="button" size="sm" variant="outline" className="text-xs h-7 border-amber-400 text-amber-700"
+							<div className="mt-1 flex items-center gap-2 rounded-lg border border-dashed border-rose-300 bg-rose-50 px-3 py-2">
+								<span className="text-xs text-rose-700 flex-1">Необходимо создать счёт</span>
+								<Button type="button" size="sm" variant="outline" className="text-xs h-7 border-rose-400 text-rose-700"
 									onClick={() => setCreatingAccount(true)}>
 									Создать счёт
 								</Button>
