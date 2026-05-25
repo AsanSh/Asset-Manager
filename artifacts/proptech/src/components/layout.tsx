@@ -233,6 +233,11 @@ const MODULES: Module[] = [
 						icon: BarChart3,
 					},
 					{ href: "/construction/ai/telegram", label: "Telegram", icon: Send },
+					{
+						href: "/construction/ai/estimates",
+						label: "AI Смета",
+						icon: BarChart3,
+					},
 				],
 			},
 			{
@@ -297,6 +302,7 @@ const MODULES: Module[] = [
 				title: "Аналитика",
 				items: [
 					{ href: "/rental/analytics/odds", label: "ОДДС", icon: BarChart3 },
+					{ href: "/rental/analytics/plan-fact", label: "План-факт", icon: TrendingUp },
 					{ href: "/rental/analytics/opu", label: "ОПУ", icon: LineChart },
 					{
 						href: "/rental/analytics/debt",
@@ -321,14 +327,9 @@ const MODULES: Module[] = [
 				],
 			},
 			{
-				title: "Инвесторы",
+				title: "Владельцы",
 				items: [
 					{ href: "/rental/investors", label: "Инвесторы", icon: Users },
-					{
-						href: "/rental/investments",
-						label: "Доли в объектах",
-						icon: PieChart,
-					},
 					{
 						href: "/rental/distributions",
 						label: "Распределение",

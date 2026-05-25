@@ -1,0 +1,2545 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: PropTech Platform API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: auth
+    description: Authentication
+  - name: companies
+    description: Company management
+  - name: users
+    description: User management
+  - name: counterparties
+    description: Counterparty management
+  - name: properties
+    description: Property management
+  - name: contracts
+    description: Contract management
+  - name: documents
+    description: Document management
+  - name: import
+    description: Excel import
+  - name: rental
+    description: Rental management
+  - name: dashboard
+    description: Dashboard & analytics
+
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  # AUTH
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginBody"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # COMPANIES
+  /companies:
+    get:
+      operationId: listCompanies
+      tags: [companies]
+      summary: List companies
+      responses:
+        "200":
+          description: List of companies
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Company"
+    post:
+      operationId: createCompany
+      tags: [companies]
+      summary: Create company
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCompanyBody"
+      responses:
+        "201":
+          description: Company created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Company"
+
+  /companies/{id}:
+    get:
+      operationId: getCompany
+      tags: [companies]
+      summary: Get company
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Company
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Company"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateCompany
+      tags: [companies]
+      summary: Update company
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCompanyBody"
+      responses:
+        "200":
+          description: Updated company
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Company"
+
+  # USERS
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List users
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+    post:
+      operationId: createUser
+      tags: [users]
+      summary: Create user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserBody"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{id}:
+    get:
+      operationId: getUser
+      tags: [users]
+      summary: Get user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateUser
+      tags: [users]
+      summary: Update user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserBody"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+    delete:
+      operationId: deleteUser
+      tags: [users]
+      summary: Delete user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # COUNTERPARTIES
+  /counterparties:
+    get:
+      operationId: listCounterparties
+      tags: [counterparties]
+      summary: List counterparties
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of counterparties
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Counterparty"
+    post:
+      operationId: createCounterparty
+      tags: [counterparties]
+      summary: Create counterparty
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCounterpartyBody"
+      responses:
+        "201":
+          description: Counterparty created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Counterparty"
+
+  /counterparties/{id}:
+    get:
+      operationId: getCounterparty
+      tags: [counterparties]
+      summary: Get counterparty
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Counterparty
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Counterparty"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateCounterparty
+      tags: [counterparties]
+      summary: Update counterparty
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCounterpartyBody"
+      responses:
+        "200":
+          description: Updated counterparty
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Counterparty"
+    delete:
+      operationId: deleteCounterparty
+      tags: [counterparties]
+      summary: Delete counterparty
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # PROPERTIES
+  /properties:
+    get:
+      operationId: listProperties
+      tags: [properties]
+      summary: List properties
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: project
+          in: query
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of properties
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Property"
+    post:
+      operationId: createProperty
+      tags: [properties]
+      summary: Create property
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePropertyBody"
+      responses:
+        "201":
+          description: Property created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Property"
+
+  /properties/{id}:
+    get:
+      operationId: getProperty
+      tags: [properties]
+      summary: Get property
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Property
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Property"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateProperty
+      tags: [properties]
+      summary: Update property
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePropertyBody"
+      responses:
+        "200":
+          description: Updated property
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Property"
+    delete:
+      operationId: deleteProperty
+      tags: [properties]
+      summary: Delete property
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # CONTRACTS
+  /contracts:
+    get:
+      operationId: listContracts
+      tags: [contracts]
+      summary: List contracts
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: counterpartyId
+          in: query
+          schema:
+            type: integer
+        - name: propertyId
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of contracts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Contract"
+    post:
+      operationId: createContract
+      tags: [contracts]
+      summary: Create contract
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateContractBody"
+      responses:
+        "201":
+          description: Contract created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Contract"
+
+  /contracts/{id}:
+    get:
+      operationId: getContract
+      tags: [contracts]
+      summary: Get contract
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Contract
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Contract"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateContract
+      tags: [contracts]
+      summary: Update contract
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateContractBody"
+      responses:
+        "200":
+          description: Updated contract
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Contract"
+    delete:
+      operationId: deleteContract
+      tags: [contracts]
+      summary: Delete contract
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # DOCUMENTS
+  /documents:
+    get:
+      operationId: listDocuments
+      tags: [documents]
+      summary: List documents
+      parameters:
+        - name: entityType
+          in: query
+          schema:
+            type: string
+        - name: entityId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Document"
+    post:
+      operationId: createDocument
+      tags: [documents]
+      summary: Upload document
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDocumentBody"
+      responses:
+        "201":
+          description: Document created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+
+  /documents/{id}:
+    delete:
+      operationId: deleteDocument
+      tags: [documents]
+      summary: Delete document
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # IMPORT
+  /import/jobs:
+    get:
+      operationId: listImportJobs
+      tags: [import]
+      summary: List import jobs
+      responses:
+        "200":
+          description: List of import jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ImportJob"
+
+  /import/preview:
+    post:
+      operationId: previewImport
+      tags: [import]
+      summary: Preview import data
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImportPreviewBody"
+      responses:
+        "200":
+          description: Preview result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportPreviewResponse"
+
+  /import/commit:
+    post:
+      operationId: commitImport
+      tags: [import]
+      summary: Commit import
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommitImportBody"
+      responses:
+        "200":
+          description: Import result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportJob"
+
+  /import/jobs/{id}:
+    get:
+      operationId: getImportJob
+      tags: [import]
+      summary: Get import job detail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Import job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportJob"
+
+  # RENTAL - TENANTS
+  /rental/tenants:
+    get:
+      operationId: listTenants
+      tags: [rental]
+      summary: List tenants
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of tenants
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Tenant"
+    post:
+      operationId: createTenant
+      tags: [rental]
+      summary: Create tenant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTenantBody"
+      responses:
+        "201":
+          description: Tenant created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tenant"
+
+  /rental/tenants/{id}:
+    get:
+      operationId: getTenant
+      tags: [rental]
+      summary: Get tenant
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Tenant
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tenant"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateTenant
+      tags: [rental]
+      summary: Update tenant
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTenantBody"
+      responses:
+        "200":
+          description: Updated tenant
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tenant"
+
+  # RENTAL - LEASE CONTRACTS
+  /rental/contracts:
+    get:
+      operationId: listLeaseContracts
+      tags: [rental]
+      summary: List lease contracts
+      parameters:
+        - name: propertyId
+          in: query
+          schema:
+            type: integer
+        - name: tenantId
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of lease contracts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeaseContract"
+    post:
+      operationId: createLeaseContract
+      tags: [rental]
+      summary: Create lease contract
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLeaseContractBody"
+      responses:
+        "201":
+          description: Lease contract created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaseContract"
+
+  /rental/contracts/{id}:
+    get:
+      operationId: getLeaseContract
+      tags: [rental]
+      summary: Get lease contract
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Lease contract
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaseContract"
+    patch:
+      operationId: updateLeaseContract
+      tags: [rental]
+      summary: Update lease contract
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateLeaseContractBody"
+      responses:
+        "200":
+          description: Updated lease contract
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaseContract"
+
+  # RENTAL - ACCRUALS
+  /rental/accruals:
+    get:
+      operationId: listAccruals
+      tags: [rental]
+      summary: List accruals
+      parameters:
+        - name: leaseContractId
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: month
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of accruals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Accrual"
+
+  /rental/accruals/recalculate:
+    post:
+      operationId: recalculateAccruals
+      tags: [rental]
+      summary: Recalculate accruals for a lease contract
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecalculateAccrualsBody"
+      responses:
+        "200":
+          description: Recalculated accruals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Accrual"
+
+  # RENTAL - PAYMENTS
+  /rental/payments:
+    get:
+      operationId: listPayments
+      tags: [rental]
+      summary: List rental payments
+      parameters:
+        - name: leaseContractId
+          in: query
+          schema:
+            type: integer
+        - name: tenantId
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of payments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Payment"
+    post:
+      operationId: createPayment
+      tags: [rental]
+      summary: Record rental payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePaymentBody"
+      responses:
+        "201":
+          description: Payment recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payment"
+
+  # RENTAL - DEPOSITS
+  /rental/deposits:
+    get:
+      operationId: listDeposits
+      tags: [rental]
+      summary: List deposits
+      parameters:
+        - name: leaseContractId
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of deposits
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Deposit"
+    post:
+      operationId: createDeposit
+      tags: [rental]
+      summary: Record deposit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDepositBody"
+      responses:
+        "201":
+          description: Deposit recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Deposit"
+
+  /rental/deposits/{id}:
+    patch:
+      operationId: updateDeposit
+      tags: [rental]
+      summary: Update deposit status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDepositBody"
+      responses:
+        "200":
+          description: Updated deposit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Deposit"
+
+  # RENTAL - EXPENSES
+  /rental/expenses:
+    get:
+      operationId: listExpenses
+      tags: [rental]
+      summary: List rental expenses
+      parameters:
+        - name: propertyId
+          in: query
+          schema:
+            type: integer
+        - name: category
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of expenses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Expense"
+    post:
+      operationId: createExpense
+      tags: [rental]
+      summary: Record expense
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateExpenseBody"
+      responses:
+        "201":
+          description: Expense recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Expense"
+
+  # RENTAL - PROPERTIES (with rental status)
+  /rental/properties:
+    get:
+      operationId: listRentalProperties
+      tags: [rental]
+      summary: List properties with rental info
+      parameters:
+        - name: rentalStatus
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of rental properties
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RentalProperty"
+
+  /rental/properties/{id}/activate:
+    post:
+      operationId: activateRentalProperty
+      tags: [rental]
+      summary: Activate property for rental
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Property activated for rental
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RentalProperty"
+
+  /rental/properties/{id}/performance:
+    get:
+      operationId: getPropertyPerformance
+      tags: [rental]
+      summary: Get property rental performance
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Property performance metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PropertyPerformance"
+
+  # RENTAL - STATEMENTS
+  /rental/statements:
+    get:
+      operationId: listOwnerStatements
+      tags: [rental]
+      summary: List owner statements
+      parameters:
+        - name: propertyId
+          in: query
+          schema:
+            type: integer
+        - name: month
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of owner statements
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OwnerStatement"
+
+  /rental/statements/generate:
+    post:
+      operationId: generateOwnerStatement
+      tags: [rental]
+      summary: Generate owner statement for month
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateStatementBody"
+      responses:
+        "200":
+          description: Generated owner statement
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OwnerStatement"
+
+  # DASHBOARD
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get dashboard summary
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /dashboard/activity:
+    get:
+      operationId: getDashboardActivity
+      tags: [dashboard]
+      summary: Get recent activity
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Recent activity feed
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityItem"
+
+  /dashboard/rental-overview:
+    get:
+      operationId: getRentalOverview
+      tags: [dashboard]
+      summary: Get rental portfolio overview
+      responses:
+        "200":
+          description: Rental overview metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RentalOverview"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+
+    LoginBody:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+      required:
+        - email
+        - password
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+      required:
+        - token
+        - user
+
+    Company:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        legalName:
+          type: ["string", "null"]
+        bin:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        address:
+          type: ["string", "null"]
+        logoUrl:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - name
+        - isActive
+        - createdAt
+        - updatedAt
+
+    CreateCompanyBody:
+      type: object
+      properties:
+        name:
+          type: string
+        legalName:
+          type: ["string", "null"]
+        bin:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        address:
+          type: ["string", "null"]
+      required:
+        - name
+
+    UpdateCompanyBody:
+      type: object
+      properties:
+        name:
+          type: string
+        legalName:
+          type: ["string", "null"]
+        bin:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        address:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        companyId:
+          type: ["integer", "null"]
+        email:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        role:
+          type: string
+          enum: [super_admin, company_admin, sales_manager, finance, rental_manager, staff]
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - email
+        - firstName
+        - lastName
+        - role
+        - isActive
+        - createdAt
+        - updatedAt
+
+    CreateUserBody:
+      type: object
+      properties:
+        companyId:
+          type: ["integer", "null"]
+        email:
+          type: string
+        password:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        role:
+          type: string
+          enum: [super_admin, company_admin, sales_manager, finance, rental_manager, staff]
+      required:
+        - email
+        - password
+        - firstName
+        - lastName
+        - role
+
+    UpdateUserBody:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        role:
+          type: string
+          enum: [super_admin, company_admin, sales_manager, finance, rental_manager, staff]
+        isActive:
+          type: boolean
+
+    Counterparty:
+      type: object
+      properties:
+        id:
+          type: integer
+        companyId:
+          type: ["integer", "null"]
+        type:
+          type: string
+          enum: [individual, legal_entity, owner, tenant]
+        fullName:
+          type: string
+        iin:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        additionalContact:
+          type: ["string", "null"]
+        comment:
+          type: ["string", "null"]
+        externalId:
+          type: ["string", "null"]
+        sourceType:
+          type: ["string", "null"]
+        syncStatus:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - type
+        - fullName
+        - createdAt
+        - updatedAt
+
+    CreateCounterpartyBody:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [individual, legal_entity, owner, tenant]
+        fullName:
+          type: string
+        iin:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        additionalContact:
+          type: ["string", "null"]
+        comment:
+          type: ["string", "null"]
+        externalId:
+          type: ["string", "null"]
+      required:
+        - type
+        - fullName
+
+    UpdateCounterpartyBody:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [individual, legal_entity, owner, tenant]
+        fullName:
+          type: string
+        iin:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        additionalContact:
+          type: ["string", "null"]
+        comment:
+          type: ["string", "null"]
+
+    Property:
+      type: object
+      properties:
+        id:
+          type: integer
+        companyId:
+          type: ["integer", "null"]
+        projectName:
+          type: string
+        block:
+          type: ["string", "null"]
+        floor:
+          type: ["integer", "null"]
+        unitNumber:
+          type: string
+        type:
+          type: string
+          enum: [apartment, office, commercial, parking, storage, house]
+        area:
+          type: ["number", "null"]
+        status:
+          type: string
+          enum: [available, sold, reserved, rented, on_lease, archived]
+        rentalStatus:
+          type: ["string", "null"]
+          enum: [free, rented, overdue, archived, null]
+        comment:
+          type: ["string", "null"]
+        externalId:
+          type: ["string", "null"]
+        sourceType:
+          type: ["string", "null"]
+        syncStatus:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - projectName
+        - unitNumber
+        - type
+        - status
+        - createdAt
+        - updatedAt
+
+    CreatePropertyBody:
+      type: object
+      properties:
+        projectName:
+          type: string
+        block:
+          type: ["string", "null"]
+        floor:
+          type: ["integer", "null"]
+        unitNumber:
+          type: string
+        type:
+          type: string
+          enum: [apartment, office, commercial, parking, storage, house]
+        area:
+          type: ["number", "null"]
+        status:
+          type: string
+          enum: [available, sold, reserved, rented, on_lease, archived]
+        comment:
+          type: ["string", "null"]
+        externalId:
+          type: ["string", "null"]
+      required:
+        - projectName
+        - unitNumber
+        - type
+        - status
+
+    UpdatePropertyBody:
+      type: object
+      properties:
+        projectName:
+          type: string
+        block:
+          type: ["string", "null"]
+        floor:
+          type: ["integer", "null"]
+        unitNumber:
+          type: string
+        type:
+          type: string
+          enum: [apartment, office, commercial, parking, storage, house]
+        area:
+          type: ["number", "null"]
+        status:
+          type: string
+          enum: [available, sold, reserved, rented, on_lease, archived]
+        comment:
+          type: ["string", "null"]
+
+    Contract:
+      type: object
+      properties:
+        id:
+          type: integer
+        companyId:
+          type: ["integer", "null"]
+        contractNumber:
+          type: string
+        contractDate:
+          type: ["string", "null"]
+        type:
+          type: string
+          enum: [sale, rental, service, other]
+        counterpartyId:
+          type: ["integer", "null"]
+        counterpartyName:
+          type: ["string", "null"]
+        propertyId:
+          type: ["integer", "null"]
+        propertyUnitNumber:
+          type: ["string", "null"]
+        amount:
+          type: ["number", "null"]
+        currency:
+          type: ["string", "null"]
+        startDate:
+          type: ["string", "null"]
+        endDate:
+          type: ["string", "null"]
+        accrualDate:
+          type: ["string", "null"]
+        deposit:
+          type: ["number", "null"]
+        status:
+          type: string
+          enum: [draft, active, expired, terminated, archived]
+        comment:
+          type: ["string", "null"]
+        externalId:
+          type: ["string", "null"]
+        sourceType:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - contractNumber
+        - type
+        - status
+        - createdAt
+        - updatedAt
+
+    CreateContractBody:
+      type: object
+      properties:
+        contractNumber:
+          type: string
+        contractDate:
+          type: ["string", "null"]
+        type:
+          type: string
+          enum: [sale, rental, service, other]
+        counterpartyId:
+          type: ["integer", "null"]
+        propertyId:
+          type: ["integer", "null"]
+        amount:
+          type: ["number", "null"]
+        currency:
+          type: ["string", "null"]
+        startDate:
+          type: ["string", "null"]
+        endDate:
+          type: ["string", "null"]
+        accrualDate:
+          type: ["string", "null"]
+        deposit:
+          type: ["number", "null"]
+        status:
+          type: string
+          enum: [draft, active, expired, terminated, archived]
+        comment:
+          type: ["string", "null"]
+      required:
+        - contractNumber
+        - type
+        - status
+
+    UpdateContractBody:
+      type: object
+      properties:
+        contractNumber:
+          type: string
+        contractDate:
+          type: ["string", "null"]
+        type:
+          type: string
+          enum: [sale, rental, service, other]
+        counterpartyId:
+          type: ["integer", "null"]
+        propertyId:
+          type: ["integer", "null"]
+        amount:
+          type: ["number", "null"]
+        currency:
+          type: ["string", "null"]
+        startDate:
+          type: ["string", "null"]
+        endDate:
+          type: ["string", "null"]
+        accrualDate:
+          type: ["string", "null"]
+        deposit:
+          type: ["number", "null"]
+        status:
+          type: string
+          enum: [draft, active, expired, terminated, archived]
+        comment:
+          type: ["string", "null"]
+
+    Document:
+      type: object
+      properties:
+        id:
+          type: integer
+        entityType:
+          type: string
+        entityId:
+          type: integer
+        name:
+          type: string
+        fileUrl:
+          type: string
+        fileSize:
+          type: ["integer", "null"]
+        mimeType:
+          type: ["string", "null"]
+        uploadedBy:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - entityType
+        - entityId
+        - name
+        - fileUrl
+        - createdAt
+
+    CreateDocumentBody:
+      type: object
+      properties:
+        entityType:
+          type: string
+        entityId:
+          type: integer
+        name:
+          type: string
+        fileUrl:
+          type: string
+        fileSize:
+          type: ["integer", "null"]
+        mimeType:
+          type: ["string", "null"]
+      required:
+        - entityType
+        - entityId
+        - name
+        - fileUrl
+
+    ImportJob:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [counterparties, properties, contracts]
+        status:
+          type: string
+          enum: [pending, processing, completed, failed, partial]
+        totalRows:
+          type: integer
+        successRows:
+          type: integer
+        errorRows:
+          type: integer
+        errors:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - type
+        - status
+        - totalRows
+        - successRows
+        - errorRows
+        - createdAt
+        - updatedAt
+
+    ImportPreviewBody:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [counterparties, properties, contracts]
+        data:
+          type: array
+          items:
+            type: object
+      required:
+        - type
+        - data
+
+    ImportPreviewResponse:
+      type: object
+      properties:
+        totalRows:
+          type: integer
+        validRows:
+          type: integer
+        errorRows:
+          type: integer
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportRowError"
+        preview:
+          type: array
+          items:
+            type: object
+      required:
+        - totalRows
+        - validRows
+        - errorRows
+        - errors
+        - preview
+
+    ImportRowError:
+      type: object
+      properties:
+        row:
+          type: integer
+        field:
+          type: ["string", "null"]
+        message:
+          type: string
+      required:
+        - row
+        - message
+
+    CommitImportBody:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [counterparties, properties, contracts]
+        data:
+          type: array
+          items:
+            type: object
+        onlyValid:
+          type: boolean
+      required:
+        - type
+        - data
+
+    Tenant:
+      type: object
+      properties:
+        id:
+          type: integer
+        companyId:
+          type: ["integer", "null"]
+        fullName:
+          type: string
+        phone:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        iin:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, inactive, blacklisted]
+        comment:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - fullName
+        - status
+        - createdAt
+        - updatedAt
+
+    CreateTenantBody:
+      type: object
+      properties:
+        fullName:
+          type: string
+        phone:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        iin:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, inactive, blacklisted]
+        comment:
+          type: ["string", "null"]
+      required:
+        - fullName
+        - status
+
+    UpdateTenantBody:
+      type: object
+      properties:
+        fullName:
+          type: string
+        phone:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        iin:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, inactive, blacklisted]
+        comment:
+          type: ["string", "null"]
+
+    LeaseContract:
+      type: object
+      properties:
+        id:
+          type: integer
+        propertyId:
+          type: integer
+        propertyUnitNumber:
+          type: ["string", "null"]
+        tenantId:
+          type: integer
+        tenantName:
+          type: ["string", "null"]
+        contractNumber:
+          type: string
+        signDate:
+          type: ["string", "null"]
+        startDate:
+          type: string
+        endDate:
+          type: ["string", "null"]
+        rentAmount:
+          type: number
+        currency:
+          type: string
+        depositAmount:
+          type: ["number", "null"]
+        accrualDay:
+          type: ["integer", "null"]
+        status:
+          type: string
+          enum: [draft, active, expired, terminated]
+        comment:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - propertyId
+        - tenantId
+        - contractNumber
+        - startDate
+        - rentAmount
+        - currency
+        - status
+        - createdAt
+        - updatedAt
+
+    CreateLeaseContractBody:
+      type: object
+      properties:
+        propertyId:
+          type: integer
+        tenantId:
+          type: integer
+        contractNumber:
+          type: string
+        signDate:
+          type: ["string", "null"]
+        startDate:
+          type: string
+        endDate:
+          type: ["string", "null"]
+        rentAmount:
+          type: number
+        currency:
+          type: string
+        depositAmount:
+          type: ["number", "null"]
+        accrualDay:
+          type: ["integer", "null"]
+        status:
+          type: string
+          enum: [draft, active, expired, terminated]
+        comment:
+          type: ["string", "null"]
+      required:
+        - propertyId
+        - tenantId
+        - contractNumber
+        - startDate
+        - rentAmount
+        - currency
+        - status
+
+    UpdateLeaseContractBody:
+      type: object
+      properties:
+        signDate:
+          type: ["string", "null"]
+        startDate:
+          type: string
+        endDate:
+          type: ["string", "null"]
+        rentAmount:
+          type: number
+        currency:
+          type: string
+        depositAmount:
+          type: ["number", "null"]
+        accrualDay:
+          type: ["integer", "null"]
+        status:
+          type: string
+          enum: [draft, active, expired, terminated]
+        comment:
+          type: ["string", "null"]
+
+    Accrual:
+      type: object
+      properties:
+        id:
+          type: integer
+        leaseContractId:
+          type: integer
+        period:
+          type: string
+        amount:
+          type: number
+        currency:
+          type: string
+        dueDate:
+          type: string
+        paidAmount:
+          type: number
+        balance:
+          type: number
+        status:
+          type: string
+          enum: [pending, partial, paid, overdue]
+        createdAt:
+          type: string
+      required:
+        - id
+        - leaseContractId
+        - period
+        - amount
+        - currency
+        - dueDate
+        - paidAmount
+        - balance
+        - status
+        - createdAt
+
+    RecalculateAccrualsBody:
+      type: object
+      properties:
+        leaseContractId:
+          type: integer
+        fromDate:
+          type: ["string", "null"]
+      required:
+        - leaseContractId
+
+    Payment:
+      type: object
+      properties:
+        id:
+          type: integer
+        leaseContractId:
+          type: integer
+        accrualId:
+          type: ["integer", "null"]
+        amount:
+          type: number
+        currency:
+          type: string
+        paymentDate:
+          type: string
+        paymentMethod:
+          type: ["string", "null"]
+          enum: [cash, bank_transfer, card, other, null]
+        note:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - leaseContractId
+        - amount
+        - currency
+        - paymentDate
+        - createdAt
+
+    CreatePaymentBody:
+      type: object
+      properties:
+        leaseContractId:
+          type: integer
+        accrualId:
+          type: ["integer", "null"]
+        amount:
+          type: number
+        currency:
+          type: string
+        paymentDate:
+          type: string
+        paymentMethod:
+          type: ["string", "null"]
+          enum: [cash, bank_transfer, card, other, null]
+        note:
+          type: ["string", "null"]
+      required:
+        - leaseContractId
+        - amount
+        - currency
+        - paymentDate
+
+    Deposit:
+      type: object
+      properties:
+        id:
+          type: integer
+        leaseContractId:
+          type: integer
+        amount:
+          type: number
+        currency:
+          type: string
+        status:
+          type: string
+          enum: [held, partially_returned, returned, forfeited]
+        receivedDate:
+          type: string
+        returnedAmount:
+          type: ["number", "null"]
+        returnedDate:
+          type: ["string", "null"]
+        note:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - leaseContractId
+        - amount
+        - currency
+        - status
+        - receivedDate
+        - createdAt
+
+    CreateDepositBody:
+      type: object
+      properties:
+        leaseContractId:
+          type: integer
+        amount:
+          type: number
+        currency:
+          type: string
+        receivedDate:
+          type: string
+        note:
+          type: ["string", "null"]
+      required:
+        - leaseContractId
+        - amount
+        - currency
+        - receivedDate
+
+    UpdateDepositBody:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [held, partially_returned, returned, forfeited]
+        returnedAmount:
+          type: ["number", "null"]
+        returnedDate:
+          type: ["string", "null"]
+        note:
+          type: ["string", "null"]
+
+    Expense:
+      type: object
+      properties:
+        id:
+          type: integer
+        propertyId:
+          type: integer
+        leaseContractId:
+          type: ["integer", "null"]
+        category:
+          type: string
+          enum: [maintenance, utilities, management_fee, cleaning, repair, other]
+        amount:
+          type: number
+        currency:
+          type: string
+        expenseDate:
+          type: string
+        description:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - propertyId
+        - category
+        - amount
+        - currency
+        - expenseDate
+        - createdAt
+
+    CreateExpenseBody:
+      type: object
+      properties:
+        propertyId:
+          type: integer
+        leaseContractId:
+          type: ["integer", "null"]
+        category:
+          type: string
+          enum: [maintenance, utilities, management_fee, cleaning, repair, other]
+        amount:
+          type: number
+        currency:
+          type: string
+        expenseDate:
+          type: string
+        description:
+          type: ["string", "null"]
+      required:
+        - propertyId
+        - category
+        - amount
+        - currency
+        - expenseDate
+
+    RentalProperty:
+      type: object
+      properties:
+        id:
+          type: integer
+        propertyId:
+          type: integer
+        unitNumber:
+          type: string
+        projectName:
+          type: string
+        type:
+          type: string
+        area:
+          type: ["number", "null"]
+        rentalStatus:
+          type: string
+          enum: [free, rented, overdue, archived]
+        currentTenantName:
+          type: ["string", "null"]
+        currentRentAmount:
+          type: ["number", "null"]
+        currency:
+          type: ["string", "null"]
+        leaseEndDate:
+          type: ["string", "null"]
+        totalBalance:
+          type: number
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+      required:
+        - id
+        - propertyId
+        - unitNumber
+        - projectName
+        - type
+        - rentalStatus
+        - totalBalance
+        - isActive
+        - createdAt
+
+    PropertyPerformance:
+      type: object
+      properties:
+        propertyId:
+          type: integer
+        unitNumber:
+          type: string
+        totalRentCharged:
+          type: number
+        totalRentReceived:
+          type: number
+        totalExpenses:
+          type: number
+        netIncome:
+          type: number
+        outstandingBalance:
+          type: number
+        currency:
+          type: string
+        occupancyMonths:
+          type: integer
+        vacancyMonths:
+          type: integer
+      required:
+        - propertyId
+        - unitNumber
+        - totalRentCharged
+        - totalRentReceived
+        - totalExpenses
+        - netIncome
+        - outstandingBalance
+        - currency
+        - occupancyMonths
+        - vacancyMonths
+
+    OwnerStatement:
+      type: object
+      properties:
+        id:
+          type: integer
+        propertyId:
+          type: integer
+        unitNumber:
+          type: string
+        period:
+          type: string
+        rentCharged:
+          type: number
+        rentReceived:
+          type: number
+        expenses:
+          type: number
+        netIncome:
+          type: number
+        currency:
+          type: string
+        generatedAt:
+          type: string
+      required:
+        - id
+        - propertyId
+        - unitNumber
+        - period
+        - rentCharged
+        - rentReceived
+        - expenses
+        - netIncome
+        - currency
+        - generatedAt
+
+    GenerateStatementBody:
+      type: object
+      properties:
+        propertyId:
+          type: integer
+        period:
+          type: string
+      required:
+        - propertyId
+        - period
+
+    DashboardSummary:
+      type: object
+      properties:
+        totalProperties:
+          type: integer
+        rentedProperties:
+          type: integer
+        freeProperties:
+          type: integer
+        overdueProperties:
+          type: integer
+        totalTenants:
+          type: integer
+        activeLease:
+          type: integer
+        totalContractsActive:
+          type: integer
+        totalCounterparties:
+          type: integer
+        monthlyRentCharged:
+          type: number
+        monthlyRentReceived:
+          type: number
+        outstandingBalance:
+          type: number
+        currency:
+          type: string
+      required:
+        - totalProperties
+        - rentedProperties
+        - freeProperties
+        - overdueProperties
+        - totalTenants
+        - activeLease
+        - totalContractsActive
+        - totalCounterparties
+        - monthlyRentCharged
+        - monthlyRentReceived
+        - outstandingBalance
+        - currency
+
+    ActivityItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+        description:
+          type: string
+        entityType:
+          type: ["string", "null"]
+        entityId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - type
+        - description
+        - createdAt
+
+    RentalOverview:
+      type: object
+      properties:
+        byStatus:
+          type: array
+          items:
+            type: object
+            properties:
+              status:
+                type: string
+              count:
+                type: integer
+            required:
+              - status
+              - count
+        topDebtors:
+          type: array
+          items:
+            type: object
+            properties:
+              tenantName:
+                type: string
+              balance:
+                type: number
+              currency:
+                type: string
+            required:
+              - tenantName
+              - balance
+              - currency
+        recentPayments:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              tenantName:
+                type: string
+              amount:
+                type: number
+              currency:
+                type: string
+              paymentDate:
+                type: string
+            required:
+              - id
+              - tenantName
+              - amount
+              - currency
+              - paymentDate
+      required:
+        - byStatus
+        - topDebtors
+        - recentPayments

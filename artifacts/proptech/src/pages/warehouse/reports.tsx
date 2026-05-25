@@ -7,6 +7,7 @@ import {
 	TrendingUp,
 } from "lucide-react";
 import { useState } from "react";
+import { defaultPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -19,21 +20,13 @@ import {
 
 export default function WarehouseReports() {
 	const [reportType, setReportType] = useState("movements");
-	const [period, setPeriod] = useState("month");
+	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod());
 
 	const reportTypes = [
 		{ value: "movements", label: "Движение товаров", icon: TrendingUp },
 		{ value: "inventory", label: "Остатки на складе", icon: Package },
 		{ value: "turnover", label: "Оборачиваемость", icon: BarChart },
 		{ value: "suppliers", label: "Закупки у поставщиков", icon: FileText },
-	];
-
-	const periods = [
-		{ value: "week", label: "За неделю" },
-		{ value: "month", label: "За месяц" },
-		{ value: "quarter", label: "За квартал" },
-		{ value: "year", label: "За год" },
-		{ value: "custom", label: "Произвольный период" },
 	];
 
 	// Mock data for movements report
@@ -93,8 +86,9 @@ export default function WarehouseReports() {
 
 			{/* Filters */}
 			<Card>
-				<CardContent className="pt-6">
-					<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+				<CardContent className="pt-6 space-y-4">
+					<PeriodPicker value={period} onChange={setPeriod} />
+					<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 						<div className="space-y-2">
 							<label className="text-sm font-medium text-gray-700">
 								Тип отчёта
@@ -110,24 +104,6 @@ export default function WarehouseReports() {
 												<type.icon className="w-4 h-4" />
 												{type.label}
 											</div>
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</div>
-
-						<div className="space-y-2">
-							<label className="text-sm font-medium text-gray-700">
-								Период
-							</label>
-							<Select value={period} onValueChange={setPeriod}>
-								<SelectTrigger>
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									{periods.map((p) => (
-										<SelectItem key={p.value} value={p.value}>
-											{p.label}
 										</SelectItem>
 									))}
 								</SelectContent>

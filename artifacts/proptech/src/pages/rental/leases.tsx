@@ -1,4 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { useSortable } from "@/lib/use-sortable";
+import { SortHead } from "@/components/sort-head";
 import { ChevronDown, Info, Pencil, Plus, RefreshCw } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
@@ -839,6 +841,9 @@ function RecalcDialog({
 export default function RentalContracts() {
 	const { data: leases, isLoading } = useListLeaseContracts();
 	const leasesArray = Array.isArray(leases) ? leases : [];
+	const { sorted: sortedLeases, sortKey, sortDir, toggle } = useSortable(leasesArray, "contractNumber");
+	const activeCount = leasesArray.filter((l) => l.status === "active").length;
+	const totalRent = leasesArray.reduce((s, l) => s + parseFloat(String((l as any).rentAmount || "0")), 0);
 	const [createOpen, setCreateOpen] = useState(false);
 	const [editLease, setEditLease] = useState<LeaseContract | null>(null);
 	const [recalcLease, setRecalcLease] = useState<LeaseContract | null>(null);
@@ -863,14 +868,14 @@ export default function RentalContracts() {
 				<Table>
 					<TableHeader>
 						<TableRow>
-							<TableHead>Номер</TableHead>
-							<TableHead>Объект</TableHead>
-							<TableHead>Арендатор</TableHead>
-							<TableHead>Подписание</TableHead>
-							<TableHead>Нач. начислений</TableHead>
-							<TableHead>Завершение</TableHead>
-							<TableHead>Аренда/мес.</TableHead>
-							<TableHead>Статус</TableHead>
+							<SortHead label="Номер" sortKey="contractNumber" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
+							<SortHead label="Объект" sortKey="propertyUnitNumber" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
+							<SortHead label="Арендатор" sortKey="tenantName" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
+							<SortHead label="Подписание" sortKey="signDate" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
+							<SortHead label="Нач. начислений" sortKey="startDate" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
+							<SortHead label="Завершение" sortKey="endDate" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
+							<SortHead label="Аренда/мес." sortKey="rentAmount" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
+							<SortHead label="Статус" sortKey="status" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
 							<TableHead className="w-10"></TableHead>
 						</TableRow>
 					</TableHeader>
@@ -895,7 +900,7 @@ export default function RentalContracts() {
 								</TableCell>
 							</TableRow>
 						) : (
-							leasesArray.map((lease) => (
+							sortedLeases.map((lease) => (
 								<TableRow key={lease.id}>
 									<TableCell className="font-medium">
 										{lease.contractNumber}
@@ -946,6 +951,19 @@ export default function RentalContracts() {
 							))
 						)}
 					</TableBody>
+					{!isLoading && leasesArray.length > 0 && (
+						<tfoot>
+							<TableRow className="bg-gray-50 font-semibold border-t-2">
+								<TableCell colSpan={6} className="text-sm text-gray-600">
+									Итого: {leasesArray.length} договоров, активных: {activeCount}
+								</TableCell>
+								<TableCell className="text-sm tabular-nums">
+									{new Intl.NumberFormat("ru-RU").format(totalRent)}
+								</TableCell>
+								<TableCell colSpan={2} />
+							</TableRow>
+						</tfoot>
+					)}
 				</Table>
 			</div>
 

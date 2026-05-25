@@ -52,6 +52,7 @@ import AIChat from "@/pages/construction/ai/chat";
 import AIContractorAnalytics from "@/pages/construction/ai/contractor-analytics";
 import AIPhotoReport from "@/pages/construction/ai/photo-report";
 import AISnipCheck from "@/pages/construction/ai/snip-check";
+import AIEstimates from "@/pages/construction/ai/estimates";
 import AITelegram from "@/pages/construction/ai/telegram";
 import AITools from "@/pages/construction/ai/tools";
 import ConstructionCashflow from "@/pages/construction/analytics/cashflow";
@@ -102,6 +103,7 @@ import RentalAnalyticsCashflow from "@/pages/rental/analytics/cashflow";
 import RentalAnalyticsDebt from "@/pages/rental/analytics/debt";
 import RentalAnalyticsHistory from "@/pages/rental/analytics/history";
 import RentalODDS from "@/pages/rental/analytics/odds";
+import RentalPlanFact from "@/pages/rental/analytics/plan-fact";
 import RentalOPU from "@/pages/rental/analytics/opu";
 import RentalAnalyticsOwners from "@/pages/rental/analytics/owners";
 import RentalAnalyticsSummary from "@/pages/rental/analytics/summary";
@@ -118,6 +120,7 @@ import RentalPlanningBroadcast from "@/pages/rental/planning/broadcast";
 import RentalPlanningForecast from "@/pages/rental/planning/forecast";
 import RentalPlanningOverdue from "@/pages/rental/planning/overdue";
 import RentalDashboard from "@/pages/rental/rental-dashboard";
+import RentalOverview from "@/pages/rental/overview";
 import RentalProperties from "@/pages/rental/rental-properties";
 import RentalSettings from "@/pages/rental/settings";
 import OwnerStatements from "@/pages/rental/statements";
@@ -289,6 +292,9 @@ function Router() {
 			<Route path="/rental/dashboard">
 				<ProtectedRoute component={RentalDashboard} />
 			</Route>
+			<Route path="/rental/overview">
+				<ProtectedRoute component={RentalOverview} />
+			</Route>
 			<Route path="/rental/properties">
 				<ProtectedRoute component={RentalProperties} />
 			</Route>
@@ -438,6 +444,9 @@ function Router() {
 			<Route path="/construction/ai/contractor-analytics">
 				<ProtectedRoute component={AIContractorAnalytics} />
 			</Route>
+			<Route path="/construction/ai/estimates">
+				<ProtectedRoute component={AIEstimates} />
+			</Route>
 
 			{/* ── CRM / Продажи ── */}
 			<Route path="/crm/dashboard">
@@ -491,6 +500,9 @@ function Router() {
 			</Route>
 			<Route path="/rental/analytics/odds">
 				<ProtectedRoute component={RentalODDS} />
+			</Route>
+			<Route path="/rental/analytics/plan-fact">
+				<ProtectedRoute component={RentalPlanFact} />
 			</Route>
 			<Route path="/rental/planning/forecast">
 				<ProtectedRoute component={RentalPlanningForecast} />

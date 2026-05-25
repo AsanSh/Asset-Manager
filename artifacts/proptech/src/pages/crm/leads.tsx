@@ -6,7 +6,8 @@ import {
 	Trash2,
 	UserPlus,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { defaultPeriod, inPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -360,6 +361,11 @@ export default function Leads() {
 	const [search, setSearch] = useState("");
 	const [statusFilter, setStatusFilter] = useState<string>("all");
 	const [sourceFilter, setSourceFilter] = useState<string>("all");
+	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod());
+	const filteredLeads = useMemo(
+		() => leads.filter((l) => inPeriod(l.leadDate, period)),
+		[leads, period],
+	);
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [selectedLead, setSelectedLead] = useState<Lead | undefined>();
 	const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -458,6 +464,7 @@ export default function Leads() {
 			</div>
 
 			{/* Filters */}
+			<PeriodPicker value={period} onChange={setPeriod} />
 			<div className="flex gap-3">
 				<div className="relative flex-1">
 					<Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
@@ -523,7 +530,7 @@ export default function Leads() {
 									))}
 								</TableRow>
 							))
-						) : !leads.length ? (
+						) : !filteredLeads.length ? (
 							<TableRow>
 								<TableCell colSpan={9} className="text-center py-12">
 									<UserPlus className="w-8 h-8 text-gray-200 mx-auto mb-2" />
@@ -531,7 +538,7 @@ export default function Leads() {
 								</TableCell>
 							</TableRow>
 						) : (
-							leads.map((lead) => (
+							filteredLeads.map((lead) => (
 								<TableRow key={lead.id} className="hover:bg-gray-50">
 									<TableCell className="font-medium text-gray-900">
 										{lead.fullName}

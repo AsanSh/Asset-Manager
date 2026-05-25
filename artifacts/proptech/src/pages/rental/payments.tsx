@@ -8,6 +8,7 @@ import {
 	Undo2,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { defaultPeriod, inPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -505,6 +506,7 @@ export default function Payments() {
 	const { toast } = useToast();
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod());
 
 	const handleCancel = async (payment: any) => {
 		if (!confirm(`Отменить платёж ${fmtCurrency(payment.amount)} от ${formatDate(payment.paymentDate)}? Начисление будет восстановлено.`)) return;
@@ -556,22 +558,25 @@ export default function Payments() {
 	}, [leases]);
 
 	const paymentsArray = Array.isArray(payments) ? payments : [];
-	const totalPaid = paymentsArray.reduce(
+	const filteredPayments = useMemo(
+		() => paymentsArray.filter((p) => inPeriod(p.paymentDate, period)),
+		[paymentsArray, period],
+	);
+	const totalPaid = filteredPayments.reduce(
 		(s, p) => s + (parseFloat(p.amount) || 0),
 		0,
 	);
 
 	// Group payments by project name
 	const grouped = useMemo(() => {
-		const paymentsArray = Array.isArray(payments) ? payments : [];
 		const map = new Map<string, any[]>();
-		for (const p of paymentsArray) {
+		for (const p of filteredPayments) {
 			const key = leaseInfo[p.leaseContractId]?.projectName || "Без проекта";
 			if (!map.has(key)) map.set(key, []);
 			map.get(key)?.push(p);
 		}
 		return map;
-	}, [payments, leaseInfo]);
+	}, [filteredPayments, leaseInfo]);
 
 	return (
 		<div className="space-y-5">
@@ -596,6 +601,7 @@ export default function Payments() {
 					</Button>
 				</div>
 			</div>
+			<PeriodPicker value={period} onChange={setPeriod} />
 
 			{isLoading ? (
 				<div className="bg-white rounded-xl border border-gray-200 p-6 space-y-3">
@@ -603,7 +609,7 @@ export default function Payments() {
 						<Skeleton key={i} className="h-10 w-full" />
 					))}
 				</div>
-			) : !paymentsArray.length ? (
+			) : !filteredPayments.length ? (
 				<div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">
 					<CreditCard className="w-8 h-8 mx-auto mb-2 opacity-30" />
 					<p className="text-sm">Платежи не найдены</p>

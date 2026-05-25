@@ -1,6 +1,9 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { useState } from "react";
+import { defaultPeriod, inPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
+import { useSortable } from "@/lib/use-sortable";
+import { SortHead } from "@/components/sort-head";
 import {
 	getListDepositsQueryKey,
 	useListDeposits,
@@ -28,7 +31,6 @@ import {
 	Table,
 	TableBody,
 	TableCell,
-	TableHead,
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
@@ -229,6 +231,12 @@ export default function Deposits() {
 	const { data: deposits, isLoading } = useListDeposits();
 	const depositsArray = Array.isArray(deposits) ? deposits : [];
 	const [dialogOpen, setDialogOpen] = useState(false);
+	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod());
+	const filteredDeposits = depositsArray.filter((d) => inPeriod(d.receivedDate, period));
+	const { sorted, sortKey, sortDir, toggle } = useSortable(filteredDeposits, "receivedDate");
+
+	const totalAmount = filteredDeposits.reduce((s, d) => s + parseFloat(String(d.amount || "0")), 0);
+	const totalReturned = filteredDeposits.reduce((s, d) => s + parseFloat(String(d.returnedAmount || "0")), 0);
 
 	return (
 		<div className="p-6 space-y-4">
@@ -245,15 +253,17 @@ export default function Deposits() {
 				</Button>
 			</div>
 
+			<PeriodPicker value={period} onChange={setPeriod} />
+
 			<div className="rounded-md border">
 				<Table>
 					<TableHeader>
 						<TableRow>
-							<TableHead>Договор</TableHead>
-							<TableHead>Получен</TableHead>
-							<TableHead>Сумма</TableHead>
-							<TableHead>Возвращено</TableHead>
-							<TableHead>Статус</TableHead>
+							<SortHead label="Договор" sortKey="leaseContractId" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
+							<SortHead label="Получен" sortKey="receivedDate" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
+							<SortHead label="Сумма" sortKey="amount" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
+							<SortHead label="Возвращено" sortKey="returnedAmount" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
+							<SortHead label="Статус" sortKey="status" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
 						</TableRow>
 					</TableHeader>
 					<TableBody>
@@ -261,39 +271,23 @@ export default function Deposits() {
 							Array.from({ length: 3 }).map((_, i) => (
 								<TableRow key={i}>
 									{Array.from({ length: 5 }).map((_, j) => (
-										<TableCell key={j}>
-											<Skeleton className="h-4 w-full" />
-										</TableCell>
+										<TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
 									))}
 								</TableRow>
 							))
-						) : !depositsArray.length ? (
+						) : !filteredDeposits.length ? (
 							<TableRow>
-								<TableCell
-									colSpan={5}
-									className="text-center text-muted-foreground py-8"
-								>
-									Депозиты не найдены
-								</TableCell>
+								<TableCell colSpan={5} className="text-center text-muted-foreground py-8">Депозиты не найдены</TableCell>
 							</TableRow>
 						) : (
-							depositsArray.map((deposit) => (
+							sorted.map((deposit) => (
 								<TableRow key={deposit.id}>
 									<TableCell>Договор #{deposit.leaseContractId}</TableCell>
 									<TableCell>{formatDate(deposit.receivedDate)}</TableCell>
-									<TableCell className="font-medium">
-										{formatCurrency(deposit.amount, deposit.currency)}
-									</TableCell>
+									<TableCell className="font-medium">{formatCurrency(deposit.amount, deposit.currency)}</TableCell>
+									<TableCell>{deposit.returnedAmount ? formatCurrency(deposit.returnedAmount, deposit.currency) : "—"}</TableCell>
 									<TableCell>
-										{deposit.returnedAmount
-											? formatCurrency(deposit.returnedAmount, deposit.currency)
-											: "—"}
-									</TableCell>
-									<TableCell>
-										<Badge
-											className={statusColors[deposit.status]}
-											variant="secondary"
-										>
+										<Badge className={statusColors[deposit.status]} variant="secondary">
 											{statusLabels[deposit.status] || deposit.status}
 										</Badge>
 									</TableCell>
@@ -301,6 +295,16 @@ export default function Deposits() {
 							))
 						)}
 					</TableBody>
+					{!isLoading && filteredDeposits.length > 0 && (
+						<tfoot>
+							<TableRow className="bg-gray-50 font-semibold border-t-2">
+								<TableCell colSpan={2} className="text-sm text-gray-600">Итого: {filteredDeposits.length}</TableCell>
+								<TableCell className="text-sm tabular-nums">{new Intl.NumberFormat("ru-RU").format(totalAmount)}</TableCell>
+								<TableCell className="text-sm tabular-nums">{totalReturned > 0 ? new Intl.NumberFormat("ru-RU").format(totalReturned) : "—"}</TableCell>
+								<TableCell />
+							</TableRow>
+						</tfoot>
+					)}
 				</Table>
 			</div>
 

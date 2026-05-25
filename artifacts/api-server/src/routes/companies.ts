@@ -43,9 +43,10 @@ router.patch("/companies/my", requireAuth, requireRole("admin", "company_admin")
     res.status(400).json({ error: "Нет привязки к организации" });
     return;
   }
-  const { name, legalName, bin, phone, email, address } = req.body;
+  const { name, legalName, bin, phone, email, address, defaultCurrency } = req.body;
   const [company] = await db.update(companiesTable)
-    .set({ name, legalName, bin, phone, email, address })
+    .set({ name, legalName, bin, phone, email, address,
+      ...(defaultCurrency !== undefined ? { defaultCurrency: String(defaultCurrency).slice(0, 8) } : {}) })
     .where(eq(companiesTable.id, req.companyId))
     .returning();
   if (!company) { res.status(404).json({ error: "Организация не найдена" }); return; }

@@ -8,7 +8,8 @@ import {
 	Target,
 	Trash2,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { defaultPeriod, inPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -350,6 +351,11 @@ export default function Deals() {
 	const [isLoading, setIsLoading] = useState(true);
 	const [search, setSearch] = useState("");
 	const [stageFilter, setStageFilter] = useState<string>("all");
+	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod());
+	const filteredDeals = useMemo(
+		() => deals.filter((d) => !d.expectedCloseDate || inPeriod(d.expectedCloseDate, period)),
+		[deals, period],
+	);
 	const [viewMode, setViewMode] = useState<"table" | "kanban">("table");
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [selectedDeal, setSelectedDeal] = useState<Deal | undefined>();
@@ -476,6 +482,7 @@ export default function Deals() {
 			</div>
 
 			{/* Filters */}
+			<PeriodPicker value={period} onChange={setPeriod} />
 			<div className="flex gap-3">
 				<div className="relative flex-1">
 					<Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
@@ -527,7 +534,7 @@ export default function Deals() {
 									))}
 								</TableRow>
 							))
-						) : !deals.length ? (
+						) : !filteredDeals.length ? (
 							<TableRow>
 								<TableCell colSpan={8} className="text-center py-12">
 									<Target className="w-8 h-8 text-gray-200 mx-auto mb-2" />
@@ -535,7 +542,7 @@ export default function Deals() {
 								</TableCell>
 							</TableRow>
 						) : (
-							deals.map((deal) => (
+							filteredDeals.map((deal) => (
 								<TableRow key={deal.id} className="hover:bg-gray-50">
 									<TableCell className="font-medium text-gray-900">
 										{deal.clientName || `Клиент #${deal.clientId}`}

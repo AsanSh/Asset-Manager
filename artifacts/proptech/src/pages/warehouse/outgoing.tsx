@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, Plus, Search } from "lucide-react";
+import { defaultPeriod, inPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
 import { useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -350,26 +351,22 @@ export default function OutgoingOperations() {
 
 	const operationsArray = Array.isArray(operations) ? operations : [];
 	const [dialogOpen, setDialogOpen] = useState(false);
-
+	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod());
 	const [search, setSearch] = useState("");
-	const [dateFrom, setDateFrom] = useState("");
-	const [dateTo, setDateTo] = useState("");
 	const [recipientTypeFilter, setRecipientTypeFilter] = useState("all");
 
 	const filteredOperations = operationsArray.filter((op) => {
-		const matchesSearch =
-			search === "" ||
-			op.itemName.toLowerCase().includes(search.toLowerCase()) ||
-			op.recipientName.toLowerCase().includes(search.toLowerCase()) ||
-			op.documentNumber?.toLowerCase().includes(search.toLowerCase());
-
-		const matchesDateFrom =
-			!dateFrom || new Date(op.date) >= new Date(dateFrom);
-		const matchesDateTo = !dateTo || new Date(op.date) <= new Date(dateTo);
-		const matchesType =
-			recipientTypeFilter === "all" || op.recipientType === recipientTypeFilter;
-
-		return matchesSearch && matchesDateFrom && matchesDateTo && matchesType;
+		if (!inPeriod(op.date, period)) return false;
+		if (
+			search !== "" &&
+			!op.itemName.toLowerCase().includes(search.toLowerCase()) &&
+			!op.recipientName.toLowerCase().includes(search.toLowerCase()) &&
+			!op.documentNumber?.toLowerCase().includes(search.toLowerCase())
+		)
+			return false;
+		if (recipientTypeFilter !== "all" && op.recipientType !== recipientTypeFilter)
+			return false;
+		return true;
 	});
 
 	const totalQuantity = filteredOperations.reduce(
@@ -393,49 +390,36 @@ export default function OutgoingOperations() {
 			</div>
 
 			{/* Filters */}
-			<div className="flex flex-wrap gap-3">
-				<div className="flex-1 min-w-[200px] max-w-sm">
-					<div className="relative">
-						<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-						<Input
-							placeholder="Поиск по товару, получателю, документу..."
-							value={search}
-							onChange={(e) => setSearch(e.target.value)}
-							className="pl-9"
-						/>
+			<div className="space-y-2">
+				<PeriodPicker value={period} onChange={setPeriod} />
+				<div className="flex flex-wrap gap-3">
+					<div className="flex-1 min-w-[200px] max-w-sm">
+						<div className="relative">
+							<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+							<Input
+								placeholder="Поиск по товару, получателю, документу..."
+								value={search}
+								onChange={(e) => setSearch(e.target.value)}
+								className="pl-9"
+							/>
+						</div>
 					</div>
-				</div>
-				<Select
-					value={recipientTypeFilter}
-					onValueChange={setRecipientTypeFilter}
-				>
-					<SelectTrigger className="w-[200px]">
-						<SelectValue placeholder="Тип получателя" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="all">Все типы</SelectItem>
-						<SelectItem value="construction_project">
-							Строительные проекты
-						</SelectItem>
-						<SelectItem value="department">Отделы</SelectItem>
-						<SelectItem value="other">Другое</SelectItem>
-					</SelectContent>
-				</Select>
-				<div className="flex gap-2">
-					<Input
-						type="date"
-						placeholder="С"
-						value={dateFrom}
-						onChange={(e) => setDateFrom(e.target.value)}
-						className="w-[150px]"
-					/>
-					<Input
-						type="date"
-						placeholder="По"
-						value={dateTo}
-						onChange={(e) => setDateTo(e.target.value)}
-						className="w-[150px]"
-					/>
+					<Select
+						value={recipientTypeFilter}
+						onValueChange={setRecipientTypeFilter}
+					>
+						<SelectTrigger className="w-[200px]">
+							<SelectValue placeholder="Тип получателя" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="all">Все типы</SelectItem>
+							<SelectItem value="construction_project">
+								Строительные проекты
+							</SelectItem>
+							<SelectItem value="department">Отделы</SelectItem>
+							<SelectItem value="other">Другое</SelectItem>
+						</SelectContent>
+					</Select>
 				</div>
 			</div>
 
@@ -482,7 +466,7 @@ export default function OutgoingOperations() {
 									colSpan={7}
 									className="text-center text-muted-foreground py-8"
 								>
-									{search || dateFrom || dateTo || recipientTypeFilter !== "all"
+									{search || recipientTypeFilter !== "all"
 										? "Ничего не найдено"
 										: "Нет операций расхода"}
 								</TableCell>

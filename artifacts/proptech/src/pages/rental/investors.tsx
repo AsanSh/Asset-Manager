@@ -119,7 +119,7 @@ function InvestorDialog({
 				body: JSON.stringify(form),
 			});
 			if (!res.ok) throw new Error("Ошибка сохранения");
-			toast({ title: isEdit ? "Инвестор обновлён" : "Инвестор добавлен" });
+			toast({ title: isEdit ? "Владелец обновлён" : "Владелец добавлен" });
 			onSaved();
 			onClose();
 		} catch (e: any) {
@@ -138,7 +138,7 @@ function InvestorDialog({
 			<DialogContent className="sm:max-w-md">
 				<DialogHeader>
 					<DialogTitle>
-						{isEdit ? "Редактировать инвестора" : "Добавить инвестора"}
+						{isEdit ? "Редактировать владельца" : "Добавить владельца"}
 					</DialogTitle>
 				</DialogHeader>
 				<form onSubmit={handleSubmit} className="space-y-3">
@@ -265,12 +265,12 @@ export default function Investors() {
 	);
 
 	const handleDelete = async (id: number, name: string) => {
-		if (!confirm(`Удалить инвестора "${name}"?`)) return;
+		if (!confirm(`Удалить владельца "${name}"?`)) return;
 		await fetch(`${BASE}/rental/investors/${id}`, {
 			method: "DELETE",
 			headers: authHeaders(),
 		});
-		toast({ title: "Инвестор удалён" });
+		toast({ title: "Владелец удалён" });
 		queryClient.invalidateQueries({ queryKey: ["investors"] });
 	};
 
@@ -278,13 +278,13 @@ export default function Investors() {
 		<div className="space-y-6">
 			<div className="flex items-center justify-between">
 				<div>
-					<h1 className="text-2xl font-bold text-gray-900">Инвесторы</h1>
+					<h1 className="text-2xl font-bold text-gray-900">Владельцы</h1>
 					<p className="text-sm text-gray-500 mt-0.5">
 						Участники, владеющие долями в объектах
 					</p>
 				</div>
 				<Button onClick={() => setDialog("new")} className="gap-2">
-					<Plus className="w-4 h-4" /> Добавить инвестора
+					<Plus className="w-4 h-4" /> Добавить владельца
 				</Button>
 			</div>
 
@@ -292,7 +292,7 @@ export default function Investors() {
 			<div className="grid grid-cols-3 gap-4">
 				{[
 					{
-						label: "Всего инвесторов",
+						label: "Всего владельцев",
 						value: investorsArray.length,
 						icon: Users,
 						color: "text-blue-600",
@@ -334,7 +334,7 @@ export default function Investors() {
 				<Table>
 					<TableHeader>
 						<TableRow className="bg-gray-50">
-							<TableHead>Инвестор</TableHead>
+							<TableHead>Владелец</TableHead>
 							<TableHead>Тип</TableHead>
 							<TableHead>Контакты</TableHead>
 							<TableHead>ИНН</TableHead>
@@ -362,7 +362,7 @@ export default function Investors() {
 								>
 									<Users className="w-10 h-10 mx-auto mb-2 opacity-30" />
 									<p>
-										{search ? "Инвесторы не найдены" : "Инвесторов пока нет"}
+										{search ? "Владельцы не найдены" : "Владельцев пока нет"}
 									</p>
 								</TableCell>
 							</TableRow>

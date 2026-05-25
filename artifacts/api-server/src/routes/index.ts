@@ -72,15 +72,20 @@ router.get("/nbkr/rates", async (_req, res): Promise<void> => {
   try {
     const r = await fetch("https://www.nbkr.kg/XML/daily.xml", { signal: AbortSignal.timeout(5000) });
     const xml = await r.text();
-    // Parse currencies from XML
+    // Формат НБКР: <Currency ISOCode="USD"><Nominal>1</Nominal><Value>87,4500</Value></Currency>
+    // Десятичный разделитель — запятая, номинал в <Nominal>.
     const rates: Record<string, { name: string; rate: string; scale: string }> = {};
-    const regex = /<Currency ISOCode="([^"]+)"[^>]*>[\s\S]*?<Scale>(\d+)<\/Scale>[\s\S]*?<FullName[^>]*>([^<]+)<\/FullName>[\s\S]*?<Value>([\d.]+)<\/Value>[\s\S]*?<\/Currency>/g;
+    const regex = /<Currency ISOCode="([^"]+)"[^>]*>[\s\S]*?<Nominal>(\d+)<\/Nominal>[\s\S]*?<Value>([\d.,]+)<\/Value>[\s\S]*?<\/Currency>/g;
     let m;
     while ((m = regex.exec(xml)) !== null) {
-      const [, iso, scale, name, value] = m;
-      rates[iso] = { name, scale, rate: value };
+      const [, iso, nominal, value] = m;
+      rates[iso] = { name: iso, scale: nominal, rate: value.replace(",", ".") };
     }
-    res.json({ date: new Date().toISOString().slice(0, 10), rates });
+    const dateMatch = xml.match(/Date="(\d{2})\.(\d{2})\.(\d{4})"/);
+    const date = dateMatch
+      ? `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`
+      : new Date().toISOString().slice(0, 10);
+    res.json({ date, rates });
   } catch {
     // Fallback rates if NBKR is unavailable
     res.json({ date: new Date().toISOString().slice(0, 10), rates: {

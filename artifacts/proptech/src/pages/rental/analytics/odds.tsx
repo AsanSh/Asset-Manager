@@ -54,7 +54,7 @@ export default function RentalODDS() {
 	const curYear = new Date().getFullYear();
 	const [year, setYear] = useState(String(curYear));
 	const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-	const [hideZero, setHideZero] = useState(false);
+	const [hideZero, setHideZero] = useState(true);
 
 	function toggle(id: string) {
 		setCollapsed((prev) => {
@@ -80,10 +80,6 @@ export default function RentalODDS() {
 		queryKey: ["rental-contracts"],
 		queryFn: () => api.get("/rental/contracts").then((r) => r.data),
 	});
-	const { data: accruals = [] } = useQuery<any[]>({
-		queryKey: ["rental-accruals"],
-		queryFn: () => api.get("/rental/accruals").then((r) => r.data),
-	});
 	const { data: distributions = [] } = useQuery<any[]>({
 		queryKey: ["rental-distributions"],
 		queryFn: () => api.get("/rental/distributions").then((r) => r.data),
@@ -93,7 +89,6 @@ export default function RentalODDS() {
 	const expensesArray = Array.isArray(expenses) ? expenses : [];
 	const propertiesArray = Array.isArray(properties) ? properties : [];
 	const contractsArray = Array.isArray(contracts) ? contracts : [];
-	const accrualsArray = Array.isArray(accruals) ? accruals : [];
 	const distributionsArray = Array.isArray(distributions) ? distributions : [];
 
 	const rows = useMemo(() => {
@@ -129,20 +124,6 @@ export default function RentalODDS() {
 			if (m < 0) return;
 			if (contractMap[p.leaseContractId]) return;
 			otherPayVals[m] += parseFloat(p.amount || "0");
-		});
-
-		// Accruals (planned income) by property
-		const accrualsByProp: Record<number, number[]> = {};
-		accrualsArray.forEach((a: any) => {
-			const m = getMonthIdx(
-				a.accrualDate || a.periodStart || a.createdAt,
-				year,
-			);
-			if (m < 0) return;
-			const pid = contractMap[a.leaseContractId];
-			if (!pid) return;
-			if (!accrualsByProp[pid]) accrualsByProp[pid] = Array(12).fill(0);
-			accrualsByProp[pid][m] += parseFloat(a.amount || "0");
 		});
 
 		// ── Cash OUTFLOWS ─────────────────────────────────────────────────────────
@@ -220,22 +201,6 @@ export default function RentalODDS() {
 				values: Array(12).fill(0),
 				total: 0,
 			});
-
-		// Accruals
-		const accrualPropIds = Object.keys(accrualsByProp)
-			.map(Number)
-			.filter((pid) => !rentByProp[pid]);
-		accrualPropIds.forEach((pid) => {
-			result.push({
-				id: `accrual_${pid}`,
-				label: `Начисления — ${propMap[pid] || `Объект ${pid}`}`,
-				type: "item",
-				indent: 2,
-				parentId: "inflows",
-				values: accrualsByProp[pid],
-				total: sumArr(accrualsByProp[pid]),
-			});
-		});
 
 		result.push({
 			id: "other_in",
@@ -485,7 +450,6 @@ export default function RentalODDS() {
 		expensesArray,
 		propertiesArray,
 		contractsArray,
-		accrualsArray,
 		distributionsArray,
 		year,
 	]);

@@ -13,6 +13,7 @@ export const propertiesTable = pgTable("properties", {
   area: numeric("area", { precision: 10, scale: 2 }),
   status: text("status").notNull().default("available"),
   rentalStatus: text("rental_status"),
+  marketValue: numeric("market_value", { precision: 18, scale: 2 }),
   comment: text("comment"),
   externalId: text("external_id"),
   sourceType: text("source_type"),

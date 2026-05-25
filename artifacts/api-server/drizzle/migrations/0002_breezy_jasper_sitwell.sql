@@ -1,0 +1,1 @@
+ALTER TABLE "properties" ADD COLUMN "market_value" numeric(18, 2);

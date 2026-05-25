@@ -34,6 +34,7 @@ function KpiCard({
 	icon: Icon,
 	color = "blue",
 	loading = false,
+	href,
 }: {
 	label: string;
 	value: string | number;
@@ -41,6 +42,7 @@ function KpiCard({
 	icon: React.ElementType;
 	color?: string;
 	loading?: boolean;
+	href?: string;
 }) {
 	const colors: Record<string, { bg: string; icon: string }> = {
 		blue: { bg: "bg-blue-50", icon: "text-blue-600" },
@@ -50,8 +52,8 @@ function KpiCard({
 		purple: { bg: "bg-blue-50", icon: "text-blue-600" },
 	};
 	const c = colors[color] || colors.blue;
-	return (
-		<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+	const card = (
+		<div className={`bg-white rounded-2xl border border-gray-100 shadow-sm p-5 ${href ? "hover:shadow-md hover:border-gray-200 transition-all cursor-pointer" : ""}`}>
 			<div className="flex items-start justify-between mb-3">
 				<p className="text-xs font-medium text-gray-500">{label}</p>
 				<div
@@ -70,6 +72,8 @@ function KpiCard({
 			)}
 		</div>
 	);
+	if (href) return <Link href={href} className="block no-underline">{card}</Link>;
+	return card;
 }
 
 export default function RentalDashboard() {
@@ -134,6 +138,7 @@ export default function RentalDashboard() {
 					icon={FileText}
 					color="blue"
 					loading={leasesLoading}
+					href="/rental/contracts"
 				/>
 				<KpiCard
 					label="Арендаторов"
@@ -142,6 +147,7 @@ export default function RentalDashboard() {
 					icon={Users}
 					color="purple"
 					loading={tenantsLoading}
+					href="/rental/tenants"
 				/>
 				<KpiCard
 					label="Сдаётся объектов"
@@ -149,6 +155,7 @@ export default function RentalDashboard() {
 					sub={`из ${propertiesArray.length} в портфеле`}
 					icon={Building2}
 					color="green"
+					href="/rental/properties"
 				/>
 				<KpiCard
 					label="Просроченных начислений"
@@ -159,6 +166,7 @@ export default function RentalDashboard() {
 					icon={AlertTriangle}
 					color={overdueAccruals.length > 0 ? "red" : "green"}
 					loading={accrualsLoading}
+					href="/rental/accruals"
 				/>
 			</div>
 
@@ -171,6 +179,7 @@ export default function RentalDashboard() {
 					icon={Receipt}
 					color="blue"
 					loading={accrualsLoading}
+					href="/rental/accruals"
 				/>
 				<KpiCard
 					label="Получено платежей"
@@ -179,6 +188,7 @@ export default function RentalDashboard() {
 					icon={TrendingUp}
 					color="green"
 					loading={paymentsLoading}
+					href="/rental/payments"
 				/>
 				<KpiCard
 					label="Общая задолженность"
@@ -187,6 +197,7 @@ export default function RentalDashboard() {
 					icon={totalBalance > 0 ? AlertTriangle : CheckCircle2}
 					color={totalBalance > 0 ? "red" : "green"}
 					loading={accrualsLoading}
+					href="/rental/accruals"
 				/>
 			</div>
 

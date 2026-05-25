@@ -188,8 +188,8 @@ export default function ChatPanel() {
 		...investors.map(
 			(inv: any): ContactInfo => ({
 				id: `investor-${inv.id}`,
-				name: inv.fullName || inv.name || "Инвестор",
-				sub: "Инвестор",
+				name: inv.fullName || inv.name || "Владелец",
+				sub: "Владелец",
 				phone: inv.phone,
 				email: inv.email,
 				telegram: inv.telegramId,

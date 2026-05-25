@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CashSummary } from "@/components/cash-summary";
 import {
 	Select,
 	SelectContent,
@@ -104,12 +105,15 @@ export default function ConstructionAccounts() {
 						Только модуль «Строительство» — счета аренды здесь не отображаются
 					</p>
 				</div>
-				<Button
-					onClick={() => setOpen(true)}
-					className="bg-amber-500 hover:bg-orange-600"
-				>
-					<Plus className="w-4 h-4 mr-2" /> Добавить счёт
-				</Button>
+				<div className="flex items-center gap-2">
+					<CashSummary accounts={accountsArray} />
+					<Button
+						onClick={() => setOpen(true)}
+						className="bg-amber-500 hover:bg-orange-600"
+					>
+						<Plus className="w-4 h-4 mr-2" /> Добавить счёт
+					</Button>
+				</div>
 			</div>
 
 			<div className="grid grid-cols-3 gap-4 mb-6">

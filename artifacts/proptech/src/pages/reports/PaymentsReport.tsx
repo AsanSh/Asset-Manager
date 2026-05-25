@@ -1,10 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { CreditCard, RefreshCw } from "lucide-react";
 import { useState } from "react";
+import { defaultPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
 import { cn, formatCurrency } from "@/lib/utils";
 
@@ -21,9 +20,9 @@ const METHOD_LABELS: Record<string, string> = {
 };
 
 export default function PaymentsReport() {
-	const now = new Date();
-	const [from, setFrom] = useState(`${now.getFullYear()}-01-01`);
-	const [to, setTo] = useState(`${now.getFullYear()}-12-31`);
+	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod());
+	const from = period.from;
+	const to = period.to;
 
 	const { data, isLoading, refetch } = useQuery({
 		queryKey: ["reports", "payments", from, to],
@@ -37,31 +36,13 @@ export default function PaymentsReport() {
 
 	return (
 		<div className="space-y-6">
-			<div className="flex items-center justify-between flex-wrap gap-3">
-				<div>
-					<h1 className="text-2xl font-bold text-gray-900">История платежей</h1>
-					<p className="text-sm text-gray-500 mt-1">
-						Все поступления за выбранный период
-					</p>
-				</div>
-				<div className="flex items-center gap-3 flex-wrap">
-					<div className="flex items-center gap-2">
-						<Label className="text-xs text-gray-500">С</Label>
-						<Input
-							type="date"
-							value={from}
-							onChange={(e) => setFrom(e.target.value)}
-							className="h-8 text-sm w-36"
-						/>
-					</div>
-					<div className="flex items-center gap-2">
-						<Label className="text-xs text-gray-500">По</Label>
-						<Input
-							type="date"
-							value={to}
-							onChange={(e) => setTo(e.target.value)}
-							className="h-8 text-sm w-36"
-						/>
+			<div className="space-y-3">
+				<div className="flex items-center justify-between flex-wrap gap-3">
+					<div>
+						<h1 className="text-2xl font-bold text-gray-900">История платежей</h1>
+						<p className="text-sm text-gray-500 mt-1">
+							Все поступления за выбранный период
+						</p>
 					</div>
 					<Button
 						variant="outline"
@@ -75,6 +56,7 @@ export default function PaymentsReport() {
 						Обновить
 					</Button>
 				</div>
+				<PeriodPicker value={period} onChange={setPeriod} />
 			</div>
 
 			<div className="grid grid-cols-1 md:grid-cols-2 gap-4">

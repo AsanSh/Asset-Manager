@@ -1,6 +1,9 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { useState } from "react";
+import { defaultPeriod, inPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
+import { useSortable } from "@/lib/use-sortable";
+import { SortHead } from "@/components/sort-head";
 import {
 	getListExpensesQueryKey,
 	useListExpenses,
@@ -244,6 +247,10 @@ export default function Expenses() {
 	const { data: expenses, isLoading } = useListExpenses();
 	const expensesArray = Array.isArray(expenses) ? expenses : [];
 	const [dialogOpen, setDialogOpen] = useState(false);
+	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod());
+	const filteredExpenses = expensesArray.filter((e) => inPeriod(e.expenseDate, period));
+	const { sorted, sortKey, sortDir, toggle } = useSortable(filteredExpenses, "expenseDate");
+	const totalAmount = filteredExpenses.reduce((s, e) => s + parseFloat(String(e.amount || "0")), 0);
 
 	return (
 		<div className="p-6 space-y-4">
@@ -260,14 +267,16 @@ export default function Expenses() {
 				</Button>
 			</div>
 
+			<PeriodPicker value={period} onChange={setPeriod} />
+
 			<div className="rounded-md border">
 				<Table>
 					<TableHeader>
 						<TableRow>
-							<TableHead>Объект</TableHead>
-							<TableHead>Категория</TableHead>
-							<TableHead>Дата</TableHead>
-							<TableHead>Сумма</TableHead>
+							<SortHead label="Объект" sortKey="propertyId" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
+							<SortHead label="Категория" sortKey="category" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
+							<SortHead label="Дата" sortKey="expenseDate" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
+							<SortHead label="Сумма" sortKey="amount" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
 							<TableHead>Описание</TableHead>
 						</TableRow>
 					</TableHeader>
@@ -276,37 +285,35 @@ export default function Expenses() {
 							Array.from({ length: 3 }).map((_, i) => (
 								<TableRow key={i}>
 									{Array.from({ length: 5 }).map((_, j) => (
-										<TableCell key={j}>
-											<Skeleton className="h-4 w-full" />
-										</TableCell>
+										<TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
 									))}
 								</TableRow>
 							))
-						) : !expensesArray.length ? (
+						) : !filteredExpenses.length ? (
 							<TableRow>
-								<TableCell
-									colSpan={5}
-									className="text-center text-muted-foreground py-8"
-								>
-									Расходы не найдены
-								</TableCell>
+								<TableCell colSpan={5} className="text-center text-muted-foreground py-8">Расходы не найдены</TableCell>
 							</TableRow>
 						) : (
-							expensesArray.map((expense) => (
+							sorted.map((expense) => (
 								<TableRow key={expense.id}>
 									<TableCell>Объект #{expense.propertyId}</TableCell>
-									<TableCell>
-										{categoryLabels[expense.category] || expense.category}
-									</TableCell>
+									<TableCell>{categoryLabels[expense.category] || expense.category}</TableCell>
 									<TableCell>{formatDate(expense.expenseDate)}</TableCell>
-									<TableCell className="font-medium">
-										{formatCurrency(expense.amount, expense.currency)}
-									</TableCell>
+									<TableCell className="font-medium">{formatCurrency(expense.amount, expense.currency)}</TableCell>
 									<TableCell>{expense.description || "—"}</TableCell>
 								</TableRow>
 							))
 						)}
 					</TableBody>
+					{!isLoading && filteredExpenses.length > 0 && (
+						<tfoot>
+							<TableRow className="bg-gray-50 font-semibold border-t-2">
+								<TableCell colSpan={3} className="text-sm text-gray-600">Итого: {filteredExpenses.length} расходов</TableCell>
+								<TableCell className="text-sm tabular-nums">{new Intl.NumberFormat("ru-RU").format(totalAmount)}</TableCell>
+								<TableCell />
+							</TableRow>
+						</tfoot>
+					)}
 				</Table>
 			</div>
 

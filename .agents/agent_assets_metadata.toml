@@ -1,0 +1,13 @@
+uploads = []
+
+[[generated]]
+id = "YRcVcfJI8VXJCp1cmuY6E"
+uri = "file://artifacts/buildflow-mobile/assets/images/icon.png"
+type = "image"
+title = "buildflow mobile icon"
+
+[[outputs]]
+id = "_pNqfqqieYlYft-8fIqFT"
+uri = "file://TECHNICAL_AUDIT.md"
+type = "text"
+title = "BuildFlow — Полное техническое ТЗ-аудит"

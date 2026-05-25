@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Receipt, Trash2, TrendingDown } from "lucide-react";
 import { useState } from "react";
+import { defaultPeriod, inPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -381,6 +382,7 @@ export default function ConstructionExpenses() {
 	const { toast } = useToast();
 	const [dialog, setDialog] = useState<Expense | null | "new">(null);
 	const [projectFilter, setProjectFilter] = useState("all");
+	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod());
 
 	const { data: projects = [] } = useQuery<Project[]>({
 		queryKey: ["construction-projects"],
@@ -402,8 +404,9 @@ export default function ConstructionExpenses() {
 	});
 
 	const expensesArray = Array.isArray(expenses) ? expenses : [];
+	const filteredExpenses = expensesArray.filter((e) => inPeriod(e.date, period));
 	const projectsArray = Array.isArray(projects) ? projects : [];
-	const totalKgs = expensesArray.reduce(
+	const totalKgs = filteredExpenses.reduce(
 		(s, e) => s + parseFloat(e.amountKgs || e.amount),
 		0,
 	);
@@ -441,11 +444,13 @@ export default function ConstructionExpenses() {
 				</Button>
 			</div>
 
+			<PeriodPicker value={period} onChange={setPeriod} />
+
 			<div className="grid grid-cols-3 gap-4">
 				<div className="bg-white rounded-xl border border-gray-200 p-4">
 					<p className="text-xs text-gray-500 mb-1">Всего расходов</p>
 					<p className="text-2xl font-bold text-amber-600">
-						{expensesArray.length}
+						{filteredExpenses.length}
 					</p>
 				</div>
 				<div className="bg-white rounded-xl border border-gray-200 p-4 col-span-2">
@@ -500,7 +505,7 @@ export default function ConstructionExpenses() {
 									))}
 								</TableRow>
 							))
-						) : expensesArray.length === 0 ? (
+						) : filteredExpenses.length === 0 ? (
 							<TableRow>
 								<TableCell
 									colSpan={9}
@@ -511,7 +516,7 @@ export default function ConstructionExpenses() {
 								</TableCell>
 							</TableRow>
 						) : (
-							expensesArray.map((e) => (
+							filteredExpenses.map((e) => (
 								<TableRow key={e.id} className="hover:bg-gray-50">
 									<TableCell className="text-sm text-gray-600 whitespace-nowrap">
 										{new Date(e.date).toLocaleDateString("ru-KG")}

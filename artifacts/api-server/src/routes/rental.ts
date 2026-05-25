@@ -817,6 +817,9 @@ router.patch("/rental/properties/:id", requireAuth, async (req: AuthenticatedReq
     patch.comment = body.comment ? String(body.comment).trim() : null;
   }
   if (body.rentalStatus != null) patch.rentalStatus = String(body.rentalStatus);
+  if (body.marketValue !== undefined) {
+    patch.marketValue = body.marketValue != null && body.marketValue !== "" ? String(body.marketValue) : null;
+  }
 
   const [row] = await db
     .update(propertiesTable)

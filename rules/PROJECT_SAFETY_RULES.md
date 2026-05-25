@@ -1,0 +1,45 @@
+---
+alwaysApply: true
+---
+
+# 🛡️ PROJECT SAFETY RULES — MUST FOLLOW ALWAYS
+
+## DATABASE & USER DATA
+- NEVER drop, truncate, or delete tables that contain user data
+- NEVER run destructive migrations without explicit confirmation
+- NEVER seed/reset database in production environment
+- NEVER delete existing users, sessions, or auth records
+- When modifying schema — use ALTER TABLE, not DROP + CREATE
+- Always create a backup strategy before any migration
+- If migration could lose data — STOP and ask user first
+
+## CODE CHANGES
+- NEVER delete existing API endpoints — only add new ones or deprecate
+- NEVER change authentication logic without explicit request
+- NEVER remove environment variables — only add new ones
+- When refactoring — keep old function signatures until new ones are tested
+- Do NOT remove error handling code even if it "looks messy"
+
+## FILE OPERATIONS
+- NEVER delete config files (.env, .env.example, docker-compose.yml, etc.)
+- NEVER overwrite migration files that have already been run
+- When replacing a file — show diff first and ask for approval
+- NEVER delete seed files or fixture data
+
+## BEFORE MAKING CHANGES
+1. State exactly what you are going to change
+2. State what could break as a result
+3. If the change touches DB or auth — ask for explicit confirmation
+4. Prefer small incremental changes over large rewrites
+
+## MIGRATIONS SPECIFICALLY
+- Generate migration files, do NOT run them automatically
+- Name migrations descriptively: `add_column_users_stripe_id` not `update1`
+- Always include a rollback/down migration
+- Test migration on dev DB first — never run directly on prod data
+
+## WHEN IN DOUBT
+- Ask before deleting anything
+- Ask before changing database schema
+- Ask before modifying auth/session logic
+- Default answer to "should I remove this?" is NO

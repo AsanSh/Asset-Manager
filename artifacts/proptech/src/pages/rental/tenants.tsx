@@ -37,6 +37,8 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+import { useSortable } from "@/lib/use-sortable";
+import { SortHead } from "@/components/sort-head";
 
 const statusColors: Record<string, string> = {
 	active: "bg-emerald-100 text-emerald-800",
@@ -227,9 +229,12 @@ function TenantDialog({ open, onClose, tenant }: TenantDialogProps) {
 export default function RentalTenants() {
 	const { data: tenants, isLoading } = useListTenants();
 	const tenantsArray = Array.isArray(tenants) ? tenants : [];
+	const { sorted, sortKey, sortDir, toggle } = useSortable(tenantsArray, "fullName");
 	const [, navigate] = useLocation();
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [selectedTenant, setSelectedTenant] = useState<Tenant | undefined>();
+
+	const activeCount = tenantsArray.filter((t) => t.status === "active").length;
 
 	const handleAdd = () => {
 		setSelectedTenant(undefined);
@@ -260,11 +265,11 @@ export default function RentalTenants() {
 				<Table>
 					<TableHeader>
 						<TableRow>
-							<TableHead>ФИО</TableHead>
-							<TableHead>ИИН</TableHead>
+							<SortHead label="ФИО" sortKey="fullName" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
+							<SortHead label="ИИН" sortKey="iin" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
 							<TableHead>Телефон</TableHead>
 							<TableHead>Email</TableHead>
-							<TableHead>Статус</TableHead>
+							<SortHead label="Статус" sortKey="status" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
 							<TableHead className="w-16"></TableHead>
 						</TableRow>
 					</TableHeader>
@@ -281,46 +286,29 @@ export default function RentalTenants() {
 							))
 						) : !tenantsArray.length ? (
 							<TableRow>
-								<TableCell
-									colSpan={6}
-									className="text-center text-muted-foreground py-8"
-								>
+								<TableCell colSpan={6} className="text-center text-muted-foreground py-8">
 									Арендаторы не найдены
 								</TableCell>
 							</TableRow>
 						) : (
-							tenantsArray.map((tenant) => (
+							sorted.map((tenant) => (
 								<TableRow key={tenant.id}>
-									<TableCell className="font-medium">
-										{tenant.fullName}
-									</TableCell>
+									<TableCell className="font-medium">{tenant.fullName}</TableCell>
 									<TableCell>{tenant.iin || "—"}</TableCell>
 									<TableCell>{tenant.phone || "—"}</TableCell>
 									<TableCell>{tenant.email || "—"}</TableCell>
 									<TableCell>
-										<Badge
-											className={statusColors[tenant.status] || ""}
-											variant="secondary"
-										>
+										<Badge className={statusColors[tenant.status] || ""} variant="secondary">
 											{statusLabels[tenant.status] || tenant.status}
 										</Badge>
 									</TableCell>
 									<TableCell>
 										<div className="flex items-center gap-1">
-											<Button
-												variant="ghost"
-												size="sm"
-												className="h-7 px-2 text-xs text-blue-600 hover:bg-blue-50 gap-1"
-												onClick={() => navigate(`/rental/tenants/${tenant.id}`)}
-											>
+											<Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-blue-600 hover:bg-blue-50 gap-1"
+												onClick={() => navigate(`/rental/tenants/${tenant.id}`)}>
 												<ExternalLink className="w-3 h-3" /> Портал
 											</Button>
-											<Button
-												variant="ghost"
-												size="icon"
-												className="h-7 w-7"
-												onClick={() => handleEdit(tenant)}
-											>
+											<Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEdit(tenant)}>
 												<Edit2 className="w-4 h-4" />
 											</Button>
 										</div>
@@ -329,6 +317,15 @@ export default function RentalTenants() {
 							))
 						)}
 					</TableBody>
+					{!isLoading && tenantsArray.length > 0 && (
+						<tfoot>
+							<TableRow className="bg-gray-50 font-semibold border-t-2">
+								<TableCell colSpan={4} className="text-sm text-gray-600">Итого: {tenantsArray.length} арендаторов</TableCell>
+								<TableCell className="text-sm text-gray-600">{activeCount} активных</TableCell>
+								<TableCell />
+							</TableRow>
+						</tfoot>
+					)}
 				</Table>
 			</div>
 

@@ -10,6 +10,7 @@ import {
 	X,
 } from "lucide-react";
 import { useState } from "react";
+import { defaultPeriod, inPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -73,9 +74,10 @@ export default function ConstructionOperations() {
 	>(null);
 	const [editingId, setEditingId] = useState<number | null>(null);
 	const [search, setSearch] = useState("");
+	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod());
 	const [filterType, setFilterType] = useState<
-		"all" | "month" | "income" | "expense" | "transfer"
-	>("month");
+		"all" | "income" | "expense" | "transfer"
+	>("all");
 	const [form, setForm] = useState({
 		type: "expense" as "income" | "expense" | "transfer",
 		category: "",
@@ -125,16 +127,7 @@ export default function ConstructionOperations() {
 		onSuccess: (_row, variables) => {
 			qc.invalidateQueries({ queryKey: ["construction-operations"] });
 			qc.invalidateQueries({ queryKey: ["construction-accounts"] });
-			const opDate = String(variables.data.date || "").slice(0, 7);
-			const monthNow = new Date().toISOString().slice(0, 7);
-			if (!variables.id && filterType === "month" && opDate !== monthNow) {
-				setFilterType("all");
-				toast.success(
-					"Операция добавлена. Показаны все операции (дата вне текущего месяца)",
-				);
-			} else {
-				toast.success(variables.id ? "Операция обновлена" : "Операция добавлена");
-			}
+			toast.success(variables.id ? "Операция обновлена" : "Операция добавлена");
 			closePanel();
 		},
 		onError: (err: Error) => {
@@ -260,9 +253,6 @@ export default function ConstructionOperations() {
 	const categories =
 		form.type === "income" ? CATEGORIES_INCOME : CATEGORIES_EXPENSE;
 
-	const now = new Date();
-	const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-
 	const opsList = Array.isArray(ops) ? ops : [];
 
 	const filtered = opsList.filter((op: any) => {
@@ -272,8 +262,7 @@ export default function ConstructionOperations() {
 			!op.category?.toLowerCase().includes(search.toLowerCase())
 		)
 			return false;
-		if (filterType === "month" && !op.date?.startsWith(currentMonth))
-			return false;
+		if (!inPeriod(op.date, period)) return false;
 		if (filterType === "income" && op.type !== "income") return false;
 		if (filterType === "expense" && op.type !== "expense") return false;
 		if (filterType === "transfer" && op.type !== "transfer") return false;
@@ -319,16 +308,6 @@ export default function ConstructionOperations() {
 		.filter((o: any) => o.type === "expense")
 		.reduce((s: number, o: any) => s + parseFloat(o.amountKgs || "0"), 0);
 
-	const periodLabel =
-		filterType === "month"
-			? "за текущий месяц"
-			: filterType === "all"
-				? "за всё время"
-				: filterType === "income"
-					? "— приходы"
-					: filterType === "expense"
-						? "— расходы"
-						: "— переводы";
 
 	return (
 		<div className="flex h-full relative">
@@ -338,7 +317,7 @@ export default function ConstructionOperations() {
 			>
 				<div className="mb-6">
 					<h1 className="text-2xl font-bold text-gray-900">
-						Операции {periodLabel}
+						Операции
 					</h1>
 					<p className="text-sm text-gray-500 mt-1">
 						Управление приходами, расходами и переводами.{" "}
@@ -392,11 +371,12 @@ export default function ConstructionOperations() {
 					</Button>
 				</div>
 
+				<PeriodPicker value={period} onChange={setPeriod} className="mb-3" />
+
 				{/* Filter tabs */}
 				<div className="flex items-center gap-1 mb-3 flex-wrap">
 					{[
-						["month", "Текущий месяц"],
-						["all", "Все операции"],
+						["all", "Все типы"],
 						["income", "Приходы"],
 						["expense", "Расходы"],
 						["transfer", "Переводы"],

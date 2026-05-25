@@ -1,4 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSortable } from "@/lib/use-sortable";
+import { SortHead } from "@/components/sort-head";
 import {
 	AlertCircle,
 	ArrowRightLeft,
@@ -39,6 +41,7 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
+import { CashSummary } from "@/components/cash-summary";
 
 const typeLabels: Record<string, string> = {
 	bank: "Банковский счёт",
@@ -122,6 +125,7 @@ export default function RentalAccounts() {
 		queryFn: () => api.get("/rental/accounts").then((r) => r.data),
 	});
 
+	const { sorted: sortedAccounts, sortKey, sortDir, toggle } = useSortable(accounts, "name");
 	const totalBalance = accounts
 		.filter((a) => a.currency === "KGS")
 		.reduce((s, a) => s + parseFloat(a.currentBalance || "0"), 0);
@@ -267,7 +271,8 @@ export default function RentalAccounts() {
 						Только модуль «Аренда» — счета строительства и других модулей не видны
 					</p>
 				</div>
-				<div className="flex gap-2">
+				<div className="flex items-center gap-2">
+					<CashSummary accounts={accounts} />
 					<Button
 						variant="outline"
 						onClick={handleRecalculate}
@@ -320,12 +325,12 @@ export default function RentalAccounts() {
 				<Table>
 					<TableHeader>
 						<TableRow className="bg-gray-50">
-							<TableHead>Название</TableHead>
-							<TableHead>Тип</TableHead>
-							<TableHead>Банк</TableHead>
+							<SortHead label="Название" sortKey="name" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
+							<SortHead label="Тип" sortKey="type" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
+							<SortHead label="Банк" sortKey="bank" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
 							<TableHead>Номер счёта</TableHead>
-							<TableHead>Валюта</TableHead>
-							<TableHead className="text-right">Баланс</TableHead>
+							<SortHead label="Валюта" sortKey="currency" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
+							<SortHead label="Баланс" sortKey="currentBalance" currentKey={sortKey} dir={sortDir} onToggle={toggle} className="text-right" />
 							<TableHead className="w-20"></TableHead>
 						</TableRow>
 					</TableHeader>
@@ -353,7 +358,7 @@ export default function RentalAccounts() {
 								</TableCell>
 							</TableRow>
 						) : (
-							accounts.map((acc) => (
+							sortedAccounts.map((acc) => (
 								<TableRow key={acc.id} className="hover:bg-gray-50">
 									<TableCell>
 										<div className="flex items-center gap-2 font-medium text-gray-900">
@@ -425,6 +430,15 @@ export default function RentalAccounts() {
 							))
 						)}
 					</TableBody>
+					{!isLoading && accounts.length > 0 && (
+						<tfoot>
+							<TableRow className="bg-gray-50 font-semibold border-t-2">
+								<TableCell colSpan={5} className="text-sm text-gray-600">Итого: {accounts.length} счетов</TableCell>
+								<TableCell className="text-sm tabular-nums text-right text-emerald-700">{new Intl.NumberFormat("ru-RU").format(totalBalance)} KGS</TableCell>
+								<TableCell />
+							</TableRow>
+						</tfoot>
+					)}
 				</Table>
 			</div>
 

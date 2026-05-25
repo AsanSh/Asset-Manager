@@ -8,6 +8,7 @@ import {
 	Trash2,
 } from "lucide-react";
 import { useState } from "react";
+import { defaultPeriod, inPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -269,6 +270,7 @@ export default function ConstructionTasks() {
 	const { toast } = useToast();
 	const [dialog, setDialog] = useState<Task | null | "new">(null);
 	const [projectFilter, setProjectFilter] = useState("all");
+	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod());
 
 	const { data: projects = [] } = useQuery<Project[]>({
 		queryKey: ["construction-projects"],
@@ -304,10 +306,13 @@ export default function ConstructionTasks() {
 		qc.invalidateQueries({ queryKey: ["construction-tasks"] });
 	};
 
-	// Group by status (kanban-like columns)
+	// Group by status (kanban-like columns); tasks without dueDate are always shown
+	const filteredTasks = tasks.filter(
+		(t) => !t.dueDate || inPeriod(t.dueDate, period),
+	);
 	const columns = STATUS_OPTS.map((s) => ({
 		...s,
-		tasks: tasks.filter((t) => t.status === s.value),
+		tasks: filteredTasks.filter((t) => t.status === s.value),
 	}));
 	const projectMap = Object.fromEntries(projects.map((p) => [p.id, p.name]));
 
@@ -317,8 +322,8 @@ export default function ConstructionTasks() {
 				<div>
 					<h1 className="text-2xl font-bold text-gray-900">Задачи</h1>
 					<p className="text-sm text-gray-500 mt-0.5">
-						{tasks.length} задач ·{" "}
-						{tasks.filter((t) => t.status === "done").length} выполнено
+						{filteredTasks.length} задач ·{" "}
+						{filteredTasks.filter((t) => t.status === "done").length} выполнено
 					</p>
 				</div>
 				<Button
@@ -328,6 +333,8 @@ export default function ConstructionTasks() {
 					<Plus className="w-4 h-4" /> Добавить задачу
 				</Button>
 			</div>
+
+			<PeriodPicker value={period} onChange={setPeriod} />
 
 			<div className="flex gap-2 flex-wrap">
 				<button

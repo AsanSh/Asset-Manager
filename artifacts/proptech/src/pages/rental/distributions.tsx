@@ -275,7 +275,7 @@ export default function Distributions() {
 						Распределение прибыли
 					</h1>
 					<p className="text-sm text-gray-500 mt-0.5">
-						Доходы, расходы и выплаты инвесторам по объектам
+						Доходы, расходы и выплаты владельцам по объектам
 					</p>
 				</div>
 				<Button onClick={() => setShowAdd(true)} className="gap-2">

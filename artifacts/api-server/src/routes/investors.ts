@@ -87,6 +87,20 @@ router.post("/investments", requireAuth, async (req: AuthenticatedRequest, res):
   res.status(201).json(row);
 });
 
+router.patch("/investments/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+  const id = parseInt(req.params.id as string);
+  const { sharePercent, notes } = req.body;
+  const patch: Record<string, unknown> = {};
+  if (sharePercent !== undefined) patch.sharePercent = String(sharePercent);
+  if (notes !== undefined) patch.notes = notes;
+  const [row] = await db.update(investmentsTable)
+    .set(patch)
+    .where(and(eq(investmentsTable.id, id), eq(investmentsTable.companyId, req.companyId!)))
+    .returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(row);
+});
+
 router.delete("/investments/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
   await db.delete(investmentsTable)

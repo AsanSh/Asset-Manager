@@ -124,7 +124,7 @@ function AddDialog({
 				}),
 			});
 			if (!res.ok) throw new Error("Ошибка сохранения");
-			toast({ title: "Инвестиция добавлена" });
+			toast({ title: "Доля добавлена" });
 			onSaved();
 			onClose();
 		} catch (e: any) {
@@ -142,7 +142,7 @@ function AddDialog({
 		<Dialog open onOpenChange={(v) => !v && onClose()}>
 			<DialogContent className="sm:max-w-md">
 				<DialogHeader>
-					<DialogTitle>Добавить инвестицию</DialogTitle>
+					<DialogTitle>Добавить долю</DialogTitle>
 				</DialogHeader>
 				<form onSubmit={handleSubmit} className="space-y-3">
 					<div>
@@ -164,13 +164,13 @@ function AddDialog({
 						</Select>
 					</div>
 					<div>
-						<Label>Инвестор *</Label>
+						<Label>Владелец *</Label>
 						<Select
 							value={form.investorId}
 							onValueChange={(v) => set("investorId", v)}
 						>
 							<SelectTrigger className="mt-1">
-								<SelectValue placeholder="Выберите инвестора" />
+								<SelectValue placeholder="Выберите владельца" />
 							</SelectTrigger>
 							<SelectContent>
 								{investorsArray.map((i) => (
@@ -273,13 +273,13 @@ export default function Investments() {
 		<div className="space-y-6">
 			<div className="flex items-center justify-between">
 				<div>
-					<h1 className="text-2xl font-bold text-gray-900">Инвестиции</h1>
+					<h1 className="text-2xl font-bold text-gray-900">Доли владения</h1>
 					<p className="text-sm text-gray-500 mt-0.5">
-						Доли инвесторов в объектах недвижимости
+						Доли владельцев в объектах недвижимости
 					</p>
 				</div>
 				<Button onClick={() => setShowAdd(true)} className="gap-2">
-					<Plus className="w-4 h-4" /> Добавить инвестицию
+					<Plus className="w-4 h-4" /> Добавить долю
 				</Button>
 			</div>
 
@@ -310,7 +310,7 @@ export default function Investments() {
 					<TableHeader>
 						<TableRow className="bg-gray-50">
 							<TableHead>Объект</TableHead>
-							<TableHead>Инвестор</TableHead>
+							<TableHead>Владелец</TableHead>
 							<TableHead className="text-right">Доля</TableHead>
 							<TableHead className="text-right">Вложено</TableHead>
 							<TableHead>Дата</TableHead>

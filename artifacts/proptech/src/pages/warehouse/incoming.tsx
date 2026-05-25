@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Search } from "lucide-react";
 import { useState } from "react";
+import { defaultPeriod, inPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -333,23 +334,19 @@ export default function IncomingOperations() {
 
 	const operationsArray = Array.isArray(operations) ? operations : [];
 	const [dialogOpen, setDialogOpen] = useState(false);
-
+	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod());
 	const [search, setSearch] = useState("");
-	const [dateFrom, setDateFrom] = useState("");
-	const [dateTo, setDateTo] = useState("");
 
 	const filteredOperations = operationsArray.filter((op) => {
-		const matchesSearch =
-			search === "" ||
-			op.itemName.toLowerCase().includes(search.toLowerCase()) ||
-			op.documentNumber?.toLowerCase().includes(search.toLowerCase()) ||
-			op.supplierName?.toLowerCase().includes(search.toLowerCase());
-
-		const matchesDateFrom =
-			!dateFrom || new Date(op.date) >= new Date(dateFrom);
-		const matchesDateTo = !dateTo || new Date(op.date) <= new Date(dateTo);
-
-		return matchesSearch && matchesDateFrom && matchesDateTo;
+		if (!inPeriod(op.date, period)) return false;
+		if (
+			search !== "" &&
+			!op.itemName.toLowerCase().includes(search.toLowerCase()) &&
+			!op.documentNumber?.toLowerCase().includes(search.toLowerCase()) &&
+			!op.supplierName?.toLowerCase().includes(search.toLowerCase())
+		)
+			return false;
+		return true;
 	});
 
 	const totalAmount = filteredOperations.reduce(
@@ -373,32 +370,15 @@ export default function IncomingOperations() {
 			</div>
 
 			{/* Filters */}
-			<div className="flex flex-wrap gap-3">
-				<div className="flex-1 min-w-[200px] max-w-sm">
-					<div className="relative">
-						<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-						<Input
-							placeholder="Поиск по товару, документу, поставщику..."
-							value={search}
-							onChange={(e) => setSearch(e.target.value)}
-							className="pl-9"
-						/>
-					</div>
-				</div>
-				<div className="flex gap-2">
+			<div className="space-y-2">
+				<PeriodPicker value={period} onChange={setPeriod} />
+				<div className="relative max-w-sm">
+					<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
 					<Input
-						type="date"
-						placeholder="С"
-						value={dateFrom}
-						onChange={(e) => setDateFrom(e.target.value)}
-						className="w-[150px]"
-					/>
-					<Input
-						type="date"
-						placeholder="По"
-						value={dateTo}
-						onChange={(e) => setDateTo(e.target.value)}
-						className="w-[150px]"
+						placeholder="Поиск по товару, документу, поставщику..."
+						value={search}
+						onChange={(e) => setSearch(e.target.value)}
+						className="pl-9"
 					/>
 				</div>
 			</div>
@@ -446,9 +426,7 @@ export default function IncomingOperations() {
 									colSpan={7}
 									className="text-center text-muted-foreground py-8"
 								>
-									{search || dateFrom || dateTo
-										? "Ничего не найдено"
-										: "Нет операций прихода"}
+									{search ? "Ничего не найдено" : "Нет операций прихода"}
 								</TableCell>
 							</TableRow>
 						) : (

@@ -11,6 +11,13 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Link } from "wouter";
+import { CashSummary } from "@/components/cash-summary";
+import {
+	defaultPeriod,
+	inPeriod,
+	PeriodPicker,
+	type PeriodValue,
+} from "@/components/period-picker";
 import { api } from "@/lib/api";
 
 function fmt(n: any) {
@@ -53,7 +60,7 @@ const MONTHS_SHORT = [
 ];
 
 export default function ConstructionDashboard() {
-	const [period, setPeriod] = useState<"month" | "all">("month");
+	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod());
 	const [filterProject, setFilterProject] = useState("all");
 
 	const { data: ops = [] } = useQuery({
@@ -88,7 +95,7 @@ export default function ConstructionDashboard() {
 	const contractsArray = Array.isArray(contracts) ? contracts : [];
 
 	const filteredOps = opsArray.filter((o: any) => {
-		if (period === "month" && !o.date?.startsWith(currentMonth)) return false;
+		if (!inPeriod(o.date, period)) return false;
 		if (filterProject !== "all" && String(o.projectId) !== filterProject)
 			return false;
 		return true;
@@ -178,33 +185,13 @@ export default function ConstructionDashboard() {
 					<p className="text-sm text-gray-400">Строительный дашборд</p>
 				</div>
 				<div className="flex items-center gap-2">
-					{accountsArray.slice(0, 3).map((a: any) => (
-						<div
-							key={a.id}
-							className="px-3 py-1.5 bg-gray-800 text-white rounded-lg text-xs font-mono"
-						>
-							{a.name}: {fmt(a.currentBalance)} {a.currency}
-						</div>
-					))}
+					<CashSummary accounts={accountsArray} />
 				</div>
 			</div>
 
 			{/* Period / project filter */}
 			<div className="flex items-center gap-2 flex-wrap">
-				<div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-					{[
-						["month", "Текущий месяц"],
-						["all", "Все операции"],
-					].map(([v, l]) => (
-						<button
-							key={v}
-							onClick={() => setPeriod(v as any)}
-							className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${period === v ? "bg-white shadow text-gray-900" : "text-gray-500 hover:text-gray-700"}`}
-						>
-							{l}
-						</button>
-					))}
-				</div>
+				<PeriodPicker value={period} onChange={setPeriod} />
 				<div className="flex gap-1 bg-gray-100 rounded-lg p-1">
 					<button
 						onClick={() => setFilterProject("all")}
@@ -227,7 +214,8 @@ export default function ConstructionDashboard() {
 			{/* KPI Cards - like Adesk */}
 			<div className="grid grid-cols-4 gap-4">
 				{/* Доходы */}
-				<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+				<Link href="/construction/operations" className="block no-underline">
+				<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md hover:border-gray-200 transition-all cursor-pointer">
 					<div className="flex items-center justify-between mb-1">
 						<span className="text-xs text-gray-400 font-medium">ДОХОДЫ</span>
 						<TrendingUp className="w-4 h-4 text-emerald-400" />
@@ -248,10 +236,12 @@ export default function ConstructionDashboard() {
 							/>
 						))}
 					</div>
-				</div>
+					</div>
+				</Link>
 
 				{/* Расходы */}
-				<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+				<Link href="/construction/operations" className="block no-underline">
+				<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md hover:border-gray-200 transition-all cursor-pointer">
 					<div className="flex items-center justify-between mb-1">
 						<span className="text-xs text-gray-400 font-medium">РАСХОДЫ</span>
 						<TrendingDown className="w-4 h-4 text-rose-600" />
@@ -272,10 +262,12 @@ export default function ConstructionDashboard() {
 						))}
 					</div>
 				</div>
+				</Link>
 
 				{/* Чистая прибыль */}
+				<Link href="/construction/operations" className="block no-underline">
 				<div
-					className={`rounded-2xl border shadow-sm p-4 ${netProfit >= 0 ? "bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200" : "bg-gradient-to-br from-rose-50 to-rose-100 border-rose-200"}`}
+					className={`rounded-2xl border shadow-sm p-4 cursor-pointer hover:shadow-md transition-all ${netProfit >= 0 ? "bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200" : "bg-gradient-to-br from-rose-50 to-rose-100 border-rose-200"}`}
 				>
 					<div className="flex items-center justify-between mb-1">
 						<span
@@ -313,9 +305,11 @@ export default function ConstructionDashboard() {
 						})}
 					</div>
 				</div>
+				</Link>
 
 				{/* Деньги бизнеса */}
-				<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+				<Link href="/construction/accounts" className="block no-underline">
+				<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md hover:border-gray-200 transition-all cursor-pointer">
 					<div className="flex items-center justify-between mb-1">
 						<span className="text-xs text-gray-400 font-medium">
 							ДЕНЬГИ БИЗНЕСА
@@ -340,6 +334,7 @@ export default function ConstructionDashboard() {
 						))}
 					</div>
 				</div>
+				</Link>
 			</div>
 
 			{/* Second row */}

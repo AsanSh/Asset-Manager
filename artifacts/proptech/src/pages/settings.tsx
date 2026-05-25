@@ -23,6 +23,13 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { getApiBase } from "@/lib/api-base";
 import { useAuth } from "@/lib/auth";
@@ -53,6 +60,7 @@ interface Company {
 	phone: string | null;
 	email: string | null;
 	address: string | null;
+	defaultCurrency?: string | null;
 }
 
 interface Module {
@@ -112,6 +120,7 @@ export default function Settings() {
 		phone: "",
 		email: "",
 		address: "",
+		defaultCurrency: "KGS",
 	});
 	const [modules, setModules] = useState<Module[]>([]);
 	const [modulesLoading, setModulesLoading] = useState(true);
@@ -148,6 +157,7 @@ export default function Settings() {
 					phone: data.phone || "",
 					email: data.email || "",
 					address: data.address || "",
+					defaultCurrency: data.defaultCurrency || "KGS",
 				});
 			})
 			.catch(() =>
@@ -273,6 +283,7 @@ export default function Settings() {
 				method: "PATCH",
 				body: JSON.stringify(form),
 			});
+			queryClient.invalidateQueries({ queryKey: ["company-my"] });
 			toast({
 				title: "Сохранено",
 				description: "Данные организации обновлены",
@@ -464,6 +475,31 @@ export default function Settings() {
 											placeholder="г. Бишкек, ул. Манаса 72"
 											className="mt-1.5 h-11 rounded-xl border-gray-200 bg-gray-50 focus:bg-white"
 										/>
+									</div>
+									<div>
+										<Label className="text-sm font-medium text-gray-700">
+											Валюта по умолчанию
+										</Label>
+										<Select
+											value={form.defaultCurrency}
+											onValueChange={(v) =>
+												setForm((f) => ({ ...f, defaultCurrency: v }))
+											}
+										>
+											<SelectTrigger className="mt-1.5 h-11 rounded-xl border-gray-200 bg-gray-50 focus:bg-white">
+												<SelectValue />
+											</SelectTrigger>
+											<SelectContent>
+												<SelectItem value="KGS">Сом (KGS)</SelectItem>
+												<SelectItem value="USD">Доллар США (USD)</SelectItem>
+												<SelectItem value="EUR">Евро (EUR)</SelectItem>
+												<SelectItem value="RUB">Российский рубль (RUB)</SelectItem>
+												<SelectItem value="KZT">Тенге (KZT)</SelectItem>
+											</SelectContent>
+										</Select>
+										<p className="text-xs text-gray-400 mt-1">
+											Используется для сводного итога по кассам
+										</p>
 									</div>
 									<div className="pt-2">
 										<Button

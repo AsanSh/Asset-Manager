@@ -7,7 +7,8 @@ import {
 	Search,
 	Trash2,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { defaultPeriod, inPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -385,6 +386,12 @@ export default function SalesContracts() {
 	const [isLoading, setIsLoading] = useState(true);
 	const [search, setSearch] = useState("");
 	const [statusFilter, setStatusFilter] = useState<string>("all");
+	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod());
+
+	const filteredContracts = useMemo(
+		() => contracts.filter((c) => !c.signDate || inPeriod(c.signDate, period)),
+		[contracts, period],
+	);
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
 	const [selectedContract, setSelectedContract] = useState<
@@ -477,6 +484,8 @@ export default function SalesContracts() {
 			</div>
 
 			{/* Filters */}
+			<div className="space-y-3">
+			<PeriodPicker value={period} onChange={setPeriod} />
 			<div className="flex gap-3">
 				<div className="relative flex-1">
 					<Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
@@ -500,6 +509,7 @@ export default function SalesContracts() {
 						))}
 					</SelectContent>
 				</Select>
+			</div>
 			</div>
 
 			{/* Table */}
@@ -528,7 +538,7 @@ export default function SalesContracts() {
 									))}
 								</TableRow>
 							))
-						) : !contracts.length ? (
+						) : !filteredContracts.length ? (
 							<TableRow>
 								<TableCell colSpan={8} className="text-center py-12">
 									<FileText className="w-8 h-8 text-gray-200 mx-auto mb-2" />
@@ -536,7 +546,7 @@ export default function SalesContracts() {
 								</TableCell>
 							</TableRow>
 						) : (
-							contracts.map((contract) => (
+							filteredContracts.map((contract) => (
 								<TableRow key={contract.id} className="hover:bg-gray-50">
 									<TableCell className="font-medium text-gray-900">
 										{contract.contractNumber}

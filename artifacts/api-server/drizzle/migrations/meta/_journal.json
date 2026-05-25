@@ -8,6 +8,20 @@
       "when": 1747958400000,
       "tag": "0000_initial_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1779576432492,
+      "tag": "0001_add_company_default_currency",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779612271281,
+      "tag": "0002_breezy_jasper_sitwell",
+      "breakpoints": true
     }
   ]
 }

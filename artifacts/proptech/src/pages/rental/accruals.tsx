@@ -14,6 +14,7 @@ import {
 	XCircle,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { defaultPeriod, inPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -775,6 +776,7 @@ export default function Accruals() {
 	const { toast } = useToast();
 	const [leaseFilter, setLeaseFilter] = useState<string>("all");
 	const [statusFilter, setStatusFilter] = useState<string>("all");
+	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod());
 	const [loadingId, setLoadingId] = useState<number | null>(null);
 	const [discountAccrual, setDiscountAccrual] = useState<Accrual | null>(null);
 	const [quickPayAccrual, setQuickPayAccrual] = useState<Accrual | null>(null);
@@ -832,9 +834,10 @@ export default function Accruals() {
 			if (leaseFilter !== "all" && String(a.leaseContractId) !== leaseFilter)
 				return false;
 			if (statusFilter !== "all" && a.status !== statusFilter) return false;
+			if (!inPeriod(a.dueDate, period)) return false;
 			return true;
 		});
-	}, [accruals, leaseFilter, statusFilter]);
+	}, [accruals, leaseFilter, statusFilter, period]);
 
 	// Group by project name
 	const grouped = useMemo(() => {
@@ -932,6 +935,8 @@ export default function Accruals() {
 					</div>
 				)}
 			</div>
+
+			<PeriodPicker value={period} onChange={setPeriod} />
 
 			<div className="flex gap-3 flex-wrap items-center">
 				<LeaseCombobox

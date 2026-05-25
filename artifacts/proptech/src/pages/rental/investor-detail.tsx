@@ -541,7 +541,7 @@ export default function InvestorDetail() {
 				<div className="flex items-center gap-2 px-5 py-3.5 bg-gray-50 border-b">
 					<FileText className="w-4 h-4 text-gray-500" />
 					<h2 className="text-sm font-semibold text-gray-900">
-						Акт сверки — Выплаты инвестору
+						Акт сверки — Выплаты владельцу
 					</h2>
 					<span className="ml-auto text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">
 						{myDistributions.length}

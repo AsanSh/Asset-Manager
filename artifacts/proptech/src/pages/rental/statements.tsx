@@ -7,8 +7,10 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useListProperties } from "@/api-client";
+import { defaultPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
+import { useSortable } from "@/lib/use-sortable";
+import { SortHead } from "@/components/sort-head";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
 	Select,
 	SelectContent,
@@ -27,6 +29,9 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
+import { getApiBase } from "@/lib/api-base";
+
+const BASE = getApiBase();
 
 interface OwnerStatement {
 	id: number;
@@ -49,7 +54,7 @@ async function fetchStatements(
 	if (propertyId && propertyId !== "all") params.set("propertyId", propertyId);
 	if (month) params.set("month", month);
 	const token = localStorage.getItem("auth_token");
-	const res = await fetch(`/api/rental/statements?${params}`, {
+	const res = await fetch(`${BASE}/rental/statements?${params}`, {
 		headers: { Authorization: `Bearer ${token}` },
 	});
 	if (!res.ok) throw new Error("Ошибка загрузки актов");
@@ -61,7 +66,7 @@ async function generateStatement(
 	period: string,
 ): Promise<OwnerStatement> {
 	const token = localStorage.getItem("auth_token");
-	const res = await fetch("/api/rental/statements/generate", {
+	const res = await fetch(`${BASE}/rental/statements/generate`, {
 		method: "POST",
 		headers: {
 			"Content-Type": "application/json",
@@ -104,9 +109,8 @@ function fmtPeriod(period: string) {
 
 export default function OwnerStatements() {
 	const [propertyFilter, setPropertyFilter] = useState("all");
-	const [monthFilter, setMonthFilter] = useState(
-		new Date().toISOString().slice(0, 7),
-	);
+	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod());
+	const monthFilter = period.from.slice(0, 7);
 	const [isGenerating, setIsGenerating] = useState(false);
 	const [selectedStatement, setSelectedStatement] =
 		useState<OwnerStatement | null>(null);
@@ -120,6 +124,7 @@ export default function OwnerStatements() {
 		queryFn: () => fetchStatements(propertyFilter, monthFilter),
 	});
 	const statementsArray = Array.isArray(statements) ? statements : [];
+	const { sorted: sortedStatements, sortKey, sortDir, toggle } = useSortable(statementsArray, "period");
 
 	const { data: expenses = [] } = useQuery<any[]>({
 		queryKey: ["rental-expenses"],
@@ -202,21 +207,7 @@ export default function OwnerStatements() {
 						</SelectContent>
 					</Select>
 
-					<Input
-						type="month"
-						value={monthFilter}
-						onChange={(e) => setMonthFilter(e.target.value)}
-						className="w-44"
-					/>
-
-					{monthFilter && (
-						<button
-							onClick={() => setMonthFilter("")}
-							className="text-gray-400 hover:text-gray-600"
-						>
-							<X className="w-4 h-4" />
-						</button>
-					)}
+					<PeriodPicker value={period} onChange={setPeriod} />
 
 					<div className="flex-1" />
 
@@ -285,12 +276,12 @@ export default function OwnerStatements() {
 				<Table>
 					<TableHeader>
 						<TableRow className="bg-gray-50">
-							<TableHead>Объект</TableHead>
-							<TableHead>Период</TableHead>
-							<TableHead className="text-right">Начислено</TableHead>
-							<TableHead className="text-right">Собрано</TableHead>
-							<TableHead className="text-right">Расходы</TableHead>
-							<TableHead className="text-right">Чистый доход</TableHead>
+							<SortHead label="Объект" sortKey="propertyId" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
+							<SortHead label="Период" sortKey="period" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
+							<SortHead label="Начислено" sortKey="totalCharged" currentKey={sortKey} dir={sortDir} onToggle={toggle} className="text-right" />
+							<SortHead label="Собрано" sortKey="totalReceived" currentKey={sortKey} dir={sortDir} onToggle={toggle} className="text-right" />
+							<SortHead label="Расходы" sortKey="totalExpenses" currentKey={sortKey} dir={sortDir} onToggle={toggle} className="text-right" />
+							<SortHead label="Чистый доход" sortKey="netIncome" currentKey={sortKey} dir={sortDir} onToggle={toggle} className="text-right" />
 							<TableHead>Сформирован</TableHead>
 							<TableHead></TableHead>
 						</TableRow>
@@ -318,7 +309,7 @@ export default function OwnerStatements() {
 								</TableCell>
 							</TableRow>
 						) : (
-							statementsArray.map((s) => {
+							sortedStatements.map((s) => {
 								const charged = parseFloat(s.rentCharged);
 								const received = parseFloat(s.rentReceived);
 								const exp = parseFloat(s.expenses);

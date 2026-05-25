@@ -100,7 +100,7 @@ export default function RentalOPU() {
 	const curYear = new Date().getFullYear();
 	const [year, setYear] = useState(String(curYear));
 	const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-	const [hideZero, setHideZero] = useState(false);
+	const [hideZero, setHideZero] = useState(true);
 
 	function toggle(id: string) {
 		setCollapsed((prev) => {

@@ -90,7 +90,7 @@ export default function InvestorPortal() {
 	const roi = totalInvested > 0 ? (totalReceived / totalInvested) * 100 : 0;
 
 	const userName =
-		[user?.firstName, user?.lastName].filter(Boolean).join(" ") || "Инвестор";
+		[user?.firstName, user?.lastName].filter(Boolean).join(" ") || "Владелец";
 
 	return (
 		<div className="min-h-screen bg-gray-50">
@@ -104,7 +104,7 @@ export default function InvestorPortal() {
 						<div>
 							<p className="text-sm font-bold text-gray-900">BuildFlow</p>
 							<p className="text-[10px] text-gray-400 -mt-0.5">
-								Портал инвестора
+								Портал владельца
 							</p>
 						</div>
 					</div>
@@ -296,7 +296,7 @@ export default function InvestorPortal() {
 				</div>
 
 				<div className="text-center text-xs text-gray-400 py-4">
-					BuildFlow — Портал инвестора. Данные обновляются в реальном времени.
+					BuildFlow — Портал владельца. Данные обновляются в реальном времени.
 				</div>
 			</div>
 		</div>
