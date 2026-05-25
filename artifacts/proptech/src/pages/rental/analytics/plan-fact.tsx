@@ -29,6 +29,52 @@ function getMonthIdx(dateStr: string, year: string): number {
 	return parseInt(dateStr.slice(5, 7), 10) - 1;
 }
 
+function daysInMonth(year: number, month: number): number {
+	return new Date(year, month + 1, 0).getDate();
+}
+
+/**
+ * For a given contract active in [startDate, endDate], compute how much rent
+ * falls in each month of `year`. Prorates the first and last partial months.
+ */
+function planByMonth(
+	startDateStr: string,
+	endDateStr: string | null | undefined,
+	rentAmount: number,
+	year: number,
+): number[] {
+	const result: number[] = Array(12).fill(0);
+	if (!startDateStr || rentAmount <= 0) return result;
+
+	const contractStart = new Date(startDateStr);
+	const contractEnd = endDateStr ? new Date(endDateStr) : null;
+	if (isNaN(contractStart.getTime())) return result;
+
+	for (let m = 0; m < 12; m++) {
+		const monthStart = new Date(year, m, 1);
+		const monthEnd = new Date(year, m, daysInMonth(year, m));
+
+		// Skip if contract hasn't started yet or already ended
+		if (contractStart > monthEnd) continue;
+		if (contractEnd && contractEnd < monthStart) continue;
+
+		const activeDays =
+			Math.min(monthEnd.getTime(), contractEnd ? contractEnd.getTime() : monthEnd.getTime()) -
+			Math.max(monthStart.getTime(), contractStart.getTime());
+		const activeDaysCount = Math.round(activeDays / 86400000) + 1;
+		const totalDays = daysInMonth(year, m);
+
+		if (activeDaysCount >= totalDays) {
+			result[m] = rentAmount;
+		} else {
+			// Prorated
+			result[m] = Math.round((rentAmount / totalDays) * activeDaysCount);
+		}
+	}
+
+	return result;
+}
+
 export default function PlanFact() {
 	const curYear = new Date().getFullYear();
 	const [year, setYear] = useState(String(curYear));
@@ -36,10 +82,6 @@ export default function PlanFact() {
 	const { data: payments = [] } = useQuery<any[]>({
 		queryKey: ["rental-payments-all"],
 		queryFn: () => api.get("/rental/payments").then((r) => r.data),
-	});
-	const { data: accruals = [] } = useQuery<any[]>({
-		queryKey: ["rental-accruals"],
-		queryFn: () => api.get("/rental/accruals").then((r) => r.data),
 	});
 	const { data: contracts = [] } = useQuery<any[]>({
 		queryKey: ["rental-contracts"],
@@ -51,33 +93,45 @@ export default function PlanFact() {
 	});
 
 	const paymentsArr = Array.isArray(payments) ? payments : [];
-	const accrualsArr = Array.isArray(accruals) ? accruals : [];
 	const contractsArr = Array.isArray(contracts) ? contracts : [];
 	const propertiesArr = Array.isArray(properties) ? properties : [];
 
 	const { rows, totals } = useMemo(() => {
+		const yr = parseInt(year, 10);
+
+		const propNameMap: Record<number, string> = {};
+		propertiesArr.forEach((p: any) => {
+			propNameMap[p.id] =
+				[p.projectName, p.unitNumber].filter(Boolean).join(" — ") ||
+				`Объект ${p.id}`;
+		});
+
+		// Plan: derive from contract schedules
+		const plan: Record<number, number[]> = {};
+		contractsArr.forEach((c: any) => {
+			if (!c.propertyId) return;
+			const rentAmount = parseFloat(c.rentAmount || "0");
+			if (rentAmount <= 0) return;
+
+			const monthly = planByMonth(
+				c.startDate,
+				c.endDate,
+				rentAmount,
+				yr,
+			);
+			const hasAny = monthly.some((v) => v > 0);
+			if (!hasAny) return;
+
+			if (!plan[c.propertyId]) plan[c.propertyId] = Array(12).fill(0);
+			monthly.forEach((v, i) => { plan[c.propertyId][i] += v; });
+		});
+
+		// Fact: actual payments by payment date
+		const fact: Record<number, number[]> = {};
 		const contractMap: Record<number, number> = {};
 		contractsArr.forEach((c: any) => {
 			if (c.id && c.propertyId) contractMap[c.id] = c.propertyId;
 		});
-		const propNameMap: Record<number, string> = {};
-		propertiesArr.forEach((p: any) => {
-			propNameMap[p.id] = [p.projectName, p.unitNumber].filter(Boolean).join(" — ") || `Объект ${p.id}`;
-		});
-
-		// Plan: accruals by propertyId × month
-		const plan: Record<number, number[]> = {};
-		accrualsArr.forEach((a: any) => {
-			const m = getMonthIdx(a.accrualDate || a.periodStart || a.createdAt, year);
-			if (m < 0) return;
-			const pid = contractMap[a.leaseContractId];
-			if (!pid) return;
-			if (!plan[pid]) plan[pid] = Array(12).fill(0);
-			plan[pid][m] += parseFloat(a.amount || "0");
-		});
-
-		// Fact: payments by propertyId × month
-		const fact: Record<number, number[]> = {};
 		paymentsArr.forEach((p: any) => {
 			const m = getMonthIdx(p.paymentDate || p.createdAt, year);
 			if (m < 0) return;
@@ -107,7 +161,7 @@ export default function PlanFact() {
 		});
 
 		return { rows, totals };
-	}, [paymentsArr, accrualsArr, contractsArr, propertiesArr, year]);
+	}, [paymentsArr, contractsArr, propertiesArr, year]);
 
 	const curMonth = new Date().getMonth();
 	const totalPlan = totals.plan.reduce((s, v) => s + v, 0);
@@ -120,7 +174,7 @@ export default function PlanFact() {
 				<div>
 					<h1 className="text-2xl font-bold text-gray-900">План-факт</h1>
 					<p className="text-gray-500 text-sm mt-0.5">
-						Начисления (план) против оплат (факт) по объектам
+						Плановая аренда (из договоров) против фактических оплат по объектам
 					</p>
 				</div>
 				<Select value={year} onValueChange={setYear}>
@@ -150,7 +204,9 @@ export default function PlanFact() {
 								Объект
 							</th>
 							{MONTHS.map((m, i) => {
-								const isCur = i === curMonth && String(new Date().getFullYear()) === year;
+								const isCur =
+									i === curMonth &&
+									String(new Date().getFullYear()) === year;
 								return (
 									<th
 										key={i}
@@ -162,14 +218,23 @@ export default function PlanFact() {
 									</th>
 								);
 							})}
-							<th colSpan={3} className="text-center py-1.5 bg-gray-300 border-r border-gray-400" style={{ minWidth: "240px" }}>
+							<th
+								colSpan={3}
+								className="text-center py-1.5 bg-gray-300 border-r border-gray-400"
+								style={{ minWidth: "240px" }}
+							>
 								Итого
 							</th>
 						</tr>
 						{/* Row 2: П / Ф sub-headers */}
-						<tr className="bg-gray-100 text-gray-500 sticky z-20" style={{ top: "33px" }}>
+						<tr
+							className="bg-gray-100 text-gray-500 sticky z-20"
+							style={{ top: "33px" }}
+						>
 							{MONTHS.map((_, i) => {
-								const isCur = i === curMonth && String(new Date().getFullYear()) === year;
+								const isCur =
+									i === curMonth &&
+									String(new Date().getFullYear()) === year;
 								return (
 									<>
 										<th
@@ -205,7 +270,7 @@ export default function PlanFact() {
 									colSpan={12 * 2 + 4}
 									className="text-center py-8 text-gray-400"
 								>
-									Нет данных за {year} год
+									Нет активных договоров за {year} год
 								</td>
 							</tr>
 						) : (
@@ -223,7 +288,9 @@ export default function PlanFact() {
 										</td>
 										{row.plan.map((p, i) => {
 											const f = row.fact[i];
-											const isCur = i === curMonth && String(new Date().getFullYear()) === year;
+											const isCur =
+												i === curMonth &&
+												String(new Date().getFullYear()) === year;
 											return (
 												<>
 													<td
@@ -277,7 +344,9 @@ export default function PlanFact() {
 								</td>
 								{totals.plan.map((p, i) => {
 									const f = totals.fact[i];
-									const isCur = i === curMonth && String(new Date().getFullYear()) === year;
+									const isCur =
+										i === curMonth &&
+										String(new Date().getFullYear()) === year;
 									return (
 										<>
 											<td
