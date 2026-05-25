@@ -4,6 +4,7 @@ import {
 	Calculator,
 	Edit2,
 	FileUp,
+	FileText,
 	HardHat,
 	MapPin,
 	Plus,
@@ -103,7 +104,25 @@ interface Project {
 	plannedEndDate?: string;
 	description?: string;
 	documentMeta?: string | Record<string, unknown> | null;
+	contractTemplateMeta?: string | Record<string, unknown> | null;
 	createdAt: string;
+}
+
+function parseContractTemplateMeta(
+	raw: string | Record<string, unknown> | null | undefined,
+): { fileName?: string; label?: string; uploadedAt?: string } | null {
+	if (!raw) return null;
+	try {
+		const obj = typeof raw === "string" ? JSON.parse(raw) : raw;
+		if (!obj || typeof obj !== "object") return null;
+		return {
+			fileName: obj.fileName ? String(obj.fileName) : undefined,
+			label: obj.label ? String(obj.label) : undefined,
+			uploadedAt: obj.uploadedAt ? String(obj.uploadedAt) : undefined,
+		};
+	} catch {
+		return null;
+	}
 }
 
 function parseDocumentMeta(
@@ -183,6 +202,13 @@ function ProjectDialog({
 	const [documentMeta, setDocumentMeta] = useState<Record<string, unknown> | null>(
 		() => prefill?.documentMeta ?? parseDocumentMeta(init?.documentMeta) ?? null,
 	);
+	const [templateInfo, setTemplateInfo] = useState(() =>
+		parseContractTemplateMeta(init?.contractTemplateMeta),
+	);
+	const [templateLabel, setTemplateLabel] = useState(
+		() => parseContractTemplateMeta(init?.contractTemplateMeta)?.label || "",
+	);
+	const [templateUploading, setTemplateUploading] = useState(false);
 	const [loading, setLoading] = useState(false);
 	const set = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
 
@@ -559,6 +585,111 @@ function ProjectDialog({
 						</div>
 					</div>
 
+					{isEdit && init && (
+						<div className="space-y-3 border border-orange-100 rounded-lg p-3 bg-orange-50/40">
+							<p className="text-xs font-semibold text-gray-600 uppercase tracking-wider flex items-center gap-1.5">
+								<FileText className="w-3.5 h-3.5" /> Шаблон договора продаж
+							</p>
+							<p className="text-xs text-gray-500">
+								Загрузите .docx — его будут использовать менеджеры продаж и юристы при
+								генерации договоров по этому проекту.
+							</p>
+							{templateInfo?.fileName && (
+								<div className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-100 rounded px-2 py-1.5">
+									Загружен: {templateInfo.label || templateInfo.fileName}
+									{templateInfo.uploadedAt && (
+										<span className="text-emerald-600">
+											{" "}
+											· {new Date(templateInfo.uploadedAt).toLocaleDateString("ru-RU")}
+										</span>
+									)}
+								</div>
+							)}
+							<div>
+								<Label>Название шаблона</Label>
+								<Input
+									className="mt-1 bg-white"
+									value={templateLabel}
+									onChange={(e) => setTemplateLabel(e.target.value)}
+									placeholder="Договор BFT — ЖК Алатоо"
+								/>
+							</div>
+							<div>
+								<Label>Файл шаблона (.docx)</Label>
+								<Input
+									className="mt-1 bg-white"
+									type="file"
+									accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+									onChange={async (e) => {
+										const file = e.target.files?.[0];
+										if (!file || !init) return;
+										setTemplateUploading(true);
+										try {
+											const buf = await file.arrayBuffer();
+											const bytes = new Uint8Array(buf);
+											let binary = "";
+											for (let i = 0; i < bytes.length; i++) {
+												binary += String.fromCharCode(bytes[i]);
+											}
+											const dataBase64 = btoa(binary);
+											const { data } = await api.post<{
+												contractTemplateMeta: {
+													fileName: string;
+													label: string;
+													uploadedAt: string;
+												};
+											}>(`/construction/projects/${init.id}/contract-template`, {
+												fileName: file.name,
+												label: templateLabel.trim() || file.name,
+												dataBase64,
+											});
+											setTemplateInfo(data.contractTemplateMeta);
+											toast({ title: "Шаблон договора сохранён" });
+										} catch (err: unknown) {
+											toast({
+												title: "Не удалось загрузить шаблон",
+												description:
+													err instanceof Error ? err.message : undefined,
+												variant: "destructive",
+											});
+										} finally {
+											setTemplateUploading(false);
+											e.target.value = "";
+										}
+									}}
+									disabled={templateUploading}
+								/>
+							</div>
+							{templateInfo?.fileName && (
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									className="text-rose-700 border-rose-200 hover:bg-rose-50"
+									disabled={templateUploading}
+									onClick={async () => {
+										if (!init || !confirm("Удалить шаблон договора проекта?")) return;
+										setTemplateUploading(true);
+										try {
+											await api.delete(
+												`/construction/projects/${init.id}/contract-template`,
+											);
+											setTemplateInfo(null);
+											setTemplateLabel("");
+											toast({ title: "Шаблон удалён" });
+										} catch {
+											toast({ title: "Ошибка", variant: "destructive" });
+										} finally {
+											setTemplateUploading(false);
+										}
+									}}
+								>
+									Удалить шаблон
+								</Button>
+							)}
+						</div>
+					)}
+
 					<div>
 						<Label>Описание</Label>
 						<Textarea
@@ -708,6 +839,7 @@ export default function ConstructionProjects() {
 						const breakdown = projectCostBreakdown(p);
 						const sym = currencySymbol(p.currency || "KGS");
 						const meta = parseDocumentMeta(p.documentMeta);
+						const templateMeta = parseContractTemplateMeta(p.contractTemplateMeta);
 						return (
 							<div
 								key={p.id}
@@ -736,6 +868,18 @@ export default function ConstructionProjects() {
 											{STATUS_LABEL[p.status] || p.status}
 										</Badge>
 									</div>
+
+									{templateMeta?.fileName && (
+										<div className="mb-3">
+											<Badge
+												variant="outline"
+												className="text-[10px] border-orange-200 text-orange-700 bg-orange-50"
+											>
+												<FileText className="w-3 h-3 mr-1" />
+												Шаблон договора
+											</Badge>
+										</div>
+									)}
 
 									{/* Building characteristics */}
 									<div className="grid grid-cols-3 gap-2 mb-3">

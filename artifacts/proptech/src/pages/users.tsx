@@ -2,9 +2,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Edit2, Eye, EyeOff, KeyRound, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
+	type CreateUserBodyRole,
+	type UpdateUserBodyRole,
 	getListUsersQueryKey,
 	type User,
-	type UserRole,
 	useCreateUser,
 	useDeleteUser,
 	useListUsers,
@@ -21,13 +22,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
 	Table,
@@ -38,6 +32,11 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+import {
+	RoleSelect,
+	resolveRoleLabel,
+	useCompanyRoles,
+} from "@/lib/user-roles";
 import { api } from "@/lib/api";
 
 export default function Users() {
@@ -58,6 +57,8 @@ export default function Users() {
 		setIsDialogOpen(true);
 	};
 
+	const { data: customRoles = [] } = useCompanyRoles();
+
 	const roleLabels: Record<string, string> = {
 		admin: "Администратор",
 		super_admin: "Супер-Админ",
@@ -67,6 +68,9 @@ export default function Users() {
 		company_admin: "Администратор компании",
 		sales_manager: "Менеджер продаж",
 	};
+
+	const displayRole = (role: string) =>
+		resolveRoleLabel(role, customRoles) || roleLabels[role] || role;
 
 	const handlePasswordReset = async (user: User) => {
 		if (
@@ -188,7 +192,7 @@ export default function Users() {
 									</TableCell>
 									<TableCell>
 										<Badge variant="outline">
-											{roleLabels[user.role] || user.role}
+											{displayRole(user.role)}
 										</Badge>
 									</TableCell>
 									<TableCell>
@@ -259,7 +263,7 @@ function UserDialog({
 		lastName: "",
 		email: "",
 		password: "",
-		role: "staff" as UserRole,
+		role: "staff" as CreateUserBodyRole,
 	});
 
 	useEffect(() => {
@@ -269,7 +273,7 @@ function UserDialog({
 				lastName: user.lastName,
 				email: user.email,
 				password: "", // Leave blank when editing
-				role: user.role,
+				role: user.role as CreateUserBodyRole,
 			});
 		} else if (!user && open) {
 			setFormData({
@@ -277,7 +281,7 @@ function UserDialog({
 				lastName: "",
 				email: "",
 				password: "",
-				role: "staff",
+				role: "staff" as CreateUserBodyRole,
 			});
 		}
 	}, [user, open]);
@@ -292,7 +296,7 @@ function UserDialog({
 					data: {
 						firstName: formData.firstName,
 						lastName: formData.lastName,
-						role: formData.role,
+						role: formData.role as UpdateUserBodyRole,
 					},
 				},
 				{
@@ -430,25 +434,12 @@ function UserDialog({
 
 					<div className="space-y-1.5">
 						<Label>Роль *</Label>
-						<Select
+						<RoleSelect
 							value={formData.role}
-							onValueChange={(val: any) =>
-								setFormData({ ...formData, role: val })
+							onValueChange={(val) =>
+								setFormData({ ...formData, role: val as CreateUserBodyRole })
 							}
-						>
-							<SelectTrigger>
-								<SelectValue placeholder="Выберите роль" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="company_admin">
-									Администратор компании
-								</SelectItem>
-								<SelectItem value="sales_manager">Менеджер продаж</SelectItem>
-								<SelectItem value="rental_manager">Менеджер аренды</SelectItem>
-								<SelectItem value="finance">Финансы</SelectItem>
-								<SelectItem value="staff">Сотрудник</SelectItem>
-							</SelectContent>
-						</Select>
+						/>
 					</div>
 
 					<div className="flex justify-end gap-2 pt-2">

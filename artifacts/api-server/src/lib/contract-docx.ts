@@ -141,8 +141,13 @@ function templatePath(): string {
   throw new Error("Шаблон contract_template.docx не найден");
 }
 
-export function generateContractDocx(payload: ContractGeneratePayload): Buffer {
-  const content = fs.readFileSync(templatePath(), "binary");
+export function generateContractDocx(
+  payload: ContractGeneratePayload,
+  templateBuffer?: Buffer,
+): Buffer {
+  const content = templateBuffer
+    ? templateBuffer.toString("binary")
+    : fs.readFileSync(templatePath(), "binary");
   const zip = new PizZip(content);
   const replacements = buildReplacementMap(payload);
 

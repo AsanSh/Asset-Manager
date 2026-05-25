@@ -40,7 +40,7 @@ const ah = () => {
 	};
 };
 
-const SPECS = [
+const SPECS_FALLBACK = [
 	"Монолит",
 	"Кирпичная кладка",
 	"Кровля",
@@ -53,6 +53,11 @@ const SPECS = [
 	"Дорожные работы",
 	"Благоустройство",
 ];
+
+interface Specialization {
+	id: number;
+	name: string;
+}
 
 interface Contractor {
 	id: number;
@@ -72,10 +77,14 @@ interface Contractor {
 
 function ContractorDialog({
 	contractor,
+	specs,
+	onAddSpec,
 	onClose,
 	onSaved,
 }: {
 	contractor: Contractor | null | "new";
+	specs: Specialization[];
+	onAddSpec: (name: string) => Promise<void>;
 	onClose: () => void;
 	onSaved: () => void;
 }) {
@@ -97,6 +106,8 @@ function ContractorDialog({
 		notes: init?.notes || "",
 	});
 	const [loading, setLoading] = useState(false);
+	const [newSpec, setNewSpec] = useState("");
+	const [addingSpec, setAddingSpec] = useState(false);
 	const set = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
 
 	const handleSubmit = async (e: React.FormEvent) => {
@@ -166,13 +177,42 @@ function ContractorDialog({
 									<SelectValue placeholder="Выберите..." />
 								</SelectTrigger>
 								<SelectContent>
-									{SPECS.map((s) => (
-										<SelectItem key={s} value={s}>
-											{s}
+									{specs.map((s) => (
+										<SelectItem key={s.id} value={s.name}>
+											{s.name}
 										</SelectItem>
 									))}
 								</SelectContent>
 							</Select>
+							<div className="mt-2 flex gap-2">
+								<Input
+									value={newSpec}
+									onChange={(e) => setNewSpec(e.target.value)}
+									placeholder="Новая специализация"
+									className="h-8 text-sm"
+								/>
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									className="shrink-0"
+									disabled={addingSpec || !newSpec.trim()}
+									onClick={async () => {
+										const name = newSpec.trim();
+										if (!name) return;
+										setAddingSpec(true);
+										try {
+											await onAddSpec(name);
+											set("specialization", name);
+											setNewSpec("");
+										} finally {
+											setAddingSpec(false);
+										}
+									}}
+								>
+									{addingSpec ? "..." : "Добавить"}
+								</Button>
+							</div>
 						</div>
 						<div>
 							<Label>Телефон</Label>
@@ -292,6 +332,28 @@ export default function ConstructionContractors() {
 		queryKey: ["construction-contractors"],
 		queryFn: () => api.get("/construction/contractors").then((r) => r.data),
 	});
+	const { data: specs = [] } = useQuery<Specialization[]>({
+		queryKey: ["construction-contractor-specs"],
+		queryFn: () =>
+			api.get("/construction/contractors/specializations").then((r) => r.data),
+	});
+	const specOptions =
+		specs.length > 0
+			? specs
+			: SPECS_FALLBACK.map((name, id) => ({ id: -id, name }));
+
+	const handleAddSpec = async (name: string) => {
+		try {
+			await api.post("/construction/contractors/specializations", { name });
+			qc.invalidateQueries({ queryKey: ["construction-contractor-specs"] });
+			toast({ title: "Специализация добавлена" });
+		} catch (err: unknown) {
+			const message =
+				err instanceof Error ? err.message : "Не удалось добавить специализацию";
+			toast({ title: message, variant: "destructive" });
+			throw err;
+		}
+	};
 	const filtered = contractors.filter(
 		(c) =>
 			!search ||
@@ -315,7 +377,11 @@ export default function ConstructionContractors() {
 				<div>
 					<h1 className="text-2xl font-bold text-gray-900">Подрядчики</h1>
 					<p className="text-sm text-gray-500 mt-0.5">
-						Подрядные организации и ИП
+						Подрядные организации и ИП со специализацией. Покупатели и поставщики — в{" "}
+						<a href="/counterparties" className="text-orange-600 hover:underline">
+							общем справочнике контрагентов
+						</a>
+						.
 					</p>
 				</div>
 				<Button
@@ -469,6 +535,8 @@ export default function ConstructionContractors() {
 
 			<ContractorDialog
 				contractor={dialog}
+				specs={specOptions}
+				onAddSpec={handleAddSpec}
 				onClose={() => setDialog(null)}
 				onSaved={() =>
 					qc.invalidateQueries({ queryKey: ["construction-contractors"] })

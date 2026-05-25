@@ -20,6 +20,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
+import { flattenProjectBudgetResponse } from "@/lib/construction-budget";
 import { cn } from "@/lib/utils";
 
 interface BudgetItem {
@@ -139,7 +140,9 @@ export default function AIEstimates() {
 	const { data: items = [], isLoading, refetch } = useQuery<BudgetItem[]>({
 		queryKey: ["construction-budget", projectId],
 		queryFn: () =>
-			api.get(`/construction/projects/${projectId}/budget`).then((r) => r.data),
+			api
+				.get(`/construction/projects/${projectId}/budget`)
+				.then((r) => flattenProjectBudgetResponse(r.data)),
 		enabled: !!projectId,
 	});
 

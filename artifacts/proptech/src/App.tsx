@@ -1,11 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
-import { Redirect, Route, Switch, Router as WouterRouter } from "wouter";
+import { Redirect, Route, Switch, Router as WouterRouter, useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import { PlatformAdminLayout } from "@/components/platform-admin-layout";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/lib/auth";
+import { useModuleAccess } from "@/hooks/use-module-access";
 import NotFound from "@/pages/not-found";
 
 class PageErrorBoundary extends React.Component<
@@ -171,15 +172,19 @@ function Spinner() {
 
 function ProtectedRoute({ component: Component, ...rest }: any) {
 	const { isAuthenticated, isLoading, user } = useAuth();
+	const { canAccess, homePath, isLoading: accessLoading } = useModuleAccess();
+	const [location] = useLocation();
 	const role = (user as any)?.role;
 
-	if (isLoading) return <Spinner />;
+	if (isLoading || accessLoading) return <Spinner />;
 	if (!isAuthenticated) return <Redirect to="/login" />;
 
 	// Portal users see their own portal, not the main app
 	if (role === "investor") return <Redirect to="/investor-portal" />;
 	if (role === "tenant") return <Redirect to="/tenant-portal" />;
 	if (role === "super_admin") return <Redirect to="/platform-admin" />;
+
+	if (!canAccess(location)) return <Redirect to={homePath} />;
 
 	return (
 		<Layout>
@@ -188,6 +193,19 @@ function ProtectedRoute({ component: Component, ...rest }: any) {
 			</PageErrorBoundary>
 		</Layout>
 	);
+}
+
+function HomeRedirect() {
+	const { isAuthenticated, isLoading, user } = useAuth();
+	const { homePath, isLoading: accessLoading } = useModuleAccess();
+	const role = (user as any)?.role;
+
+	if (isLoading || accessLoading) return <Spinner />;
+	if (!isAuthenticated) return <Redirect to="/login" />;
+	if (role === "investor") return <Redirect to="/investor-portal" />;
+	if (role === "tenant") return <Redirect to="/tenant-portal" />;
+	if (role === "super_admin") return <Redirect to="/platform-admin" />;
+	return <Redirect to={homePath} />;
 }
 
 function PortalRoute({
@@ -244,7 +262,7 @@ function Router() {
 			</Route>
 
 			<Route path="/">
-				<Redirect to="/rental/dashboard" />
+				<HomeRedirect />
 			</Route>
 
 			{/* ── Сводное (consolidated) ── */}

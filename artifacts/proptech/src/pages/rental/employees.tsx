@@ -15,14 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
 import { api } from "@/lib/api";
+import { RoleSelect, resolveRoleLabel, useCompanyRoles } from "@/lib/user-roles";
 
 interface Employee {
 	id: number;
@@ -34,19 +28,16 @@ interface Employee {
 	phone?: string;
 }
 
-const roleLabels: Record<string, string> = {
-	admin: "Администратор",
-	manager: "Менеджер",
-	owner: "Владелец",
-	staff: "Сотрудник",
-	accountant: "Бухгалтер",
-};
 const roleColors: Record<string, string> = {
 	admin: "bg-rose-100 text-rose-800",
 	manager: "bg-blue-100 text-blue-800",
 	owner: "bg-blue-100 text-indigo-800",
 	staff: "bg-gray-100 text-gray-700",
 	accountant: "bg-emerald-100 text-emerald-800",
+	company_admin: "bg-rose-100 text-rose-800",
+	sales_manager: "bg-blue-100 text-blue-800",
+	rental_manager: "bg-blue-100 text-blue-800",
+	finance: "bg-emerald-100 text-emerald-800",
 };
 
 const AVATAR_COLORS = [
@@ -77,6 +68,7 @@ export default function RentalEmployees() {
 	const [showPassword, setShowPassword] = useState(false);
 	const [editingId, setEditingId] = useState<number | null>(null);
 	const qc = useQueryClient();
+	const { data: customRoles = [] } = useCompanyRoles();
 
 	const { data: users = [], isLoading } = useQuery<Employee[]>({
 		queryKey: ["company-users"],
@@ -237,7 +229,7 @@ export default function RentalEmployees() {
 										<Badge
 											className={`text-[10px] px-1.5 py-0 ${roleColors[u.role] || roleColors.staff}`}
 										>
-											{roleLabels[u.role] || u.role || "Сотрудник"}
+											{resolveRoleLabel(u.role, customRoles)}
 										</Badge>
 									</div>
 								</div>
@@ -374,20 +366,11 @@ export default function RentalEmployees() {
 								<Label className="text-xs font-medium text-gray-600">
 									Роль *
 								</Label>
-								<Select
+								<RoleSelect
 									value={form.role}
 									onValueChange={(v) => setForm((f) => ({ ...f, role: v }))}
-								>
-									<SelectTrigger className="mt-1 h-9">
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="admin">Администратор</SelectItem>
-										<SelectItem value="manager">Менеджер</SelectItem>
-										<SelectItem value="accountant">Бухгалтер</SelectItem>
-										<SelectItem value="staff">Сотрудник</SelectItem>
-									</SelectContent>
-								</Select>
+									className="mt-1 h-9"
+								/>
 							</div>
 
 							{error && (

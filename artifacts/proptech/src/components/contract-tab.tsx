@@ -68,6 +68,7 @@ export type AnnexScheduleRow = {
 
 type Props = {
 	salesContractId?: number;
+	projectId?: number;
 	initialPayload?: {
 		buyer: ContractBuyer;
 		office: ContractOffice;
@@ -92,7 +93,7 @@ function parseIsoToParts(iso: string): ContractDate {
 	};
 }
 
-export function ContractTab({ salesContractId, initialPayload }: Props) {
+export function ContractTab({ salesContractId, projectId, initialPayload }: Props) {
 	const { toast } = useToast();
 	const [loading, setLoading] = useState(false);
 	const [loadingAnnex, setLoadingAnnex] = useState(false);
@@ -354,7 +355,7 @@ export function ContractTab({ salesContractId, initialPayload }: Props) {
 						"Content-Type": "application/json",
 						...(token ? { Authorization: `Bearer ${token}` } : {}),
 					},
-					body: JSON.stringify({ buyer, office, contractDate }),
+					body: JSON.stringify({ buyer, office, contractDate, projectId }),
 				},
 			);
 			if (!response.ok) {

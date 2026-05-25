@@ -1,11 +1,10 @@
 import { useListRentalProperties } from "@/api-client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, Pencil, Plus, Trash2, UserCircle } from "lucide-react";
+import { Building2, ChevronDown, ChevronUp, ChevronsUpDown, Pencil, Plus, Trash2, UserCircle } from "lucide-react";
 import { useSortable } from "@/lib/use-sortable";
-import { SortHead } from "@/components/sort-head";
+import { useColResize } from "@/lib/use-col-resize";
 import { useEffect, useState } from "react";
 import { useSearch } from "wouter";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -24,14 +23,6 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
@@ -170,6 +161,11 @@ function PropertyOwnersPanel({ propertyId }: { propertyId: number }) {
 		if (!addInvestorId || !addShare) return;
 		const share = parseFloat(addShare);
 		if (isNaN(share) || share <= 0) return;
+		const newTotal = total + share;
+		if (newTotal > 100.005) {
+			toast({ title: "Превышение 100%", description: `Итого будет ${newTotal.toFixed(1)}% — нельзя превышать 100%`, variant: "destructive" });
+			return;
+		}
 		setAdding(true);
 		try {
 			await api.post("/rental/investments", { propertyId, investorId: parseInt(addInvestorId), sharePercent: share });
@@ -183,6 +179,13 @@ function PropertyOwnersPanel({ propertyId }: { propertyId: number }) {
 	const handleShareChange = async (id: number, val: string) => {
 		const share = parseFloat(val);
 		if (isNaN(share)) return;
+		const current = investments.find((i: any) => i.id === id);
+		const oldShare = current ? parseFloat(current.sharePercent || "0") : 0;
+		const newTotal = total - oldShare + share;
+		if (newTotal > 100.005) {
+			toast({ title: "Превышение 100%", description: `Итого будет ${newTotal.toFixed(1)}% — нельзя превышать 100%`, variant: "destructive" });
+			return;
+		}
 		try {
 			await api.patch(`/rental/investments/${id}`, { sharePercent: share });
 			invalidate();
@@ -262,6 +265,103 @@ function PropertyOwnersPanel({ propertyId }: { propertyId: number }) {
 					</Button>
 				</div>
 			)}
+		</div>
+	);
+}
+
+const TH = "relative border border-gray-200 px-2 py-1.5 text-left font-semibold text-gray-600 whitespace-nowrap bg-gray-100 sticky top-0 z-10 select-none";
+const TD = "border border-gray-200 px-2 py-1 text-gray-700";
+
+function SortTh({
+	label, col, sortKey, sortDir, onToggle, widths, startResize,
+}: {
+	label: string; col: string; sortKey: string; sortDir: "asc" | "desc";
+	onToggle: (k: string) => void; widths: Record<string, number>;
+	startResize: (k: string) => (e: React.MouseEvent) => void;
+}) {
+	const active = sortKey === col;
+	return (
+		<th className={TH + " cursor-pointer hover:bg-gray-200"} style={{ width: widths[col], minWidth: widths[col] }} onClick={() => onToggle(col)}>
+			<span className="inline-flex items-center gap-1">
+				{label}
+				{active ? (sortDir === "asc" ? <ChevronUp className="w-3 h-3 text-blue-600" /> : <ChevronDown className="w-3 h-3 text-blue-600" />) : <ChevronsUpDown className="w-3 h-3 text-gray-300" />}
+			</span>
+			<div className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-400 z-20" onMouseDown={startResize(col)} onClick={(e) => e.stopPropagation()} />
+		</th>
+	);
+}
+
+function PropTable({ isLoading, sortedProps, propertiesArray, rentedCount, totalArea, sortKey, sortDir, toggle, openCreate, openEdit }: {
+	isLoading: boolean; sortedProps: any[]; propertiesArray: any[]; rentedCount: number; totalArea: number;
+	sortKey: string; sortDir: "asc" | "desc"; toggle: (k: string) => void;
+	openCreate: () => void; openEdit: (p: any) => void;
+}) {
+	const { widths, startResize } = useColResize({ projectName: 180, unitNumber: 90, type: 100, area: 100, currentTenantName: 180, currentRentAmount: 130, rentalStatus: 100, actions: 50 });
+	return (
+		<div className="overflow-auto border border-gray-200 rounded-lg">
+			<table className="w-full text-xs border-collapse">
+				<thead>
+					<tr>
+						<SortTh label="Проект" col="projectName" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} widths={widths} startResize={startResize} />
+						<SortTh label="Номер" col="unitNumber" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} widths={widths} startResize={startResize} />
+						<SortTh label="Тип" col="type" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} widths={widths} startResize={startResize} />
+						<SortTh label="Площадь, м²" col="area" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} widths={widths} startResize={startResize} />
+						<SortTh label="Арендатор" col="currentTenantName" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} widths={widths} startResize={startResize} />
+						<SortTh label="Аренда" col="currentRentAmount" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} widths={widths} startResize={startResize} />
+						<SortTh label="Статус" col="rentalStatus" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} widths={widths} startResize={startResize} />
+						<th className={TH} style={{ width: widths.actions }} />
+					</tr>
+				</thead>
+				<tbody>
+					{isLoading ? (
+						Array.from({ length: 4 }).map((_, i) => (
+							<tr key={i}>
+								{Array.from({ length: 8 }).map((_, j) => (
+									<td key={j} className={TD}><Skeleton className="h-3 w-full" /></td>
+								))}
+							</tr>
+						))
+					) : !propertiesArray.length ? (
+						<tr>
+							<td colSpan={8} className="text-center py-10 text-gray-400">
+								<p className="text-sm">Объекты не найдены</p>
+								<button className="mt-2 text-blue-600 text-sm hover:underline" onClick={openCreate}>Добавить первый объект</button>
+							</td>
+						</tr>
+					) : (
+						sortedProps.map((p, idx) => (
+							<tr key={p.id} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+								<td className={TD + " font-medium text-gray-900"}>{p.projectName}</td>
+								<td className={TD}>{p.unitNumber}</td>
+								<td className={TD}>{p.type === "apartment" ? "Квартира" : p.type === "office" ? "Офис" : p.type}</td>
+								<td className={TD + " tabular-nums text-right"}>{p.area ? `${p.area}` : "—"}</td>
+								<td className={TD}>{p.currentTenantName || "—"}</td>
+								<td className={TD + " tabular-nums text-right font-medium"}>{p.currentRentAmount ? formatCurrency(p.currentRentAmount, p.currency || "KGS") : "—"}</td>
+								<td className={TD}>
+									<span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${statusColors[p.rentalStatus] || "bg-gray-100 text-gray-600"}`}>
+										{statusLabels[p.rentalStatus] || p.rentalStatus}
+									</span>
+								</td>
+								<td className={TD + " text-center"}>
+									<button className="text-gray-500 hover:text-gray-900" onClick={() => openEdit(p)}>
+										<Pencil className="w-3.5 h-3.5" />
+									</button>
+								</td>
+							</tr>
+						))
+					)}
+				</tbody>
+				{!isLoading && propertiesArray.length > 0 && (
+					<tfoot>
+						<tr className="bg-gray-100 font-semibold border-t-2 border-gray-300">
+							<td className={TD + " text-gray-700"} colSpan={2}>Итого: {propertiesArray.length} объектов</td>
+							<td className={TD + " text-gray-700"}>{rentedCount} сдано</td>
+							<td className={TD + " tabular-nums text-right text-gray-700"}>{totalArea > 0 ? `${new Intl.NumberFormat("ru-RU").format(totalArea)} м²` : "—"}</td>
+							<td className={TD} colSpan={4} />
+						</tr>
+					</tfoot>
+				)}
+			</table>
 		</div>
 	);
 }
@@ -382,94 +482,18 @@ export default function RentalProperties() {
 				</Button>
 			</div>
 
-			<div className="rounded-md border bg-card">
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<SortHead label="Проект" sortKey="projectName" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
-							<SortHead label="Номер" sortKey="unitNumber" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
-							<SortHead label="Тип" sortKey="type" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
-							<SortHead label="Площадь, м²" sortKey="area" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
-							<SortHead label="Арендатор" sortKey="currentTenantName" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
-							<SortHead label="Аренда" sortKey="currentRentAmount" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
-							<SortHead label="Статус" sortKey="rentalStatus" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
-							<TableHead className="w-12" />
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isLoading ? (
-							Array.from({ length: 4 }).map((_, i) => (
-								<TableRow key={i}>
-									{Array.from({ length: 8 }).map((_, j) => (
-										<TableCell key={j}>
-											<Skeleton className="h-4 w-full" />
-										</TableCell>
-									))}
-								</TableRow>
-							))
-						) : !propertiesArray.length ? (
-							<TableRow>
-								<TableCell colSpan={8} className="text-center text-muted-foreground py-10">
-									<p>Объекты не найдены</p>
-									<Button variant="link" className="mt-2" onClick={openCreate}>Добавить первый объект</Button>
-								</TableCell>
-							</TableRow>
-						) : (
-							sortedProps.map((p) => (
-								<TableRow key={p.id}>
-									<TableCell className="font-medium">{p.projectName}</TableCell>
-									<TableCell>{p.unitNumber}</TableCell>
-									<TableCell>
-										{p.type === "apartment"
-											? "Квартира"
-											: p.type === "office"
-												? "Офис"
-												: p.type}
-									</TableCell>
-									<TableCell>{p.area ? `${p.area} м²` : "—"}</TableCell>
-									<TableCell>{p.currentTenantName || "—"}</TableCell>
-									<TableCell>
-										{p.currentRentAmount
-											? formatCurrency(
-													p.currentRentAmount,
-													p.currency || "KZT",
-												)
-											: "—"}
-									</TableCell>
-									<TableCell>
-										<Badge
-											className={statusColors[p.rentalStatus] || ""}
-											variant="secondary"
-										>
-											{statusLabels[p.rentalStatus] || p.rentalStatus}
-										</Badge>
-									</TableCell>
-									<TableCell>
-										<Button
-											variant="ghost"
-											size="icon"
-											className="h-8 w-8"
-											onClick={() => openEdit(p)}
-										>
-											<Pencil className="w-3.5 h-3.5" />
-										</Button>
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-					{!isLoading && propertiesArray.length > 0 && (
-						<tfoot>
-							<TableRow className="bg-gray-50 font-semibold border-t-2">
-								<TableCell colSpan={2} className="text-sm text-gray-600">Итого: {propertiesArray.length} объектов</TableCell>
-								<TableCell className="text-sm text-gray-600">{rentedCount} сдано</TableCell>
-								<TableCell className="text-sm tabular-nums">{totalArea > 0 ? `${new Intl.NumberFormat("ru-RU").format(totalArea)} м²` : "—"}</TableCell>
-								<TableCell colSpan={4} />
-							</TableRow>
-						</tfoot>
-					)}
-				</Table>
-			</div>
+			<PropTable
+				isLoading={isLoading}
+				sortedProps={sortedProps}
+				propertiesArray={propertiesArray}
+				rentedCount={rentedCount}
+				totalArea={totalArea}
+				sortKey={sortKey}
+				sortDir={sortDir}
+				toggle={toggle}
+				openCreate={openCreate}
+				openEdit={openEdit}
+			/>
 
 			<Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
 				<DialogContent className="max-w-md">

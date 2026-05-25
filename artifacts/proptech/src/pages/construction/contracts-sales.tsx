@@ -753,7 +753,10 @@ export default function ConstructionContractsSales() {
 									</div>
 									</TabsContent>
 									<TabsContent value="contract" className="mt-4">
-										<ContractTab salesContractId={contract.id} />
+										<ContractTab
+											salesContractId={contract.id}
+											projectId={contract.projectId}
+										/>
 									</TabsContent>
 								</Tabs>
 							</DialogContent>

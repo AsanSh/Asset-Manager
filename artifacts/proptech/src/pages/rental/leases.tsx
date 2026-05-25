@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useSortable } from "@/lib/use-sortable";
-import { SortHead } from "@/components/sort-head";
-import { ChevronDown, Info, Pencil, Plus, RefreshCw } from "lucide-react";
+import { useColResize } from "@/lib/use-col-resize";
+import { ChevronDown, ChevronUp, ChevronsUpDown, Info, Pencil, Plus, RefreshCw } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
 	type CreateLeaseContractBodyStatus,
@@ -14,7 +14,6 @@ import {
 	useUpdateLeaseContract,
 } from "@/api-client";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -40,14 +39,6 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 
 // ── Auth helper ───────────────────────────────────────────────────────────────
@@ -836,6 +827,105 @@ function RecalcDialog({
 	);
 }
 
+// ── Table component ───────────────────────────────────────────────────────────
+
+const TH = "relative border border-gray-200 px-2 py-1.5 text-left font-semibold text-gray-600 whitespace-nowrap bg-gray-100 sticky top-0 z-10 select-none";
+const TD = "border border-gray-200 px-2 py-1 text-gray-700";
+
+function LeaseSortTh({ label, col, sortKey, sortDir, onToggle, widths, startResize }: {
+	label: string; col: string; sortKey: string; sortDir: "asc" | "desc";
+	onToggle: (k: string) => void; widths: Record<string, number>;
+	startResize: (k: string) => (e: React.MouseEvent) => void;
+}) {
+	const active = sortKey === col;
+	return (
+		<th className={TH + " cursor-pointer hover:bg-gray-200"} style={{ width: widths[col], minWidth: widths[col] }} onClick={() => onToggle(col)}>
+			<span className="inline-flex items-center gap-1">
+				{label}
+				{active ? (sortDir === "asc" ? <ChevronUp className="w-3 h-3 text-blue-600" /> : <ChevronDown className="w-3 h-3 text-blue-600" />) : <ChevronsUpDown className="w-3 h-3 text-gray-300" />}
+			</span>
+			<div className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-400 z-20" onMouseDown={startResize(col)} onClick={(e) => e.stopPropagation()} />
+		</th>
+	);
+}
+
+function LeaseTable({ isLoading, leasesArray, sortedLeases, sortKey, sortDir, toggle, activeCount, totalRent, setEditLease, setRecalcLease }: {
+	isLoading: boolean; leasesArray: any[]; sortedLeases: any[]; sortKey: string; sortDir: "asc" | "desc";
+	toggle: (k: string) => void; activeCount: number; totalRent: number;
+	setEditLease: (l: any) => void; setRecalcLease: (l: any) => void;
+}) {
+	const { widths, startResize } = useColResize({ contractNumber: 130, propertyUnitNumber: 140, tenantName: 180, signDate: 110, startDate: 120, endDate: 110, rentAmount: 120, status: 110, actions: 50 });
+	return (
+		<div className="overflow-auto border border-gray-200 rounded-lg">
+			<table className="w-full text-xs border-collapse">
+				<thead>
+					<tr>
+						<LeaseSortTh label="Номер" col="contractNumber" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} widths={widths} startResize={startResize} />
+						<LeaseSortTh label="Объект" col="propertyUnitNumber" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} widths={widths} startResize={startResize} />
+						<LeaseSortTh label="Арендатор" col="tenantName" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} widths={widths} startResize={startResize} />
+						<LeaseSortTh label="Подписание" col="signDate" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} widths={widths} startResize={startResize} />
+						<LeaseSortTh label="Нач. начислений" col="startDate" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} widths={widths} startResize={startResize} />
+						<LeaseSortTh label="Завершение" col="endDate" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} widths={widths} startResize={startResize} />
+						<LeaseSortTh label="Аренда/мес." col="rentAmount" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} widths={widths} startResize={startResize} />
+						<LeaseSortTh label="Статус" col="status" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} widths={widths} startResize={startResize} />
+						<th className={TH} style={{ width: widths.actions }} />
+					</tr>
+				</thead>
+				<tbody>
+					{isLoading ? (
+						Array.from({ length: 3 }).map((_, i) => (
+							<tr key={i}>{Array.from({ length: 9 }).map((_, j) => <td key={j} className={TD}><Skeleton className="h-3 w-full" /></td>)}</tr>
+						))
+					) : !leasesArray.length ? (
+						<tr><td colSpan={9} className="text-center text-gray-400 py-8 text-sm">Договоры аренды не найдены</td></tr>
+					) : (
+						sortedLeases.map((lease, idx) => (
+							<tr key={lease.id} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+								<td className={TD + " font-medium text-gray-900"}>{lease.contractNumber}</td>
+								<td className={TD}>{(lease as any).propertyUnitNumber || `#${lease.propertyId}`}</td>
+								<td className={TD}>{(lease as any).tenantName || `#${lease.tenantId}`}</td>
+								<td className={TD + " text-gray-500"}>{fmtDate(lease.signDate)}</td>
+								<td className={TD}>{fmtDate(lease.startDate)}</td>
+								<td className={TD + " text-gray-500"}>{lease.endDate ? fmtDate(lease.endDate) : "бессрочный"}</td>
+								<td className={TD + " tabular-nums text-right font-medium"}>{fmt(lease.rentAmount, lease.currency)}</td>
+								<td className={TD}>
+									<span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${statusColors[lease.status] || "bg-gray-100 text-gray-600"}`}>
+										{statusLabels[lease.status] || lease.status}
+									</span>
+								</td>
+								<td className={TD + " text-center"}>
+									<DropdownMenu>
+										<DropdownMenuTrigger asChild>
+											<button className="text-gray-500 hover:text-gray-900"><ChevronDown className="w-3.5 h-3.5" /></button>
+										</DropdownMenuTrigger>
+										<DropdownMenuContent align="end">
+											<DropdownMenuItem onClick={() => setEditLease(lease)}>
+												<Pencil className="w-4 h-4 mr-2" />Редактировать
+											</DropdownMenuItem>
+											<DropdownMenuItem onClick={() => setRecalcLease(lease)}>
+												<RefreshCw className="w-4 h-4 mr-2" />Пересчитать начисления
+											</DropdownMenuItem>
+										</DropdownMenuContent>
+									</DropdownMenu>
+								</td>
+							</tr>
+						))
+					)}
+				</tbody>
+				{!isLoading && leasesArray.length > 0 && (
+					<tfoot>
+						<tr className="bg-gray-100 font-semibold border-t-2 border-gray-300">
+							<td className={TD + " text-gray-700"} colSpan={6}>Итого: {leasesArray.length} договоров, активных: {activeCount}</td>
+							<td className={TD + " tabular-nums text-right text-gray-700"}>{new Intl.NumberFormat("ru-RU").format(totalRent)}</td>
+							<td className={TD} colSpan={2} />
+						</tr>
+					</tfoot>
+				)}
+			</table>
+		</div>
+	);
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function RentalContracts() {
@@ -864,108 +954,18 @@ export default function RentalContracts() {
 				</Button>
 			</div>
 
-			<div className="rounded-md border">
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<SortHead label="Номер" sortKey="contractNumber" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
-							<SortHead label="Объект" sortKey="propertyUnitNumber" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
-							<SortHead label="Арендатор" sortKey="tenantName" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
-							<SortHead label="Подписание" sortKey="signDate" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
-							<SortHead label="Нач. начислений" sortKey="startDate" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
-							<SortHead label="Завершение" sortKey="endDate" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
-							<SortHead label="Аренда/мес." sortKey="rentAmount" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
-							<SortHead label="Статус" sortKey="status" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
-							<TableHead className="w-10"></TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isLoading ? (
-							Array.from({ length: 3 }).map((_, i) => (
-								<TableRow key={i}>
-									{Array.from({ length: 9 }).map((_, j) => (
-										<TableCell key={j}>
-											<Skeleton className="h-4 w-full" />
-										</TableCell>
-									))}
-								</TableRow>
-							))
-						) : !leasesArray.length ? (
-							<TableRow>
-								<TableCell
-									colSpan={9}
-									className="text-center text-muted-foreground py-8"
-								>
-									Договоры аренды не найдены
-								</TableCell>
-							</TableRow>
-						) : (
-							sortedLeases.map((lease) => (
-								<TableRow key={lease.id}>
-									<TableCell className="font-medium">
-										{lease.contractNumber}
-									</TableCell>
-									<TableCell>
-										{(lease as any).propertyUnitNumber ||
-											`#${lease.propertyId}`}
-									</TableCell>
-									<TableCell>
-										{(lease as any).tenantName || `#${lease.tenantId}`}
-									</TableCell>
-									<TableCell className="text-muted-foreground text-sm">
-										{fmtDate(lease.signDate)}
-									</TableCell>
-									<TableCell>{fmtDate(lease.startDate)}</TableCell>
-									<TableCell className="text-muted-foreground text-sm">
-										{lease.endDate ? fmtDate(lease.endDate) : "бессрочный"}
-									</TableCell>
-									<TableCell>{fmt(lease.rentAmount, lease.currency)}</TableCell>
-									<TableCell>
-										<Badge
-											className={statusColors[lease.status]}
-											variant="secondary"
-										>
-											{statusLabels[lease.status] || lease.status}
-										</Badge>
-									</TableCell>
-									<TableCell>
-										<DropdownMenu>
-											<DropdownMenuTrigger asChild>
-												<Button variant="ghost" size="icon" className="h-8 w-8">
-													<ChevronDown className="w-4 h-4" />
-												</Button>
-											</DropdownMenuTrigger>
-											<DropdownMenuContent align="end">
-												<DropdownMenuItem onClick={() => setEditLease(lease)}>
-													<Pencil className="w-4 h-4 mr-2" />
-													Редактировать
-												</DropdownMenuItem>
-												<DropdownMenuItem onClick={() => setRecalcLease(lease)}>
-													<RefreshCw className="w-4 h-4 mr-2" />
-													Пересчитать начисления
-												</DropdownMenuItem>
-											</DropdownMenuContent>
-										</DropdownMenu>
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-					{!isLoading && leasesArray.length > 0 && (
-						<tfoot>
-							<TableRow className="bg-gray-50 font-semibold border-t-2">
-								<TableCell colSpan={6} className="text-sm text-gray-600">
-									Итого: {leasesArray.length} договоров, активных: {activeCount}
-								</TableCell>
-								<TableCell className="text-sm tabular-nums">
-									{new Intl.NumberFormat("ru-RU").format(totalRent)}
-								</TableCell>
-								<TableCell colSpan={2} />
-							</TableRow>
-						</tfoot>
-					)}
-				</Table>
-			</div>
+			<LeaseTable
+				isLoading={isLoading}
+				leasesArray={leasesArray}
+				sortedLeases={sortedLeases}
+				sortKey={sortKey}
+				sortDir={sortDir}
+				toggle={toggle}
+				activeCount={activeCount}
+				totalRent={totalRent}
+				setEditLease={setEditLease}
+				setRecalcLease={setRecalcLease}
+			/>
 
 			<CreateLeaseDialog
 				open={createOpen}

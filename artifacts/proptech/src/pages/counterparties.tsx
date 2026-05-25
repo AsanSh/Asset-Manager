@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Briefcase, Edit2, Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useSearch } from "wouter";
 import {
 	type Counterparty,
 	type CreateCounterpartyBodyType,
@@ -325,6 +326,7 @@ function CounterpartyDialog({
 }
 
 export default function Counterparties() {
+	const searchString = useSearch();
 	const [search, setSearch] = useState("");
 	const [categoryFilter, setCategoryFilter] = useState<string>("all");
 	const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -339,6 +341,16 @@ export default function Counterparties() {
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [selectedCP, setSelectedCP] = useState<Counterparty | undefined>();
 	const [deleteId, setDeleteId] = useState<number | null>(null);
+
+	useEffect(() => {
+		const params = new URLSearchParams(
+			searchString.startsWith("?") ? searchString.slice(1) : searchString,
+		);
+		if (params.get("create") === "1") {
+			setSelectedCP(undefined);
+			setDialogOpen(true);
+		}
+	}, [searchString]);
 
 	const handleDelete = async () => {
 		if (!deleteId) return;

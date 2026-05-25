@@ -59,15 +59,10 @@ import { Link, useLocation } from "wouter";
 import ChatPanel from "@/components/chat-panel";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import UserProfileDropdown from "@/components/user-profile-dropdown";
+import { useModuleAccess } from "@/hooks/use-module-access";
 import { useAuth } from "@/lib/auth";
+import { detectModuleFromPath, type ModuleId } from "@/lib/module-access";
 import { cn } from "@/lib/utils";
-
-type ModuleId =
-	| "construction"
-	| "rental"
-	| "proptech"
-	| "warehouse"
-	| "consolidated";
 
 interface NavItem {
 	href: string;
@@ -244,7 +239,7 @@ const MODULES: Module[] = [
 				title: "Справочники",
 				items: [
 					{
-						href: "/construction/counterparties",
+						href: "/counterparties",
 						label: "Контрагенты",
 						icon: Users,
 					},
@@ -329,7 +324,7 @@ const MODULES: Module[] = [
 			{
 				title: "Владельцы",
 				items: [
-					{ href: "/rental/investors", label: "Инвесторы", icon: Users },
+					{ href: "/rental/investors", label: "Владельцы", icon: Users },
 					{
 						href: "/rental/distributions",
 						label: "Распределение",
@@ -551,7 +546,7 @@ const MODULE_QUICK_ACTIONS: Record<
 		{ label: "Новый договор", href: "/construction/contracts-sales" },
 		{ label: "Новый проект", href: "/construction/projects" },
 		{ label: "Согласование", href: "/construction/planning/approvals" },
-		{ label: "Новый контрагент", href: "/construction/counterparties" },
+		{ label: "Новый контрагент", href: "/counterparties?create=1" },
 	],
 	rental: [
 		{ label: "Новый объект", href: "/rental/properties?create=1" },
@@ -577,10 +572,7 @@ const MODULE_QUICK_ACTIONS: Record<
 };
 
 function detectModule(path: string): ModuleId {
-	for (const m of MODULES) {
-		if (m.urlPrefix.some((p) => path.startsWith(p))) return m.id;
-	}
-	return "consolidated";
+	return detectModuleFromPath(path);
 }
 
 interface SectionGroupProps {
@@ -650,7 +642,9 @@ function SectionGroup({ section, location, defaultOpen }: SectionGroupProps) {
 
 export function Layout({ children }: { children: ReactNode }) {
 	const { user, logout } = useAuth();
-	const [location] = useLocation();
+	const [location, setLocation] = useLocation();
+	const { allowedModules, homePath, canAccess, isLoading: accessLoading } =
+		useModuleAccess();
 	const [modulePickerOpen, setModulePickerOpen] = useState(false);
 	const [createOpen, setCreateOpen] = useState(false);
 	const modulePickerRef = useRef<HTMLDivElement>(null);
@@ -672,11 +666,26 @@ export function Layout({ children }: { children: ReactNode }) {
 		return () => document.removeEventListener("mousedown", handleClickOutside);
 	}, []);
 
+	const visibleModules = MODULES.filter((m) =>
+		allowedModules.includes(m.id),
+	);
+
+	useEffect(() => {
+		if (accessLoading || !user) return;
+		if (!canAccess(location)) {
+			setLocation(homePath);
+		}
+	}, [accessLoading, user, location, canAccess, homePath, setLocation]);
+
 	const activeModuleId = detectModule(location);
 	const activeModule =
-		MODULES.find((m) => m.id === activeModuleId) || MODULES[MODULES.length - 1];
+		visibleModules.find((m) => m.id === activeModuleId) ||
+		visibleModules[0] ||
+		MODULES.find((m) => m.id === activeModuleId) ||
+		MODULES[MODULES.length - 1];
 	const ModuleIcon = activeModule.icon;
-	const quickActions = MODULE_QUICK_ACTIONS[activeModuleId];
+	const quickActions = MODULE_QUICK_ACTIONS[activeModule.id];
+	const showModuleSwitcher = visibleModules.length > 1;
 
 	const initials =
 		user?.firstName && user?.lastName
@@ -795,50 +804,60 @@ export function Layout({ children }: { children: ReactNode }) {
 				{/* ── TOP HEADER ── */}
 				<header className="h-14 bg-white border-b border-gray-100 flex items-center px-5 gap-3 flex-shrink-0 relative z-50 shadow-sm">
 					{/* Module switcher */}
-					<div className="relative" ref={modulePickerRef}>
-						<button
-							onClick={() => setModulePickerOpen((o) => !o)}
-							className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 hover:border-gray-300 text-sm font-medium text-gray-700 bg-white transition-all whitespace-nowrap"
-						>
+					{showModuleSwitcher ? (
+						<div className="relative" ref={modulePickerRef}>
+							<button
+								onClick={() => setModulePickerOpen((o) => !o)}
+								className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 hover:border-gray-300 text-sm font-medium text-gray-700 bg-white transition-all whitespace-nowrap"
+							>
+								<ModuleIcon
+									className="w-4 h-4 flex-shrink-0"
+									style={{ color: activeModule.color }}
+								/>
+								<span>{activeModule.shortLabel}</span>
+								<ChevronDown className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+							</button>
+							{modulePickerOpen && (
+								<div
+									className="absolute top-full left-0 mt-1 bg-white rounded-xl border border-gray-100 shadow-xl py-1 overflow-hidden"
+									style={{ zIndex: 9999, minWidth: "210px" }}
+								>
+									{visibleModules.map((m) => {
+										const Icon = m.icon;
+										const dashboardHref =
+											m.sections[0]?.items[0]?.href || "/dashboard";
+										return (
+											<Link key={m.id} href={dashboardHref}>
+												<div
+													className={cn(
+														"flex items-center gap-3 px-4 py-2.5 text-sm cursor-pointer transition-colors whitespace-nowrap",
+														m.id === activeModule.id
+															? "bg-indigo-50 text-indigo-900"
+															: "hover:bg-gray-50 text-gray-900",
+													)}
+													onClick={() => setModulePickerOpen(false)}
+												>
+													<Icon
+														className="w-4 h-4 flex-shrink-0"
+														style={{ color: m.color }}
+													/>
+													{m.label}
+												</div>
+											</Link>
+										);
+									})}
+								</div>
+							)}
+						</div>
+					) : (
+						<div className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 whitespace-nowrap">
 							<ModuleIcon
 								className="w-4 h-4 flex-shrink-0"
 								style={{ color: activeModule.color }}
 							/>
 							<span>{activeModule.shortLabel}</span>
-							<ChevronDown className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-						</button>
-						{modulePickerOpen && (
-							<div
-								className="absolute top-full left-0 mt-1 bg-white rounded-xl border border-gray-100 shadow-xl py-1 overflow-hidden"
-								style={{ zIndex: 9999, minWidth: "210px" }}
-							>
-								{MODULES.map((m) => {
-									const Icon = m.icon;
-									const dashboardHref =
-										m.sections[0]?.items[0]?.href || "/dashboard";
-									return (
-										<Link key={m.id} href={dashboardHref}>
-											<div
-												className={cn(
-													"flex items-center gap-3 px-4 py-2.5 text-sm cursor-pointer transition-colors whitespace-nowrap",
-													m.id === activeModuleId
-														? "bg-indigo-50 text-indigo-900"
-														: "hover:bg-gray-50 text-gray-900",
-												)}
-												onClick={() => setModulePickerOpen(false)}
-											>
-												<Icon
-													className="w-4 h-4 flex-shrink-0"
-													style={{ color: m.color }}
-												/>
-												{m.label}
-											</div>
-										</Link>
-									);
-								})}
-							</div>
-						)}
-					</div>
+						</div>
+					)}
 
 					{/* Search */}
 					<div className="flex-1 max-w-lg relative">

@@ -175,13 +175,34 @@ router.post(
   requireAuth,
   async (req: AuthenticatedRequest, res): Promise<void> => {
     try {
-      const body = req.body as ContractGeneratePayload;
+      const body = req.body as ContractGeneratePayload & { projectId?: number };
       if (!body?.buyer?.fullName || !body?.office?.number) {
         res.status(400).json({ error: "Укажите покупателя и помещение" });
         return;
       }
 
-      const buffer = generateContractDocx(body);
+      let templateBuffer: Buffer | undefined;
+      if (body.projectId) {
+        const [project] = await db
+          .select({ contractTemplateMeta: constructionProjectsTable.contractTemplateMeta })
+          .from(constructionProjectsTable)
+          .where(and(
+            eq(constructionProjectsTable.id, body.projectId),
+            eq(constructionProjectsTable.companyId, req.companyId!),
+          ));
+        if (project?.contractTemplateMeta) {
+          try {
+            const meta = JSON.parse(project.contractTemplateMeta) as { dataBase64?: string };
+            if (meta.dataBase64) {
+              templateBuffer = Buffer.from(meta.dataBase64, "base64");
+            }
+          } catch {
+            /* use default template */
+          }
+        }
+      }
+
+      const buffer = generateContractDocx(body, templateBuffer);
       const fileName = `Договор_${body.buyer.fullName.split(" ")[0]}_офис${body.office.number}.docx`.replace(
         /\s+/g,
         "_",

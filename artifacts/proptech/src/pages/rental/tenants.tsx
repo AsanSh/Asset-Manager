@@ -1,7 +1,8 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Edit2, ExternalLink, Plus } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronsUpDown, Edit2, ExternalLink, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
+import { useColResize } from "@/lib/use-col-resize";
 import {
 	type CreateTenantBodyStatus,
 	getListTenantsQueryKey,
@@ -10,7 +11,6 @@ import {
 	useListTenants,
 	useUpdateTenant,
 } from "@/api-client";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -28,17 +28,8 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { useSortable } from "@/lib/use-sortable";
-import { SortHead } from "@/components/sort-head";
 
 const statusColors: Record<string, string> = {
 	active: "bg-emerald-100 text-emerald-800",
@@ -226,6 +217,32 @@ function TenantDialog({ open, onClose, tenant }: TenantDialogProps) {
 	);
 }
 
+const TH = "relative border border-gray-200 px-2 py-1.5 text-left font-semibold text-gray-600 whitespace-nowrap bg-gray-100 sticky top-0 z-10 select-none";
+const TD = "border border-gray-200 px-2 py-1 text-gray-700";
+
+function SortTh({
+	label, col, sortKey, sortDir, onToggle, widths, startResize,
+}: {
+	label: string; col: string; sortKey: string; sortDir: "asc" | "desc";
+	onToggle: (k: string) => void; widths: Record<string, number>;
+	startResize: (k: string) => (e: React.MouseEvent) => void;
+}) {
+	const active = sortKey === col;
+	return (
+		<th
+			className={TH + " cursor-pointer hover:bg-gray-200"}
+			style={{ width: widths[col], minWidth: widths[col] }}
+			onClick={() => onToggle(col)}
+		>
+			<span className="inline-flex items-center gap-1">
+				{label}
+				{active ? (sortDir === "asc" ? <ChevronUp className="w-3 h-3 text-blue-600" /> : <ChevronDown className="w-3 h-3 text-blue-600" />) : <ChevronsUpDown className="w-3 h-3 text-gray-300" />}
+			</span>
+			<div className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-400 z-20" onMouseDown={startResize(col)} onClick={(e) => e.stopPropagation()} />
+		</th>
+	);
+}
+
 export default function RentalTenants() {
 	const { data: tenants, isLoading } = useListTenants();
 	const tenantsArray = Array.isArray(tenants) ? tenants : [];
@@ -233,107 +250,95 @@ export default function RentalTenants() {
 	const [, navigate] = useLocation();
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [selectedTenant, setSelectedTenant] = useState<Tenant | undefined>();
+	const { widths, startResize } = useColResize({ fullName: 220, iin: 130, phone: 140, email: 180, status: 110, actions: 100 });
 
 	const activeCount = tenantsArray.filter((t) => t.status === "active").length;
 
-	const handleAdd = () => {
-		setSelectedTenant(undefined);
-		setDialogOpen(true);
-	};
-
-	const handleEdit = (tenant: Tenant) => {
-		setSelectedTenant(tenant);
-		setDialogOpen(true);
-	};
+	const handleAdd = () => { setSelectedTenant(undefined); setDialogOpen(true); };
+	const handleEdit = (tenant: Tenant) => { setSelectedTenant(tenant); setDialogOpen(true); };
 
 	return (
 		<div className="p-6 space-y-4">
 			<div className="flex justify-between items-center">
 				<div>
 					<h1 className="text-2xl font-bold">Арендаторы</h1>
-					<p className="text-muted-foreground text-sm">
-						Управление базой арендаторов
-					</p>
+					<p className="text-muted-foreground text-sm">Управление базой арендаторов</p>
 				</div>
 				<Button onClick={handleAdd}>
-					<Plus className="w-4 h-4 mr-2" />
-					Добавить
+					<Plus className="w-4 h-4 mr-2" />Добавить
 				</Button>
 			</div>
 
-			<div className="rounded-md border">
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<SortHead label="ФИО" sortKey="fullName" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
-							<SortHead label="ИИН" sortKey="iin" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
-							<TableHead>Телефон</TableHead>
-							<TableHead>Email</TableHead>
-							<SortHead label="Статус" sortKey="status" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
-							<TableHead className="w-16"></TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
+			<div className="overflow-auto border border-gray-200 rounded-lg">
+				<table className="w-full text-xs border-collapse">
+					<thead>
+						<tr>
+							<SortTh label="ФИО" col="fullName" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} widths={widths} startResize={startResize} />
+							<SortTh label="ИИН" col="iin" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} widths={widths} startResize={startResize} />
+							<th className={TH} style={{ width: widths.phone, minWidth: widths.phone }}>
+								Телефон
+								<div className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-400 z-20" onMouseDown={startResize("phone")} />
+							</th>
+							<th className={TH} style={{ width: widths.email, minWidth: widths.email }}>
+								Email
+								<div className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-400 z-20" onMouseDown={startResize("email")} />
+							</th>
+							<SortTh label="Статус" col="status" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} widths={widths} startResize={startResize} />
+							<th className={TH} style={{ width: widths.actions }}>Действия</th>
+						</tr>
+					</thead>
+					<tbody>
 						{isLoading ? (
 							Array.from({ length: 4 }).map((_, i) => (
-								<TableRow key={i}>
+								<tr key={i}>
 									{Array.from({ length: 6 }).map((_, j) => (
-										<TableCell key={j}>
-											<Skeleton className="h-4 w-full" />
-										</TableCell>
+										<td key={j} className={TD}><Skeleton className="h-3 w-full" /></td>
 									))}
-								</TableRow>
+								</tr>
 							))
 						) : !tenantsArray.length ? (
-							<TableRow>
-								<TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-									Арендаторы не найдены
-								</TableCell>
-							</TableRow>
+							<tr>
+								<td colSpan={6} className="text-center text-gray-400 py-8 text-sm">Арендаторы не найдены</td>
+							</tr>
 						) : (
-							sorted.map((tenant) => (
-								<TableRow key={tenant.id}>
-									<TableCell className="font-medium">{tenant.fullName}</TableCell>
-									<TableCell>{tenant.iin || "—"}</TableCell>
-									<TableCell>{tenant.phone || "—"}</TableCell>
-									<TableCell>{tenant.email || "—"}</TableCell>
-									<TableCell>
-										<Badge className={statusColors[tenant.status] || ""} variant="secondary">
+							sorted.map((tenant, idx) => (
+								<tr key={tenant.id} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+									<td className={TD + " font-medium text-gray-900"}>{tenant.fullName}</td>
+									<td className={TD}>{tenant.iin || "—"}</td>
+									<td className={TD}>{tenant.phone || "—"}</td>
+									<td className={TD}>{tenant.email || "—"}</td>
+									<td className={TD}>
+										<span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${statusColors[tenant.status] || "bg-gray-100 text-gray-600"}`}>
 											{statusLabels[tenant.status] || tenant.status}
-										</Badge>
-									</TableCell>
-									<TableCell>
+										</span>
+									</td>
+									<td className={TD}>
 										<div className="flex items-center gap-1">
-											<Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-blue-600 hover:bg-blue-50 gap-1"
-												onClick={() => navigate(`/rental/tenants/${tenant.id}`)}>
+											<button className="text-blue-600 hover:underline flex items-center gap-0.5" onClick={() => navigate(`/rental/tenants/${tenant.id}`)}>
 												<ExternalLink className="w-3 h-3" /> Портал
-											</Button>
-											<Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEdit(tenant)}>
-												<Edit2 className="w-4 h-4" />
-											</Button>
+											</button>
+											<button className="ml-1 text-gray-500 hover:text-gray-800" onClick={() => handleEdit(tenant)}>
+												<Edit2 className="w-3.5 h-3.5" />
+											</button>
 										</div>
-									</TableCell>
-								</TableRow>
+									</td>
+								</tr>
 							))
 						)}
-					</TableBody>
+					</tbody>
 					{!isLoading && tenantsArray.length > 0 && (
 						<tfoot>
-							<TableRow className="bg-gray-50 font-semibold border-t-2">
-								<TableCell colSpan={4} className="text-sm text-gray-600">Итого: {tenantsArray.length} арендаторов</TableCell>
-								<TableCell className="text-sm text-gray-600">{activeCount} активных</TableCell>
-								<TableCell />
-							</TableRow>
+							<tr className="bg-gray-100 font-semibold border-t-2 border-gray-300">
+								<td className={TD + " text-gray-700"} colSpan={4}>Итого: {tenantsArray.length} арендаторов</td>
+								<td className={TD + " text-gray-700"}>{activeCount} активных</td>
+								<td className={TD} />
+							</tr>
 						</tfoot>
 					)}
-				</Table>
+				</table>
 			</div>
 
-			<TenantDialog
-				open={dialogOpen}
-				onClose={() => setDialogOpen(false)}
-				tenant={selectedTenant}
-			/>
+			<TenantDialog open={dialogOpen} onClose={() => setDialogOpen(false)} tenant={selectedTenant} />
 		</div>
 	);
 }

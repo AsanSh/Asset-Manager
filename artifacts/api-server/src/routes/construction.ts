@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, asc } from "drizzle-orm";
 import { z } from "zod";
 import {
   db,
@@ -8,6 +8,7 @@ import {
   constructionTasksTable,
   constructionWorkersTable,
   constructionContractorsTable,
+  constructionContractorSpecializationsTable,
   constructionMaterialsTable,
   constructionBudgetItemsTable,
   constructionExpensesTable,
@@ -238,6 +239,11 @@ router.patch("/projects/:id", requireAuth, async (req: AuthenticatedRequest, res
           ? body.documentMeta
           : JSON.stringify(body.documentMeta))
         : undefined,
+      contractTemplateMeta: body.contractTemplateMeta != null
+        ? (typeof body.contractTemplateMeta === "string"
+          ? body.contractTemplateMeta
+          : JSON.stringify(body.contractTemplateMeta))
+        : undefined,
     })
     .where(and(eq(constructionProjectsTable.id, id), eq(constructionProjectsTable.companyId, req.companyId!)))
     .returning();
@@ -428,6 +434,144 @@ router.patch("/contractors/:id", requireAuth, async (req: AuthenticatedRequest, 
 router.delete("/contractors/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
   await db.delete(constructionContractorsTable).where(and(eq(constructionContractorsTable.id, id), eq(constructionContractorsTable.companyId, req.companyId!)));
+  res.json({ ok: true });
+});
+
+const DEFAULT_CONTRACTOR_SPECIALIZATIONS = [
+  "Монолит",
+  "Кирпичная кладка",
+  "Кровля",
+  "Электромонтаж",
+  "Сантехника",
+  "Отделочные работы",
+  "Фасадные работы",
+  "Металлоконструкции",
+  "Генподряд",
+  "Дорожные работы",
+  "Благоустройство",
+];
+
+async function ensureDefaultContractorSpecializations(companyId: number): Promise<void> {
+  const existing = await db.select({ id: constructionContractorSpecializationsTable.id })
+    .from(constructionContractorSpecializationsTable)
+    .where(eq(constructionContractorSpecializationsTable.companyId, companyId))
+    .limit(1);
+  if (existing.length > 0) return;
+
+  await db.insert(constructionContractorSpecializationsTable).values(
+    DEFAULT_CONTRACTOR_SPECIALIZATIONS.map((name, index) => ({
+      companyId,
+      name,
+      sortOrder: index,
+    })),
+  );
+}
+
+router.get("/contractors/specializations", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.companyId!;
+  await ensureDefaultContractorSpecializations(companyId);
+  const rows = await db.select()
+    .from(constructionContractorSpecializationsTable)
+    .where(eq(constructionContractorSpecializationsTable.companyId, companyId))
+    .orderBy(asc(constructionContractorSpecializationsTable.sortOrder), asc(constructionContractorSpecializationsTable.name));
+  res.json(rows);
+});
+
+router.post("/contractors/specializations", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+  const name = String(req.body.name || "").trim();
+  if (!name) {
+    res.status(400).json({ error: "Укажите название специализации" });
+    return;
+  }
+  const companyId = req.companyId!;
+  const existing = await db.select()
+    .from(constructionContractorSpecializationsTable)
+    .where(and(
+      eq(constructionContractorSpecializationsTable.companyId, companyId),
+      eq(constructionContractorSpecializationsTable.name, name),
+    ));
+  if (existing.length > 0) {
+    res.status(409).json({ error: "Такая специализация уже есть" });
+    return;
+  }
+  const [maxOrder] = await db.select({
+    max: sql<number>`coalesce(max(${constructionContractorSpecializationsTable.sortOrder}), -1)`,
+  }).from(constructionContractorSpecializationsTable)
+    .where(eq(constructionContractorSpecializationsTable.companyId, companyId));
+  const [row] = await db.insert(constructionContractorSpecializationsTable).values({
+    companyId,
+    name,
+    sortOrder: (maxOrder?.max ?? -1) + 1,
+  }).returning();
+  res.status(201).json(row);
+});
+
+router.delete("/contractors/specializations/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+  const id = parseInt(req.params.id as string);
+  await db.delete(constructionContractorSpecializationsTable)
+    .where(and(
+      eq(constructionContractorSpecializationsTable.id, id),
+      eq(constructionContractorSpecializationsTable.companyId, req.companyId!),
+    ));
+  res.json({ ok: true });
+});
+
+router.post("/projects/:id/contract-template", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+  const id = parseInt(req.params.id as string);
+  const { fileName, dataBase64, label } = req.body;
+  if (!fileName || !dataBase64) {
+    res.status(400).json({ error: "Загрузите файл шаблона (.docx)" });
+    return;
+  }
+  if (!String(fileName).toLowerCase().endsWith(".docx")) {
+    res.status(400).json({ error: "Шаблон должен быть в формате .docx" });
+    return;
+  }
+  const buf = Buffer.from(String(dataBase64), "base64");
+  if (buf.length > 5 * 1024 * 1024) {
+    res.status(400).json({ error: "Файл шаблона не должен превышать 5 МБ" });
+    return;
+  }
+
+  const meta = JSON.stringify({
+    fileName: String(fileName),
+    label: label ? String(label) : String(fileName),
+    dataBase64: String(dataBase64),
+    uploadedAt: new Date().toISOString(),
+  });
+
+  const [row] = await db.update(constructionProjectsTable)
+    .set({ contractTemplateMeta: meta })
+    .where(and(eq(constructionProjectsTable.id, id), eq(constructionProjectsTable.companyId, req.companyId!)))
+    .returning();
+  if (!row) {
+    res.status(404).json({ error: "Проект не найден" });
+    return;
+  }
+  cache.deletePattern(`projects:${req.companyId!}:*`);
+  cache.delete(cacheKeys.project(id));
+  res.json({
+    ok: true,
+    contractTemplateMeta: {
+      fileName: String(fileName),
+      label: label ? String(label) : String(fileName),
+      uploadedAt: JSON.parse(meta).uploadedAt,
+    },
+  });
+});
+
+router.delete("/projects/:id/contract-template", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+  const id = parseInt(req.params.id as string);
+  const [row] = await db.update(constructionProjectsTable)
+    .set({ contractTemplateMeta: null })
+    .where(and(eq(constructionProjectsTable.id, id), eq(constructionProjectsTable.companyId, req.companyId!)))
+    .returning();
+  if (!row) {
+    res.status(404).json({ error: "Проект не найден" });
+    return;
+  }
+  cache.deletePattern(`projects:${req.companyId!}:*`);
+  cache.delete(cacheKeys.project(id));
   res.json({ ok: true });
 });
 

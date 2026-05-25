@@ -24,6 +24,7 @@ export * from "./construction_stages";
 export * from "./construction_tasks";
 export * from "./construction_workers";
 export * from "./construction_contractors";
+export * from "./construction_contractor_specializations";
 export * from "./construction_materials";
 export * from "./construction_budget";
 export * from "./construction_expenses";
