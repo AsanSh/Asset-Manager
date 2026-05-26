@@ -116,7 +116,7 @@ export default function UserProfileDropdown() {
 			setSuccess("Профиль обновлён");
 			setTimeout(closeModal, 1200);
 		} catch (e: any) {
-			setError(e?.response?.data?.error || "Ошибка сохранения");
+			setError(getApiErrorMessage(e, "Ошибка сохранения"));
 		} finally {
 			setSaving(false);
 		}
@@ -138,7 +138,7 @@ export default function UserProfileDropdown() {
 			setSuccess("Пароль изменён");
 			setTimeout(closeModal, 1200);
 		} catch (e: any) {
-			setError(e?.response?.data?.error || "Ошибка сохранения");
+			setError(getApiErrorMessage(e, "Ошибка сохранения"));
 		} finally {
 			setSaving(false);
 		}

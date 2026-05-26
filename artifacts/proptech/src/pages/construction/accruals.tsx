@@ -255,7 +255,7 @@ function AcceptPaymentDialog({
 	onSuccess: () => void;
 }) {
 	const [amount, setAmount] = useState("");
-	const [accountId, setAccountId] = useState("none");
+	const [accountId, setAccountId] = useState("");
 	const [paymentMethod, setPaymentMethod] = useState("cash");
 	const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
 	const [notes, setNotes] = useState("");
@@ -275,7 +275,7 @@ function AcceptPaymentDialog({
 	useEffect(() => {
 		if (accrual && open) {
 			setAmount(String(remainingAmount(accrual)));
-			setAccountId(accounts[0] ? String(accounts[0].id) : "none");
+			setAccountId(accounts[0] ? String(accounts[0].id) : "");
 			setPaymentMethod("cash");
 			setDate(new Date().toISOString().slice(0, 10));
 			setNotes("");
@@ -288,6 +288,9 @@ function AcceptPaymentDialog({
 			const payAmount = parseFloat(amount);
 			if (!payAmount || payAmount <= 0) {
 				throw new Error("Укажите сумму больше нуля");
+			}
+			if (!accountId) {
+				throw new Error("Выберите счёт зачисления");
 			}
 			const { data } = await api.post<{
 				allocations?: Array<{
@@ -303,7 +306,7 @@ function AcceptPaymentDialog({
 				accrualId: accrual.id,
 				amount: String(payAmount),
 				currency: accrual.currency || contract?.currency || "KGS",
-				accountId: accountId !== "none" ? Number(accountId) : null,
+				accountId: Number(accountId),
 				paymentMethod,
 				date,
 				notes:
@@ -411,7 +414,6 @@ function AcceptPaymentDialog({
 								<SelectValue placeholder="Выберите счёт" />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="none">Не указывать</SelectItem>
 								{accounts.map((a) => (
 									<SelectItem key={a.id} value={String(a.id)}>
 										{a.name} ({a.currency})
@@ -466,7 +468,7 @@ function AcceptPaymentDialog({
 					</Button>
 					<Button
 						className="bg-emerald-600 hover:bg-emerald-700"
-						disabled={payMut.isPending}
+						disabled={payMut.isPending || !accountId}
 						onClick={() => payMut.mutate()}
 					>
 						{payMut.isPending ? "Проведение..." : "Подтвердить платёж"}

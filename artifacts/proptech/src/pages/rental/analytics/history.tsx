@@ -1,4 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
+import {
+	getListAccrualsQueryKey,
+	getListLeaseContractsQueryKey,
+	getListPaymentsQueryKey,
+	getListRentalPropertiesQueryKey,
+	getListTenantsQueryKey,
+	getRentalAccountsQueryKey,
+	getDistributionsQueryKey,
+	getRentalPaymentsAllQueryKey,
+	getRentalExpensesAllQueryKey,
+	getAccrualsOpenQueryKey,
+} from "@/lib/rental-query-keys";
 import { Download, Search } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -38,19 +50,19 @@ export default function RentalHistory() {
 	const [method, setMethod] = useState("all");
 
 	const { data: payments = [], isLoading } = useQuery<any[]>({
-		queryKey: ["rental-payments-all"],
+		queryKey: getRentalPaymentsAllQueryKey(),
 		queryFn: () => api.get("/rental/payments").then((r) => r.data),
 	});
 	const { data: contracts = [] } = useQuery<any[]>({
-		queryKey: ["rental-contracts"],
+		queryKey: getListLeaseContractsQueryKey(),
 		queryFn: () => api.get("/rental/contracts").then((r) => r.data),
 	});
 	const { data: tenants = [] } = useQuery<any[]>({
-		queryKey: ["rental-tenants"],
+		queryKey: getListTenantsQueryKey(),
 		queryFn: () => api.get("/rental/tenants").then((r) => r.data),
 	});
 	const { data: accounts = [] } = useQuery<any[]>({
-		queryKey: ["rental-accounts"],
+		queryKey: getRentalAccountsQueryKey(),
 		queryFn: () => api.get("/rental/accounts").then((r) => r.data),
 	});
 

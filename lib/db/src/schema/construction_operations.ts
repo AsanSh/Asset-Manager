@@ -12,6 +12,7 @@ export const constructionOperationsTable = pgTable("construction_operations", {
   toAccountId: integer("to_account_id"),
   contractorId: integer("contractor_id"),
   contractId: integer("contract_id"),
+  accrualId: integer("accrual_id"),
   amount: numeric("amount").notNull().default("0"),
   currency: varchar("currency", { length: 8 }).notNull().default("KGS"),
   exchangeRateSource: varchar("exchange_rate_source", { length: 32 }).default("nbkr"),

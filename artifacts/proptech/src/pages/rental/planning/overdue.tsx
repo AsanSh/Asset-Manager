@@ -1,210 +1,219 @@
-import { useQuery, } from "@tanstack/react-query";
-import { AlertTriangle, Mail, Phone } from "lucide-react";
-import { useState } from "react";
+import { AlertTriangle, Mail, Phone, Users } from "lucide-react";
+import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { KpiCard, KpiRow } from "@/components/kpi-card";
+import { RentalDebtMatrix } from "@/components/rental/rental-debt-matrix";
+import { RentalExcelTable, type RentalExcelColumn } from "@/components/rental/rental-excel-table";
+import { RentalViewModeToggle } from "@/components/rental/rental-view-mode-toggle";
 import { useToast } from "@/hooks/use-toast";
-import { api } from "@/lib/api";
+import { useRentalViewMode } from "@/hooks/use-rental-view-mode";
+import {
+	fmtCurrency,
+	fmtDate,
+	fmtNum,
+	periodLabel,
+	sortDebtRows,
+	useRentalOverdueSearch,
+	type ContractDebtRow,
+	type OverdueItem,
+} from "@/lib/rental-overdue";
+import { useSortable } from "@/lib/use-sortable";
 
-function fmtFull(n: any) {
-	const v = parseFloat(n || "0");
-	if (Number.isNaN(v)) return "0 ₸";
-	return new Intl.NumberFormat("ru-KG", {
-		style: "currency",
-		currency: "KGS",
-		minimumFractionDigits: 0,
-		maximumFractionDigits: 0,
-	}).format(v);
-}
-
-function daysOverdue(d: string) {
-	const today = new Date();
-	return Math.floor(
-		(today.getTime() - new Date(d).getTime()) / (1000 * 60 * 60 * 24),
-	);
+function debtColor(days: number) {
+	if (days > 60) return "bg-rose-100 text-rose-800";
+	if (days > 30) return "bg-amber-100 text-amber-800";
+	if (days > 14) return "bg-amber-100 text-amber-800";
+	return "bg-blue-100 text-blue-800";
 }
 
 export default function RentalOverdue() {
-	const [search, setSearch] = useState("");
 	const { toast } = useToast();
+	const [viewMode, setViewMode] = useRentalViewMode("overdue");
+	const {
+		isLoading,
+		overdueItems,
+		contractRows,
+		periodColumns,
+		totalDebt,
+		debtorCount,
+		criticalCount,
+		search,
+		setSearch,
+	} = useRentalOverdueSearch();
 
-	const { data: accruals = [], isLoading } = useQuery<any[]>({
-		queryKey: ["rental-accruals"],
-		queryFn: () => api.get("/rental/accruals").then((r) => r.data),
-	});
-	const { data: contracts = [] } = useQuery<any[]>({
-		queryKey: ["rental-contracts"],
-		queryFn: () => api.get("/rental/contracts").then((r) => r.data),
-	});
-	const { data: tenants = [] } = useQuery<any[]>({
-		queryKey: ["rental-tenants"],
-		queryFn: () => api.get("/rental/tenants").then((r) => r.data),
-	});
+	const [matrixSortKey, setMatrixSortKey] = useState("total");
+	const [matrixSortDir, setMatrixSortDir] = useState<"asc" | "desc">("desc");
 
-	const today = new Date().toISOString().split("T")[0];
-
-	const overdue = accruals
-		.filter(
-			(a: any) => parseFloat(a.balance || "0") > 0 && (a.dueDate || "") < today,
-		)
-		.map((a: any) => {
-			const contract = contracts.find((c: any) => c.id === a.leaseContractId);
-			const tenant = contract
-				? tenants.find((t: any) => t.id === contract.tenantId)
-				: null;
-			return { ...a, contract, tenant, days: daysOverdue(a.dueDate) };
-		})
-		.filter((a: any) => {
-			if (!search) return true;
-			const q = search.toLowerCase();
-			return (
-				a.tenant?.name?.toLowerCase().includes(q) ||
-				a.contract?.propertyAddress?.toLowerCase().includes(q)
-			);
-		})
-		.sort((a: any, b: any) => b.days - a.days);
-
-	const totalDebt = overdue.reduce(
-		(s: number, a: any) => s + parseFloat(a.balance || "0"),
-		0,
+	const sortedMatrix = useMemo(
+		() => sortDebtRows(contractRows, matrixSortKey, matrixSortDir),
+		[contractRows, matrixSortKey, matrixSortDir],
 	);
 
-	function notifyTenant(a: any) {
+	const matrixToggleSort = (key: string) => {
+		if (matrixSortKey === key) setMatrixSortDir((d) => (d === "asc" ? "desc" : "asc"));
+		else {
+			setMatrixSortKey(key);
+			setMatrixSortDir(key === "tenantName" || key === "propertyLabel" ? "asc" : "desc");
+		}
+	};
+
+	const flatItems = useMemo(
+		() =>
+			overdueItems.map((i) => ({
+				...i,
+				tenantName: i.tenant?.fullName || i.tenant?.name || "",
+				balanceNum: parseFloat(i.balance || "0") || 0,
+			})),
+		[overdueItems],
+	);
+
+	const { sorted: sortedItems, sortKey, sortDir, toggle } = useSortable(flatItems, "days");
+
+	function notifyTenant(row: ContractDebtRow) {
 		toast({
-			title: `Уведомление отправлено ${a.tenant?.name || "арендатору"}`,
+			title: `Уведомление отправлено`,
+			description: row.tenantName,
 		});
 	}
 
-	function debtColor(days: number) {
-		if (days > 60) return "bg-rose-100 text-rose-800";
-		if (days > 30) return "bg-amber-100 text-amber-800";
-		if (days > 14) return "bg-amber-100 text-amber-800";
-		return "bg-blue-100 text-blue-800";
+	function notifyItem(item: OverdueItem) {
+		toast({
+			title: `Уведомление отправлено`,
+			description: item.tenant?.fullName || item.tenant?.name || "арендатору",
+		});
 	}
 
-	return (
-		<div>
-			<div className="flex items-center justify-between mb-6">
+	const classicColumns: RentalExcelColumn<(typeof flatItems)[number]>[] = [
+		{
+			key: "tenantName",
+			label: "Арендатор",
+			width: 160,
+			render: (r) => (
 				<div>
-					<h1 className="text-2xl font-bold text-gray-900">
-						Просроченные платежи
-					</h1>
+					<p className="font-medium truncate">{r.tenant?.fullName || r.tenant?.name || "—"}</p>
+					<p className="text-[10px] text-gray-400 truncate">{r.contract?.propertyAddress || `Дог. #${r.leaseContractId}`}</p>
+					{r.tenant?.phone && (
+						<p className="text-[10px] text-blue-500 flex items-center gap-0.5 mt-0.5">
+							<Phone className="w-2.5 h-2.5" />
+							{r.tenant.phone}
+						</p>
+					)}
+				</div>
+			),
+		},
+		{ key: "period", label: "Период", width: 90, render: (r) => periodLabel(r.period) },
+		{
+			key: "balanceNum",
+			label: "Долг",
+			width: 100,
+			align: "right",
+			render: (r) => <span className="font-bold text-rose-600">{fmtCurrency(r.balance, r.currency)}</span>,
+		},
+		{ key: "dueDate", label: "Срок", width: 90, render: (r) => fmtDate(r.dueDate) },
+		{
+			key: "days",
+			label: "Просрочка",
+			width: 80,
+			align: "center",
+			render: (r) => <Badge className={debtColor(r.days)}>{r.days} дн.</Badge>,
+		},
+		{
+			key: "actions",
+			label: "",
+			width: 90,
+			align: "center",
+			sortable: false,
+			resizable: false,
+			render: (r) => (
+				<Button
+					variant="outline"
+					size="sm"
+					className="h-6 text-[10px] gap-1 px-2"
+					onClick={() => notifyItem(r)}
+				>
+					<Mail className="w-3 h-3" />
+					Уведомить
+				</Button>
+			),
+		},
+	];
+
+	return (
+		<div className="flex flex-col gap-3">
+			<div className="flex flex-wrap items-start justify-between gap-3">
+				<div>
+					<h1 className="text-2xl font-bold text-gray-900">Просроченные платежи</h1>
 					<p className="text-gray-500 text-sm mt-0.5">
-						Управление должниками и рассылка уведомлений
+						Реестр должников по периодам · рассылка уведомлений
 					</p>
 				</div>
-				<Input
-					className="w-56 h-8 text-sm"
-					placeholder="Поиск арендатора..."
-					value={search}
-					onChange={(e) => setSearch(e.target.value)}
+				<div className="flex flex-wrap items-center gap-2">
+					<Input
+						className="w-48 h-8 text-sm"
+						placeholder="Поиск..."
+						value={search}
+						onChange={(e) => setSearch(e.target.value)}
+					/>
+					<RentalViewModeToggle mode={viewMode} onChange={setViewMode} />
+				</div>
+			</div>
+
+			<KpiRow cols={4}>
+				<KpiCard variant="strip" label="Общий долг" value={fmtCurrency(totalDebt)} icon={AlertTriangle} color="red" loading={isLoading} />
+				<KpiCard variant="strip" label="Должников" value={debtorCount} sub={`${overdueItems.length} начисл.`} icon={Users} color="yellow" loading={isLoading} />
+				<KpiCard variant="strip" label="Критич. 60+ дн." value={criticalCount} icon={AlertTriangle} color="red" loading={isLoading} />
+				<KpiCard variant="strip" label="Периодов" value={periodColumns.length} sub="в матрице" icon={Mail} color="purple" loading={isLoading} />
+			</KpiRow>
+
+			{viewMode === "report" ? (
+				<>
+					<p className="text-xs text-gray-500">
+						Строки — арендаторы · столбцы — неоплаченные периоды · «—» = нет долга за месяц
+					</p>
+					<RentalDebtMatrix
+						mode="period"
+						rows={sortedMatrix}
+						periodColumns={periodColumns}
+						isLoading={isLoading}
+						sortKey={matrixSortKey}
+						sortDir={matrixSortDir}
+						onSort={matrixToggleSort}
+						footerTotal={totalDebt}
+						emptyMessage="Просроченных долгов нет"
+						trailingColumn={{
+							label: "Действ.",
+							width: 72,
+							render: (row) => (
+								<Button
+									variant="outline"
+									size="sm"
+									className="h-6 text-[10px] gap-1 px-1.5"
+									onClick={() => notifyTenant(row)}
+								>
+									<Mail className="w-3 h-3" />
+								</Button>
+							),
+						}}
+					/>
+				</>
+			) : (
+				<RentalExcelTable
+					columns={classicColumns}
+					rows={sortedItems}
+					sortKey={sortKey}
+					sortDir={sortDir}
+					onSort={toggle}
+					isLoading={isLoading}
+					emptyMessage="Просроченных долгов нет"
+					footer={[
+						{ colSpan: 2, content: `Итого: ${overdueItems.length}` },
+						{ content: fmtNum(totalDebt), align: "right", className: "font-bold text-rose-700" },
+						{ colSpan: 3, content: "" },
+					]}
 				/>
-			</div>
-
-			<div className="grid grid-cols-3 gap-4 mb-6">
-				<div className="bg-rose-50 border border-rose-100 rounded-lg p-4">
-					<p className="text-sm text-rose-600">Общий долг</p>
-					<p className="text-2xl font-bold text-rose-700">
-						{fmtFull(totalDebt)}
-					</p>
-				</div>
-				<div className="bg-amber-50 border border-amber-100 rounded-lg p-4">
-					<p className="text-sm text-amber-600">Должников</p>
-					<p className="text-2xl font-bold text-amber-700">
-						{new Set(overdue.map((a: any) => a.leaseContractId)).size}
-					</p>
-				</div>
-				<div className="bg-rose-50 border border-rose-100 rounded-lg p-4">
-					<p className="text-sm text-rose-600">Критичных (60+ дн.)</p>
-					<p className="text-2xl font-bold text-rose-700">
-						{overdue.filter((a: any) => a.days > 60).length}
-					</p>
-				</div>
-			</div>
-
-			<div className="bg-white border rounded-lg overflow-hidden">
-				<table className="w-full text-sm">
-					<thead className="bg-gray-50">
-						<tr>
-							<th className="text-left p-3 font-medium text-gray-600">
-								Арендатор
-							</th>
-							<th className="text-left p-3 font-medium text-gray-600">
-								Период
-							</th>
-							<th className="text-right p-3 font-medium text-gray-600">Долг</th>
-							<th className="text-left p-3 font-medium text-gray-600">Срок</th>
-							<th className="text-center p-3 font-medium text-gray-600">
-								Просрочка
-							</th>
-							<th className="text-right p-3 font-medium text-gray-600">
-								Действия
-							</th>
-						</tr>
-					</thead>
-					<tbody>
-						{isLoading ? (
-							<tr>
-								<td colSpan={6} className="p-8 text-center text-gray-400">
-									Загрузка...
-								</td>
-							</tr>
-						) : overdue.length === 0 ? (
-							<tr>
-								<td colSpan={6} className="p-12 text-center text-gray-400">
-									<AlertTriangle className="w-8 h-8 mx-auto mb-2 opacity-30" />
-									<p className="text-sm">Просроченных долгов нет</p>
-								</td>
-							</tr>
-						) : (
-							overdue.map((a: any) => (
-								<tr key={a.id} className="border-t hover:bg-gray-50">
-									<td className="p-3">
-										<p className="font-medium text-gray-900">
-											{a.tenant?.name || "—"}
-										</p>
-										<p className="text-xs text-gray-400">
-											{a.contract?.propertyAddress ||
-												`Дог. #${a.leaseContractId}`}
-										</p>
-										{a.tenant?.phone && (
-											<p className="text-xs text-blue-500 flex items-center gap-0.5 mt-0.5">
-												<Phone className="w-3 h-3" />
-												{a.tenant.phone}
-											</p>
-										)}
-									</td>
-									<td className="p-3 text-gray-600">{a.period}</td>
-									<td className="p-3 text-right font-bold text-rose-600">
-										{fmtFull(a.balance)}
-									</td>
-									<td className="p-3 text-gray-600">
-										{a.dueDate
-											? new Date(a.dueDate).toLocaleDateString("ru-KG")
-											: "—"}
-									</td>
-									<td className="p-3 text-center">
-										<Badge className={debtColor(a.days)}>{a.days} дн.</Badge>
-									</td>
-									<td className="p-3">
-										<div className="flex items-center gap-1 justify-end">
-											<Button
-												variant="outline"
-												size="sm"
-												className="h-7 text-xs gap-1"
-												onClick={() => notifyTenant(a)}
-											>
-												<Mail className="w-3 h-3" /> Уведомить
-											</Button>
-										</div>
-									</td>
-								</tr>
-							))
-						)}
-					</tbody>
-				</table>
-			</div>
+			)}
 		</div>
 	);
 }

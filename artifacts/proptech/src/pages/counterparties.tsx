@@ -171,7 +171,7 @@ function CounterpartyDialog({
 			toast({
 				title: "Ошибка",
 				description:
-					err?.response?.data?.error || "Не удалось сохранить контрагента",
+					getApiErrorMessage(err, "Не удалось сохранить контрагента"),
 				variant: "destructive",
 			});
 		}

@@ -49,6 +49,10 @@ export const constructionProjectsTable = pgTable("construction_projects", {
   actualEndDate: text("actual_end_date"),
 
   description: text("description"),
+  /** JSON: стадия, заказчик, ГАП и др. с титульного листа */
+  documentMeta: text("document_meta"),
+  /** JSON: шаблон договора продаж (.docx) для проекта */
+  contractTemplateMeta: text("contract_template_meta"),
   managerId: integer("manager_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

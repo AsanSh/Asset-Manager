@@ -28,16 +28,8 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
-import { getApiBase } from "@/lib/api-base";
-
-const BASE = getApiBase();
-const authHeaders = () => {
-	const token = localStorage.getItem("auth_token");
-	return {
-		"Content-Type": "application/json",
-		...(token ? { Authorization: `Bearer ${token}` } : {}),
-	};
-};
+import { authFetch } from "@/lib/auth-fetch";
+import { getApiErrorMessage } from "@/lib/api-error";
 
 function fmtCurrency(v: number | string) {
 	const n = typeof v === "string" ? parseFloat(v) : v;
@@ -114,23 +106,21 @@ function AddDialog({
 		}
 		setLoading(true);
 		try {
-			const res = await fetch(`${BASE}/rental/investments`, {
+			await authFetch("/rental/investments", {
 				method: "POST",
-				headers: authHeaders(),
 				body: JSON.stringify({
 					...form,
 					propertyId: parseInt(form.propertyId, 10),
 					investorId: parseInt(form.investorId, 10),
 				}),
 			});
-			if (!res.ok) throw new Error("Ошибка сохранения");
 			toast({ title: "Доля добавлена" });
 			onSaved();
 			onClose();
-		} catch (e: any) {
+		} catch (e: unknown) {
 			toast({
 				title: "Ошибка",
-				description: e.message,
+				description: getApiErrorMessage(e),
 				variant: "destructive",
 			});
 		} finally {
@@ -261,12 +251,13 @@ export default function Investments() {
 
 	const handleDelete = async (id: number) => {
 		if (!confirm("Удалить инвестицию?")) return;
-		await fetch(`${BASE}/rental/investments/${id}`, {
-			method: "DELETE",
-			headers: authHeaders(),
-		});
-		toast({ title: "Запись удалена" });
-		queryClient.invalidateQueries({ queryKey: ["investments"] });
+		try {
+			await authFetch(`/rental/investments/${id}`, { method: "DELETE" });
+			toast({ title: "Запись удалена" });
+			queryClient.invalidateQueries({ queryKey: ["investments"] });
+		} catch (e: unknown) {
+			toast({ title: "Ошибка", description: getApiErrorMessage(e), variant: "destructive" });
+		}
 	};
 
 	return (

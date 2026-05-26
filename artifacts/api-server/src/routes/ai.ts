@@ -2,6 +2,7 @@ import { Router } from "express";
 import { eq, and, desc } from "drizzle-orm";
 import { db, constructionProjectsTable, constructionContractorsTable, constructionExpensesTable } from "../lib/db";
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
+import { requireTenantCompany } from "../middleware/tenant";
 import {
   chatWithDocument,
   checkSnip,
@@ -17,10 +18,12 @@ import {
 
 const router: ReturnType<typeof Router> = Router();
 
+router.use(requireAuth, requireTenantCompany);
+
 // ────────────────────────────────────────────────────────────────
 // POST /ai/chat  — чат по тех.заданию (субподрядчики)
 // ────────────────────────────────────────────────────────────────
-router.post("/ai/chat", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/ai/chat", async (req: AuthenticatedRequest, res): Promise<void> => {
   try {
     const { question, documentText, history = [] } = req.body;
     if (!question || !documentText) {
@@ -38,7 +41,7 @@ router.post("/ai/chat", requireAuth, async (req: AuthenticatedRequest, res): Pro
 // ────────────────────────────────────────────────────────────────
 // POST /ai/snip-check  — проверка документа по СНиП/СП
 // ────────────────────────────────────────────────────────────────
-router.post("/ai/snip-check", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/ai/snip-check", async (req: AuthenticatedRequest, res): Promise<void> => {
   try {
     const { documentText, norms = [] } = req.body;
     if (!documentText) {
@@ -63,7 +66,7 @@ router.post("/ai/snip-check", requireAuth, async (req: AuthenticatedRequest, res
 // ────────────────────────────────────────────────────────────────
 // POST /ai/generate-tz  — генерация тех.задания
 // ────────────────────────────────────────────────────────────────
-router.post("/ai/generate-tz", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/ai/generate-tz", async (req: AuthenticatedRequest, res): Promise<void> => {
   try {
     const { brief, projectType = "жилое строительство" } = req.body;
     if (!brief) {
@@ -81,7 +84,7 @@ router.post("/ai/generate-tz", requireAuth, async (req: AuthenticatedRequest, re
 // ────────────────────────────────────────────────────────────────
 // POST /ai/analyze-estimate  — анализ сметы
 // ────────────────────────────────────────────────────────────────
-router.post("/ai/analyze-estimate", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/ai/analyze-estimate", async (req: AuthenticatedRequest, res): Promise<void> => {
   try {
     const { estimateText } = req.body;
     if (!estimateText) {
@@ -106,7 +109,7 @@ router.post("/ai/analyze-estimate", requireAuth, async (req: AuthenticatedReques
 // ────────────────────────────────────────────────────────────────
 // POST /ai/generate-act  — генерация акта КС-2 / КС-3
 // ────────────────────────────────────────────────────────────────
-router.post("/ai/generate-act", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/ai/generate-act", async (req: AuthenticatedRequest, res): Promise<void> => {
   try {
     const { actType, projectData, worksData } = req.body;
     if (!actType || !projectData || !worksData) {
@@ -128,7 +131,7 @@ router.post("/ai/generate-act", requireAuth, async (req: AuthenticatedRequest, r
 // ────────────────────────────────────────────────────────────────
 // POST /ai/progress-report  — отчёт о ходе строительства
 // ────────────────────────────────────────────────────────────────
-router.post("/ai/progress-report", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/ai/progress-report", async (req: AuthenticatedRequest, res): Promise<void> => {
   try {
     const { projectId, period } = req.body;
     if (!projectId || !period) {
@@ -141,10 +144,10 @@ router.post("/ai/progress-report", requireAuth, async (req: AuthenticatedRequest
       .select()
       .from(constructionProjectsTable)
       .where(
-        req.companyId
+        req.scopedCompanyId!
           ? and(
               eq(constructionProjectsTable.id, projectId),
-              eq(constructionProjectsTable.companyId, req.companyId)
+              eq(constructionProjectsTable.companyId, req.scopedCompanyId!)
             )
           : eq(constructionProjectsTable.id, projectId)
       );
@@ -165,7 +168,7 @@ router.post("/ai/progress-report", requireAuth, async (req: AuthenticatedRequest
 // ────────────────────────────────────────────────────────────────
 // POST /ai/analyze-tender  — анализ тендерной документации
 // ────────────────────────────────────────────────────────────────
-router.post("/ai/analyze-tender", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/ai/analyze-tender", async (req: AuthenticatedRequest, res): Promise<void> => {
   try {
     const { tenderText } = req.body;
     if (!tenderText) {
@@ -190,7 +193,7 @@ router.post("/ai/analyze-tender", requireAuth, async (req: AuthenticatedRequest,
 // ────────────────────────────────────────────────────────────────
 // POST /ai/analyze-photos  — анализ фото с объекта (Claude Vision)
 // ────────────────────────────────────────────────────────────────
-router.post("/ai/analyze-photos", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/ai/analyze-photos", async (req: AuthenticatedRequest, res): Promise<void> => {
   try {
     const { images, projectName, context } = req.body;
     if (!images?.length || !projectName) {
@@ -212,9 +215,9 @@ router.post("/ai/analyze-photos", requireAuth, async (req: AuthenticatedRequest,
 // ────────────────────────────────────────────────────────────────
 // GET /ai/contractor-analytics  — аналитика подрядчиков
 // ────────────────────────────────────────────────────────────────
-router.get("/ai/contractor-analytics", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/ai/contractor-analytics", async (req: AuthenticatedRequest, res): Promise<void> => {
   try {
-    const cid = req.companyId;
+    const cid = req.scopedCompanyId!;
     if (!cid) { res.status(400).json({ error: "Нет привязки к организации" }); return; }
 
     const contractors = await db.select().from(constructionContractorsTable)
@@ -248,7 +251,7 @@ router.get("/ai/contractor-analytics", requireAuth, async (req: AuthenticatedReq
 // ────────────────────────────────────────────────────────────────
 // POST /ai/telegram/send  — отправка уведомления в Telegram
 // ────────────────────────────────────────────────────────────────
-router.post("/ai/telegram/send", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/ai/telegram/send", async (req: AuthenticatedRequest, res): Promise<void> => {
   try {
     const { chatId, message } = req.body;
     if (!chatId || !message) {

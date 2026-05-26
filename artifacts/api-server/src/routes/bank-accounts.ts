@@ -2,20 +2,18 @@ import { Router } from "express";
 import { eq, and, SQL } from "drizzle-orm";
 import { db, bankAccountsTable } from "../lib/db";
 import { requireAuth, requireRole, AuthenticatedRequest } from "../middleware/auth";
+import { requireTenantCompany } from "../middleware/tenant";
 
 const router: ReturnType<typeof Router> = Router();
 
+router.use(requireAuth, requireTenantCompany);
+
 // GET /api/bank-accounts - List all bank accounts
-router.get(
-  "/bank-accounts",
-  requireAuth,
+router.get("/bank-accounts",
   async (req: AuthenticatedRequest, res): Promise<void> => {
     try {
       const conditions: SQL[] = [];
-
-      if (req.companyId) {
-        conditions.push(eq(bankAccountsTable.companyId, req.companyId));
-      }
+      conditions.push(eq(bankAccountsTable.companyId, req.scopedCompanyId!));
 
       const rows = await db
         .select()
@@ -61,7 +59,7 @@ router.post(
       const [row] = await db
         .insert(bankAccountsTable)
         .values({
-          companyId: req.companyId!,
+          companyId: req.scopedCompanyId!,
           name,
           type,
           bank,
@@ -114,10 +112,7 @@ router.patch(
       } = req.body;
 
       const conditions: SQL[] = [eq(bankAccountsTable.id, id)];
-
-      if (req.companyId) {
-        conditions.push(eq(bankAccountsTable.companyId, req.companyId));
-      }
+      conditions.push(eq(bankAccountsTable.companyId, req.scopedCompanyId!));
 
       const [row] = await db
         .update(bankAccountsTable)
@@ -167,10 +162,7 @@ router.delete(
       }
 
       const conditions: SQL[] = [eq(bankAccountsTable.id, id)];
-
-      if (req.companyId) {
-        conditions.push(eq(bankAccountsTable.companyId, req.companyId));
-      }
+      conditions.push(eq(bankAccountsTable.companyId, req.scopedCompanyId!));
 
       await db.delete(bankAccountsTable).where(and(...conditions));
 

@@ -1,7 +1,23 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
-import { useState } from "react";
+import {
+	getListAccrualsQueryKey,
+	getListLeaseContractsQueryKey,
+	getListPaymentsQueryKey,
+	getListRentalPropertiesQueryKey,
+	getListTenantsQueryKey,
+	getRentalAccountsQueryKey,
+	getDistributionsQueryKey,
+	getRentalPaymentsAllQueryKey,
+	getRentalExpensesAllQueryKey,
+	getAccrualsOpenQueryKey,
+} from "@/lib/rental-query-keys";
+import { Banknote, CheckCircle2, Plus, Shield, Wallet } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { defaultPeriod, inPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
+import { KpiCard, KpiRow } from "@/components/kpi-card";
+import { RentalExcelTable, type RentalExcelColumn } from "@/components/rental/rental-excel-table";
+import { RentalViewModeToggle } from "@/components/rental/rental-view-mode-toggle";
+import { useRentalViewMode } from "@/hooks/use-rental-view-mode";
 import { useSortable } from "@/lib/use-sortable";
 import { SortHead } from "@/components/sort-head";
 import {
@@ -77,9 +93,11 @@ function DepositDialog({ open, onClose }: DepositDialogProps) {
 	const [loading, setLoading] = useState(false);
 
 	const { data: accounts = [] } = useQuery<any[]>({
-		queryKey: ["rental-accounts"],
+		queryKey: getRentalAccountsQueryKey(),
 		queryFn: () => api.get("/rental/accounts").then((r) => r.data),
 	});
+
+	const accountsArray = Array.isArray(accounts) ? accounts : [];
 
 	const [formData, setFormData] = useState({
 		leaseContractId: "",
@@ -90,8 +108,28 @@ function DepositDialog({ open, onClose }: DepositDialogProps) {
 		note: "",
 	});
 
+	useEffect(() => {
+		if (!open) return;
+		setFormData({
+			leaseContractId: "",
+			amount: "",
+			currency: "KGS",
+			receivedDate: new Date().toISOString().split("T")[0],
+			accountId: accountsArray[0] ? String(accountsArray[0].id) : "",
+			note: "",
+		});
+	}, [open, accountsArray]);
+
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
+		if (!formData.accountId) {
+			toast({
+				title: "Выберите расчётный счёт",
+				description: "Депозит должен быть привязан к счёту",
+				variant: "destructive",
+			});
+			return;
+		}
 		setLoading(true);
 		try {
 			await api.post("/rental/deposits", {
@@ -99,7 +137,7 @@ function DepositDialog({ open, onClose }: DepositDialogProps) {
 				amount: parseFloat(formData.amount),
 				currency: formData.currency,
 				receivedDate: formData.receivedDate,
-				accountId: formData.accountId ? parseInt(formData.accountId, 10) : null,
+				accountId: parseInt(formData.accountId, 10),
 				note: formData.note || null,
 			});
 			toast({ title: "Депозит зарегистрирован" });
@@ -184,23 +222,29 @@ function DepositDialog({ open, onClose }: DepositDialogProps) {
 						/>
 					</div>
 					<div>
-						<Label>Расчётный счёт</Label>
+						<Label>Расчётный счёт *</Label>
 						<Select
-							value={formData.accountId || "none"}
+							value={formData.accountId}
 							onValueChange={(v) =>
-								setFormData({ ...formData, accountId: v === "none" ? "" : v })
+								setFormData({ ...formData, accountId: v })
 							}
+							required
 						>
 							<SelectTrigger className="mt-1">
-								<SelectValue placeholder="Выберите счёт (необязательно)" />
+								<SelectValue placeholder="Выберите счёт" />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="none">— Без привязки к счёту —</SelectItem>
-								{(accounts as any[]).map((a: any) => (
-									<SelectItem key={a.id} value={String(a.id)}>
-										{a.name}
+								{accountsArray.length === 0 ? (
+									<SelectItem value="_empty" disabled>
+										Сначала создайте счёт в разделе «Расчётные счета»
 									</SelectItem>
-								))}
+								) : (
+									(accounts as any[]).map((a: any) => (
+										<SelectItem key={a.id} value={String(a.id)}>
+											{a.name}
+										</SelectItem>
+									))
+								)}
 							</SelectContent>
 						</Select>
 					</div>
@@ -217,7 +261,7 @@ function DepositDialog({ open, onClose }: DepositDialogProps) {
 						<Button type="button" variant="outline" onClick={onClose}>
 							Отмена
 						</Button>
-						<Button type="submit" disabled={loading}>
+						<Button type="submit" disabled={loading || !formData.accountId}>
 							{loading ? "Сохранение..." : "Сохранить"}
 						</Button>
 					</div>
@@ -229,32 +273,99 @@ function DepositDialog({ open, onClose }: DepositDialogProps) {
 
 export default function Deposits() {
 	const { data: deposits, isLoading } = useListDeposits();
+	const { data: leases } = useListLeaseContracts();
+	const leasesArray = Array.isArray(leases) ? leases : [];
 	const depositsArray = Array.isArray(deposits) ? deposits : [];
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod());
+	const [viewMode, setViewMode] = useRentalViewMode("deposits");
+
+	const leaseLabel = useMemo(() => {
+		const map: Record<number, string> = {};
+		for (const l of leasesArray) {
+			map[l.id] = `${l.contractNumber} — ${l.tenantName || ""}`.trim();
+		}
+		return map;
+	}, [leasesArray]);
+
 	const filteredDeposits = depositsArray.filter((d) => inPeriod(d.receivedDate, period));
-	const { sorted, sortKey, sortDir, toggle } = useSortable(filteredDeposits, "receivedDate");
+	const enriched = useMemo(
+		() =>
+			filteredDeposits.map((d) => ({
+				...d,
+				contractLabel: leaseLabel[d.leaseContractId] || `Договор #${d.leaseContractId}`,
+			})),
+		[filteredDeposits, leaseLabel],
+	);
+	const { sorted, sortKey, sortDir, toggle } = useSortable(enriched, "receivedDate");
 
 	const totalAmount = filteredDeposits.reduce((s, d) => s + parseFloat(String(d.amount || "0")), 0);
 	const totalReturned = filteredDeposits.reduce((s, d) => s + parseFloat(String(d.returnedAmount || "0")), 0);
+	const heldCount = filteredDeposits.filter((d) => d.status === "held").length;
+
+	const columns: RentalExcelColumn<(typeof enriched)[number]>[] = [
+		{ key: "contractLabel", label: "Договор", width: 180, render: (r) => r.contractLabel },
+		{ key: "receivedDate", label: "Получен", width: 110, render: (r) => formatDate(r.receivedDate) },
+		{ key: "amount", label: "Сумма", width: 120, align: "right", render: (r) => formatCurrency(r.amount, r.currency) },
+		{ key: "returnedAmount", label: "Возвращено", width: 120, align: "right", render: (r) => r.returnedAmount ? formatCurrency(r.returnedAmount, r.currency) : "—" },
+		{
+			key: "status", label: "Статус", width: 130, align: "center",
+			render: (r) => (
+				<span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${statusColors[r.status] || "bg-gray-100"}`}>
+					{statusLabels[r.status] || r.status}
+				</span>
+			),
+		},
+	];
 
 	return (
-		<div className="p-6 space-y-4">
-			<div className="flex justify-between items-center">
+		<div className="p-6 space-y-3">
+			<KpiRow>
+				<KpiCard variant="strip" label="Записей" value={filteredDeposits.length} sub="за период" icon={Banknote} color="blue" loading={isLoading} />
+				<KpiCard variant="strip" label="Сумма депозитов" value={new Intl.NumberFormat("ru-RU").format(totalAmount)} sub="KGS экв." icon={Wallet} color="purple" loading={isLoading} />
+				<KpiCard variant="strip" label="Возвращено" value={new Intl.NumberFormat("ru-RU").format(totalReturned)} sub="за период" icon={CheckCircle2} color="green" loading={isLoading} />
+				<KpiCard variant="strip" label="Удерживается" value={heldCount} sub="активных депозитов" icon={Shield} color="yellow" loading={isLoading} />
+			</KpiRow>
+
+			<div className="flex justify-between items-center flex-wrap gap-3">
 				<div>
 					<h1 className="text-2xl font-bold">Депозиты</h1>
 					<p className="text-muted-foreground text-sm">
 						Учёт залоговых депозитов арендаторов
 					</p>
 				</div>
-				<Button onClick={() => setDialogOpen(true)}>
-					<Plus className="w-4 h-4 mr-2" />
-					Добавить
-				</Button>
+				<div className="flex items-center gap-2">
+					<RentalViewModeToggle mode={viewMode} onChange={setViewMode} />
+					<Button onClick={() => setDialogOpen(true)}>
+						<Plus className="w-4 h-4 mr-2" />
+						Добавить
+					</Button>
+				</div>
 			</div>
 
-			<PeriodPicker value={period} onChange={setPeriod} />
+			<div className="flex items-center justify-between flex-wrap gap-2">
+				<PeriodPicker value={period} onChange={setPeriod} />
+				<p className="text-xs text-gray-500">{sorted.length} записей</p>
+			</div>
 
+			{viewMode === "report" ? (
+				<RentalExcelTable
+					columns={columns}
+					rows={sorted}
+					sortKey={sortKey}
+					sortDir={sortDir}
+					onSort={toggle}
+					isLoading={isLoading}
+					emptyMessage="Депозиты не найдены"
+					rowKey={(r) => r.id}
+					footer={[
+						{ colSpan: 2, content: `Итого: ${filteredDeposits.length}` },
+						{ content: new Intl.NumberFormat("ru-RU").format(totalAmount), align: "right" },
+						{ content: totalReturned > 0 ? new Intl.NumberFormat("ru-RU").format(totalReturned) : "—", align: "right" },
+						{ content: "" },
+					]}
+				/>
+			) : (
 			<div className="rounded-md border">
 				<Table>
 					<TableHeader>
@@ -282,7 +393,7 @@ export default function Deposits() {
 						) : (
 							sorted.map((deposit) => (
 								<TableRow key={deposit.id}>
-									<TableCell>Договор #{deposit.leaseContractId}</TableCell>
+									<TableCell>{deposit.contractLabel || `Договор #${deposit.leaseContractId}`}</TableCell>
 									<TableCell>{formatDate(deposit.receivedDate)}</TableCell>
 									<TableCell className="font-medium">{formatCurrency(deposit.amount, deposit.currency)}</TableCell>
 									<TableCell>{deposit.returnedAmount ? formatCurrency(deposit.returnedAmount, deposit.currency) : "—"}</TableCell>
@@ -307,6 +418,7 @@ export default function Deposits() {
 					)}
 				</Table>
 			</div>
+			)}
 
 			<DepositDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
 		</div>

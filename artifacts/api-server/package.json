@@ -8,12 +8,13 @@
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx --test src/**/*.test.ts",
+    "test": "DATABASE_URL=postgresql://test:test@127.0.0.1:5432/test tsx --test src/**/*.test.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@workspace/db": "workspace:*",
     "@anthropic-ai/sdk": "^0.97.0",
     "bcrypt": "^5.1.1",
     "cookie-parser": "^1.4.7",

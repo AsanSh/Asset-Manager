@@ -38,16 +38,8 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
-import { getApiBase } from "@/lib/api-base";
-
-const BASE = getApiBase();
-const authHeaders = () => {
-	const token = localStorage.getItem("auth_token");
-	return {
-		"Content-Type": "application/json",
-		...(token ? { Authorization: `Bearer ${token}` } : {}),
-	};
-};
+import { authFetch } from "@/lib/auth-fetch";
+import { getApiErrorMessage } from "@/lib/api-error";
 
 function fmtDate(d: string) {
 	return new Date(d).toLocaleDateString("ru-KG");
@@ -109,23 +101,20 @@ function InvestorDialog({
 		}
 		setLoading(true);
 		try {
-			const url = isEdit
-				? `${BASE}/rental/investors/${(init as Investor).id}`
-				: `${BASE}/rental/investors`;
-			const method = isEdit ? "PATCH" : "POST";
-			const res = await fetch(url, {
-				method,
-				headers: authHeaders(),
+			const path = isEdit
+				? `/rental/investors/${(init as Investor).id}`
+				: "/rental/investors";
+			await authFetch(path, {
+				method: isEdit ? "PATCH" : "POST",
 				body: JSON.stringify(form),
 			});
-			if (!res.ok) throw new Error("Ошибка сохранения");
 			toast({ title: isEdit ? "Владелец обновлён" : "Владелец добавлен" });
 			onSaved();
 			onClose();
-		} catch (e: any) {
+		} catch (e: unknown) {
 			toast({
 				title: "Ошибка",
-				description: e.message,
+				description: getApiErrorMessage(e),
 				variant: "destructive",
 			});
 		} finally {
@@ -266,12 +255,13 @@ export default function Investors() {
 
 	const handleDelete = async (id: number, name: string) => {
 		if (!confirm(`Удалить владельца "${name}"?`)) return;
-		await fetch(`${BASE}/rental/investors/${id}`, {
-			method: "DELETE",
-			headers: authHeaders(),
-		});
-		toast({ title: "Владелец удалён" });
-		queryClient.invalidateQueries({ queryKey: ["investors"] });
+		try {
+			await authFetch(`/rental/investors/${id}`, { method: "DELETE" });
+			toast({ title: "Владелец удалён" });
+			queryClient.invalidateQueries({ queryKey: ["investors"] });
+		} catch (e: unknown) {
+			toast({ title: "Ошибка", description: getApiErrorMessage(e), variant: "destructive" });
+		}
 	};
 
 	return (

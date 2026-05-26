@@ -1,4 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
+import {
+	getListAccrualsQueryKey,
+	getListLeaseContractsQueryKey,
+	getListPaymentsQueryKey,
+	getListRentalPropertiesQueryKey,
+	getListTenantsQueryKey,
+	getRentalAccountsQueryKey,
+	getDistributionsQueryKey,
+	getRentalPaymentsAllQueryKey,
+	getRentalExpensesAllQueryKey,
+	getAccrualsOpenQueryKey,
+} from "@/lib/rental-query-keys";
 import { ChevronDown, ChevronRight, Eye, EyeOff } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -111,23 +123,23 @@ export default function RentalOPU() {
 	}
 
 	const { data: payments = [] } = useQuery<any[]>({
-		queryKey: ["rental-payments-all"],
+		queryKey: getRentalPaymentsAllQueryKey(),
 		queryFn: () => api.get("/rental/payments").then((r) => r.data),
 	});
 	const { data: expenses = [] } = useQuery<any[]>({
-		queryKey: ["rental-expenses-all"],
+		queryKey: getRentalExpensesAllQueryKey(),
 		queryFn: () => api.get("/rental/expenses").then((r) => r.data),
 	});
 	const { data: properties = [] } = useQuery<any[]>({
-		queryKey: ["rental-properties"],
+		queryKey: getListRentalPropertiesQueryKey(),
 		queryFn: () => api.get("/rental/properties").then((r) => r.data),
 	});
 	const { data: contracts = [] } = useQuery<any[]>({
-		queryKey: ["rental-contracts"],
+		queryKey: getListLeaseContractsQueryKey(),
 		queryFn: () => api.get("/rental/contracts").then((r) => r.data),
 	});
 	const { data: distributions = [] } = useQuery<any[]>({
-		queryKey: ["rental-distributions"],
+		queryKey: getDistributionsQueryKey(),
 		queryFn: () => api.get("/rental/distributions").then((r) => r.data),
 	});
 

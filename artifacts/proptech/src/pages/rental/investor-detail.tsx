@@ -1,5 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
 import {
+	getListAccrualsQueryKey,
+	getListLeaseContractsQueryKey,
+	getListPaymentsQueryKey,
+	getListRentalPropertiesQueryKey,
+	getListTenantsQueryKey,
+	getRentalAccountsQueryKey,
+	getDistributionsQueryKey,
+	getRentalPaymentsAllQueryKey,
+	getRentalExpensesAllQueryKey,
+	getAccrualsOpenQueryKey,
+} from "@/lib/rental-query-keys";
+import {
 	ArrowLeft,
 	BadgeDollarSign,
 	Building2,
@@ -94,7 +106,7 @@ export default function InvestorDetail() {
 	});
 
 	const { data: allDistributions = [] } = useQuery<any[]>({
-		queryKey: ["distributions"],
+		queryKey: getDistributionsQueryKey(),
 		queryFn: () => api.get("/rental/distributions").then((r) => r.data),
 	});
 
@@ -153,7 +165,7 @@ export default function InvestorDetail() {
 		} catch (e: any) {
 			setPortalStatus({
 				type: "error",
-				msg: e?.response?.data?.error || "Ошибка создания аккаунта",
+				msg: getApiErrorMessage(e, "Ошибка создания аккаунта"),
 			});
 		} finally {
 			setPortalLoading(false);

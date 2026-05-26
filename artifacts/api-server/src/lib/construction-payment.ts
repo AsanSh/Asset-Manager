@@ -6,6 +6,7 @@ import {
 } from "./db/schema";
 import { and, desc, eq, like, or } from "drizzle-orm";
 import { allocatePaymentAcrossAccruals } from "./payment-allocation";
+import { applyOpBalances } from "./construction-operation-balances";
 
 export type ApplyContractPaymentInput = {
   companyId: number;
@@ -44,6 +45,9 @@ export async function applyContractPayment(input: ApplyContractPaymentInput) {
   const payAmount = parseFloat(String(amount));
   if (!payAmount || payAmount <= 0) {
     throw new Error("Сумма платежа должна быть больше нуля");
+  }
+  if (!accountId) {
+    throw new Error("Укажите счёт зачисления");
   }
 
   const payDate = date || new Date().toISOString().slice(0, 10);
@@ -107,7 +111,7 @@ export async function applyContractPayment(input: ApplyContractPaymentInput) {
       contractId,
       accrualId: accrualId ? Number(accrualId) : null,
       fromAccountId: null,
-      toAccountId: accountId ? Number(accountId) : null,
+      toAccountId: Number(accountId),
       amount: String(payAmount),
       currency,
       exchangeRate: String(exchangeRate),
@@ -121,6 +125,14 @@ export async function applyContractPayment(input: ApplyContractPaymentInput) {
       notes: noteParts.length ? noteParts.join(" · ") : null,
     })
     .returning();
+
+  await applyOpBalances(companyId, {
+    type: "income",
+    status: "approved",
+    fromAccountId: null,
+    toAccountId: Number(accountId),
+    amountKgs,
+  });
 
   if (contract) {
     const newPaid =

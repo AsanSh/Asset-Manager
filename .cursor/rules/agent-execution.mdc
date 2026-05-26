@@ -1,0 +1,28 @@
+---
+description: Agent execution — assumptions, success criteria, dead code (complements user rules)
+alwaysApply: true
+---
+
+# Agent execution
+
+Simplicity, minimal scope, and surgical diffs are already in user rules — do not repeat them here.
+
+## Before non-trivial work
+
+- State assumptions explicitly. If uncertain, ask — do not pick an interpretation silently.
+- If several valid approaches exist, name them and tradeoffs; ask when the choice affects scope or data.
+- If something is unclear, stop and name what is confusing.
+
+## Success criteria
+
+Turn requests into verifiable outcomes, not vague "make it work":
+
+- "Add validation" → invalid inputs rejected with clear errors; happy path still works.
+- "Fix bug" → reproduce, fix, confirm the symptom is gone.
+- Multi-step tasks → short plan: `step → how to verify`.
+
+For trivial one-line fixes, skip the plan.
+
+## Dead code
+
+If you notice unrelated dead code while editing: mention it — do not delete unless the user asked.

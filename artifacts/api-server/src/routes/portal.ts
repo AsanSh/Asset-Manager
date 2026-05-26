@@ -4,13 +4,16 @@ import {
   db, usersTable, investorsTable, investmentsTable, distributionsTable,
   propertiesTable, tenantsTable, leaseContractsTable, paymentsTable, accrualsTable
 } from "../lib/db";
-import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
+import { requireAuth, requireRole, AuthenticatedRequest } from "../middleware/auth";
+import { requireTenantCompany } from "../middleware/tenant";
 import { hashPassword, validatePassword } from "../lib/security";
 
 const router: ReturnType<typeof Router> = Router();
 
+router.use(requireAuth, requireTenantCompany);
+
 // POST /portal/create-investor-account
-router.post("/portal/create-investor-account", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/portal/create-investor-account", requireRole("admin", "company_admin"), async (req: AuthenticatedRequest, res): Promise<void> => {
   const { investorId, email, firstName, lastName, password } = req.body;
   if (!investorId || !email || !firstName || !lastName || !password) {
     res.status(400).json({ error: "Все поля обязательны" }); return;
@@ -18,7 +21,7 @@ router.post("/portal/create-investor-account", requireAuth, async (req: Authenti
 
   // Check investor belongs to company
   const [investor] = await db.select().from(investorsTable)
-    .where(and(eq(investorsTable.id, investorId), eq(investorsTable.companyId, req.companyId!)));
+    .where(and(eq(investorsTable.id, investorId), eq(investorsTable.companyId, req.scopedCompanyId!)));
   if (!investor) { res.status(404).json({ error: "Инвестор не найден" }); return; }
 
   // Check if user already exists
@@ -39,7 +42,7 @@ router.post("/portal/create-investor-account", requireAuth, async (req: Authenti
   }
 
   const [user] = await db.insert(usersTable).values({
-    companyId: req.companyId!,
+    companyId: req.scopedCompanyId!,
     email,
     passwordHash: await hashPassword(password),
     firstName,
@@ -54,14 +57,14 @@ router.post("/portal/create-investor-account", requireAuth, async (req: Authenti
 });
 
 // POST /portal/create-tenant-account
-router.post("/portal/create-tenant-account", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/portal/create-tenant-account", requireRole("admin", "company_admin"), async (req: AuthenticatedRequest, res): Promise<void> => {
   const { tenantId, email, firstName, lastName, password } = req.body;
   if (!tenantId || !email || !firstName || !lastName || !password) {
     res.status(400).json({ error: "Все поля обязательны" }); return;
   }
 
   const [tenant] = await db.select().from(tenantsTable)
-    .where(and(eq(tenantsTable.id, tenantId), eq(tenantsTable.companyId, req.companyId!)));
+    .where(and(eq(tenantsTable.id, tenantId), eq(tenantsTable.companyId, req.scopedCompanyId!)));
   if (!tenant) { res.status(404).json({ error: "Арендатор не найден" }); return; }
 
   const [existingUser] = await db.select().from(usersTable).where(eq(usersTable.email, email));
@@ -80,7 +83,7 @@ router.post("/portal/create-tenant-account", requireAuth, async (req: Authentica
   }
 
   const [user] = await db.insert(usersTable).values({
-    companyId: req.companyId!,
+    companyId: req.scopedCompanyId!,
     email,
     passwordHash: await hashPassword(password),
     firstName,
@@ -95,7 +98,7 @@ router.post("/portal/create-tenant-account", requireAuth, async (req: Authentica
 });
 
 // GET /portal/investor/me — данные для портала инвестора (только свои)
-router.get("/portal/investor/me", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/portal/investor/me", async (req: AuthenticatedRequest, res): Promise<void> => {
   const [me] = await db.select().from(usersTable).where(eq(usersTable.id, req.userId!));
   if (!me || me.role !== "investor" || !me.linkedInvestorId) {
     res.status(403).json({ error: "Нет доступа" }); return;
@@ -128,7 +131,7 @@ router.get("/portal/investor/me", requireAuth, async (req: AuthenticatedRequest,
 });
 
 // GET /portal/tenant/me — данные для портала арендатора (только свои)
-router.get("/portal/tenant/me", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/portal/tenant/me", async (req: AuthenticatedRequest, res): Promise<void> => {
   const [me] = await db.select().from(usersTable).where(eq(usersTable.id, req.userId!));
   if (!me || me.role !== "tenant" || !me.linkedTenantId) {
     res.status(403).json({ error: "Нет доступа" }); return;

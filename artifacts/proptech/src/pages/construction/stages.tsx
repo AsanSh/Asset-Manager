@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Edit2, Flag, Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { ChevronDown, ChevronRight, Edit2, Flag, Plus, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -48,6 +48,7 @@ const STATUS_COLORS: Record<string, string> = {
 interface Stage {
 	id: number;
 	projectId: number;
+	parentStageId?: number | null;
 	name: string;
 	description?: string;
 	status: string;
@@ -63,32 +64,89 @@ interface Project {
 	name: string;
 }
 
+type DialogState = Stage | null | "new" | { parentStageId: number; projectId: number };
+
 function StageDialog({
 	stage,
 	projects,
+	parentStages,
 	onClose,
 	onSaved,
 }: {
-	stage: Stage | null | "new";
+	stage: DialogState;
 	projects: Project[];
+	parentStages: Stage[];
 	onClose: () => void;
 	onSaved: () => void;
 }) {
 	const { toast } = useToast();
-	const isEdit = stage && stage !== "new";
+	const isEdit = stage && stage !== "new" && !("parentStageId" in stage && !("id" in stage));
 	const init = isEdit ? (stage as Stage) : null;
+
+	// For "add sub-stage" shortcut
+	const presetParent =
+		stage && typeof stage === "object" && !("id" in stage)
+			? (stage as { parentStageId: number; projectId: number })
+			: null;
+
 	const [form, setForm] = useState({
-		projectId: String(init?.projectId || projects[0]?.id || ""),
+		projectId: String(init?.projectId || presetParent?.projectId || projects[0]?.id || ""),
+		parentStageId: String(init?.parentStageId || presetParent?.parentStageId || ""),
 		name: init?.name || "",
 		description: init?.description || "",
 		status: init?.status || "planned",
-		progress: String(init?.progress || 0),
+		progress: String(init?.progress ?? 0),
 		startDate: init?.startDate || "",
 		plannedEndDate: init?.plannedEndDate || "",
 		budgetAmount: init?.budgetAmount || "",
 	});
 	const [loading, setLoading] = useState(false);
 	const set = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
+
+	// Re-initialize form when the stage prop changes (fixes edit bug)
+	useEffect(() => {
+		if (!stage) return;
+		if (stage === "new") {
+			setForm({
+				projectId: String(projects[0]?.id || ""),
+				parentStageId: "",
+				name: "",
+				description: "",
+				status: "planned",
+				progress: "0",
+				startDate: "",
+				plannedEndDate: "",
+				budgetAmount: "",
+			});
+		} else if ("id" in stage) {
+			const s = stage as Stage;
+			setForm({
+				projectId: String(s.projectId),
+				parentStageId: String(s.parentStageId || ""),
+				name: s.name,
+				description: s.description || "",
+				status: s.status,
+				progress: String(s.progress),
+				startDate: s.startDate || "",
+				plannedEndDate: s.plannedEndDate || "",
+				budgetAmount: s.budgetAmount || "",
+			});
+		} else {
+			// presetParent
+			const p = stage as { parentStageId: number; projectId: number };
+			setForm({
+				projectId: String(p.projectId),
+				parentStageId: String(p.parentStageId),
+				name: "",
+				description: "",
+				status: "planned",
+				progress: "0",
+				startDate: "",
+				plannedEndDate: "",
+				budgetAmount: "",
+			});
+		}
+	}, [stage]);
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -98,19 +156,21 @@ function StageDialog({
 		}
 		setLoading(true);
 		try {
-			const url = isEdit
-				? `${BASE}/construction/stages/${init?.id}`
-				: `${BASE}/construction/stages`;
+			const url =
+				init
+					? `${BASE}/construction/stages/${init.id}`
+					: `${BASE}/construction/stages`;
 			await fetch(url, {
-				method: isEdit ? "PATCH" : "POST",
+				method: init ? "PATCH" : "POST",
 				headers: ah(),
 				body: JSON.stringify({
 					...form,
 					projectId: parseInt(form.projectId, 10),
 					progress: parseInt(form.progress, 10),
+					parentStageId: form.parentStageId ? parseInt(form.parentStageId, 10) : null,
 				}),
 			});
-			toast({ title: isEdit ? "Этап обновлён" : "Этап добавлен" });
+			toast({ title: init ? "Этап обновлён" : "Этап добавлен" });
 			onSaved();
 			onClose();
 		} catch {
@@ -120,13 +180,19 @@ function StageDialog({
 		}
 	};
 
+	const open = !!stage;
+	const title = init ? "Редактировать этап" : presetParent ? "Добавить под-этап" : "Добавить этап";
+
+	// Only show parent selector when creating (not a preset sub-stage)
+	const availableParents = parentStages.filter(
+		(s) => !init || s.id !== init.id,
+	);
+
 	return (
-		<Dialog open={!!stage} onOpenChange={(v) => !v && onClose()}>
+		<Dialog open={open} onOpenChange={(v) => !v && onClose()}>
 			<DialogContent className="sm:max-w-md">
 				<DialogHeader>
-					<DialogTitle>
-						{isEdit ? "Редактировать этап" : "Добавить этап"}
-					</DialogTitle>
+					<DialogTitle>{title}</DialogTitle>
 				</DialogHeader>
 				<form onSubmit={handleSubmit} className="space-y-3">
 					<div>
@@ -147,6 +213,27 @@ function StageDialog({
 							</SelectContent>
 						</Select>
 					</div>
+					{availableParents.length > 0 && (
+						<div>
+							<Label>Родительский этап (под-этап)</Label>
+							<Select
+								value={form.parentStageId || "none"}
+								onValueChange={(v) => set("parentStageId", v === "none" ? "" : v)}
+							>
+								<SelectTrigger className="mt-1">
+									<SelectValue placeholder="Не выбран (корневой)" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="none">— Корневой этап —</SelectItem>
+									{availableParents.map((s) => (
+										<SelectItem key={s.id} value={String(s.id)}>
+											{s.name}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+					)}
 					<div>
 						<Label>Название этапа *</Label>
 						<Input
@@ -245,10 +332,126 @@ function StageDialog({
 	);
 }
 
+function StageCard({
+	s,
+	children,
+	projectMap,
+	onEdit,
+	onDelete,
+	onAddSub,
+}: {
+	s: Stage;
+	children?: React.ReactNode;
+	projectMap: Record<number, string>;
+	onEdit: (s: Stage) => void;
+	onDelete: (id: number) => void;
+	onAddSub: (s: Stage) => void;
+}) {
+	const [expanded, setExpanded] = useState(true);
+	const hasChildren = !!children;
+
+	return (
+		<div>
+			<div className="bg-white rounded-xl border border-gray-200 p-4 hover:border-amber-200 transition-colors">
+				<div className="flex items-start justify-between mb-2">
+					<div className="flex-1 flex items-start gap-2">
+						{hasChildren && (
+							<button
+								type="button"
+								className="mt-0.5 text-gray-400 hover:text-gray-700"
+								onClick={() => setExpanded((v) => !v)}
+							>
+								{expanded
+									? <ChevronDown className="w-4 h-4" />
+									: <ChevronRight className="w-4 h-4" />}
+							</button>
+						)}
+						{!hasChildren && <div className="w-4" />}
+						<div className="flex-1">
+							<div className="flex items-center gap-2 mb-0.5">
+								<h3 className="font-semibold text-gray-900 text-sm">{s.name}</h3>
+								<Badge
+									className={STATUS_COLORS[s.status] || ""}
+									variant="secondary"
+								>
+									{STATUS_OPTS.find((o) => o.value === s.status)?.label}
+								</Badge>
+							</div>
+							<p className="text-xs text-gray-400">
+								{projectMap[s.projectId] || `Проект #${s.projectId}`}
+							</p>
+							{s.description && (
+								<p className="text-xs text-gray-500 mt-1">{s.description}</p>
+							)}
+						</div>
+					</div>
+					<div className="flex gap-1 ml-3 flex-shrink-0">
+						<Button
+							size="sm"
+							variant="ghost"
+							className="h-7 px-2 text-[10px] text-amber-600 hover:text-amber-700"
+							onClick={() => onAddSub(s)}
+						>
+							<Plus className="w-3 h-3 mr-1" />
+							Под-этап
+						</Button>
+						<Button
+							size="sm"
+							variant="ghost"
+							className="h-7 w-7 p-0"
+							onClick={() => onEdit(s)}
+						>
+							<Edit2 className="w-3.5 h-3.5 text-gray-400" />
+						</Button>
+						<Button
+							size="sm"
+							variant="ghost"
+							className="h-7 w-7 p-0"
+							onClick={() => onDelete(s.id)}
+						>
+							<Trash2 className="w-3.5 h-3.5 text-gray-400 hover:text-rose-600" />
+						</Button>
+					</div>
+				</div>
+				<div className="space-y-1 ml-6">
+					<div className="flex justify-between text-xs text-gray-500">
+						<span>Прогресс</span>
+						<span className="font-medium">{s.progress}%</span>
+					</div>
+					<div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+						<div
+							className={`h-full rounded-full transition-all ${s.progress >= 100 ? "bg-emerald-600" : s.progress >= 50 ? "bg-blue-600" : "bg-orange-400"}`}
+							style={{ width: `${s.progress}%` }}
+						/>
+					</div>
+				</div>
+				<div className="flex gap-4 mt-2 ml-6 text-xs text-gray-400">
+					{s.startDate && (
+						<span>Нач: {new Date(s.startDate).toLocaleDateString("ru-KG")}</span>
+					)}
+					{s.plannedEndDate && (
+						<span>Конец: {new Date(s.plannedEndDate).toLocaleDateString("ru-KG")}</span>
+					)}
+					{s.budgetAmount && (
+						<span>
+							Бюджет: {parseFloat(s.budgetAmount).toLocaleString("ru-KG")} ₸
+						</span>
+					)}
+				</div>
+			</div>
+			{hasChildren && expanded && (
+				<div className="ml-8 mt-2 space-y-2 border-l-2 border-amber-100 pl-4">
+					{children}
+				</div>
+			)}
+		</div>
+	);
+}
+
 export default function ConstructionStages() {
 	const qc = useQueryClient();
 	const { toast } = useToast();
-	const [dialog, setDialog] = useState<Stage | null | "new">(null);
+	const [dialog, setDialog] = useState<DialogState>(null);
 	const [projectFilter, setProjectFilter] = useState<string>("all");
 
 	const { data: projects = [] } = useQuery<Project[]>({
@@ -277,6 +480,11 @@ export default function ConstructionStages() {
 	};
 
 	const projectMap = Object.fromEntries(projects.map((p) => [p.id, p.name]));
+
+	// Build nested tree: root stages + their children
+	const rootStages = stages.filter((s) => !s.parentStageId);
+	const childrenOf = (parentId: number) =>
+		stages.filter((s) => s.parentStageId === parentId);
 
 	return (
 		<div className="space-y-6">
@@ -324,89 +532,42 @@ export default function ConstructionStages() {
 						<p>Этапов нет. Добавьте первый.</p>
 					</div>
 				) : (
-					stages.map((s) => (
-						<div
-							key={s.id}
-							className="bg-white rounded-xl border border-gray-200 p-5 hover:border-amber-200 transition-colors"
-						>
-							<div className="flex items-start justify-between mb-3">
-								<div className="flex-1">
-									<div className="flex items-center gap-2 mb-0.5">
-										<h3 className="font-semibold text-gray-900">{s.name}</h3>
-										<Badge
-											className={STATUS_COLORS[s.status] || ""}
-											variant="secondary"
-										>
-											{STATUS_OPTS.find((o) => o.value === s.status)?.label}
-										</Badge>
-									</div>
-									<p className="text-xs text-gray-400">
-										{projectMap[s.projectId] || `Проект #${s.projectId}`}
-									</p>
-									{s.description && (
-										<p className="text-sm text-gray-500 mt-1">
-											{s.description}
-										</p>
-									)}
-								</div>
-								<div className="flex gap-1 ml-3">
-									<Button
-										size="sm"
-										variant="ghost"
-										className="h-7 w-7 p-0"
-										onClick={() => setDialog(s)}
-									>
-										<Edit2 className="w-3.5 h-3.5 text-gray-400" />
-									</Button>
-									<Button
-										size="sm"
-										variant="ghost"
-										className="h-7 w-7 p-0"
-										onClick={() => handleDelete(s.id)}
-									>
-										<Trash2 className="w-3.5 h-3.5 text-gray-400 hover:text-rose-600" />
-									</Button>
-								</div>
-							</div>
-							<div className="space-y-1">
-								<div className="flex justify-between text-xs text-gray-500">
-									<span>Прогресс</span>
-									<span className="font-medium">{s.progress}%</span>
-								</div>
-								<div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-									<div
-										className={`h-full rounded-full transition-all ${s.progress >= 100 ? "bg-emerald-600" : s.progress >= 50 ? "bg-blue-600" : "bg-orange-400"}`}
-										style={{ width: `${s.progress}%` }}
-									/>
-								</div>
-							</div>
-							<div className="flex gap-4 mt-2 text-xs text-gray-400">
-								{s.startDate && (
-									<span>
-										Нач: {new Date(s.startDate).toLocaleDateString("ru-KG")}
-									</span>
-								)}
-								{s.plannedEndDate && (
-									<span>
-										Конец:{" "}
-										{new Date(s.plannedEndDate).toLocaleDateString("ru-KG")}
-									</span>
-								)}
-								{s.budgetAmount && (
-									<span>
-										Бюджет: {parseFloat(s.budgetAmount).toLocaleString("ru-KG")}{" "}
-										₸
-									</span>
-								)}
-							</div>
-						</div>
-					))
+					rootStages.map((s) => {
+						const children = childrenOf(s.id);
+						return (
+							<StageCard
+								key={s.id}
+								s={s}
+								projectMap={projectMap}
+								onEdit={(s) => setDialog(s)}
+								onDelete={handleDelete}
+								onAddSub={(parent) =>
+									setDialog({ parentStageId: parent.id, projectId: parent.projectId })
+								}
+							>
+								{children.length > 0 &&
+									children.map((child) => (
+										<StageCard
+											key={child.id}
+											s={child}
+											projectMap={projectMap}
+											onEdit={(s) => setDialog(s)}
+											onDelete={handleDelete}
+											onAddSub={(parent) =>
+												setDialog({ parentStageId: parent.id, projectId: parent.projectId })
+											}
+										/>
+									))}
+							</StageCard>
+						);
+					})
 				)}
 			</div>
 
 			<StageDialog
 				stage={dialog}
 				projects={projects}
+				parentStages={stages.filter((s) => !s.parentStageId)}
 				onClose={() => setDialog(null)}
 				onSaved={() =>
 					qc.invalidateQueries({ queryKey: ["construction-stages"] })

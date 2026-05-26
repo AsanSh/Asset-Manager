@@ -4,13 +4,16 @@ import { db, usersTable } from "../lib/db";
 import { hashPassword, validatePassword } from "../lib/security";
 import { initiatePasswordReset } from "../lib/password-reset";
 import { requireAuth, requireRole, AuthenticatedRequest } from "../middleware/auth";
+import { requireTenantCompany } from "../middleware/tenant";
 
 const router: ReturnType<typeof Router> = Router();
 
+router.use(requireAuth, requireTenantCompany);
+
 // GET /users — список сотрудников своей организации (без super_admin)
-router.get("/users", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/users", async (req: AuthenticatedRequest, res): Promise<void> => {
   const conditions: SQL[] = [ne(usersTable.role, "super_admin")];
-  if (req.companyId) conditions.push(eq(usersTable.companyId, req.companyId));
+  conditions.push(eq(usersTable.companyId, req.scopedCompanyId!));
   const users = await db.select().from(usersTable)
     .where(and(...conditions))
     .orderBy(usersTable.createdAt);
@@ -19,7 +22,7 @@ router.get("/users", requireAuth, async (req: AuthenticatedRequest, res): Promis
 });
 
 // POST /users — добавить сотрудника в свою организацию
-router.post("/users", requireAuth, requireRole("admin", "company_admin"), async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/users", requireRole("admin", "company_admin"), async (req: AuthenticatedRequest, res): Promise<void> => {
   const { email, password, firstName, lastName, role } = req.body;
   if (!email || !password || !firstName || !lastName || !role) {
     res.status(400).json({ error: "Заполните все обязательные поля" });
@@ -56,7 +59,7 @@ router.post("/users", requireAuth, requireRole("admin", "company_admin"), async 
     firstName,
     lastName,
     role,
-    companyId: req.companyId,
+    companyId: req.scopedCompanyId!,
     isActive: true,
   }).returning();
   const { passwordHash: _ph, ...safe } = user;
@@ -64,10 +67,10 @@ router.post("/users", requireAuth, requireRole("admin", "company_admin"), async 
 });
 
 // GET /users/:id
-router.get("/users/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/users/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
   const conditions: SQL[] = [eq(usersTable.id, id)];
-  if (req.companyId) conditions.push(eq(usersTable.companyId, req.companyId));
+  conditions.push(eq(usersTable.companyId, req.scopedCompanyId!));
   const [user] = await db.select().from(usersTable).where(and(...conditions));
   if (!user) { res.status(404).json({ error: "Not found" }); return; }
   const { passwordHash: _ph, ...safe } = user;
@@ -75,7 +78,7 @@ router.get("/users/:id", requireAuth, async (req: AuthenticatedRequest, res): Pr
 });
 
 // PATCH /users/:id
-router.patch("/users/:id", requireAuth, requireRole("admin", "company_admin"), async (req: AuthenticatedRequest, res): Promise<void> => {
+router.patch("/users/:id", requireRole("admin", "company_admin"), async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
   const { firstName, lastName, role, isActive } = req.body;
 
@@ -93,7 +96,7 @@ router.patch("/users/:id", requireAuth, requireRole("admin", "company_admin"), a
   }
 
   const conditions: SQL[] = [eq(usersTable.id, id)];
-  if (req.companyId) conditions.push(eq(usersTable.companyId, req.companyId));
+  conditions.push(eq(usersTable.companyId, req.scopedCompanyId!));
   const [user] = await db.update(usersTable)
     .set({ firstName, lastName, role, isActive })
     .where(and(...conditions)).returning();
@@ -103,7 +106,7 @@ router.patch("/users/:id", requireAuth, requireRole("admin", "company_admin"), a
 });
 
 // PATCH /users/:id/password — смена пароля сотрудника
-router.patch("/users/:id/password", requireAuth, requireRole("admin", "company_admin"), async (req: AuthenticatedRequest, res): Promise<void> => {
+router.patch("/users/:id/password", requireRole("admin", "company_admin"), async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
   const { password } = req.body;
   if (!password) {
@@ -118,7 +121,7 @@ router.patch("/users/:id/password", requireAuth, requireRole("admin", "company_a
   }
 
   const conditions: SQL[] = [eq(usersTable.id, id)];
-  if (req.companyId) conditions.push(eq(usersTable.companyId, req.companyId));
+  conditions.push(eq(usersTable.companyId, req.scopedCompanyId!));
   const [user] = await db.update(usersTable)
     .set({ passwordHash: await hashPassword(password) })
     .where(and(...conditions)).returning();
@@ -137,7 +140,7 @@ router.post(
       10,
     );
     const conditions: SQL[] = [eq(usersTable.id, id), ne(usersTable.role, "super_admin")];
-    if (req.companyId) conditions.push(eq(usersTable.companyId, req.companyId));
+    conditions.push(eq(usersTable.companyId, req.scopedCompanyId!));
 
     const [target] = await db.select().from(usersTable).where(and(...conditions));
     if (!target) {
@@ -167,14 +170,14 @@ router.post(
 );
 
 // DELETE /users/:id
-router.delete("/users/:id", requireAuth, requireRole("admin", "company_admin"), async (req: AuthenticatedRequest, res): Promise<void> => {
+router.delete("/users/:id", requireRole("admin", "company_admin"), async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
   if (id === req.userId) {
     res.status(400).json({ error: "Нельзя удалить свой аккаунт" });
     return;
   }
   const conditions: SQL[] = [eq(usersTable.id, id)];
-  if (req.companyId) conditions.push(eq(usersTable.companyId, req.companyId));
+  conditions.push(eq(usersTable.companyId, req.scopedCompanyId!));
   await db.delete(usersTable).where(and(...conditions));
   res.sendStatus(204);
 });

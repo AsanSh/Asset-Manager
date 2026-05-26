@@ -10,18 +10,21 @@ import {
   constructionExpensesTable,
 } from "../lib/db";
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
+import { requireTenantCompany } from "../middleware/tenant";
 
 const router: ReturnType<typeof Router> = Router();
+
+router.use(requireAuth, requireTenantCompany);
 
 // ══════════════════════════════════════════════════════════════════════════════
 // EXCEL EXPORT - PROJECT COST ANALYSIS
 // ══════════════════════════════════════════════════════════════════════════════
 
-router.get("/projects/:id/reports/cost-analysis/excel", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/projects/:id/reports/cost-analysis/excel", async (req: AuthenticatedRequest, res): Promise<void> => {
   const projectId = parseInt(req.params.id as string);
 
   const [project] = await db.select().from(constructionProjectsTable)
-    .where(and(eq(constructionProjectsTable.id, projectId), eq(constructionProjectsTable.companyId, req.companyId!)));
+    .where(and(eq(constructionProjectsTable.id, projectId), eq(constructionProjectsTable.companyId, req.scopedCompanyId!)));
 
   if (!project) {
     res.status(404).json({ error: "Project not found" });
@@ -29,10 +32,10 @@ router.get("/projects/:id/reports/cost-analysis/excel", requireAuth, async (req:
   }
 
   const expenses = await db.select().from(constructionExpensesTable)
-    .where(and(eq(constructionExpensesTable.projectId, projectId), eq(constructionExpensesTable.companyId, req.companyId!)));
+    .where(and(eq(constructionExpensesTable.projectId, projectId), eq(constructionExpensesTable.companyId, req.scopedCompanyId!)));
 
   const units = await db.select().from(constructionUnitsTable)
-    .where(and(eq(constructionUnitsTable.projectId, projectId), eq(constructionUnitsTable.companyId, req.companyId!)));
+    .where(and(eq(constructionUnitsTable.projectId, projectId), eq(constructionUnitsTable.companyId, req.scopedCompanyId!)));
 
   // Calculations
   const totalArea = parseFloat(project.totalArea || "0");
@@ -148,11 +151,11 @@ router.get("/projects/:id/reports/cost-analysis/excel", requireAuth, async (req:
 // EXCEL EXPORT - BUDGET PLAN/FACT
 // ══════════════════════════════════════════════════════════════════════════════
 
-router.get("/projects/:id/reports/budget/excel", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/projects/:id/reports/budget/excel", async (req: AuthenticatedRequest, res): Promise<void> => {
   const projectId = parseInt(req.params.id as string);
 
   const [project] = await db.select().from(constructionProjectsTable)
-    .where(and(eq(constructionProjectsTable.id, projectId), eq(constructionProjectsTable.companyId, req.companyId!)));
+    .where(and(eq(constructionProjectsTable.id, projectId), eq(constructionProjectsTable.companyId, req.scopedCompanyId!)));
 
   if (!project) {
     res.status(404).json({ error: "Project not found" });
@@ -160,10 +163,10 @@ router.get("/projects/:id/reports/budget/excel", requireAuth, async (req: Authen
   }
 
   const categories = await db.select().from(constructionBudgetCategoriesTable)
-    .where(and(eq(constructionBudgetCategoriesTable.projectId, projectId), eq(constructionBudgetCategoriesTable.companyId, req.companyId!)));
+    .where(and(eq(constructionBudgetCategoriesTable.projectId, projectId), eq(constructionBudgetCategoriesTable.companyId, req.scopedCompanyId!)));
 
   const lineItems = await db.select().from(constructionBudgetLineItemsTable)
-    .where(and(eq(constructionBudgetLineItemsTable.projectId, projectId), eq(constructionBudgetLineItemsTable.companyId, req.companyId!)));
+    .where(and(eq(constructionBudgetLineItemsTable.projectId, projectId), eq(constructionBudgetLineItemsTable.companyId, req.scopedCompanyId!)));
 
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("Бюджет план/факт");

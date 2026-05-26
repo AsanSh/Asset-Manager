@@ -10,8 +10,11 @@ import {
   activityLogTable,
 } from "../lib/db";
 import { requireAuth, requireRole, AuthenticatedRequest } from "../middleware/auth";
+import { requireTenantCompany } from "../middleware/tenant";
 
 const router: ReturnType<typeof Router> = Router();
+
+router.use(requireAuth, requireTenantCompany);
 
 // Helper function for activity logging
 async function logWarehouseActivity(
@@ -40,11 +43,11 @@ async function logWarehouseActivity(
 // ITEMS (Товары/Материалы)
 // ──────────────────────────────────────────────────────────────────────────────
 
-router.get("/warehouse/items", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/warehouse/items", async (req: AuthenticatedRequest, res): Promise<void> => {
   try {
     const { search, category, inStock } = req.query as Record<string, string | undefined>;
 
-    const conditions: SQL[] = [eq(warehouseItemsTable.companyId, req.companyId!)];
+    const conditions: SQL[] = [eq(warehouseItemsTable.companyId, req.scopedCompanyId!)];
 
     if (category) {
       conditions.push(eq(warehouseItemsTable.category, category));
@@ -76,7 +79,7 @@ router.get("/warehouse/items", requireAuth, async (req: AuthenticatedRequest, re
   }
 });
 
-router.post("/warehouse/items", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/warehouse/items", async (req: AuthenticatedRequest, res): Promise<void> => {
   try {
     const {
       name, category, unit, currentStock, minStock, maxStock,
@@ -89,7 +92,7 @@ router.post("/warehouse/items", requireAuth, async (req: AuthenticatedRequest, r
     }
 
     const [item] = await db.insert(warehouseItemsTable).values({
-      companyId: req.companyId!,
+      companyId: req.scopedCompanyId!,
       name,
       category: category || "materials",
       unit: unit || "шт",
@@ -107,7 +110,7 @@ router.post("/warehouse/items", requireAuth, async (req: AuthenticatedRequest, r
     }).returning();
 
     await logWarehouseActivity(
-      req.companyId!,
+      req.scopedCompanyId!,
       req.userId,
       "warehouse_item",
       item.id,
@@ -123,7 +126,7 @@ router.post("/warehouse/items", requireAuth, async (req: AuthenticatedRequest, r
   }
 });
 
-router.patch("/warehouse/items/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.patch("/warehouse/items/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id as string, 10);
     const updates = req.body;
@@ -140,7 +143,7 @@ router.patch("/warehouse/items/:id", requireAuth, async (req: AuthenticatedReque
       })
       .where(and(
         eq(warehouseItemsTable.id, id),
-        eq(warehouseItemsTable.companyId, req.companyId!)
+        eq(warehouseItemsTable.companyId, req.scopedCompanyId!)
       ))
       .returning();
 
@@ -150,7 +153,7 @@ router.patch("/warehouse/items/:id", requireAuth, async (req: AuthenticatedReque
     }
 
     await logWarehouseActivity(
-      req.companyId!,
+      req.scopedCompanyId!,
       req.userId,
       "warehouse_item",
       item.id,
@@ -177,7 +180,7 @@ router.delete(
       const [item] = await db.select().from(warehouseItemsTable)
         .where(and(
           eq(warehouseItemsTable.id, id),
-          eq(warehouseItemsTable.companyId, req.companyId!)
+          eq(warehouseItemsTable.companyId, req.scopedCompanyId!)
         ));
 
       if (!item) {
@@ -188,11 +191,11 @@ router.delete(
       await db.delete(warehouseItemsTable)
         .where(and(
           eq(warehouseItemsTable.id, id),
-          eq(warehouseItemsTable.companyId, req.companyId!)
+          eq(warehouseItemsTable.companyId, req.scopedCompanyId!)
         ));
 
       await logWarehouseActivity(
-        req.companyId!,
+        req.scopedCompanyId!,
         req.userId,
         "warehouse_item",
         id,
@@ -213,11 +216,11 @@ router.delete(
 // INCOMING (Поступления)
 // ──────────────────────────────────────────────────────────────────────────────
 
-router.get("/warehouse/incoming", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/warehouse/incoming", async (req: AuthenticatedRequest, res): Promise<void> => {
   try {
     const { itemId, supplierId, startDate, endDate } = req.query as Record<string, string | undefined>;
 
-    const conditions: SQL[] = [eq(warehouseIncomingTable.companyId, req.companyId!)];
+    const conditions: SQL[] = [eq(warehouseIncomingTable.companyId, req.scopedCompanyId!)];
 
     if (itemId) {
       conditions.push(eq(warehouseIncomingTable.itemId, parseInt(itemId, 10)));
@@ -265,7 +268,7 @@ router.get("/warehouse/incoming", requireAuth, async (req: AuthenticatedRequest,
   }
 });
 
-router.post("/warehouse/incoming", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/warehouse/incoming", async (req: AuthenticatedRequest, res): Promise<void> => {
   try {
     const {
       itemId,
@@ -290,7 +293,7 @@ router.post("/warehouse/incoming", requireAuth, async (req: AuthenticatedRequest
 
     // Start transaction
     const [operation] = await db.insert(warehouseIncomingTable).values({
-      companyId: req.companyId!,
+      companyId: req.scopedCompanyId!,
       itemId: parseInt(String(itemId), 10),
       quantity: String(qty),
       unitPrice: String(price),
@@ -319,7 +322,7 @@ router.post("/warehouse/incoming", requireAuth, async (req: AuthenticatedRequest
       .where(eq(warehouseItemsTable.id, parseInt(String(itemId), 10)));
 
     await logWarehouseActivity(
-      req.companyId!,
+      req.scopedCompanyId!,
       req.userId,
       "warehouse_incoming",
       operation.id,
@@ -335,7 +338,7 @@ router.post("/warehouse/incoming", requireAuth, async (req: AuthenticatedRequest
   }
 });
 
-router.get("/warehouse/incoming/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/warehouse/incoming/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id as string, 10);
 
@@ -363,7 +366,7 @@ router.get("/warehouse/incoming/:id", requireAuth, async (req: AuthenticatedRequ
       .leftJoin(warehouseSuppliersTable, eq(warehouseIncomingTable.supplierId, warehouseSuppliersTable.id))
       .where(and(
         eq(warehouseIncomingTable.id, id),
-        eq(warehouseIncomingTable.companyId, req.companyId!)
+        eq(warehouseIncomingTable.companyId, req.scopedCompanyId!)
       ));
 
     if (!operation) {
@@ -378,7 +381,7 @@ router.get("/warehouse/incoming/:id", requireAuth, async (req: AuthenticatedRequ
   }
 });
 
-router.patch("/warehouse/incoming/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.patch("/warehouse/incoming/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id as string, 10);
     const { quantity, unitPrice, notes } = req.body;
@@ -387,7 +390,7 @@ router.patch("/warehouse/incoming/:id", requireAuth, async (req: AuthenticatedRe
     const [currentOp] = await db.select().from(warehouseIncomingTable)
       .where(and(
         eq(warehouseIncomingTable.id, id),
-        eq(warehouseIncomingTable.companyId, req.companyId!)
+        eq(warehouseIncomingTable.companyId, req.scopedCompanyId!)
       ));
 
     if (!currentOp) {
@@ -410,7 +413,7 @@ router.patch("/warehouse/incoming/:id", requireAuth, async (req: AuthenticatedRe
       })
       .where(and(
         eq(warehouseIncomingTable.id, id),
-        eq(warehouseIncomingTable.companyId, req.companyId!)
+        eq(warehouseIncomingTable.companyId, req.scopedCompanyId!)
       ))
       .returning();
 
@@ -430,7 +433,7 @@ router.patch("/warehouse/incoming/:id", requireAuth, async (req: AuthenticatedRe
     }
 
     await logWarehouseActivity(
-      req.companyId!,
+      req.scopedCompanyId!,
       req.userId,
       "warehouse_incoming",
       operation.id,
@@ -450,11 +453,11 @@ router.patch("/warehouse/incoming/:id", requireAuth, async (req: AuthenticatedRe
 // OUTGOING (Списания/Выдача)
 // ──────────────────────────────────────────────────────────────────────────────
 
-router.get("/warehouse/outgoing", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/warehouse/outgoing", async (req: AuthenticatedRequest, res): Promise<void> => {
   try {
     const { itemId, recipientType, recipientId, startDate, endDate } = req.query as Record<string, string | undefined>;
 
-    const conditions: SQL[] = [eq(warehouseOutgoingTable.companyId, req.companyId!)];
+    const conditions: SQL[] = [eq(warehouseOutgoingTable.companyId, req.scopedCompanyId!)];
 
     if (itemId) {
       conditions.push(eq(warehouseOutgoingTable.itemId, parseInt(itemId, 10)));
@@ -503,7 +506,7 @@ router.get("/warehouse/outgoing", requireAuth, async (req: AuthenticatedRequest,
   }
 });
 
-router.post("/warehouse/outgoing", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/warehouse/outgoing", async (req: AuthenticatedRequest, res): Promise<void> => {
   try {
     const {
       itemId,
@@ -528,7 +531,7 @@ router.post("/warehouse/outgoing", requireAuth, async (req: AuthenticatedRequest
     const [item] = await db.select().from(warehouseItemsTable)
       .where(and(
         eq(warehouseItemsTable.id, parseInt(String(itemId), 10)),
-        eq(warehouseItemsTable.companyId, req.companyId!)
+        eq(warehouseItemsTable.companyId, req.scopedCompanyId!)
       ));
 
     if (!item) {
@@ -549,7 +552,7 @@ router.post("/warehouse/outgoing", requireAuth, async (req: AuthenticatedRequest
 
     // Create outgoing operation
     const [operation] = await db.insert(warehouseOutgoingTable).values({
-      companyId: req.companyId!,
+      companyId: req.scopedCompanyId!,
       itemId: parseInt(String(itemId), 10),
       quantity: String(qty),
       recipientType: recipientType || "construction_project",
@@ -569,7 +572,7 @@ router.post("/warehouse/outgoing", requireAuth, async (req: AuthenticatedRequest
       .where(eq(warehouseItemsTable.id, parseInt(String(itemId), 10)));
 
     await logWarehouseActivity(
-      req.companyId!,
+      req.scopedCompanyId!,
       req.userId,
       "warehouse_outgoing",
       operation.id,
@@ -585,7 +588,7 @@ router.post("/warehouse/outgoing", requireAuth, async (req: AuthenticatedRequest
   }
 });
 
-router.get("/warehouse/outgoing/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/warehouse/outgoing/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id as string, 10);
 
@@ -610,7 +613,7 @@ router.get("/warehouse/outgoing/:id", requireAuth, async (req: AuthenticatedRequ
       .leftJoin(warehouseItemsTable, eq(warehouseOutgoingTable.itemId, warehouseItemsTable.id))
       .where(and(
         eq(warehouseOutgoingTable.id, id),
-        eq(warehouseOutgoingTable.companyId, req.companyId!)
+        eq(warehouseOutgoingTable.companyId, req.scopedCompanyId!)
       ));
 
     if (!operation) {
@@ -629,11 +632,11 @@ router.get("/warehouse/outgoing/:id", requireAuth, async (req: AuthenticatedRequ
 // INVENTORY (Инвентаризация)
 // ──────────────────────────────────────────────────────────────────────────────
 
-router.get("/warehouse/inventory", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/warehouse/inventory", async (req: AuthenticatedRequest, res): Promise<void> => {
   try {
     const { status } = req.query as Record<string, string | undefined>;
 
-    const conditions: SQL[] = [eq(warehouseInventoryTable.companyId, req.companyId!)];
+    const conditions: SQL[] = [eq(warehouseInventoryTable.companyId, req.scopedCompanyId!)];
 
     if (status) {
       conditions.push(eq(warehouseInventoryTable.status, status));
@@ -650,7 +653,7 @@ router.get("/warehouse/inventory", requireAuth, async (req: AuthenticatedRequest
   }
 });
 
-router.post("/warehouse/inventory", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/warehouse/inventory", async (req: AuthenticatedRequest, res): Promise<void> => {
   try {
     const { inventoryDate, items, conductedBy, notes } = req.body;
 
@@ -660,7 +663,7 @@ router.post("/warehouse/inventory", requireAuth, async (req: AuthenticatedReques
     }
 
     const [inventory] = await db.insert(warehouseInventoryTable).values({
-      companyId: req.companyId!,
+      companyId: req.scopedCompanyId!,
       inventoryDate,
       status: "in_progress",
       items: items as any,
@@ -669,7 +672,7 @@ router.post("/warehouse/inventory", requireAuth, async (req: AuthenticatedReques
     }).returning();
 
     await logWarehouseActivity(
-      req.companyId!,
+      req.scopedCompanyId!,
       req.userId,
       "warehouse_inventory",
       inventory.id,
@@ -685,14 +688,14 @@ router.post("/warehouse/inventory", requireAuth, async (req: AuthenticatedReques
   }
 });
 
-router.post("/warehouse/inventory/:id/complete", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/warehouse/inventory/:id/complete", async (req: AuthenticatedRequest, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id as string, 10);
 
     const [inventory] = await db.select().from(warehouseInventoryTable)
       .where(and(
         eq(warehouseInventoryTable.id, id),
-        eq(warehouseInventoryTable.companyId, req.companyId!)
+        eq(warehouseInventoryTable.companyId, req.scopedCompanyId!)
       ));
 
     if (!inventory) {
@@ -742,12 +745,12 @@ router.post("/warehouse/inventory/:id/complete", requireAuth, async (req: Authen
       })
       .where(and(
         eq(warehouseInventoryTable.id, id),
-        eq(warehouseInventoryTable.companyId, req.companyId!)
+        eq(warehouseInventoryTable.companyId, req.scopedCompanyId!)
       ))
       .returning();
 
     await logWarehouseActivity(
-      req.companyId!,
+      req.scopedCompanyId!,
       req.userId,
       "warehouse_inventory",
       updatedInventory.id,
@@ -767,11 +770,11 @@ router.post("/warehouse/inventory/:id/complete", requireAuth, async (req: Authen
 // SUPPLIERS (Поставщики)
 // ──────────────────────────────────────────────────────────────────────────────
 
-router.get("/warehouse/suppliers", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/warehouse/suppliers", async (req: AuthenticatedRequest, res): Promise<void> => {
   try {
     const { isActive } = req.query as Record<string, string | undefined>;
 
-    const conditions: SQL[] = [eq(warehouseSuppliersTable.companyId, req.companyId!)];
+    const conditions: SQL[] = [eq(warehouseSuppliersTable.companyId, req.scopedCompanyId!)];
 
     if (isActive === "true") {
       conditions.push(eq(warehouseSuppliersTable.isActive, true));
@@ -790,7 +793,7 @@ router.get("/warehouse/suppliers", requireAuth, async (req: AuthenticatedRequest
   }
 });
 
-router.post("/warehouse/suppliers", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/warehouse/suppliers", async (req: AuthenticatedRequest, res): Promise<void> => {
   try {
     const {
       name,
@@ -810,7 +813,7 @@ router.post("/warehouse/suppliers", requireAuth, async (req: AuthenticatedReques
     }
 
     const [supplier] = await db.insert(warehouseSuppliersTable).values({
-      companyId: req.companyId!,
+      companyId: req.scopedCompanyId!,
       name,
       contactPerson,
       phone,
@@ -824,7 +827,7 @@ router.post("/warehouse/suppliers", requireAuth, async (req: AuthenticatedReques
     }).returning();
 
     await logWarehouseActivity(
-      req.companyId!,
+      req.scopedCompanyId!,
       req.userId,
       "warehouse_supplier",
       supplier.id,
@@ -840,7 +843,7 @@ router.post("/warehouse/suppliers", requireAuth, async (req: AuthenticatedReques
   }
 });
 
-router.patch("/warehouse/suppliers/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.patch("/warehouse/suppliers/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id as string, 10);
     const updates = req.body;
@@ -853,7 +856,7 @@ router.patch("/warehouse/suppliers/:id", requireAuth, async (req: AuthenticatedR
       .set(updates)
       .where(and(
         eq(warehouseSuppliersTable.id, id),
-        eq(warehouseSuppliersTable.companyId, req.companyId!)
+        eq(warehouseSuppliersTable.companyId, req.scopedCompanyId!)
       ))
       .returning();
 
@@ -863,7 +866,7 @@ router.patch("/warehouse/suppliers/:id", requireAuth, async (req: AuthenticatedR
     }
 
     await logWarehouseActivity(
-      req.companyId!,
+      req.scopedCompanyId!,
       req.userId,
       "warehouse_supplier",
       supplier.id,
@@ -890,7 +893,7 @@ router.delete(
       const [supplier] = await db.select().from(warehouseSuppliersTable)
         .where(and(
           eq(warehouseSuppliersTable.id, id),
-          eq(warehouseSuppliersTable.companyId, req.companyId!)
+          eq(warehouseSuppliersTable.companyId, req.scopedCompanyId!)
         ));
 
       if (!supplier) {
@@ -901,11 +904,11 @@ router.delete(
       await db.delete(warehouseSuppliersTable)
         .where(and(
           eq(warehouseSuppliersTable.id, id),
-          eq(warehouseSuppliersTable.companyId, req.companyId!)
+          eq(warehouseSuppliersTable.companyId, req.scopedCompanyId!)
         ));
 
       await logWarehouseActivity(
-        req.companyId!,
+        req.scopedCompanyId!,
         req.userId,
         "warehouse_supplier",
         id,
@@ -926,17 +929,17 @@ router.delete(
 // DASHBOARD/STATS
 // ──────────────────────────────────────────────────────────────────────────────
 
-router.get("/warehouse/dashboard", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/warehouse/dashboard", async (req: AuthenticatedRequest, res): Promise<void> => {
   try {
     const [items, incomingOps, outgoingOps] = await Promise.all([
       db.select().from(warehouseItemsTable)
-        .where(eq(warehouseItemsTable.companyId, req.companyId!)),
+        .where(eq(warehouseItemsTable.companyId, req.scopedCompanyId!)),
       db.select().from(warehouseIncomingTable)
-        .where(eq(warehouseIncomingTable.companyId, req.companyId!))
+        .where(eq(warehouseIncomingTable.companyId, req.scopedCompanyId!))
         .orderBy(desc(warehouseIncomingTable.createdAt))
         .limit(10),
       db.select().from(warehouseOutgoingTable)
-        .where(eq(warehouseOutgoingTable.companyId, req.companyId!))
+        .where(eq(warehouseOutgoingTable.companyId, req.scopedCompanyId!))
         .orderBy(desc(warehouseOutgoingTable.createdAt))
         .limit(10),
     ]);

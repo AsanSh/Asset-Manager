@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, and, SQL, sql, asc } from "drizzle-orm";
+import { eq, and, SQL, sql, asc, inArray, gt } from "drizzle-orm";
 import {
   db, propertiesTable, tenantsTable, leaseContractsTable,
   accrualsTable, paymentsTable, depositsTable, expensesTable,
@@ -8,14 +8,36 @@ import {
 } from "../lib/db";
 
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
+import { requireTenantCompany } from "../middleware/tenant";
 import {
   BANK_ACCOUNT_MODULE,
   accountExistsInModule,
   companyModuleAccountByIdWhere,
   companyModuleAccountWhere,
 } from "../lib/bank-account-module";
+import { investmentsTable } from "../lib/db";
 
 const RENTAL_ACCOUNTS = BANK_ACCOUNT_MODULE.rental;
+
+async function contractOutstandingBalance(contractId: number): Promise<number> {
+  const rows = await db.select().from(accrualsTable).where(eq(accrualsTable.leaseContractId, contractId));
+  return rows.reduce((s, a) => s + parseFloat(a.balance || "0"), 0);
+}
+
+async function refreshPropertyRentalStatus(propertyId: number, companyId?: number): Promise<void> {
+  const conditions: SQL[] = [
+    eq(leaseContractsTable.propertyId, propertyId),
+    eq(leaseContractsTable.status, "active"),
+  ];
+  if (companyId) conditions.push(eq(leaseContractsTable.companyId, companyId));
+  const [active] = await db.select().from(leaseContractsTable).where(and(...conditions));
+  const propConditions: SQL[] = [eq(propertiesTable.id, propertyId)];
+  if (companyId) propConditions.push(eq(propertiesTable.companyId, companyId));
+  await db
+    .update(propertiesTable)
+    .set({ rentalStatus: active ? "rented" : "free" })
+    .where(and(...propConditions));
+}
 
 async function logOp(
   companyId: number, userId: number | undefined,
@@ -34,6 +56,8 @@ async function logOp(
 }
 
 const router: ReturnType<typeof Router> = Router();
+
+router.use(requireAuth, requireTenantCompany);
 
 // ---------- HELPERS ----------
 
@@ -119,20 +143,20 @@ function buildAccrualRows(params: {
 // ---------- END HELPERS ----------
 
 // ── BANK ACCOUNTS (только модуль «Аренда») ──────────────────────────────
-router.get("/rental/accounts", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const companyId = req.companyId!;
+router.get("/rental/accounts", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
   const rows = await db.select().from(bankAccountsTable)
     .where(companyModuleAccountWhere(companyId, RENTAL_ACCOUNTS))
     .orderBy(bankAccountsTable.name);
   res.json(rows);
 });
 
-router.post("/rental/accounts", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/rental/accounts", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { name, type, bank, bik, accountNumber, currency, openingBalance, notes } = req.body;
   if (!name) { res.status(400).json({ error: "name required" }); return; }
   const open = openingBalance || "0";
   const [row] = await db.insert(bankAccountsTable).values({
-    companyId: req.companyId!,
+    companyId: req.scopedCompanyId!,
     module: RENTAL_ACCOUNTS,
     name,
     type: type || "bank",
@@ -147,8 +171,8 @@ router.post("/rental/accounts", requireAuth, async (req: AuthenticatedRequest, r
   res.status(201).json(row);
 });
 
-router.patch("/rental/accounts/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const companyId = req.companyId!;
+router.patch("/rental/accounts/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
   const id = parseInt(req.params.id as string, 10);
   const { module: _m, companyId: _c, ...body } = req.body ?? {};
   const [row] = await db.update(bankAccountsTable)
@@ -159,19 +183,25 @@ router.patch("/rental/accounts/:id", requireAuth, async (req: AuthenticatedReque
   res.json(row);
 });
 
-router.delete("/rental/accounts/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const companyId = req.companyId!;
+router.delete("/rental/accounts/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
   const id = parseInt(req.params.id as string, 10);
-  const deleted = await db.delete(bankAccountsTable)
-    .where(companyModuleAccountByIdWhere(companyId, id, RENTAL_ACCOUNTS))
-    .returning({ id: bankAccountsTable.id });
-  if (!deleted.length) { res.status(404).json({ error: "Счёт не найден" }); return; }
+  const [acc] = await db.select().from(bankAccountsTable)
+    .where(companyModuleAccountByIdWhere(companyId, id, RENTAL_ACCOUNTS));
+  if (!acc) { res.status(404).json({ error: "Счёт не найден" }); return; }
+  const balance = parseFloat(acc.currentBalance || "0");
+  if (Math.abs(balance) > 0.005) {
+    res.status(409).json({ error: "Нельзя удалить счёт с ненулевым балансом. Сначала переведите или спишите средства." });
+    return;
+  }
+  await db.delete(bankAccountsTable)
+    .where(companyModuleAccountByIdWhere(companyId, id, RENTAL_ACCOUNTS));
   res.json({ ok: true });
 });
 
 // Recalculate all rental account balances from actual payments/deposits minus expenses
-router.post("/rental/accounts/recalculate", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const companyId = req.companyId!;
+router.post("/rental/accounts/recalculate", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
   const accounts = await db.select().from(bankAccountsTable)
     .where(companyModuleAccountWhere(companyId, RENTAL_ACCOUNTS));
 
@@ -199,8 +229,8 @@ router.post("/rental/accounts/recalculate", requireAuth, async (req: Authenticat
   res.json({ ok: true, updated });
 });
 
-router.post("/rental/accounts/transfer", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const companyId = req.companyId!;
+router.post("/rental/accounts/transfer", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
   const { fromAccountId, toAccountId, amount, rate, date, note } = req.body;
   if (!fromAccountId || !toAccountId || !amount) {
     res.status(400).json({ error: "fromAccountId, toAccountId and amount required" }); return;
@@ -234,10 +264,10 @@ router.post("/rental/accounts/transfer", requireAuth, async (req: AuthenticatedR
 });
 
 // TENANTS
-router.get("/rental/tenants", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/rental/tenants", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { search, status } = req.query as Record<string, string | undefined>;
   const conditions: SQL[] = [];
-  if (req.companyId) conditions.push(eq(tenantsTable.companyId, req.companyId));
+  conditions.push(eq(tenantsTable.companyId, req.scopedCompanyId!));
   let rows = await db.select().from(tenantsTable)
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(tenantsTable.createdAt);
@@ -246,29 +276,29 @@ router.get("/rental/tenants", requireAuth, async (req: AuthenticatedRequest, res
   res.json(rows);
 });
 
-router.post("/rental/tenants", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/rental/tenants", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { fullName, phone, email, iin, type, status, comment } = req.body;
   if (!fullName) { res.status(400).json({ error: "fullName required" }); return; }
   const [row] = await db.insert(tenantsTable).values({
-    companyId: req.companyId, fullName, phone, email, iin, type: type || "individual", status: status || "active", comment
+    companyId: req.scopedCompanyId!, fullName, phone, email, iin, type: type || "individual", status: status || "active", comment
   }).returning();
   res.status(201).json(row);
 });
 
-router.get("/rental/tenants/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/rental/tenants/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
   const conditions: SQL[] = [eq(tenantsTable.id, id)];
-  if (req.companyId) conditions.push(eq(tenantsTable.companyId, req.companyId));
+  conditions.push(eq(tenantsTable.companyId, req.scopedCompanyId!));
   const [row] = await db.select().from(tenantsTable).where(and(...conditions));
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
   res.json(row);
 });
 
-router.patch("/rental/tenants/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.patch("/rental/tenants/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
   const { fullName, phone, email, iin, type, status, comment } = req.body;
   const conditions: SQL[] = [eq(tenantsTable.id, id)];
-  if (req.companyId) conditions.push(eq(tenantsTable.companyId, req.companyId));
+  conditions.push(eq(tenantsTable.companyId, req.scopedCompanyId!));
   const [row] = await db.update(tenantsTable)
     .set({ fullName, phone, email, iin, type, status, comment })
     .where(and(...conditions)).returning();
@@ -276,24 +306,63 @@ router.patch("/rental/tenants/:id", requireAuth, async (req: AuthenticatedReques
   res.json(row);
 });
 
-router.delete("/rental/tenants/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.delete("/rental/tenants/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
   const conditions: SQL[] = [eq(tenantsTable.id, id)];
-  if (req.companyId) conditions.push(eq(tenantsTable.companyId, req.companyId));
+  conditions.push(eq(tenantsTable.companyId, req.scopedCompanyId!));
   const [snap] = await db.select().from(tenantsTable).where(and(...conditions));
-  await db.delete(tenantsTable).where(and(...conditions));
-  if (snap && req.companyId) {
-    await logOp(req.companyId, req.userId, "tenant", id, "delete",
-      `Удалён арендатор: ${snap.fullName}`, snap);
+  if (!snap) { res.status(404).json({ error: "Арендатор не найден" }); return; }
+
+  const contractConds: SQL[] = [eq(leaseContractsTable.tenantId, id)];
+  contractConds.push(eq(leaseContractsTable.companyId, req.scopedCompanyId!));
+  const contracts = await db.select().from(leaseContractsTable).where(and(...contractConds));
+
+  if (contracts.some((c) => c.status === "active" || c.status === "draft")) {
+    res.status(400).json({
+      error: "Нельзя удалить арендатора с активным или черновым договором. Сначала расторгните или удалите договор.",
+    });
+    return;
   }
+
+  for (const c of contracts) {
+    const balance = await contractOutstandingBalance(c.id);
+    if (balance > 0.01) {
+      res.status(400).json({
+        error: `По договору ${c.contractNumber} есть задолженность. Погасите долг или расторгните договор.`,
+      });
+      return;
+    }
+    const [payment] = await db
+      .select()
+      .from(paymentsTable)
+      .where(eq(paymentsTable.leaseContractId, c.id))
+      .limit(1);
+    if (payment) {
+      res.status(400).json({
+        error: `По договору ${c.contractNumber} есть платежи. Удаление арендатора невозможно — переведите в «Неактивный».`,
+      });
+      return;
+    }
+  }
+
+  if (contracts.length > 0) {
+    for (const c of contracts) {
+      await db.delete(accrualsTable).where(eq(accrualsTable.leaseContractId, c.id));
+      await db.delete(leaseContractsTable).where(eq(leaseContractsTable.id, c.id));
+    }
+  }
+
+  await db.delete(tenantsTable).where(and(...conditions));
+  await logOp(req.scopedCompanyId!, req.userId, "tenant", id, "delete",
+      `Удалён арендатор: ${snap.fullName}`, snap);
   res.sendStatus(204);
 });
 
 // LEASE CONTRACTS
-router.get("/rental/contracts", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/rental/contracts", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { propertyId, tenantId, status } = req.query as Record<string, string | undefined>;
   const conditions: SQL[] = [];
-  if (req.companyId) conditions.push(eq(leaseContractsTable.companyId, req.companyId));
+  conditions.push(eq(leaseContractsTable.companyId, req.scopedCompanyId!));
   if (propertyId) conditions.push(eq(leaseContractsTable.propertyId, parseInt(propertyId, 10)));
   if (tenantId) conditions.push(eq(leaseContractsTable.tenantId, parseInt(tenantId, 10)));
   if (status) conditions.push(eq(leaseContractsTable.status, status));
@@ -315,21 +384,21 @@ router.get("/rental/contracts", requireAuth, async (req: AuthenticatedRequest, r
   res.json(enriched);
 });
 
-router.post("/rental/contracts", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/rental/contracts", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { propertyId, tenantId, contractNumber, signDate, startDate, endDate, rentAmount, currency, depositAmount, accrualDay, status, comment } = req.body;
   if (!propertyId || !tenantId || !contractNumber || !startDate || !rentAmount || !currency || !status) {
     res.status(400).json({ error: "Missing required fields" });
     return;
   }
   const [row] = await db.insert(leaseContractsTable).values({
-    companyId: req.companyId, propertyId, tenantId, contractNumber, signDate: signDate || null, startDate, endDate, rentAmount, currency, depositAmount, accrualDay, status, comment
+    companyId: req.scopedCompanyId!, propertyId, tenantId, contractNumber, signDate: signDate || null, startDate, endDate, rentAmount, currency, depositAmount, accrualDay, status, comment
   }).returning();
 
   await db.update(propertiesTable).set({ rentalStatus: "rented" }).where(eq(propertiesTable.id, propertyId));
 
   if (status === "active" || status === "draft") {
     const accrualRows = buildAccrualRows({
-      companyId: req.companyId!,
+      companyId: req.scopedCompanyId!,
       leaseContractId: row.id,
       startDate: new Date(startDate),
       endDate: endDate ? new Date(endDate) : null,
@@ -347,10 +416,10 @@ router.post("/rental/contracts", requireAuth, async (req: AuthenticatedRequest, 
   res.status(201).json({ ...row, tenantName: t?.fullName ?? null, propertyUnitNumber: p?.unitNumber ?? null });
 });
 
-router.get("/rental/contracts/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/rental/contracts/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
   const conditions: SQL[] = [eq(leaseContractsTable.id, id)];
-  if (req.companyId) conditions.push(eq(leaseContractsTable.companyId, req.companyId));
+  conditions.push(eq(leaseContractsTable.companyId, req.scopedCompanyId!));
   const [row] = await db.select().from(leaseContractsTable).where(and(...conditions));
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
   const [t] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, row.tenantId));
@@ -358,11 +427,11 @@ router.get("/rental/contracts/:id", requireAuth, async (req: AuthenticatedReques
   res.json({ ...row, tenantName: t?.fullName ?? null, propertyUnitNumber: p?.unitNumber ?? null });
 });
 
-router.patch("/rental/contracts/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.patch("/rental/contracts/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
   const { signDate, startDate, endDate, rentAmount, currency, depositAmount, accrualDay, status, comment } = req.body;
   const conditions: SQL[] = [eq(leaseContractsTable.id, id)];
-  if (req.companyId) conditions.push(eq(leaseContractsTable.companyId, req.companyId));
+  conditions.push(eq(leaseContractsTable.companyId, req.scopedCompanyId!));
   const [row] = await db.update(leaseContractsTable)
     .set({ signDate: signDate ?? null, startDate, endDate, rentAmount, currency, depositAmount, accrualDay, status, comment })
     .where(and(...conditions)).returning();
@@ -373,11 +442,135 @@ router.patch("/rental/contracts/:id", requireAuth, async (req: AuthenticatedRequ
   res.json({ ...row, tenantName: t?.fullName ?? null, propertyUnitNumber: p?.unitNumber ?? null });
 });
 
+router.post("/rental/contracts/:id/terminate", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
+  const { terminationDate, reason } = req.body as { terminationDate?: string; reason?: string };
+  const termDate = terminationDate || new Date().toISOString().split("T")[0];
+  const conditions: SQL[] = [eq(leaseContractsTable.id, id)];
+  conditions.push(eq(leaseContractsTable.companyId, req.scopedCompanyId!));
+
+  const [contract] = await db.select().from(leaseContractsTable).where(and(...conditions));
+  if (!contract) { res.status(404).json({ error: "Договор не найден" }); return; }
+  if (contract.status === "terminated") {
+    res.status(400).json({ error: "Договор уже расторгнут" });
+    return;
+  }
+  if (contract.status === "draft") {
+    res.status(400).json({ error: "Черновик можно удалить без расторжения" });
+    return;
+  }
+
+  const balance = await contractOutstandingBalance(id);
+  const noteSuffix = reason ? ` · ${reason}` : "";
+  const comment = [contract.comment, `Расторгнут ${termDate}${noteSuffix}`].filter(Boolean).join("\n");
+
+  const [row] = await db.update(leaseContractsTable)
+    .set({
+      status: "terminated",
+      endDate: termDate,
+      comment,
+    })
+    .where(and(...conditions))
+    .returning();
+
+  const pendingAccruals = await db.select().from(accrualsTable).where(
+    and(
+      eq(accrualsTable.leaseContractId, id),
+      inArray(accrualsTable.status, ["pending", "overdue", "approved"]),
+      gt(accrualsTable.dueDate, termDate),
+    ),
+  );
+  for (const a of pendingAccruals) {
+    const paid = parseFloat(a.paidAmount || "0");
+    if (paid > 0) continue;
+    await db.update(accrualsTable)
+      .set({
+        status: "cancelled",
+        balance: "0",
+        notes: [a.notes, `Отменено при расторжении ${termDate}`].filter(Boolean).join(" · "),
+      })
+      .where(eq(accrualsTable.id, a.id));
+  }
+
+  await refreshPropertyRentalStatus(contract.propertyId, req.scopedCompanyId);
+
+  await logOp(req.scopedCompanyId!, req.userId, "lease_contract", id, "update",
+      `Расторгнут договор ${contract.contractNumber} от ${termDate}`, row);
+
+  const [t] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, row.tenantId));
+  const [p] = await db.select().from(propertiesTable).where(eq(propertiesTable.id, row.propertyId));
+  res.json({
+    ...row,
+    tenantName: t?.fullName ?? null,
+    propertyUnitNumber: p?.unitNumber ?? null,
+    outstandingBalance: balance,
+  });
+});
+
+router.delete("/rental/contracts/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
+  const conditions: SQL[] = [eq(leaseContractsTable.id, id)];
+  conditions.push(eq(leaseContractsTable.companyId, req.scopedCompanyId!));
+
+  const [contract] = await db.select().from(leaseContractsTable).where(and(...conditions));
+  if (!contract) { res.status(404).json({ error: "Договор не найден" }); return; }
+
+  if (contract.status === "active") {
+    res.status(400).json({
+      error: "Активный договор нельзя удалить. Сначала расторгните его.",
+    });
+    return;
+  }
+
+  const balance = await contractOutstandingBalance(id);
+  if (balance > 0.01) {
+    res.status(400).json({ error: "Нельзя удалить договор с непогашенной задолженностью" });
+    return;
+  }
+
+  const [payment] = await db
+    .select()
+    .from(paymentsTable)
+    .where(eq(paymentsTable.leaseContractId, id))
+    .limit(1);
+  if (payment && contract.status !== "draft") {
+    res.status(400).json({
+      error: "Договор с историей платежей нельзя удалить. Оставьте статус «Расторгнут».",
+    });
+    return;
+  }
+
+  const [heldDeposit] = await db
+    .select()
+    .from(depositsTable)
+    .where(and(eq(depositsTable.leaseContractId, id), eq(depositsTable.status, "held")))
+    .limit(1);
+  if (heldDeposit) {
+    res.status(400).json({ error: "Сначала закройте депозит по договору" });
+    return;
+  }
+
+  const payments = await db.select().from(paymentsTable).where(eq(paymentsTable.leaseContractId, id));
+  for (const p of payments) {
+    await db.delete(paymentAllocationsTable).where(eq(paymentAllocationsTable.paymentId, p.id));
+  }
+  await db.delete(paymentsTable).where(eq(paymentsTable.leaseContractId, id));
+  await db.delete(accrualsTable).where(eq(accrualsTable.leaseContractId, id));
+  await db.delete(depositsTable).where(eq(depositsTable.leaseContractId, id));
+  await db.delete(leaseContractsTable).where(and(...conditions));
+
+  await refreshPropertyRentalStatus(contract.propertyId, req.scopedCompanyId);
+
+  await logOp(req.scopedCompanyId!, req.userId, "lease_contract", id, "delete",
+      `Удалён договор ${contract.contractNumber}`, contract);
+  res.sendStatus(204);
+});
+
 // ACCRUALS
-router.get("/rental/accruals", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/rental/accruals", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { leaseContractId, status, month } = req.query as Record<string, string | undefined>;
   const conditions: SQL[] = [];
-  if (req.companyId) conditions.push(eq(accrualsTable.companyId, req.companyId));
+  conditions.push(eq(accrualsTable.companyId, req.scopedCompanyId!));
   if (leaseContractId) conditions.push(eq(accrualsTable.leaseContractId, parseInt(leaseContractId, 10)));
   if (status) conditions.push(eq(accrualsTable.status, status));
 
@@ -388,12 +581,12 @@ router.get("/rental/accruals", requireAuth, async (req: AuthenticatedRequest, re
   res.json(rows);
 });
 
-router.post("/rental/accruals/recalculate", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/rental/accruals/recalculate", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { leaseContractId } = req.body;
   if (!leaseContractId) { res.status(400).json({ error: "leaseContractId required" }); return; }
 
   const conditions: SQL[] = [eq(leaseContractsTable.id, leaseContractId)];
-  if (req.companyId) conditions.push(eq(leaseContractsTable.companyId, req.companyId));
+  conditions.push(eq(leaseContractsTable.companyId, req.scopedCompanyId!));
   const [contract] = await db.select().from(leaseContractsTable).where(and(...conditions));
   if (!contract) { res.status(404).json({ error: "Lease contract not found" }); return; }
 
@@ -406,7 +599,7 @@ router.post("/rental/accruals/recalculate", requireAuth, async (req: Authenticat
   );
 
   const accrualRows = buildAccrualRows({
-    companyId: req.companyId!,
+    companyId: req.scopedCompanyId!,
     leaseContractId,
     startDate: new Date(contract.startDate),
     endDate: contract.endDate ? new Date(contract.endDate) : null,
@@ -430,11 +623,11 @@ router.post("/rental/accruals/recalculate", requireAuth, async (req: Authenticat
   res.json({ inserted: insertedAccruals.length, accruals: insertedAccruals });
 });
 
-router.patch("/rental/accruals/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.patch("/rental/accruals/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
   const { status, notes, discountType, discountAmount, discountReason, gracePeriodDays, dueDate } = req.body;
   const conditions: SQL[] = [eq(accrualsTable.id, id)];
-  if (req.companyId) conditions.push(eq(accrualsTable.companyId, req.companyId));
+  conditions.push(eq(accrualsTable.companyId, req.scopedCompanyId!));
 
   const [existing] = await db.select().from(accrualsTable).where(and(...conditions));
   if (!existing) { res.status(404).json({ error: "Not found" }); return; }
@@ -466,13 +659,13 @@ router.patch("/rental/accruals/:id", requireAuth, async (req: AuthenticatedReque
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
 
   // Логируем смену статуса
-  if (status !== undefined && status !== existing.status && req.companyId) {
+  if (status !== undefined && status !== existing.status) {
     const statusLabels: Record<string, string> = {
       cancelled: "Отменено", approved: "Принято", pending: "Ожидает",
       paid: "Оплачено", partial: "Частично", overdue: "Просрочено",
     };
     await logOp(
-      req.companyId, req.userId, "accrual", id, "update",
+      req.scopedCompanyId!, req.userId, "accrual", id, "update",
       `Начисление #${id} (${existing.period}): статус изменён с «${statusLabels[existing.status] ?? existing.status}» на «${statusLabels[status] ?? status}»`,
       existing,
     );
@@ -482,14 +675,14 @@ router.patch("/rental/accruals/:id", requireAuth, async (req: AuthenticatedReque
 });
 
 // POST /rental/accruals/:id/discount — применить льготу к начислению
-router.post("/rental/accruals/:id/discount", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/rental/accruals/:id/discount", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
   const { discountType, discountValue, reason, gracePeriodDays } = req.body;
 
   if (!discountType) { res.status(400).json({ error: "discountType required (percent/fixed/grace)" }); return; }
 
   const conditions: SQL[] = [eq(accrualsTable.id, id)];
-  if (req.companyId) conditions.push(eq(accrualsTable.companyId, req.companyId));
+  conditions.push(eq(accrualsTable.companyId, req.scopedCompanyId!));
 
   const [existing] = await db.select().from(accrualsTable).where(and(...conditions));
   if (!existing) { res.status(404).json({ error: "Начисление не найдено" }); return; }
@@ -528,10 +721,10 @@ router.post("/rental/accruals/:id/discount", requireAuth, async (req: Authentica
 });
 
 // PAYMENTS
-router.get("/rental/payments", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/rental/payments", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { leaseContractId } = req.query as Record<string, string | undefined>;
   const conditions: SQL[] = [];
-  if (req.companyId) conditions.push(eq(paymentsTable.companyId, req.companyId));
+  conditions.push(eq(paymentsTable.companyId, req.scopedCompanyId!));
   if (leaseContractId) conditions.push(eq(paymentsTable.leaseContractId, parseInt(leaseContractId, 10)));
   const rows = await db.select().from(paymentsTable)
     .where(conditions.length ? and(...conditions) : undefined)
@@ -539,34 +732,36 @@ router.get("/rental/payments", requireAuth, async (req: AuthenticatedRequest, re
   res.json(rows);
 });
 
-router.post("/rental/payments", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/rental/payments", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { leaseContractId, amount, currency, paymentDate, paymentMethod, accountId, note, allocations } = req.body;
   if (!leaseContractId || !amount || !currency || !paymentDate) {
     res.status(400).json({ error: "leaseContractId, amount, currency, paymentDate required" });
     return;
   }
 
-  const companyId = req.companyId!;
+  const companyId = req.scopedCompanyId!;
   const parsedAccountId = accountId ? parseInt(String(accountId), 10) : null;
-  if (parsedAccountId) {
-    const ok = await accountExistsInModule(companyId, parsedAccountId, RENTAL_ACCOUNTS);
-    if (!ok) {
-      res.status(400).json({ error: "Укажите счёт из модуля «Аренда»" });
-      return;
-    }
+  if (!parsedAccountId) {
+    res.status(400).json({ error: "Укажите расчётный счёт" });
+    return;
+  }
+  const ok = await accountExistsInModule(companyId, parsedAccountId, RENTAL_ACCOUNTS);
+  if (!ok) {
+    res.status(400).json({ error: "Укажите счёт из модуля «Аренда»" });
+    return;
   }
 
   const paymentAmount = parseFloat(amount);
 
   // Создаём запись платежа
   const [payment] = await db.insert(paymentsTable).values({
-    companyId: req.companyId,
+    companyId: req.scopedCompanyId!,
     leaseContractId,
     amount: String(paymentAmount),
     currency,
     paymentDate,
     paymentMethod: paymentMethod || null,
-    accountId: accountId ? parseInt(String(accountId), 10) : null,
+    accountId: parsedAccountId,
     note: note || null,
   }).returning();
 
@@ -582,7 +777,7 @@ router.post("/rental/payments", requireAuth, async (req: AuthenticatedRequest, r
       if (!accrual) continue;
 
       const [allocation] = await db.insert(paymentAllocationsTable).values({
-        companyId: req.companyId,
+        companyId: req.scopedCompanyId!,
         paymentId: payment.id,
         accrualId: alloc.accrualId,
         amount: String(allocAmount),
@@ -614,7 +809,7 @@ router.post("/rental/payments", requireAuth, async (req: AuthenticatedRequest, r
       const allocAmount = Math.min(balance, remainingAmount);
 
       const [allocation] = await db.insert(paymentAllocationsTable).values({
-        companyId: req.companyId,
+        companyId: req.scopedCompanyId!,
         paymentId: payment.id,
         accrualId: accrual.id,
         amount: String(allocAmount),
@@ -633,7 +828,7 @@ router.post("/rental/payments", requireAuth, async (req: AuthenticatedRequest, r
   }
 
   // Update bank account balance
-  if (parsedAccountId) {
+  {
     const [acc] = await db.select().from(bankAccountsTable).where(eq(bankAccountsTable.id, parsedAccountId));
     if (acc) {
       const newBal = (parseFloat(acc.currentBalance || "0") + paymentAmount).toFixed(2);
@@ -641,17 +836,15 @@ router.post("/rental/payments", requireAuth, async (req: AuthenticatedRequest, r
     }
   }
 
-  if (req.companyId) {
-    await logOp(req.companyId, req.userId, "payment", payment.id, "create",
+  await logOp(req.scopedCompanyId!, req.userId, "payment", payment.id, "create",
       `Добавлен платёж ${paymentAmount} ${currency} (договор #${leaseContractId})`, payment);
-  }
   res.status(201).json({ ...payment, allocations: createdAllocations, unallocated: remainingAmount });
 });
 
-router.delete("/rental/payments/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.delete("/rental/payments/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
   const conds: SQL[] = [eq(paymentsTable.id, id)];
-  if (req.companyId) conds.push(eq(paymentsTable.companyId, req.companyId));
+  conds.push(eq(paymentsTable.companyId, req.scopedCompanyId!));
   const [snap] = await db.select().from(paymentsTable).where(and(...conds));
   if (!snap) { res.status(404).json({ error: "Платёж не найден" }); return; }
   // Reverse allocations
@@ -679,18 +872,16 @@ router.delete("/rental/payments/:id", requireAuth, async (req: AuthenticatedRequ
     }
   }
 
-  if (req.companyId) {
-    await logOp(req.companyId, req.userId, "payment", id, "delete",
+  await logOp(req.scopedCompanyId!, req.userId, "payment", id, "delete",
       `Удалён платёж ${snap.amount} ${snap.currency} от ${snap.paymentDate}`, snap);
-  }
   res.sendStatus(204);
 });
 
 // DEPOSITS
-router.get("/rental/deposits", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/rental/deposits", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { leaseContractId, status } = req.query as Record<string, string | undefined>;
   const conditions: SQL[] = [];
-  if (req.companyId) conditions.push(eq(depositsTable.companyId, req.companyId));
+  conditions.push(eq(depositsTable.companyId, req.scopedCompanyId!));
   if (leaseContractId) conditions.push(eq(depositsTable.leaseContractId, parseInt(leaseContractId, 10)));
   if (status) conditions.push(eq(depositsTable.status, status));
   const rows = await db.select().from(depositsTable)
@@ -699,24 +890,35 @@ router.get("/rental/deposits", requireAuth, async (req: AuthenticatedRequest, re
   res.json(rows);
 });
 
-router.post("/rental/deposits", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/rental/deposits", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { leaseContractId, amount, currency, receivedDate, accountId, note } = req.body;
   if (!leaseContractId || !amount || !currency || !receivedDate) {
     res.status(400).json({ error: "leaseContractId, amount, currency, receivedDate required" });
     return;
   }
+  if (!accountId) {
+    res.status(400).json({ error: "Укажите расчётный счёт" });
+    return;
+  }
+  const parsedAccountId = parseInt(String(accountId), 10);
+  const companyId = req.scopedCompanyId!;
+  const ok = await accountExistsInModule(companyId, parsedAccountId, RENTAL_ACCOUNTS);
+  if (!ok) {
+    res.status(400).json({ error: "Укажите счёт из модуля «Аренда»" });
+    return;
+  }
   const [row] = await db.insert(depositsTable).values({
-    companyId: req.companyId, leaseContractId, amount, currency, status: "held", receivedDate,
-    accountId: accountId ? parseInt(String(accountId), 10) : null, note,
+    companyId: req.scopedCompanyId!, leaseContractId, amount, currency, status: "held", receivedDate,
+    accountId: parsedAccountId, note,
   }).returning();
   res.status(201).json(row);
 });
 
-router.patch("/rental/deposits/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.patch("/rental/deposits/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
   const { status, returnedAmount, returnedDate, note } = req.body;
   const conditions: SQL[] = [eq(depositsTable.id, id)];
-  if (req.companyId) conditions.push(eq(depositsTable.companyId, req.companyId));
+  conditions.push(eq(depositsTable.companyId, req.scopedCompanyId!));
   const [row] = await db.update(depositsTable)
     .set({ status, returnedAmount, returnedDate, note })
     .where(and(...conditions)).returning();
@@ -725,10 +927,10 @@ router.patch("/rental/deposits/:id", requireAuth, async (req: AuthenticatedReque
 });
 
 // EXPENSES
-router.get("/rental/expenses", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/rental/expenses", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { propertyId, category } = req.query as Record<string, string | undefined>;
   const conditions: SQL[] = [];
-  if (req.companyId) conditions.push(eq(expensesTable.companyId, req.companyId));
+  conditions.push(eq(expensesTable.companyId, req.scopedCompanyId!));
   if (propertyId) conditions.push(eq(expensesTable.propertyId, parseInt(propertyId, 10)));
   if (category) conditions.push(eq(expensesTable.category, category));
   const rows = await db.select().from(expensesTable)
@@ -737,28 +939,82 @@ router.get("/rental/expenses", requireAuth, async (req: AuthenticatedRequest, re
   res.json(rows);
 });
 
-router.post("/rental/expenses", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/rental/expenses", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { propertyId, leaseContractId, category, amount, currency, expenseDate, accountId, description } = req.body;
   if (!propertyId || !category || !amount || !currency || !expenseDate) {
     res.status(400).json({ error: "propertyId, category, amount, currency, expenseDate required" });
     return;
   }
+  if (!accountId) {
+    res.status(400).json({ error: "Укажите расчётный счёт" });
+    return;
+  }
+  const parsedAccountId = parseInt(String(accountId), 10);
+  const companyId = req.scopedCompanyId!;
+  const ok = await accountExistsInModule(companyId, parsedAccountId, RENTAL_ACCOUNTS);
+  if (!ok) {
+    res.status(400).json({ error: "Укажите счёт из модуля «Аренда»" });
+    return;
+  }
   const [row] = await db.insert(expensesTable).values({
-    companyId: req.companyId, propertyId, leaseContractId, category, amount, currency, expenseDate,
-    accountId: accountId ? parseInt(String(accountId), 10) : null, description,
+    companyId: req.scopedCompanyId!, propertyId, leaseContractId, category, amount, currency, expenseDate,
+    accountId: parsedAccountId, description,
   }).returning();
   res.status(201).json(row);
 });
 
+router.patch("/rental/expenses/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
+  const { propertyId, leaseContractId, category, amount, currency, expenseDate, accountId, description } = req.body;
+  const conditions: SQL[] = [eq(expensesTable.id, id)];
+  conditions.push(eq(expensesTable.companyId, req.scopedCompanyId!));
+  if (accountId !== undefined && !accountId) {
+    res.status(400).json({ error: "Укажите расчётный счёт" });
+    return;
+  }
+  if (accountId != null && req.scopedCompanyId!) {
+    const parsedAccountId = parseInt(String(accountId), 10);
+    const ok = await accountExistsInModule(req.scopedCompanyId!, parsedAccountId, RENTAL_ACCOUNTS);
+    if (!ok) {
+      res.status(400).json({ error: "Укажите счёт из модуля «Аренда»" });
+      return;
+    }
+  }
+  const [row] = await db.update(expensesTable)
+    .set({
+      ...(propertyId != null ? { propertyId: parseInt(String(propertyId), 10) } : {}),
+      ...(leaseContractId !== undefined ? { leaseContractId: leaseContractId ? parseInt(String(leaseContractId), 10) : null } : {}),
+      ...(category != null ? { category: String(category) } : {}),
+      ...(amount != null ? { amount: String(amount) } : {}),
+      ...(currency != null ? { currency: String(currency) } : {}),
+      ...(expenseDate != null ? { expenseDate: String(expenseDate) } : {}),
+      ...(accountId !== undefined ? { accountId: parseInt(String(accountId), 10) } : {}),
+      ...(description !== undefined ? { description: description || null } : {}),
+    })
+    .where(and(...conditions))
+    .returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(row);
+});
+
+router.delete("/rental/expenses/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
+  const conditions: SQL[] = [eq(expensesTable.id, id)];
+  conditions.push(eq(expensesTable.companyId, req.scopedCompanyId!));
+  const [row] = await db.delete(expensesTable).where(and(...conditions)).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ ok: true });
+});
+
 // RENTAL PROPERTIES
-router.post("/rental/properties", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/rental/properties", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { projectName, unitNumber, type, area, block, floor, comment } = req.body;
   if (!projectName || !unitNumber) {
     res.status(400).json({ error: "Укажите проект и номер объекта" });
     return;
   }
   const [row] = await db.insert(propertiesTable).values({
-    companyId: req.companyId,
+    companyId: req.scopedCompanyId!,
     projectName: String(projectName).trim(),
     unitNumber: String(unitNumber).trim(),
     type: type || "apartment",
@@ -787,14 +1043,14 @@ router.post("/rental/properties", requireAuth, async (req: AuthenticatedRequest,
   });
 });
 
-router.patch("/rental/properties/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.patch("/rental/properties/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
   if (Number.isNaN(id)) {
     res.status(400).json({ error: "Invalid ID" });
     return;
   }
   const conditions: SQL[] = [eq(propertiesTable.id, id)];
-  if (req.companyId) conditions.push(eq(propertiesTable.companyId, req.companyId));
+  conditions.push(eq(propertiesTable.companyId, req.scopedCompanyId!));
 
   const body = req.body as Record<string, unknown>;
   const patch: Record<string, unknown> = {};
@@ -833,10 +1089,71 @@ router.patch("/rental/properties/:id", requireAuth, async (req: AuthenticatedReq
   res.json(row);
 });
 
-router.get("/rental/properties", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.delete("/rental/properties/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
+  if (Number.isNaN(id)) {
+    res.status(400).json({ error: "Invalid ID" });
+    return;
+  }
+  const conditions: SQL[] = [eq(propertiesTable.id, id)];
+  conditions.push(eq(propertiesTable.companyId, req.scopedCompanyId!));
+
+  const [prop] = await db.select().from(propertiesTable).where(and(...conditions));
+  if (!prop) {
+    res.status(404).json({ error: "Объект не найден" });
+    return;
+  }
+
+  const contractConds: SQL[] = [eq(leaseContractsTable.propertyId, id)];
+  contractConds.push(eq(leaseContractsTable.companyId, req.scopedCompanyId!));
+  const contracts = await db.select().from(leaseContractsTable).where(and(...contractConds));
+
+  if (contracts.some((c) => c.status === "active" || c.status === "draft")) {
+    res.status(400).json({
+      error: "Нельзя удалить объект с активным или черновым договором. Сначала расторгните или удалите договор.",
+    });
+    return;
+  }
+
+  for (const c of contracts) {
+    const balance = await contractOutstandingBalance(c.id);
+    if (balance > 0.01) {
+      res.status(400).json({ error: "По объекту есть непогашенная задолженность" });
+      return;
+    }
+  }
+
+  const [investment] = await db
+    .select()
+    .from(investmentsTable)
+    .where(eq(investmentsTable.propertyId, id))
+    .limit(1);
+  if (investment) {
+    res.status(400).json({
+      error: "Сначала удалите доли владельцев объекта на вкладке «Владельцы»",
+    });
+    return;
+  }
+
+  if (contracts.length > 0) {
+    for (const c of contracts) {
+      await db.delete(accrualsTable).where(eq(accrualsTable.leaseContractId, c.id));
+      await db.delete(leaseContractsTable).where(eq(leaseContractsTable.id, c.id));
+    }
+  }
+
+  await db.delete(expensesTable).where(eq(expensesTable.propertyId, id));
+  await db.delete(propertiesTable).where(and(...conditions));
+
+  await logOp(req.scopedCompanyId!, req.userId, "property", id, "delete",
+      `Удалён объект ${prop.projectName} ${prop.unitNumber}`, prop);
+  res.sendStatus(204);
+});
+
+router.get("/rental/properties", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { rentalStatus } = req.query as Record<string, string | undefined>;
   const conditions: SQL[] = [];
-  if (req.companyId) conditions.push(eq(propertiesTable.companyId, req.companyId));
+  conditions.push(eq(propertiesTable.companyId, req.scopedCompanyId!));
   let props = await db.select().from(propertiesTable)
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(propertiesTable.createdAt);
@@ -874,10 +1191,10 @@ router.get("/rental/properties", requireAuth, async (req: AuthenticatedRequest, 
   res.json(enriched);
 });
 
-router.post("/rental/properties/:id/activate", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/rental/properties/:id/activate", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
   const conditions: SQL[] = [eq(propertiesTable.id, id)];
-  if (req.companyId) conditions.push(eq(propertiesTable.companyId, req.companyId));
+  conditions.push(eq(propertiesTable.companyId, req.scopedCompanyId!));
   const [prop] = await db.update(propertiesTable)
     .set({ rentalStatus: "free", status: "on_lease" })
     .where(and(...conditions)).returning();
@@ -890,15 +1207,15 @@ router.post("/rental/properties/:id/activate", requireAuth, async (req: Authenti
   });
 });
 
-router.get("/rental/properties/:id/performance", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/rental/properties/:id/performance", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
   const conditions: SQL[] = [eq(propertiesTable.id, id)];
-  if (req.companyId) conditions.push(eq(propertiesTable.companyId, req.companyId));
+  conditions.push(eq(propertiesTable.companyId, req.scopedCompanyId!));
   const [prop] = await db.select().from(propertiesTable).where(and(...conditions));
   if (!prop) { res.status(404).json({ error: "Not found" }); return; }
 
   const contractConditions: SQL[] = [eq(leaseContractsTable.propertyId, id)];
-  if (req.companyId) contractConditions.push(eq(leaseContractsTable.companyId, req.companyId));
+  contractConditions.push(eq(leaseContractsTable.companyId, req.scopedCompanyId!));
   const contracts = await db.select().from(leaseContractsTable).where(and(...contractConditions));
   const contractIds = contracts.map(c => c.id);
 
@@ -912,7 +1229,7 @@ router.get("/rental/properties/:id/performance", requireAuth, async (req: Authen
   }
 
   const expenseConditions: SQL[] = [eq(expensesTable.propertyId, id)];
-  if (req.companyId) expenseConditions.push(eq(expensesTable.companyId, req.companyId));
+  expenseConditions.push(eq(expensesTable.companyId, req.scopedCompanyId!));
   const expensesList = await db.select().from(expensesTable).where(and(...expenseConditions));
   const totalExpenses = expensesList.reduce((s, e) => s + parseFloat(e.amount), 0);
   const netIncome = totalRentReceived - totalExpenses;
@@ -926,10 +1243,10 @@ router.get("/rental/properties/:id/performance", requireAuth, async (req: Authen
 });
 
 // OWNER STATEMENTS
-router.get("/rental/statements", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/rental/statements", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { propertyId, month } = req.query as Record<string, string | undefined>;
   const conditions: SQL[] = [];
-  if (req.companyId) conditions.push(eq(ownerStatementsTable.companyId, req.companyId));
+  conditions.push(eq(ownerStatementsTable.companyId, req.scopedCompanyId!));
   if (propertyId) conditions.push(eq(ownerStatementsTable.propertyId, parseInt(propertyId, 10)));
   if (month) conditions.push(eq(ownerStatementsTable.period, month));
   const rows = await db.select().from(ownerStatementsTable)
@@ -943,7 +1260,7 @@ router.get("/rental/statements", requireAuth, async (req: AuthenticatedRequest, 
   res.json(enriched);
 });
 
-router.post("/rental/statements/generate", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/rental/statements/generate", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { propertyId, period } = req.body;
   if (!propertyId || !period) {
     res.status(400).json({ error: "propertyId and period required" });
@@ -951,12 +1268,12 @@ router.post("/rental/statements/generate", requireAuth, async (req: Authenticate
   }
 
   const propConditions: SQL[] = [eq(propertiesTable.id, propertyId)];
-  if (req.companyId) propConditions.push(eq(propertiesTable.companyId, req.companyId));
+  propConditions.push(eq(propertiesTable.companyId, req.scopedCompanyId!));
   const [prop] = await db.select().from(propertiesTable).where(and(...propConditions));
   if (!prop) { res.status(404).json({ error: "Property not found" }); return; }
 
   const contractConditions: SQL[] = [eq(leaseContractsTable.propertyId, propertyId)];
-  if (req.companyId) contractConditions.push(eq(leaseContractsTable.companyId, req.companyId));
+  contractConditions.push(eq(leaseContractsTable.companyId, req.scopedCompanyId!));
   const contracts = await db.select().from(leaseContractsTable).where(and(...contractConditions));
 
   let rentCharged = 0, rentReceived = 0;
@@ -973,14 +1290,14 @@ router.post("/rental/statements/generate", requireAuth, async (req: Authenticate
   }
 
   const expenseConditions: SQL[] = [eq(expensesTable.propertyId, propertyId)];
-  if (req.companyId) expenseConditions.push(eq(expensesTable.companyId, req.companyId));
+  expenseConditions.push(eq(expensesTable.companyId, req.scopedCompanyId!));
   const expensesList = await db.select().from(expensesTable).where(and(...expenseConditions));
   const periodExpenses = expensesList.filter(e => e.expenseDate.startsWith(period));
   const expenses = periodExpenses.reduce((s, e) => s + parseFloat(e.amount), 0);
   const netIncome = rentReceived - expenses;
 
   const [stmt] = await db.insert(ownerStatementsTable).values({
-    companyId: req.companyId,
+    companyId: req.scopedCompanyId!,
     propertyId, period,
     rentCharged: String(rentCharged),
     rentReceived: String(rentReceived),

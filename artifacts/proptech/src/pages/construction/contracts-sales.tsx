@@ -25,6 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ContractStatusStepper } from "@/components/contract-status-stepper";
 import { ContractTab } from "@/components/contract-tab";
+import { getApiErrorMessage } from "@/lib/api-error";
 import { api } from "@/lib/api";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
@@ -119,12 +120,7 @@ export default function ConstructionContractsSales() {
 			toast.success("Статус обновлён");
 		},
 		onError: (err: unknown) => {
-			const msg =
-				err && typeof err === "object" && "response" in err
-					? (err as { response?: { data?: { error?: string } } }).response?.data
-							?.error
-					: null;
-			toast.error(msg || "Не удалось изменить статус");
+			toast.error(getApiErrorMessage(err, "Не удалось изменить статус"));
 		},
 	});
 

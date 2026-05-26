@@ -1,7 +1,23 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
-import { useState } from "react";
+import {
+	getListAccrualsQueryKey,
+	getListLeaseContractsQueryKey,
+	getListPaymentsQueryKey,
+	getListRentalPropertiesQueryKey,
+	getListTenantsQueryKey,
+	getRentalAccountsQueryKey,
+	getDistributionsQueryKey,
+	getRentalPaymentsAllQueryKey,
+	getRentalExpensesAllQueryKey,
+	getAccrualsOpenQueryKey,
+} from "@/lib/rental-query-keys";
+import { Building2, Pencil, Plus, Receipt, Tag, Trash2, Wallet } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { defaultPeriod, inPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
+import { KpiCard, KpiRow } from "@/components/kpi-card";
+import { RentalExcelTable, type RentalExcelColumn } from "@/components/rental/rental-excel-table";
+import { RentalViewModeToggle } from "@/components/rental/rental-view-mode-toggle";
+import { useRentalViewMode } from "@/hooks/use-rental-view-mode";
 import { useSortable } from "@/lib/use-sortable";
 import { SortHead } from "@/components/sort-head";
 import {
@@ -9,7 +25,8 @@ import {
 	useListExpenses,
 	useListProperties,
 } from "@/api-client";
-import { Button } from "@/components/ui/button";
+import { getApiErrorMessage } from "@/lib/api-error";
+import { RentalQueryState } from "@/components/rental/rental-query-state";
 import {
 	Dialog,
 	DialogContent,
@@ -61,53 +78,93 @@ function formatDate(date: string) {
 
 interface ExpenseDialogProps {
 	open: boolean;
+	expense?: any | null;
 	onClose: () => void;
 }
 
-function ExpenseDialog({ open, onClose }: ExpenseDialogProps) {
+const emptyForm = {
+	propertyId: "",
+	category: "maintenance",
+	amount: "",
+	currency: "KGS",
+	expenseDate: new Date().toISOString().split("T")[0],
+	accountId: "",
+	description: "",
+};
+
+function ExpenseDialog({ open, expense, onClose }: ExpenseDialogProps) {
 	const queryClient = useQueryClient();
 	const { toast } = useToast();
 	const { data: properties } = useListProperties();
 	const propertiesArray = Array.isArray(properties) ? properties : [];
 	const [loading, setLoading] = useState(false);
+	const isEdit = !!expense;
 
 	const { data: accounts = [] } = useQuery<any[]>({
-		queryKey: ["rental-accounts"],
+		queryKey: getRentalAccountsQueryKey(),
 		queryFn: () => api.get("/rental/accounts").then((r) => r.data),
 	});
 
 	const accountsArray = Array.isArray(accounts) ? accounts : [];
 
-	const [formData, setFormData] = useState({
-		propertyId: "",
-		category: "maintenance",
-		amount: "",
-		currency: "KGS",
-		expenseDate: new Date().toISOString().split("T")[0],
-		accountId: "",
-		description: "",
-	});
+	const [formData, setFormData] = useState(emptyForm);
+
+	useEffect(() => {
+		if (!open) return;
+		if (expense) {
+			setFormData({
+				propertyId: String(expense.propertyId),
+				category: expense.category || "maintenance",
+				amount: String(expense.amount ?? ""),
+				currency: expense.currency || "KGS",
+				expenseDate: expense.expenseDate?.slice(0, 10) || new Date().toISOString().split("T")[0],
+				accountId: expense.accountId ? String(expense.accountId) : "",
+				description: expense.description || "",
+			});
+		} else {
+			setFormData({
+				...emptyForm,
+				expenseDate: new Date().toISOString().split("T")[0],
+				accountId: accountsArray[0] ? String(accountsArray[0].id) : "",
+			});
+		}
+	}, [open, expense, accountsArray]);
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
+		if (!formData.accountId) {
+			toast({
+				title: "Выберите расчётный счёт",
+				description: "Операция должна быть привязана к счёту",
+				variant: "destructive",
+			});
+			return;
+		}
 		setLoading(true);
 		try {
-			await api.post("/rental/expenses", {
+			const payload = {
 				propertyId: parseInt(formData.propertyId, 10),
 				category: formData.category,
 				amount: parseFloat(formData.amount),
 				currency: formData.currency,
 				expenseDate: formData.expenseDate,
-				accountId: formData.accountId ? parseInt(formData.accountId, 10) : null,
+				accountId: parseInt(formData.accountId, 10),
 				description: formData.description || null,
-			});
-			toast({ title: "Расход зарегистрирован" });
+			};
+			if (isEdit) {
+				await api.patch(`/rental/expenses/${expense.id}`, payload);
+				toast({ title: "Расход обновлён" });
+			} else {
+				await api.post("/rental/expenses", payload);
+				toast({ title: "Расход зарегистрирован" });
+			}
 			queryClient.invalidateQueries({ queryKey: getListExpensesQueryKey() });
+			queryClient.invalidateQueries({ queryKey: getRentalAccountsQueryKey() });
 			onClose();
 		} catch {
 			toast({
 				title: "Ошибка",
-				description: "Не удалось сохранить расход",
+				description: isEdit ? "Не удалось обновить расход" : "Не удалось сохранить расход",
 				variant: "destructive",
 			});
 		} finally {
@@ -119,7 +176,7 @@ function ExpenseDialog({ open, onClose }: ExpenseDialogProps) {
 		<Dialog open={open} onOpenChange={(v) => !v && onClose()}>
 			<DialogContent className="sm:max-w-md">
 				<DialogHeader>
-					<DialogTitle>Добавить расход</DialogTitle>
+					<DialogTitle>{isEdit ? "Редактировать расход" : "Добавить расход"}</DialogTitle>
 				</DialogHeader>
 				<form onSubmit={handleSubmit} className="space-y-4">
 					<div>
@@ -199,23 +256,29 @@ function ExpenseDialog({ open, onClose }: ExpenseDialogProps) {
 						/>
 					</div>
 					<div>
-						<Label>Расчётный счёт</Label>
+						<Label>Расчётный счёт *</Label>
 						<Select
-							value={formData.accountId || "none"}
+							value={formData.accountId}
 							onValueChange={(v) =>
-								setFormData({ ...formData, accountId: v === "none" ? "" : v })
+								setFormData({ ...formData, accountId: v })
 							}
+							required
 						>
 							<SelectTrigger className="mt-1">
-								<SelectValue placeholder="Выберите счёт (необязательно)" />
+								<SelectValue placeholder="Выберите счёт" />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="none">— Без привязки к счёту —</SelectItem>
-								{accountsArray.map((a: any) => (
-									<SelectItem key={a.id} value={String(a.id)}>
-										{a.name}
+								{accountsArray.length === 0 ? (
+									<SelectItem value="_empty" disabled>
+										Сначала создайте счёт в разделе «Расчётные счета»
 									</SelectItem>
-								))}
+								) : (
+									accountsArray.map((a: any) => (
+										<SelectItem key={a.id} value={String(a.id)}>
+											{a.name}
+										</SelectItem>
+									))
+								)}
 							</SelectContent>
 						</Select>
 					</div>
@@ -233,8 +296,8 @@ function ExpenseDialog({ open, onClose }: ExpenseDialogProps) {
 						<Button type="button" variant="outline" onClick={onClose}>
 							Отмена
 						</Button>
-						<Button type="submit" disabled={loading}>
-							{loading ? "Сохранение..." : "Сохранить"}
+						<Button type="submit" disabled={loading || !formData.accountId}>
+							{loading ? "Сохранение..." : isEdit ? "Сохранить" : "Добавить"}
 						</Button>
 					</div>
 				</form>
@@ -244,31 +307,152 @@ function ExpenseDialog({ open, onClose }: ExpenseDialogProps) {
 }
 
 export default function Expenses() {
-	const { data: expenses, isLoading } = useListExpenses();
+	const queryClient = useQueryClient();
+	const { toast } = useToast();
+	const { data: expenses, isLoading, isError, error, refetch } = useListExpenses();
+	const { data: properties } = useListProperties();
+	const propertiesArray = Array.isArray(properties) ? properties : [];
 	const expensesArray = Array.isArray(expenses) ? expenses : [];
 	const [dialogOpen, setDialogOpen] = useState(false);
+	const [editingExpense, setEditingExpense] = useState<any | null>(null);
 	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod());
+	const [viewMode, setViewMode] = useRentalViewMode("expenses");
+
+	const openCreate = () => {
+		setEditingExpense(null);
+		setDialogOpen(true);
+	};
+
+	const openEdit = (expense: any) => {
+		setEditingExpense(expense);
+		setDialogOpen(true);
+	};
+
+	const closeDialog = () => {
+		setDialogOpen(false);
+		setEditingExpense(null);
+	};
+
+	const handleDelete = async (expense: any) => {
+		if (!confirm(`Удалить расход ${formatCurrency(expense.amount, expense.currency)} от ${formatDate(expense.expenseDate)}?`)) return;
+		try {
+			await api.delete(`/rental/expenses/${expense.id}`);
+			toast({ title: "Расход удалён" });
+			queryClient.invalidateQueries({ queryKey: getListExpensesQueryKey() });
+			queryClient.invalidateQueries({ queryKey: getRentalAccountsQueryKey() });
+		} catch {
+			toast({ title: "Ошибка", description: "Не удалось удалить расход", variant: "destructive" });
+		}
+	};
+
+	const ExpenseActions = ({ expense }: { expense: any }) => (
+		<div className="flex items-center justify-center gap-0.5">
+			<button
+				type="button"
+				title="Редактировать"
+				onClick={() => openEdit(expense)}
+				className="inline-flex items-center justify-center w-7 h-7 rounded-md text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+			>
+				<Pencil className="w-3.5 h-3.5" />
+			</button>
+			<button
+				type="button"
+				title="Удалить"
+				onClick={() => handleDelete(expense)}
+				className="inline-flex items-center justify-center w-7 h-7 rounded-md text-gray-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+			>
+				<Trash2 className="w-3.5 h-3.5" />
+			</button>
+		</div>
+	);
+
+	const propertyLabel = useMemo(() => {
+		const map: Record<number, string> = {};
+		for (const p of propertiesArray) {
+			map[p.id] = `${p.projectName || ""} ${p.unitNumber || ""}`.trim() || `Объект #${p.id}`;
+		}
+		return map;
+	}, [propertiesArray]);
+
 	const filteredExpenses = expensesArray.filter((e) => inPeriod(e.expenseDate, period));
-	const { sorted, sortKey, sortDir, toggle } = useSortable(filteredExpenses, "expenseDate");
+	const enriched = useMemo(
+		() =>
+			filteredExpenses.map((e) => ({
+				...e,
+				propertyLabel: propertyLabel[e.propertyId] || `Объект #${e.propertyId}`,
+				categoryLabel: categoryLabels[e.category] || e.category,
+			})),
+		[filteredExpenses, propertyLabel],
+	);
+	const { sorted, sortKey, sortDir, toggle } = useSortable(enriched, "expenseDate");
 	const totalAmount = filteredExpenses.reduce((s, e) => s + parseFloat(String(e.amount || "0")), 0);
+	const categoriesCount = new Set(filteredExpenses.map((e) => e.category)).size;
+
+	const columns: RentalExcelColumn<(typeof enriched)[number]>[] = [
+		{ key: "propertyLabel", label: "Объект", width: 160, render: (r) => r.propertyLabel },
+		{ key: "categoryLabel", label: "Категория", width: 140, render: (r) => r.categoryLabel },
+		{ key: "expenseDate", label: "Дата", width: 100, render: (r) => formatDate(r.expenseDate) },
+		{ key: "amount", label: "Сумма", width: 120, align: "right", render: (r) => formatCurrency(r.amount, r.currency) },
+		{ key: "description", label: "Описание", width: 180, sortable: false, render: (r) => r.description || "—" },
+		{
+			key: "actions",
+			label: "",
+			width: 72,
+			align: "center",
+			sortable: false,
+			resizable: false,
+			render: (r) => <ExpenseActions expense={r} />,
+		},
+	];
 
 	return (
-		<div className="p-6 space-y-4">
-			<div className="flex justify-between items-center">
+		<div className="p-6 space-y-3">
+			<KpiRow>
+				<KpiCard variant="strip" label="Расходов" value={filteredExpenses.length} sub="за период" icon={Receipt} color="blue" loading={isLoading} />
+				<KpiCard variant="strip" label="Сумма" value={new Intl.NumberFormat("ru-RU").format(totalAmount)} sub="KGS экв." icon={Wallet} color="red" loading={isLoading} />
+				<KpiCard variant="strip" label="Категорий" value={categoriesCount} sub="уникальных" icon={Tag} color="purple" loading={isLoading} />
+				<KpiCard variant="strip" label="Объектов" value={new Set(filteredExpenses.map((e) => e.propertyId)).size} sub="с расходами" icon={Building2} color="green" loading={isLoading} />
+			</KpiRow>
+
+			<div className="flex justify-between items-center flex-wrap gap-3">
 				<div>
 					<h1 className="text-2xl font-bold">Расходы</h1>
 					<p className="text-muted-foreground text-sm">
 						Учёт расходов по объектам
 					</p>
 				</div>
-				<Button onClick={() => setDialogOpen(true)}>
-					<Plus className="w-4 h-4 mr-2" />
-					Добавить
-				</Button>
+				<div className="flex items-center gap-2">
+					<RentalViewModeToggle mode={viewMode} onChange={setViewMode} />
+					<Button onClick={openCreate}>
+						<Plus className="w-4 h-4 mr-2" />
+						Добавить
+					</Button>
+				</div>
 			</div>
 
-			<PeriodPicker value={period} onChange={setPeriod} />
+			<div className="flex items-center justify-between flex-wrap gap-2">
+				<PeriodPicker value={period} onChange={setPeriod} />
+				<p className="text-xs text-gray-500">{sorted.length} записей</p>
+			</div>
 
+			<RentalQueryState isLoading={isLoading} isError={isError} error={error} onRetry={() => refetch()}>
+			{viewMode === "report" ? (
+				<RentalExcelTable
+					columns={columns}
+					rows={sorted}
+					sortKey={sortKey}
+					sortDir={sortDir}
+					onSort={toggle}
+					isLoading={isLoading}
+					emptyMessage="Расходы не найдены"
+					rowKey={(r) => r.id}
+					footer={[
+						{ colSpan: 3, content: `Итого: ${filteredExpenses.length}` },
+						{ content: new Intl.NumberFormat("ru-RU").format(totalAmount), align: "right" },
+						{ colSpan: 2, content: "" },
+					]}
+				/>
+			) : (
 			<div className="rounded-md border">
 				<Table>
 					<TableHeader>
@@ -278,29 +462,33 @@ export default function Expenses() {
 							<SortHead label="Дата" sortKey="expenseDate" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
 							<SortHead label="Сумма" sortKey="amount" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
 							<TableHead>Описание</TableHead>
+							<TableHead className="w-20 text-center"> </TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>
 						{isLoading ? (
 							Array.from({ length: 3 }).map((_, i) => (
 								<TableRow key={i}>
-									{Array.from({ length: 5 }).map((_, j) => (
+									{Array.from({ length: 6 }).map((_, j) => (
 										<TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
 									))}
 								</TableRow>
 							))
 						) : !filteredExpenses.length ? (
 							<TableRow>
-								<TableCell colSpan={5} className="text-center text-muted-foreground py-8">Расходы не найдены</TableCell>
+								<TableCell colSpan={6} className="text-center text-muted-foreground py-8">Расходы не найдены</TableCell>
 							</TableRow>
 						) : (
 							sorted.map((expense) => (
 								<TableRow key={expense.id}>
-									<TableCell>Объект #{expense.propertyId}</TableCell>
-									<TableCell>{categoryLabels[expense.category] || expense.category}</TableCell>
+									<TableCell>{expense.propertyLabel || `Объект #${expense.propertyId}`}</TableCell>
+									<TableCell>{expense.categoryLabel || categoryLabels[expense.category] || expense.category}</TableCell>
 									<TableCell>{formatDate(expense.expenseDate)}</TableCell>
 									<TableCell className="font-medium">{formatCurrency(expense.amount, expense.currency)}</TableCell>
 									<TableCell>{expense.description || "—"}</TableCell>
+									<TableCell className="text-center">
+										<ExpenseActions expense={expense} />
+									</TableCell>
 								</TableRow>
 							))
 						)}
@@ -311,13 +499,16 @@ export default function Expenses() {
 								<TableCell colSpan={3} className="text-sm text-gray-600">Итого: {filteredExpenses.length} расходов</TableCell>
 								<TableCell className="text-sm tabular-nums">{new Intl.NumberFormat("ru-RU").format(totalAmount)}</TableCell>
 								<TableCell />
+								<TableCell />
 							</TableRow>
 						</tfoot>
 					)}
 				</Table>
 			</div>
+			)}
+			</RentalQueryState>
 
-			<ExpenseDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
+			<ExpenseDialog open={dialogOpen} expense={editingExpense} onClose={closeDialog} />
 		</div>
 	);
 }

@@ -15,8 +15,11 @@ import {
 } from "../lib/db";
 
 import { requireAuth, requireRole, AuthenticatedRequest } from "../middleware/auth";
+import { requireTenantCompany } from "../middleware/tenant";
 
 const router: ReturnType<typeof Router> = Router();
+
+router.use(requireAuth, requireTenantCompany);
 
 // Helper function to log CRM operations
 async function logCrmOp(
@@ -46,11 +49,11 @@ async function logCrmOp(
 // ════════════════════════════════════════════════════════════════════════════
 
 // GET /crm/leads - List leads with filters
-router.get("/crm/leads", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/crm/leads", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { status, source, assignedTo } = req.query as Record<string, string | undefined>;
   const conditions: SQL[] = [];
 
-  if (req.companyId) conditions.push(eq(crmLeadsTable.companyId, req.companyId));
+  conditions.push(eq(crmLeadsTable.companyId, req.scopedCompanyId!));
   if (status) conditions.push(eq(crmLeadsTable.status, status));
   if (source) conditions.push(eq(crmLeadsTable.source, source));
   if (assignedTo) conditions.push(eq(crmLeadsTable.assignedUserId, parseInt(assignedTo, 10)));
@@ -73,7 +76,7 @@ router.get("/crm/leads", requireAuth, async (req: AuthenticatedRequest, res): Pr
 });
 
 // POST /crm/leads - Create lead
-router.post("/crm/leads", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/crm/leads", async (req: AuthenticatedRequest, res): Promise<void> => {
   const {
     fullName, phone, email, source, status, propertyType, budget, currency, notes, assignedUserId
   } = req.body;
@@ -84,7 +87,7 @@ router.post("/crm/leads", requireAuth, async (req: AuthenticatedRequest, res): P
   }
 
   const [lead] = await db.insert(crmLeadsTable).values({
-    companyId: req.companyId,
+    companyId: req.scopedCompanyId!,
     fullName,
     phone,
     email,
@@ -98,23 +101,21 @@ router.post("/crm/leads", requireAuth, async (req: AuthenticatedRequest, res): P
     createdBy: req.userId,
   }).returning();
 
-  if (req.companyId) {
-    await logCrmOp(req.companyId, req.userId, "crm_lead", lead.id, "create",
+  await logCrmOp(req.scopedCompanyId!, req.userId, "crm_lead", lead.id, "create",
       `Создан лид: ${fullName}`, lead);
-  }
 
   res.status(201).json(lead);
 });
 
 // PATCH /crm/leads/:id - Update lead
-router.patch("/crm/leads/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.patch("/crm/leads/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
   const {
     fullName, phone, email, source, status, propertyType, budget, currency, notes, assignedUserId, lastContactDate
   } = req.body;
 
   const conditions: SQL[] = [eq(crmLeadsTable.id, id)];
-  if (req.companyId) conditions.push(eq(crmLeadsTable.companyId, req.companyId));
+  conditions.push(eq(crmLeadsTable.companyId, req.scopedCompanyId!));
 
   const [existing] = await db.select().from(crmLeadsTable).where(and(...conditions));
   if (!existing) {
@@ -140,8 +141,8 @@ router.patch("/crm/leads/:id", requireAuth, async (req: AuthenticatedRequest, re
     .where(and(...conditions))
     .returning();
 
-  if (req.companyId && status !== undefined && status !== existing.status) {
-    await logCrmOp(req.companyId, req.userId, "crm_lead", id, "update",
+  if (status !== undefined && status !== existing.status) {
+    await logCrmOp(req.scopedCompanyId!, req.userId, "crm_lead", id, "update",
       `Лид ${existing.fullName}: статус изменён с ${existing.status} на ${status}`, existing);
   }
 
@@ -149,7 +150,7 @@ router.patch("/crm/leads/:id", requireAuth, async (req: AuthenticatedRequest, re
 });
 
 // PATCH /crm/leads/:id/status - Change status (shortcut endpoint)
-router.patch("/crm/leads/:id/status", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.patch("/crm/leads/:id/status", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
   const { status } = req.body;
 
@@ -159,7 +160,7 @@ router.patch("/crm/leads/:id/status", requireAuth, async (req: AuthenticatedRequ
   }
 
   const conditions: SQL[] = [eq(crmLeadsTable.id, id)];
-  if (req.companyId) conditions.push(eq(crmLeadsTable.companyId, req.companyId));
+  conditions.push(eq(crmLeadsTable.companyId, req.scopedCompanyId!));
 
   const [existing] = await db.select().from(crmLeadsTable).where(and(...conditions));
   if (!existing) {
@@ -177,19 +178,17 @@ router.patch("/crm/leads/:id/status", requireAuth, async (req: AuthenticatedRequ
     .where(and(...conditions))
     .returning();
 
-  if (req.companyId) {
-    await logCrmOp(req.companyId, req.userId, "crm_lead", id, "update",
+  await logCrmOp(req.scopedCompanyId!, req.userId, "crm_lead", id, "update",
       `Лид ${existing.fullName}: статус изменён на ${status}`, existing);
-  }
 
   res.json(lead);
 });
 
 // DELETE /crm/leads/:id - Delete lead (admin only)
-router.delete("/crm/leads/:id", requireAuth, requireRole("admin", "company_admin", "owner"), async (req: AuthenticatedRequest, res): Promise<void> => {
+router.delete("/crm/leads/:id", requireRole("admin", "company_admin", "owner"), async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
   const conditions: SQL[] = [eq(crmLeadsTable.id, id)];
-  if (req.companyId) conditions.push(eq(crmLeadsTable.companyId, req.companyId));
+  conditions.push(eq(crmLeadsTable.companyId, req.scopedCompanyId!));
 
   const [snap] = await db.select().from(crmLeadsTable).where(and(...conditions));
   if (!snap) {
@@ -199,10 +198,8 @@ router.delete("/crm/leads/:id", requireAuth, requireRole("admin", "company_admin
 
   await db.delete(crmLeadsTable).where(and(...conditions));
 
-  if (req.companyId) {
-    await logCrmOp(req.companyId, req.userId, "crm_lead", id, "delete",
+  await logCrmOp(req.scopedCompanyId!, req.userId, "crm_lead", id, "delete",
       `Удалён лид: ${snap.fullName}`, snap);
-  }
 
   res.sendStatus(204);
 });
@@ -212,11 +209,11 @@ router.delete("/crm/leads/:id", requireAuth, requireRole("admin", "company_admin
 // ════════════════════════════════════════════════════════════════════════════
 
 // GET /crm/clients - List clients
-router.get("/crm/clients", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/crm/clients", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { type, status } = req.query as Record<string, string | undefined>;
   const conditions: SQL[] = [];
 
-  if (req.companyId) conditions.push(eq(crmClientsTable.companyId, req.companyId));
+  conditions.push(eq(crmClientsTable.companyId, req.scopedCompanyId!));
   if (type) conditions.push(eq(crmClientsTable.type, type));
   if (status) conditions.push(eq(crmClientsTable.status, status));
 
@@ -228,7 +225,7 @@ router.get("/crm/clients", requireAuth, async (req: AuthenticatedRequest, res): 
 });
 
 // POST /crm/clients - Create client
-router.post("/crm/clients", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/crm/clients", async (req: AuthenticatedRequest, res): Promise<void> => {
   const {
     fullName, type, phone, email, address, inn, passportData, birthDate,
     budget, currency, creditApproved, notes, status
@@ -240,7 +237,7 @@ router.post("/crm/clients", requireAuth, async (req: AuthenticatedRequest, res):
   }
 
   const [client] = await db.insert(crmClientsTable).values({
-    companyId: req.companyId,
+    companyId: req.scopedCompanyId!,
     fullName,
     type: type || "individual",
     phone,
@@ -256,19 +253,17 @@ router.post("/crm/clients", requireAuth, async (req: AuthenticatedRequest, res):
     status: status || "active",
   }).returning();
 
-  if (req.companyId) {
-    await logCrmOp(req.companyId, req.userId, "crm_client", client.id, "create",
+  await logCrmOp(req.scopedCompanyId!, req.userId, "crm_client", client.id, "create",
       `Создан клиент: ${fullName}`, client);
-  }
 
   res.status(201).json(client);
 });
 
 // PATCH /crm/clients/:id - Update client
-router.patch("/crm/clients/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.patch("/crm/clients/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
   const conditions: SQL[] = [eq(crmClientsTable.id, id)];
-  if (req.companyId) conditions.push(eq(crmClientsTable.companyId, req.companyId));
+  conditions.push(eq(crmClientsTable.companyId, req.scopedCompanyId!));
 
   const updates: Record<string, unknown> = {};
   const {
@@ -304,10 +299,10 @@ router.patch("/crm/clients/:id", requireAuth, async (req: AuthenticatedRequest, 
 });
 
 // GET /crm/clients/:id - Get client with deals history
-router.get("/crm/clients/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/crm/clients/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
   const conditions: SQL[] = [eq(crmClientsTable.id, id)];
-  if (req.companyId) conditions.push(eq(crmClientsTable.companyId, req.companyId));
+  conditions.push(eq(crmClientsTable.companyId, req.scopedCompanyId!));
 
   const [client] = await db.select().from(crmClientsTable).where(and(...conditions));
   if (!client) {
@@ -317,7 +312,7 @@ router.get("/crm/clients/:id", requireAuth, async (req: AuthenticatedRequest, re
 
   // Get client's deals
   const dealConditions: SQL[] = [eq(crmDealsTable.clientId, id)];
-  if (req.companyId) dealConditions.push(eq(crmDealsTable.companyId, req.companyId));
+  dealConditions.push(eq(crmDealsTable.companyId, req.scopedCompanyId!));
 
   const deals = await db.select().from(crmDealsTable)
     .where(and(...dealConditions))
@@ -325,7 +320,7 @@ router.get("/crm/clients/:id", requireAuth, async (req: AuthenticatedRequest, re
 
   // Get sales contracts
   const contractConditions: SQL[] = [eq(crmSalesContractsTable.clientId, id)];
-  if (req.companyId) contractConditions.push(eq(crmSalesContractsTable.companyId, req.companyId));
+  contractConditions.push(eq(crmSalesContractsTable.companyId, req.scopedCompanyId!));
 
   const contracts = await db.select().from(crmSalesContractsTable)
     .where(and(...contractConditions))
@@ -339,11 +334,11 @@ router.get("/crm/clients/:id", requireAuth, async (req: AuthenticatedRequest, re
 // ════════════════════════════════════════════════════════════════════════════
 
 // GET /crm/deals - List deals with filters
-router.get("/crm/deals", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/crm/deals", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { stage, propertyId, clientId } = req.query as Record<string, string | undefined>;
   const conditions: SQL[] = [];
 
-  if (req.companyId) conditions.push(eq(crmDealsTable.companyId, req.companyId));
+  conditions.push(eq(crmDealsTable.companyId, req.scopedCompanyId!));
   if (stage) conditions.push(eq(crmDealsTable.stage, stage));
   if (propertyId) conditions.push(eq(crmDealsTable.propertyId, parseInt(propertyId, 10)));
   if (clientId) conditions.push(eq(crmDealsTable.clientId, parseInt(clientId, 10)));
@@ -377,7 +372,7 @@ router.get("/crm/deals", requireAuth, async (req: AuthenticatedRequest, res): Pr
 });
 
 // POST /crm/deals - Create deal
-router.post("/crm/deals", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/crm/deals", async (req: AuthenticatedRequest, res): Promise<void> => {
   const {
     clientId, propertyId, dealAmount, currency, stage, probability,
     expectedCloseDate, assignedUserId, notes
@@ -389,7 +384,7 @@ router.post("/crm/deals", requireAuth, async (req: AuthenticatedRequest, res): P
   }
 
   const [deal] = await db.insert(crmDealsTable).values({
-    companyId: req.companyId,
+    companyId: req.scopedCompanyId!,
     clientId: parseInt(String(clientId), 10),
     propertyId: propertyId ? parseInt(String(propertyId), 10) : null,
     dealAmount,
@@ -401,20 +396,18 @@ router.post("/crm/deals", requireAuth, async (req: AuthenticatedRequest, res): P
     notes,
   }).returning();
 
-  if (req.companyId) {
-    const [client] = await db.select().from(crmClientsTable).where(eq(crmClientsTable.id, parseInt(String(clientId), 10)));
-    await logCrmOp(req.companyId, req.userId, "crm_deal", deal.id, "create",
-      `Создана сделка с ${client?.fullName ?? "клиентом"} на сумму ${dealAmount} ${currency}`, deal);
-  }
+  const [client] = await db.select().from(crmClientsTable).where(eq(crmClientsTable.id, parseInt(String(clientId), 10)));
+  await logCrmOp(req.scopedCompanyId!, req.userId, "crm_deal", deal.id, "create",
+    `Создана сделка с ${client?.fullName ?? "клиентом"} на сумму ${dealAmount} ${currency}`, deal);
 
   res.status(201).json(deal);
 });
 
 // PATCH /crm/deals/:id - Update deal
-router.patch("/crm/deals/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.patch("/crm/deals/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
   const conditions: SQL[] = [eq(crmDealsTable.id, id)];
-  if (req.companyId) conditions.push(eq(crmDealsTable.companyId, req.companyId));
+  conditions.push(eq(crmDealsTable.companyId, req.scopedCompanyId!));
 
   const [existing] = await db.select().from(crmDealsTable).where(and(...conditions));
   if (!existing) {
@@ -443,8 +436,8 @@ router.patch("/crm/deals/:id", requireAuth, async (req: AuthenticatedRequest, re
     .where(and(...conditions))
     .returning();
 
-  if (req.companyId && stage !== undefined && stage !== existing.stage) {
-    await logCrmOp(req.companyId, req.userId, "crm_deal", id, "update",
+  if (stage !== undefined && stage !== existing.stage) {
+    await logCrmOp(req.scopedCompanyId!, req.userId, "crm_deal", id, "update",
       `Сделка #${id}: стадия изменена с ${existing.stage} на ${stage}`, existing);
   }
 
@@ -452,7 +445,7 @@ router.patch("/crm/deals/:id", requireAuth, async (req: AuthenticatedRequest, re
 });
 
 // PATCH /crm/deals/:id/stage - Move to next stage
-router.patch("/crm/deals/:id/stage", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.patch("/crm/deals/:id/stage", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
   const { stage } = req.body;
 
@@ -463,7 +456,7 @@ router.patch("/crm/deals/:id/stage", requireAuth, async (req: AuthenticatedReque
   }
 
   const conditions: SQL[] = [eq(crmDealsTable.id, id)];
-  if (req.companyId) conditions.push(eq(crmDealsTable.companyId, req.companyId));
+  conditions.push(eq(crmDealsTable.companyId, req.scopedCompanyId!));
 
   const [existing] = await db.select().from(crmDealsTable).where(and(...conditions));
   if (!existing) {
@@ -494,18 +487,16 @@ router.patch("/crm/deals/:id/stage", requireAuth, async (req: AuthenticatedReque
     .where(and(...conditions))
     .returning();
 
-  if (req.companyId) {
-    await logCrmOp(req.companyId, req.userId, "crm_deal", id, "update",
+  await logCrmOp(req.scopedCompanyId!, req.userId, "crm_deal", id, "update",
       `Сделка #${id}: переведена в стадию ${stage}`, existing);
-  }
 
   res.json(deal);
 });
 
 // GET /crm/deals/pipeline - Get pipeline stats by stage
-router.get("/crm/deals/pipeline", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/crm/deals/pipeline", async (req: AuthenticatedRequest, res): Promise<void> => {
   const conditions: SQL[] = [];
-  if (req.companyId) conditions.push(eq(crmDealsTable.companyId, req.companyId));
+  conditions.push(eq(crmDealsTable.companyId, req.scopedCompanyId!));
 
   const deals = await db.select().from(crmDealsTable)
     .where(conditions.length ? and(...conditions) : undefined);
@@ -549,11 +540,11 @@ router.get("/crm/deals/pipeline", requireAuth, async (req: AuthenticatedRequest,
 // ════════════════════════════════════════════════════════════════════════════
 
 // GET /crm/sales-contracts - List contracts
-router.get("/crm/sales-contracts", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/crm/sales-contracts", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { status, clientId, propertyId } = req.query as Record<string, string | undefined>;
   const conditions: SQL[] = [];
 
-  if (req.companyId) conditions.push(eq(crmSalesContractsTable.companyId, req.companyId));
+  conditions.push(eq(crmSalesContractsTable.companyId, req.scopedCompanyId!));
   if (status) conditions.push(eq(crmSalesContractsTable.status, status));
   if (clientId) conditions.push(eq(crmSalesContractsTable.clientId, parseInt(clientId, 10)));
   if (propertyId) conditions.push(eq(crmSalesContractsTable.propertyId, parseInt(propertyId, 10)));
@@ -578,7 +569,7 @@ router.get("/crm/sales-contracts", requireAuth, async (req: AuthenticatedRequest
 });
 
 // POST /crm/sales-contracts - Create contract
-router.post("/crm/sales-contracts", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/crm/sales-contracts", async (req: AuthenticatedRequest, res): Promise<void> => {
   const {
     contractNumber, clientId, propertyId, unitId, totalAmount, currency,
     paymentSchedule, signDate, registrationDate, status, notes
@@ -590,7 +581,7 @@ router.post("/crm/sales-contracts", requireAuth, async (req: AuthenticatedReques
   }
 
   const [contract] = await db.insert(crmSalesContractsTable).values({
-    companyId: req.companyId,
+    companyId: req.scopedCompanyId!,
     contractNumber,
     clientId: parseInt(String(clientId), 10),
     propertyId: parseInt(String(propertyId), 10),
@@ -609,7 +600,7 @@ router.post("/crm/sales-contracts", requireAuth, async (req: AuthenticatedReques
     const [unit] = await db.select().from(constructionUnitsTable)
       .where(and(
         eq(constructionUnitsTable.id, unitIdNum),
-        eq(constructionUnitsTable.companyId, req.companyId!)
+        eq(constructionUnitsTable.companyId, req.scopedCompanyId!)
       ));
 
     if (unit) {
@@ -628,9 +619,8 @@ router.post("/crm/sales-contracts", requireAuth, async (req: AuthenticatedReques
       const [client] = await db.select().from(crmClientsTable)
         .where(eq(crmClientsTable.id, parseInt(String(clientId), 10)));
 
-      if (req.companyId) {
-        await db.insert(notificationsTable).values({
-          companyId: req.companyId,
+      await db.insert(notificationsTable).values({
+          companyId: req.scopedCompanyId!,
           userId: null, // For all users
           type: "sale_completed",
           title: "Новая продажа!",
@@ -642,24 +632,21 @@ router.post("/crm/sales-contracts", requireAuth, async (req: AuthenticatedReques
           isRead: false,
           read: false,
         });
-      }
     }
   }
 
-  if (req.companyId) {
-    const [client] = await db.select().from(crmClientsTable).where(eq(crmClientsTable.id, parseInt(String(clientId), 10)));
-    await logCrmOp(req.companyId, req.userId, "crm_sales_contract", contract.id, "create",
-      `Создан договор продажи №${contractNumber} с ${client?.fullName ?? "клиентом"}`, contract);
-  }
+  const [client] = await db.select().from(crmClientsTable).where(eq(crmClientsTable.id, parseInt(String(clientId), 10)));
+  await logCrmOp(req.scopedCompanyId!, req.userId, "crm_sales_contract", contract.id, "create",
+    `Создан договор продажи №${contractNumber} с ${client?.fullName ?? "клиентом"}`, contract);
 
   res.status(201).json(contract);
 });
 
 // PATCH /crm/sales-contracts/:id - Update contract
-router.patch("/crm/sales-contracts/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.patch("/crm/sales-contracts/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
   const conditions: SQL[] = [eq(crmSalesContractsTable.id, id)];
-  if (req.companyId) conditions.push(eq(crmSalesContractsTable.companyId, req.companyId));
+  conditions.push(eq(crmSalesContractsTable.companyId, req.scopedCompanyId!));
 
   const [existing] = await db.select().from(crmSalesContractsTable).where(and(...conditions));
   if (!existing) {
@@ -685,8 +672,8 @@ router.patch("/crm/sales-contracts/:id", requireAuth, async (req: AuthenticatedR
     .where(and(...conditions))
     .returning();
 
-  if (req.companyId && status !== undefined && status !== existing.status) {
-    await logCrmOp(req.companyId, req.userId, "crm_sales_contract", id, "update",
+  if (status !== undefined && status !== existing.status) {
+    await logCrmOp(req.scopedCompanyId!, req.userId, "crm_sales_contract", id, "update",
       `Договор ${existing.contractNumber}: статус изменён на ${status}`, existing);
   }
 
@@ -694,10 +681,10 @@ router.patch("/crm/sales-contracts/:id", requireAuth, async (req: AuthenticatedR
 });
 
 // GET /crm/sales-contracts/:id - Get contract with payments
-router.get("/crm/sales-contracts/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/crm/sales-contracts/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
   const conditions: SQL[] = [eq(crmSalesContractsTable.id, id)];
-  if (req.companyId) conditions.push(eq(crmSalesContractsTable.companyId, req.companyId));
+  conditions.push(eq(crmSalesContractsTable.companyId, req.scopedCompanyId!));
 
   const [contract] = await db.select().from(crmSalesContractsTable).where(and(...conditions));
   if (!contract) {
@@ -725,11 +712,11 @@ router.get("/crm/sales-contracts/:id", requireAuth, async (req: AuthenticatedReq
 // ════════════════════════════════════════════════════════════════════════════
 
 // GET /crm/sales-properties - List available properties
-router.get("/crm/sales-properties", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/crm/sales-properties", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { status } = req.query as Record<string, string | undefined>;
   const conditions: SQL[] = [];
 
-  if (req.companyId) conditions.push(eq(crmSalesPropertiesTable.companyId, req.companyId));
+  conditions.push(eq(crmSalesPropertiesTable.companyId, req.scopedCompanyId!));
   if (status) conditions.push(eq(crmSalesPropertiesTable.status, status));
 
   const salesProperties = await db.select().from(crmSalesPropertiesTable)
@@ -754,7 +741,7 @@ router.get("/crm/sales-properties", requireAuth, async (req: AuthenticatedReques
 });
 
 // POST /crm/sales-properties - Add property for sale
-router.post("/crm/sales-properties", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/crm/sales-properties", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { propertyId, salePrice, currency, status, marketingDescription, photos, availableFrom } = req.body;
 
   if (!propertyId || !salePrice) {
@@ -764,7 +751,7 @@ router.post("/crm/sales-properties", requireAuth, async (req: AuthenticatedReque
 
   // Check if property exists
   const propConditions: SQL[] = [eq(propertiesTable.id, parseInt(String(propertyId), 10))];
-  if (req.companyId) propConditions.push(eq(propertiesTable.companyId, req.companyId));
+  propConditions.push(eq(propertiesTable.companyId, req.scopedCompanyId!));
 
   const [property] = await db.select().from(propertiesTable).where(and(...propConditions));
   if (!property) {
@@ -773,7 +760,7 @@ router.post("/crm/sales-properties", requireAuth, async (req: AuthenticatedReque
   }
 
   const [salesProperty] = await db.insert(crmSalesPropertiesTable).values({
-    companyId: req.companyId,
+    companyId: req.scopedCompanyId!,
     propertyId: parseInt(String(propertyId), 10),
     salePrice,
     currency: currency || "KGS",
@@ -783,19 +770,17 @@ router.post("/crm/sales-properties", requireAuth, async (req: AuthenticatedReque
     availableFrom: availableFrom ? new Date(availableFrom) : new Date(),
   }).returning();
 
-  if (req.companyId) {
-    await logCrmOp(req.companyId, req.userId, "crm_sales_property", salesProperty.id, "create",
+  await logCrmOp(req.scopedCompanyId!, req.userId, "crm_sales_property", salesProperty.id, "create",
       `Объект ${property.unitNumber} выставлен на продажу за ${salePrice} ${currency}`, salesProperty);
-  }
 
   res.status(201).json(salesProperty);
 });
 
 // PATCH /crm/sales-properties/:id - Update (price, status)
-router.patch("/crm/sales-properties/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.patch("/crm/sales-properties/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
   const conditions: SQL[] = [eq(crmSalesPropertiesTable.id, id)];
-  if (req.companyId) conditions.push(eq(crmSalesPropertiesTable.companyId, req.companyId));
+  conditions.push(eq(crmSalesPropertiesTable.companyId, req.scopedCompanyId!));
 
   const [existing] = await db.select().from(crmSalesPropertiesTable).where(and(...conditions));
   if (!existing) {
@@ -817,8 +802,8 @@ router.patch("/crm/sales-properties/:id", requireAuth, async (req: Authenticated
     .where(and(...conditions))
     .returning();
 
-  if (req.companyId && status !== undefined && status !== existing.status) {
-    await logCrmOp(req.companyId, req.userId, "crm_sales_property", id, "update",
+  if (status !== undefined && status !== existing.status) {
+    await logCrmOp(req.scopedCompanyId!, req.userId, "crm_sales_property", id, "update",
       `Статус объекта изменён на ${status}`, existing);
   }
 
@@ -830,9 +815,9 @@ router.patch("/crm/sales-properties/:id", requireAuth, async (req: Authenticated
 // ════════════════════════════════════════════════════════════════════════════
 
 // GET /crm/dashboard - Stats: active leads, conversion rate, deals by stage, revenue forecast
-router.get("/crm/dashboard", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/crm/dashboard", async (req: AuthenticatedRequest, res): Promise<void> => {
   const conditions: SQL[] = [];
-  if (req.companyId) conditions.push(eq(crmLeadsTable.companyId, req.companyId));
+  conditions.push(eq(crmLeadsTable.companyId, req.scopedCompanyId!));
 
   // Leads stats
   const leads = await db.select().from(crmLeadsTable)
@@ -844,7 +829,7 @@ router.get("/crm/dashboard", requireAuth, async (req: AuthenticatedRequest, res)
 
   // Deals stats
   const dealConditions: SQL[] = [];
-  if (req.companyId) dealConditions.push(eq(crmDealsTable.companyId, req.companyId));
+  dealConditions.push(eq(crmDealsTable.companyId, req.scopedCompanyId!));
 
   const deals = await db.select().from(crmDealsTable)
     .where(dealConditions.length ? and(...dealConditions) : undefined);
@@ -869,7 +854,7 @@ router.get("/crm/dashboard", requireAuth, async (req: AuthenticatedRequest, res)
 
   // Contracts stats
   const contractConditions: SQL[] = [];
-  if (req.companyId) contractConditions.push(eq(crmSalesContractsTable.companyId, req.companyId));
+  contractConditions.push(eq(crmSalesContractsTable.companyId, req.scopedCompanyId!));
 
   const contracts = await db.select().from(crmSalesContractsTable)
     .where(contractConditions.length ? and(...contractConditions) : undefined);

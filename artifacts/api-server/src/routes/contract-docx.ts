@@ -9,6 +9,7 @@ import {
   counterpartiesTable,
 } from "../lib/db";
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
+import { requireTenantCompany } from "../middleware/tenant";
 import {
   findCounterpartyForContract,
   mergeContractBuyer,
@@ -28,13 +29,13 @@ import {
 
 const router: ReturnType<typeof Router> = Router();
 
+router.use(requireAuth, requireTenantCompany);
+
 /** Данные для вкладки «Договор» по ID договора продажи */
-router.get(
-  "/construction/contracts-sales/:id/docx-data",
-  requireAuth,
+router.get("/construction/contracts-sales/:id/docx-data",
   async (req: AuthenticatedRequest, res): Promise<void> => {
     const id = Number(req.params.id);
-    const companyId = req.companyId!;
+    const companyId = req.scopedCompanyId!;
 
     const [contract] = await db
       .select()
@@ -188,7 +189,7 @@ router.post(
           .from(constructionProjectsTable)
           .where(and(
             eq(constructionProjectsTable.id, body.projectId),
-            eq(constructionProjectsTable.companyId, req.companyId!),
+            eq(constructionProjectsTable.companyId, req.scopedCompanyId!),
           ));
         if (project?.contractTemplateMeta) {
           try {

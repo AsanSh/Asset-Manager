@@ -24,7 +24,7 @@ export default function RentalBroadcast() {
 	const [sending, setSending] = useState(false);
 
 	const { data: tenants = [] } = useQuery<any[]>({
-		queryKey: ["rental-tenants"],
+		queryKey: getListTenantsQueryKey(),
 		queryFn: () => api.get("/rental/tenants").then((r) => r.data),
 	});
 	const { data: accruals = [] } = useQuery<any[]>({
@@ -32,30 +32,37 @@ export default function RentalBroadcast() {
 		queryFn: () => api.get("/rental/accruals").then((r) => r.data),
 	});
 	const { data: contracts = [] } = useQuery<any[]>({
-		queryKey: ["rental-contracts"],
+		queryKey: getListLeaseContractsQueryKey(),
 		queryFn: () => api.get("/rental/contracts").then((r) => r.data),
 	});
 
+	const tenantsArray = Array.isArray(tenants) ? tenants : [];
+	const accrualsArray = Array.isArray(accruals) ? accruals : [];
+	const contractsArray = Array.isArray(contracts) ? contracts : [];
+
 	const today = new Date().toISOString().split("T")[0];
 	const overdueTenantIds = new Set(
-		accruals
+		accrualsArray
 			.filter(
 				(a: any) =>
 					parseFloat(a.balance || "0") > 0 && (a.dueDate || "") < today,
 			)
 			.map(
 				(a: any) =>
-					contracts.find((c: any) => c.id === a.leaseContractId)?.tenantId,
+					contractsArray.find((c: any) => c.id === a.leaseContractId)?.tenantId,
 			)
 			.filter(Boolean),
 	);
 	const activeTenantIds = new Set(
-		contracts
+		contractsArray
 			.filter((c: any) => c.status === "active")
 			.map((c: any) => c.tenantId),
 	);
 
-	const recipients = tenants.filter((t: any) => {
+	const tenantLabel = (t: any) =>
+		t.fullName || t.name || `Арендатор #${t.id}`;
+
+	const recipients = tenantsArray.filter((t: any) => {
 		if (type === "all") return activeTenantIds.has(t.id);
 		if (type === "overdue") return overdueTenantIds.has(t.id);
 		if (type === "active")
@@ -249,15 +256,20 @@ export default function RentalBroadcast() {
 							</p>
 						) : (
 							<div className="space-y-2 max-h-80 overflow-y-auto">
-								{recipients.map((t: any) => (
+								{recipients.map((t: any) => {
+									const label = tenantLabel(t);
+									return (
 									<div key={t.id} className="flex items-center gap-2">
 										<div className="w-6 h-6 rounded-full bg-blue-50 flex items-center justify-center text-xs font-bold text-blue-600 flex-shrink-0">
-											{(t.name || "?").charAt(0)}
+											{label.charAt(0).toUpperCase()}
 										</div>
 										<div className="min-w-0">
 											<p className="text-xs font-medium text-gray-800 truncate">
-												{t.name}
+												{label}
 											</p>
+											{t.phone && (
+												<p className="text-[10px] text-gray-400 truncate">{t.phone}</p>
+											)}
 											{overdueTenantIds.has(t.id) && (
 												<Badge className="text-[10px] px-1 py-0 bg-rose-100 text-rose-600">
 													долг
@@ -265,7 +277,7 @@ export default function RentalBroadcast() {
 											)}
 										</div>
 									</div>
-								))}
+								);})}
 							</div>
 						)}
 					</div>

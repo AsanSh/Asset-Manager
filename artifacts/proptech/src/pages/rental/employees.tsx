@@ -130,7 +130,7 @@ export default function RentalEmployees() {
 			qc.invalidateQueries({ queryKey: ["company-users"] });
 			closeModal();
 		} catch (e: any) {
-			setError(e?.response?.data?.error || "Ошибка сохранения");
+			setError(getApiErrorMessage(e, "Ошибка сохранения"));
 		} finally {
 			setSaving(false);
 		}

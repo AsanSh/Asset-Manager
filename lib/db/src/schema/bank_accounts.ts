@@ -5,6 +5,8 @@ import { z } from "zod/v4";
 export const bankAccountsTable = pgTable("bank_accounts", {
   id: serial("id").primaryKey(),
   companyId: integer("company_id").notNull(),
+  /** Модуль: construction | rental | warehouse | crm | consolidated */
+  module: varchar("module", { length: 32 }).notNull().default("construction"),
   name: varchar("name", { length: 256 }).notNull(),
   type: varchar("type", { length: 32 }).notNull().default("cash"), // cash | bank | card
   bank: varchar("bank", { length: 256 }),

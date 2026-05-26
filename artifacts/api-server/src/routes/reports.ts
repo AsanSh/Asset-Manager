@@ -5,14 +5,17 @@ import {
   tenantsTable, propertiesTable, expensesTable, paymentAllocationsTable
 } from "../lib/db";
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
+import { requireTenantCompany } from "../middleware/tenant";
 
 const router: ReturnType<typeof Router> = Router();
 
+router.use(requireAuth, requireTenantCompany);
+
 // GET /reports/debt — задолженности арендаторов
-router.get("/reports/debt", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const cid = req.companyId;
+router.get("/reports/debt", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const cid = req.scopedCompanyId!;
   const conditions: SQL[] = [];
-  if (cid) conditions.push(eq(accrualsTable.companyId, cid));
+  conditions.push(eq(accrualsTable.companyId, cid));
   conditions.push(sql`${accrualsTable.balance} > 0`);
 
   const overdue = await db.select().from(accrualsTable)
@@ -66,12 +69,12 @@ router.get("/reports/debt", requireAuth, async (req: AuthenticatedRequest, res):
 });
 
 // GET /reports/rental-summary — сводка по аренде за период
-router.get("/reports/rental-summary", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const cid = req.companyId;
+router.get("/reports/rental-summary", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const cid = req.scopedCompanyId!;
   const { from, to, contractId } = req.query as Record<string, string | undefined>;
 
   const accrualConditions: SQL[] = [];
-  if (cid) accrualConditions.push(eq(accrualsTable.companyId, cid));
+  accrualConditions.push(eq(accrualsTable.companyId, cid));
   if (from) accrualConditions.push(sql`${accrualsTable.period} >= ${from}`);
   if (to) accrualConditions.push(sql`${accrualsTable.period} <= ${to}`);
   if (contractId) accrualConditions.push(eq(accrualsTable.leaseContractId, parseInt(contractId, 10)));
@@ -80,7 +83,7 @@ router.get("/reports/rental-summary", requireAuth, async (req: AuthenticatedRequ
     .where(accrualConditions.length ? and(...accrualConditions) : undefined);
 
   const paymentConditions: SQL[] = [];
-  if (cid) paymentConditions.push(eq(paymentsTable.companyId, cid));
+  paymentConditions.push(eq(paymentsTable.companyId, cid));
   if (from) paymentConditions.push(sql`${paymentsTable.paymentDate} >= ${from}`);
   if (to) paymentConditions.push(sql`${paymentsTable.paymentDate} <= ${to}`);
   if (contractId) paymentConditions.push(eq(paymentsTable.leaseContractId, parseInt(contractId, 10)));
@@ -120,8 +123,8 @@ router.get("/reports/rental-summary", requireAuth, async (req: AuthenticatedRequ
 });
 
 // GET /reports/cashflow — денежный поток (платежи + расходы)
-router.get("/reports/cashflow", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const cid = req.companyId;
+router.get("/reports/cashflow", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const cid = req.scopedCompanyId!;
   const { from, to } = req.query as Record<string, string | undefined>;
 
   const payConditions: SQL[] = [];
@@ -172,12 +175,12 @@ router.get("/reports/cashflow", requireAuth, async (req: AuthenticatedRequest, r
 });
 
 // GET /reports/payments — история платежей с деталями
-router.get("/reports/payments", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const cid = req.companyId;
+router.get("/reports/payments", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const cid = req.scopedCompanyId!;
   const { from, to, contractId } = req.query as Record<string, string | undefined>;
 
   const conditions: SQL[] = [];
-  if (cid) conditions.push(eq(paymentsTable.companyId, cid));
+  conditions.push(eq(paymentsTable.companyId, cid));
   if (from) conditions.push(sql`${paymentsTable.paymentDate} >= ${from}`);
   if (to) conditions.push(sql`${paymentsTable.paymentDate} <= ${to}`);
   if (contractId) conditions.push(eq(paymentsTable.leaseContractId, parseInt(contractId, 10)));
@@ -208,8 +211,8 @@ router.get("/reports/payments", requireAuth, async (req: AuthenticatedRequest, r
 });
 
 // GET /reports/counterparties — активность контрагентов
-router.get("/reports/counterparties", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const cid = req.companyId;
+router.get("/reports/counterparties", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const cid = req.scopedCompanyId!;
 
   const tenantConditions: SQL[] = [];
   if (cid) tenantConditions.push(eq(tenantsTable.companyId, cid));

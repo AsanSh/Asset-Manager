@@ -1,10 +1,11 @@
 import { useListRentalProperties } from "@/api-client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, ChevronDown, ChevronUp, ChevronsUpDown, Pencil, Plus, Trash2, UserCircle } from "lucide-react";
+import { Building2, ChevronDown, ChevronUp, ChevronsUpDown, Home, Pencil, Plus, Trash2, UserCircle, Wallet } from "lucide-react";
 import { useSortable } from "@/lib/use-sortable";
 import { useColResize } from "@/lib/use-col-resize";
 import { useEffect, useState } from "react";
 import { useSearch } from "wouter";
+import { KpiCard, KpiRow } from "@/components/kpi-card";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -25,7 +26,10 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { RentalQueryState } from "@/components/rental/rental-query-state";
+import { getApiErrorMessage } from "@/lib/api-error";
 import { api } from "@/lib/api";
+import { formatCurrency } from "@/lib/format-currency";
 
 const statusColors: Record<string, string> = {
 	free: "bg-emerald-100 text-emerald-800",
@@ -75,12 +79,6 @@ const EMPTY_FORM: FormState = {
 	floor: "",
 	comment: "",
 };
-
-function formatCurrency(amount: number, currency: string) {
-	return new Intl.NumberFormat("ru-KZ", { style: "currency", currency }).format(
-		amount,
-	);
-}
 
 // ── Property Form Fields ──────────────────────────────────────────────────────
 function PropertyFormFields({ form, setField }: { form: FormState; setField: (k: keyof FormState, v: string) => void }) {
@@ -172,7 +170,7 @@ function PropertyOwnersPanel({ propertyId }: { propertyId: number }) {
 			setAddInvestorId(""); setAddShare("");
 			invalidate();
 		} catch (e: any) {
-			toast({ title: "Ошибка", description: e?.response?.data?.error ?? e.message, variant: "destructive" });
+			toast({ title: "Ошибка", description: getApiErrorMessage(e), variant: "destructive" });
 		} finally { setAdding(false); }
 	};
 
@@ -197,7 +195,7 @@ function PropertyOwnersPanel({ propertyId }: { propertyId: number }) {
 			await api.delete(`/rental/investments/${id}`);
 			invalidate();
 		} catch (e: any) {
-			toast({ title: "Ошибка", description: e?.response?.data?.error ?? e.message, variant: "destructive" });
+			toast({ title: "Ошибка", description: getApiErrorMessage(e), variant: "destructive" });
 		}
 	};
 
@@ -269,7 +267,7 @@ function PropertyOwnersPanel({ propertyId }: { propertyId: number }) {
 	);
 }
 
-const TH = "relative border border-gray-200 px-2 py-1.5 text-left font-semibold text-gray-600 whitespace-nowrap bg-gray-100 sticky top-0 z-10 select-none";
+const TH = "relative border border-gray-200 px-2 py-1.5 text-left font-semibold text-gray-600 whitespace-nowrap bg-gray-100 sticky top-0 z-20 select-none shadow-[0_1px_0_0_#e5e7eb]";
 const TD = "border border-gray-200 px-2 py-1 text-gray-700";
 
 function SortTh({
@@ -291,15 +289,15 @@ function SortTh({
 	);
 }
 
-function PropTable({ isLoading, sortedProps, propertiesArray, rentedCount, totalArea, sortKey, sortDir, toggle, openCreate, openEdit }: {
+function PropTable({ isLoading, sortedProps, propertiesArray, rentedCount, totalArea, sortKey, sortDir, toggle, openCreate, openEdit, onDelete }: {
 	isLoading: boolean; sortedProps: any[]; propertiesArray: any[]; rentedCount: number; totalArea: number;
 	sortKey: string; sortDir: "asc" | "desc"; toggle: (k: string) => void;
-	openCreate: () => void; openEdit: (p: any) => void;
+	openCreate: () => void; openEdit: (p: any) => void; onDelete: (p: RentalPropertyRow) => void;
 }) {
-	const { widths, startResize } = useColResize({ projectName: 180, unitNumber: 90, type: 100, area: 100, currentTenantName: 180, currentRentAmount: 130, rentalStatus: 100, actions: 50 });
+	const { widths, startResize } = useColResize({ projectName: 180, unitNumber: 90, type: 100, area: 100, currentTenantName: 180, currentRentAmount: 130, rentalStatus: 100, actions: 72 });
 	return (
-		<div className="overflow-auto border border-gray-200 rounded-lg">
-			<table className="w-full text-xs border-collapse">
+		<div className="overflow-auto border border-gray-200 rounded-lg" style={{ maxHeight: "calc(100vh - 300px)" }}>
+			<table className="w-full text-xs border-separate border-spacing-0">
 				<thead>
 					<tr>
 						<SortTh label="Проект" col="projectName" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} widths={widths} startResize={startResize} />
@@ -343,9 +341,14 @@ function PropTable({ isLoading, sortedProps, propertiesArray, rentedCount, total
 									</span>
 								</td>
 								<td className={TD + " text-center"}>
-									<button className="text-gray-500 hover:text-gray-900" onClick={() => openEdit(p)}>
-										<Pencil className="w-3.5 h-3.5" />
-									</button>
+									<div className="flex items-center justify-center gap-1">
+										<button type="button" title="Редактировать" className="text-gray-500 hover:text-gray-900" onClick={() => openEdit(p)}>
+											<Pencil className="w-3.5 h-3.5" />
+										</button>
+										<button type="button" title="Удалить" className="text-gray-400 hover:text-rose-600" onClick={() => onDelete(p)}>
+											<Trash2 className="w-3.5 h-3.5" />
+										</button>
+									</div>
 								</td>
 							</tr>
 						))
@@ -370,12 +373,17 @@ export default function RentalProperties() {
 	const searchString = useSearch();
 	const { toast } = useToast();
 	const qc = useQueryClient();
-	const { data: properties, isLoading } = useListRentalProperties();
+	const { data: properties, isLoading, isError, error, refetch } = useListRentalProperties();
 	const propertiesArray = (Array.isArray(properties) ? properties : []) as RentalPropertyRow[];
 	const { sorted: sortedProps, sortKey, sortDir, toggle } = useSortable(propertiesArray, "projectName");
 
 	const rentedCount = propertiesArray.filter((p) => p.rentalStatus === "rented").length;
+	const freeCount = propertiesArray.filter((p) => p.rentalStatus === "free").length;
 	const totalArea = propertiesArray.reduce((s, p) => s + (p.area ?? 0), 0);
+	const totalMonthlyRent = propertiesArray.reduce(
+		(s, p) => s + (p.currentRentAmount ? Number(p.currentRentAmount) : 0),
+		0,
+	);
 
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [editing, setEditing] = useState<RentalPropertyRow | null>(null);
@@ -413,7 +421,7 @@ export default function RentalProperties() {
 
 	const invalidate = () => {
 		qc.invalidateQueries({ queryKey: ["/rental/properties"] });
-		qc.invalidateQueries({ queryKey: ["rental-properties"] });
+		qc.invalidateQueries({ queryKey: getListRentalPropertiesQueryKey() });
 	};
 
 	const handleSave = async () => {
@@ -446,14 +454,9 @@ export default function RentalProperties() {
 			setDialogOpen(false);
 			invalidate();
 		} catch (e: unknown) {
-			const msg =
-				e && typeof e === "object" && "response" in e
-					? (e as { response?: { data?: { error?: string } } }).response?.data
-							?.error
-					: null;
 			toast({
 				title: "Ошибка",
-				description: msg || (e instanceof Error ? e.message : "Не удалось сохранить"),
+				description: getApiErrorMessage(e, "Не удалось сохранить"),
 				variant: "destructive",
 			});
 		} finally {
@@ -461,11 +464,45 @@ export default function RentalProperties() {
 		}
 	};
 
+	const handleDelete = async (p: RentalPropertyRow) => {
+		const label = `${p.projectName} ${p.unitNumber}`.trim();
+		if (
+			!confirm(
+				`Удалить объект «${label}»?\n\nДействие необратимо. Объект можно удалить только без активных договоров и задолженности.`,
+			)
+		) {
+			return;
+		}
+		try {
+			await api.delete(`/rental/properties/${p.id}`);
+			toast({ title: "Объект удалён" });
+			if (editing?.id === p.id) setDialogOpen(false);
+			invalidate();
+		} catch (e: unknown) {
+			const msg =
+				e && typeof e === "object" && "response" in e
+					? getApiErrorMessage(e)
+					: null;
+			toast({
+				title: "Не удалось удалить",
+				description: msg || "Проверьте договоры и владельцев объекта",
+				variant: "destructive",
+			});
+		}
+	};
+
 	const setField = (k: keyof FormState, v: string) =>
 		setForm((f) => ({ ...f, [k]: v }));
 
 	return (
-		<div className="p-6 space-y-4">
+		<div className="p-6 space-y-3">
+			<KpiRow>
+				<KpiCard variant="strip" label="Всего объектов" value={propertiesArray.length} sub="в реестре" icon={Building2} color="blue" loading={isLoading} />
+				<KpiCard variant="strip" label="Сдано" value={rentedCount} sub={`${freeCount} свободно`} icon={Home} color="green" loading={isLoading} />
+				<KpiCard variant="strip" label="Общая площадь" value={totalArea > 0 ? `${new Intl.NumberFormat("ru-RU").format(totalArea)} м²` : "—"} sub="по всем объектам" icon={Building2} color="purple" loading={isLoading} />
+				<KpiCard variant="strip" label="Аренда в месяц" value={formatCurrency(totalMonthlyRent)} sub="по сданным объектам" icon={Wallet} color="yellow" loading={isLoading} />
+			</KpiRow>
+
 			<div className="flex flex-wrap items-start justify-between gap-3">
 				<div>
 					<h1 className="text-2xl font-bold flex items-center gap-2">
@@ -482,6 +519,7 @@ export default function RentalProperties() {
 				</Button>
 			</div>
 
+			<RentalQueryState isLoading={isLoading} isError={isError} error={error} onRetry={() => refetch()}>
 			<PropTable
 				isLoading={isLoading}
 				sortedProps={sortedProps}
@@ -493,7 +531,9 @@ export default function RentalProperties() {
 				toggle={toggle}
 				openCreate={openCreate}
 				openEdit={openEdit}
+				onDelete={handleDelete}
 			/>
+			</RentalQueryState>
 
 			<Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
 				<DialogContent className="max-w-md">
@@ -514,11 +554,22 @@ export default function RentalProperties() {
 								<div className="grid gap-3 py-2">
 									<PropertyFormFields form={form} setField={setField} />
 								</div>
-								<div className="flex justify-end gap-2 pt-2">
-									<Button variant="outline" onClick={() => setDialogOpen(false)}>Отмена</Button>
-									<Button onClick={handleSave} disabled={saving}>
-										{saving ? "Сохранение..." : "Сохранить"}
+								<div className="flex justify-between gap-2 pt-2">
+									<Button
+										type="button"
+										variant="outline"
+										className="text-rose-600 border-rose-200 hover:bg-rose-50"
+										onClick={() => editing && handleDelete(editing)}
+									>
+										<Trash2 className="w-4 h-4 mr-1" />
+										Удалить
 									</Button>
+									<div className="flex gap-2">
+										<Button variant="outline" onClick={() => setDialogOpen(false)}>Отмена</Button>
+										<Button onClick={handleSave} disabled={saving}>
+											{saving ? "Сохранение..." : "Сохранить"}
+										</Button>
+									</div>
 								</div>
 							</TabsContent>
 

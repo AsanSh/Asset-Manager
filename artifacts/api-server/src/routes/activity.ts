@@ -6,8 +6,11 @@ import {
   leaseContractsTable, tenantsTable,
 } from "../lib/db";
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
+import { requireTenantCompany } from "../middleware/tenant";
 
 const router: ReturnType<typeof Router> = Router();
+
+router.use(requireAuth, requireTenantCompany);
 
 // ── Helpers ────────────────────────────────────────────────────────
 
@@ -22,10 +25,10 @@ const RESTORE_MAP: Record<string, { table: any; label: string }> = {
 
 // ── GET /activity  ─────────────────────────────────────────────────
 
-router.get("/activity", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/activity", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { entityType, entityId, module, actionType, limit } = req.query as Record<string, string | undefined>;
   const conditions: SQL[] = [];
-  if (req.companyId) conditions.push(eq(activityLogTable.companyId, req.companyId));
+  conditions.push(eq(activityLogTable.companyId, req.scopedCompanyId!));
   if (entityType && entityType !== "all") conditions.push(eq(activityLogTable.entityType, entityType));
   if (entityId)   conditions.push(eq(activityLogTable.entityId, parseInt(entityId, 10)));
   if (module && module !== "all") conditions.push(eq(activityLogTable.module, module));
@@ -40,14 +43,14 @@ router.get("/activity", requireAuth, async (req: AuthenticatedRequest, res): Pro
 
 // ── POST /activity  ────────────────────────────────────────────────
 
-router.post("/activity", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/activity", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { type, description, entityType, entityId, module, actionType, snapshot } = req.body;
   if (!type || !description) {
     res.status(400).json({ error: "type and description required" });
     return;
   }
   const [row] = await db.insert(activityLogTable).values({
-    companyId: req.companyId,
+    companyId: req.scopedCompanyId!,
     type,
     description,
     entityType,
@@ -62,9 +65,9 @@ router.post("/activity", requireAuth, async (req: AuthenticatedRequest, res): Pr
 
 // ── POST /activity/:id/restore  ────────────────────────────────────
 
-router.post("/activity/:id/restore", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/activity/:id/restore", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
-  const companyId = req.companyId!;
+  const companyId = req.scopedCompanyId!;
 
   const [entry] = await db.select().from(activityLogTable)
     .where(and(eq(activityLogTable.id, id), eq(activityLogTable.companyId, companyId)));

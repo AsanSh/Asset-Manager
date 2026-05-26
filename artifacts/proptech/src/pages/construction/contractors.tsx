@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Briefcase, Edit2, Plus, Star, Trash2 } from "lucide-react";
+import { Briefcase, Edit2, ExternalLink, Plus, Star, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -59,6 +59,12 @@ interface Specialization {
 	name: string;
 }
 
+interface Stage {
+	id: number;
+	name: string;
+	projectId: number;
+}
+
 interface Contractor {
 	id: number;
 	fullName: string;
@@ -67,23 +73,31 @@ interface Contractor {
 	phone?: string;
 	email?: string;
 	inn?: string;
+	okpo?: string;
+	bic?: string;
 	contractNumber?: string;
 	contractAmount?: string;
 	currency: string;
 	status: string;
 	rating?: number;
 	notes?: string;
+	stageId?: number | null;
+	paymentMilestones?: string;
+	paidAmount?: string;
+	documentPath?: string;
 }
 
 function ContractorDialog({
 	contractor,
 	specs,
+	stages,
 	onAddSpec,
 	onClose,
 	onSaved,
 }: {
 	contractor: Contractor | null | "new";
 	specs: Specialization[];
+	stages: Stage[];
 	onAddSpec: (name: string) => Promise<void>;
 	onClose: () => void;
 	onSaved: () => void;
@@ -98,17 +112,27 @@ function ContractorDialog({
 		phone: init?.phone || "",
 		email: init?.email || "",
 		inn: init?.inn || "",
+		okpo: init?.okpo || "",
+		bic: init?.bic || "",
 		contractNumber: init?.contractNumber || "",
 		contractAmount: init?.contractAmount || "",
 		currency: init?.currency || "KGS",
 		status: init?.status || "active",
 		rating: String(init?.rating || ""),
 		notes: init?.notes || "",
+		stageId: String(init?.stageId || ""),
+		paymentMilestones: init?.paymentMilestones || "",
+		paidAmount: init?.paidAmount || "0",
+		documentPath: init?.documentPath || "",
 	});
 	const [loading, setLoading] = useState(false);
 	const [newSpec, setNewSpec] = useState("");
 	const [addingSpec, setAddingSpec] = useState(false);
 	const set = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
+
+	const contractAmount = parseFloat(form.contractAmount || "0");
+	const paidAmount = parseFloat(form.paidAmount || "0");
+	const outstanding = contractAmount - paidAmount;
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -124,7 +148,10 @@ function ContractorDialog({
 			await fetch(url, {
 				method: isEdit ? "PATCH" : "POST",
 				headers: ah(),
-				body: JSON.stringify(form),
+				body: JSON.stringify({
+					...form,
+					stageId: form.stageId ? parseInt(form.stageId) : null,
+				}),
 			});
 			toast({ title: isEdit ? "Подрядчик обновлён" : "Подрядчик добавлен" });
 			onSaved();
@@ -138,13 +165,14 @@ function ContractorDialog({
 
 	return (
 		<Dialog open={!!contractor} onOpenChange={(v) => !v && onClose()}>
-			<DialogContent className="sm:max-w-lg">
+			<DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
 				<DialogHeader>
 					<DialogTitle>
 						{isEdit ? "Редактировать подрядчика" : "Добавить подрядчика"}
 					</DialogTitle>
 				</DialogHeader>
-				<form onSubmit={handleSubmit} className="space-y-3">
+				<form onSubmit={handleSubmit} className="space-y-4">
+					{/* Basic info */}
 					<div className="grid grid-cols-2 gap-3">
 						<div className="col-span-2">
 							<Label>Название / ФИО *</Label>
@@ -214,37 +242,33 @@ function ContractorDialog({
 								</Button>
 							</div>
 						</div>
+					</div>
+
+					{/* Contacts */}
+					<div className="grid grid-cols-2 gap-3">
 						<div>
 							<Label>Телефон</Label>
-							<Input
-								className="mt-1"
-								value={form.phone}
-								onChange={(e) => set("phone", e.target.value)}
-							/>
+							<Input className="mt-1" value={form.phone} onChange={(e) => set("phone", e.target.value)} />
 						</div>
 						<div>
 							<Label>Email</Label>
-							<Input
-								className="mt-1"
-								type="email"
-								value={form.email}
-								onChange={(e) => set("email", e.target.value)}
-							/>
+							<Input className="mt-1" type="email" value={form.email} onChange={(e) => set("email", e.target.value)} />
 						</div>
 						<div>
 							<Label>ИНН</Label>
-							<Input
-								className="mt-1"
-								value={form.inn}
-								onChange={(e) => set("inn", e.target.value)}
-							/>
+							<Input className="mt-1" value={form.inn} onChange={(e) => set("inn", e.target.value)} />
+						</div>
+						<div>
+							<Label>ОКПО</Label>
+							<Input className="mt-1" value={form.okpo} onChange={(e) => set("okpo", e.target.value)} placeholder="Код организации" />
+						</div>
+						<div>
+							<Label>БИК банка</Label>
+							<Input className="mt-1" value={form.bic} onChange={(e) => set("bic", e.target.value)} placeholder="БИК" />
 						</div>
 						<div>
 							<Label>Статус</Label>
-							<Select
-								value={form.status}
-								onValueChange={(v) => set("status", v)}
-							>
+							<Select value={form.status} onValueChange={(v) => set("status", v)}>
 								<SelectTrigger className="mt-1">
 									<SelectValue />
 								</SelectTrigger>
@@ -255,29 +279,70 @@ function ContractorDialog({
 								</SelectContent>
 							</Select>
 						</div>
-						<div>
-							<Label>№ договора</Label>
-							<Input
-								className="mt-1"
-								value={form.contractNumber}
-								onChange={(e) => set("contractNumber", e.target.value)}
+					</div>
+
+					{/* Contract */}
+					<div className="border-t pt-3">
+						<p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Договор</p>
+						<div className="grid grid-cols-2 gap-3">
+							<div>
+								<Label>№ договора</Label>
+								<Input className="mt-1" value={form.contractNumber} onChange={(e) => set("contractNumber", e.target.value)} />
+							</div>
+							<div>
+								<Label>Сумма договора</Label>
+								<Input className="mt-1" type="number" value={form.contractAmount} onChange={(e) => set("contractAmount", e.target.value)} />
+							</div>
+							<div>
+								<Label>Оплачено</Label>
+								<Input className="mt-1" type="number" value={form.paidAmount} onChange={(e) => set("paidAmount", e.target.value)} />
+							</div>
+							<div>
+								<Label>Остаток к оплате</Label>
+								<div className={`mt-1 h-9 px-3 flex items-center rounded-md border text-sm font-medium ${outstanding < 0 ? "text-rose-700 bg-rose-50 border-rose-200" : outstanding === 0 ? "text-emerald-700 bg-emerald-50 border-emerald-200" : "text-amber-700 bg-amber-50 border-amber-200"}`}>
+									{outstanding.toLocaleString("ru-KG")} {form.currency}
+								</div>
+							</div>
+						</div>
+						<div className="mt-3">
+							<Label>Этапы оплат / вехи</Label>
+							<textarea
+								className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none h-20"
+								value={form.paymentMilestones}
+								onChange={(e) => set("paymentMilestones", e.target.value)}
+								placeholder="Опишите условия и этапы оплаты..."
 							/>
 						</div>
+					</div>
+
+					{/* Stage link */}
+					{stages.length > 0 && (
 						<div>
-							<Label>Сумма договора</Label>
-							<Input
-								className="mt-1"
-								type="number"
-								value={form.contractAmount}
-								onChange={(e) => set("contractAmount", e.target.value)}
-							/>
+							<Label>Связанный этап</Label>
+							<Select
+								value={form.stageId || "none"}
+								onValueChange={(v) => set("stageId", v === "none" ? "" : v)}
+							>
+								<SelectTrigger className="mt-1">
+									<SelectValue placeholder="Не привязан" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="none">— Не привязан —</SelectItem>
+									{stages.map((s) => (
+										<SelectItem key={s.id} value={String(s.id)}>
+											{s.name}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
 						</div>
+					)}
+
+					{/* Rating */}
+					<div className="grid grid-cols-2 gap-3">
 						<div>
 							<Label>Рейтинг (1–5)</Label>
-							<Select
-								value={form.rating}
-								onValueChange={(v) => set("rating", v)}
-							>
+							<Select value={form.rating} onValueChange={(v) => set("rating", v)}>
 								<SelectTrigger className="mt-1">
 									<SelectValue placeholder="—" />
 								</SelectTrigger>
@@ -291,28 +356,28 @@ function ContractorDialog({
 							</Select>
 						</div>
 					</div>
+
+					{/* Document link */}
 					<div>
-						<Label>Заметки</Label>
+						<Label>Ссылка на документ (договор, скан)</Label>
 						<Input
 							className="mt-1"
-							value={form.notes}
-							onChange={(e) => set("notes", e.target.value)}
+							value={form.documentPath}
+							onChange={(e) => set("documentPath", e.target.value)}
+							placeholder="https://... или путь к файлу"
 						/>
 					</div>
+
+					<div>
+						<Label>Заметки</Label>
+						<Input className="mt-1" value={form.notes} onChange={(e) => set("notes", e.target.value)} />
+					</div>
+
 					<div className="flex justify-end gap-2 pt-1">
-						<Button
-							type="button"
-							variant="outline"
-							onClick={onClose}
-							disabled={loading}
-						>
+						<Button type="button" variant="outline" onClick={onClose} disabled={loading}>
 							Отмена
 						</Button>
-						<Button
-							type="submit"
-							className="bg-amber-500 hover:bg-orange-600"
-							disabled={loading}
-						>
+						<Button type="submit" className="bg-amber-500 hover:bg-orange-600" disabled={loading}>
 							{loading ? "..." : "Сохранить"}
 						</Button>
 					</div>
@@ -337,10 +402,15 @@ export default function ConstructionContractors() {
 		queryFn: () =>
 			api.get("/construction/contractors/specializations").then((r) => r.data),
 	});
+	const { data: stages = [] } = useQuery<Stage[]>({
+		queryKey: ["construction-stages", "all"],
+		queryFn: () => api.get("/construction/stages").then((r) => r.data),
+	});
 	const specOptions =
 		specs.length > 0
 			? specs
 			: SPECS_FALLBACK.map((name, id) => ({ id: -id, name }));
+	const stageMap = Object.fromEntries(stages.map((s) => [s.id, s.name]));
 
 	const handleAddSpec = async (name: string) => {
 		try {
@@ -406,8 +476,10 @@ export default function ConstructionContractors() {
 						<TableRow className="bg-gray-50">
 							<TableHead>Подрядчик</TableHead>
 							<TableHead>Специализация</TableHead>
-							<TableHead>Контакты</TableHead>
+							<TableHead>Контакты / ИНН</TableHead>
 							<TableHead>Договор</TableHead>
+							<TableHead>Оплачено / Остаток</TableHead>
+							<TableHead>Этап</TableHead>
 							<TableHead>Рейтинг</TableHead>
 							<TableHead>Статус</TableHead>
 							<TableHead className="text-center">Действия</TableHead>
@@ -417,7 +489,7 @@ export default function ConstructionContractors() {
 						{isLoading ? (
 							Array.from({ length: 4 }).map((_, i) => (
 								<TableRow key={i}>
-									{Array.from({ length: 7 }).map((_, j) => (
+									{Array.from({ length: 9 }).map((_, j) => (
 										<TableCell key={j}>
 											<Skeleton className="h-4 w-full" />
 										</TableCell>
@@ -427,7 +499,7 @@ export default function ConstructionContractors() {
 						) : filtered.length === 0 ? (
 							<TableRow>
 								<TableCell
-									colSpan={7}
+									colSpan={9}
 									className="text-center py-12 text-gray-400"
 								>
 									<Briefcase className="w-10 h-10 mx-auto mb-2 opacity-20" />
@@ -435,99 +507,131 @@ export default function ConstructionContractors() {
 								</TableCell>
 							</TableRow>
 						) : (
-							filtered.map((c) => (
-								<TableRow key={c.id} className="hover:bg-gray-50">
-									<TableCell>
-										<div className="flex items-center gap-2.5">
-											<div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 text-xs font-bold">
-												{c.fullName.charAt(0)}
+							filtered.map((c) => {
+								const contractAmt = parseFloat(c.contractAmount || "0");
+								const paid = parseFloat(c.paidAmount || "0");
+								const outstanding = contractAmt - paid;
+								return (
+									<TableRow key={c.id} className="hover:bg-gray-50">
+										<TableCell>
+											<div className="flex items-center gap-2.5">
+												<div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 text-xs font-bold">
+													{c.fullName.charAt(0)}
+												</div>
+												<div>
+													<p className="font-medium text-sm text-gray-900">
+														{c.fullName}
+													</p>
+													<p className="text-xs text-gray-400">
+														{c.type === "company" ? "Компания" : "ИП"}
+													</p>
+												</div>
 											</div>
-											<div>
-												<p className="font-medium text-sm text-gray-900">
-													{c.fullName}
+										</TableCell>
+										<TableCell className="text-sm text-gray-600">
+											{c.specialization || "—"}
+										</TableCell>
+										<TableCell>
+											<div className="text-xs">
+												<p className="text-gray-600">{c.phone || "—"}</p>
+												{c.inn && <p className="text-gray-400">ИНН: {c.inn}</p>}
+												{c.okpo && <p className="text-gray-400">ОКПО: {c.okpo}</p>}
+											</div>
+										</TableCell>
+										<TableCell className="text-sm">
+											{c.contractNumber && (
+												<p className="font-medium text-gray-800">
+													№{c.contractNumber}
 												</p>
-												<p className="text-xs text-gray-400">
-													{c.type === "company" ? "Компания" : "ИП"}
+											)}
+											{contractAmt > 0 && (
+												<p className="text-gray-400 text-xs">
+													{contractAmt.toLocaleString("ru-KG")} ₸
 												</p>
-											</div>
-										</div>
-									</TableCell>
-									<TableCell className="text-sm text-gray-600">
-										{c.specialization || "—"}
-									</TableCell>
-									<TableCell>
-										<div className="text-xs">
-											<p className="text-gray-600">{c.phone || "—"}</p>
-											{c.email && <p className="text-gray-400">{c.email}</p>}
-										</div>
-									</TableCell>
-									<TableCell className="text-sm">
-										{c.contractNumber && (
-											<p className="font-medium text-gray-800">
-												№{c.contractNumber}
-											</p>
-										)}
-										{c.contractAmount && (
-											<p className="text-gray-400">
-												{parseFloat(c.contractAmount).toLocaleString("ru-KG")} ₸
-											</p>
-										)}
-										{!c.contractNumber && "—"}
-									</TableCell>
-									<TableCell>
-										{c.rating ? (
-											<div className="flex items-center gap-0.5">
-												{Array.from({ length: 5 }).map((_, i) => (
-													<Star
-														key={i}
-														className={`w-3.5 h-3.5 ${i < c.rating! ? "text-yellow-400 fill-yellow-400" : "text-gray-200"}`}
-													/>
-												))}
-											</div>
-										) : (
-											<span className="text-gray-400 text-sm">—</span>
-										)}
-									</TableCell>
-									<TableCell>
-										<Badge
-											className={
-												c.status === "active"
-													? "bg-emerald-100 text-emerald-800"
+											)}
+											{!c.contractNumber && "—"}
+										</TableCell>
+										<TableCell className="text-xs">
+											{contractAmt > 0 ? (
+												<div>
+													<p className="text-emerald-700 font-medium">
+														{paid.toLocaleString("ru-KG")} ₸
+													</p>
+													<p className={outstanding > 0 ? "text-amber-600" : "text-gray-400"}>
+														ост. {outstanding.toLocaleString("ru-KG")} ₸
+													</p>
+												</div>
+											) : "—"}
+										</TableCell>
+										<TableCell className="text-xs text-gray-600">
+											{c.stageId ? stageMap[c.stageId] || `Этап #${c.stageId}` : "—"}
+										</TableCell>
+										<TableCell>
+											{c.rating ? (
+												<div className="flex items-center gap-0.5">
+													{Array.from({ length: 5 }).map((_, i) => (
+														<Star
+															key={i}
+															className={`w-3.5 h-3.5 ${i < c.rating! ? "text-yellow-400 fill-yellow-400" : "text-gray-200"}`}
+														/>
+													))}
+												</div>
+											) : (
+												<span className="text-gray-400 text-sm">—</span>
+											)}
+										</TableCell>
+										<TableCell>
+											<Badge
+												className={
+													c.status === "active"
+														? "bg-emerald-100 text-emerald-800"
+														: c.status === "blacklisted"
+															? "bg-rose-100 text-rose-800"
+															: "bg-gray-100 text-gray-700"
+												}
+												variant="secondary"
+											>
+												{c.status === "active"
+													? "Активен"
 													: c.status === "blacklisted"
-														? "bg-rose-100 text-rose-800"
-														: "bg-gray-100 text-gray-700"
-											}
-											variant="secondary"
-										>
-											{c.status === "active"
-												? "Активен"
-												: c.status === "blacklisted"
-													? "Чёрный список"
-													: "Неактивен"}
-										</Badge>
-									</TableCell>
-									<TableCell>
-										<div className="flex gap-1 justify-center">
-											<Button
-												size="sm"
-												variant="ghost"
-												className="h-7 w-7 p-0"
-												onClick={() => setDialog(c)}
-											>
-												<Edit2 className="w-3.5 h-3.5 text-gray-400" />
-											</Button>
-											<Button
-												size="sm"
-												variant="ghost"
-												className="h-7 w-7 p-0"
-												onClick={() => handleDelete(c.id)}
-											>
-												<Trash2 className="w-3.5 h-3.5 text-gray-400 hover:text-rose-600" />
-											</Button>
-										</div>
-									</TableCell>
-								</TableRow>
-							))
+														? "Чёрный список"
+														: "Неактивен"}
+											</Badge>
+										</TableCell>
+										<TableCell>
+											<div className="flex gap-1 justify-center">
+												{c.documentPath && (
+													<a
+														href={c.documentPath}
+														target="_blank"
+														rel="noreferrer"
+														title="Открыть документ"
+														className="h-7 w-7 p-0 inline-flex items-center justify-center text-blue-400 hover:text-blue-600"
+													>
+														<ExternalLink className="w-3.5 h-3.5" />
+													</a>
+												)}
+												<Button
+													size="sm"
+													variant="ghost"
+													className="h-7 w-7 p-0"
+													onClick={() => setDialog(c)}
+												>
+													<Edit2 className="w-3.5 h-3.5 text-gray-400" />
+												</Button>
+												<Button
+													size="sm"
+													variant="ghost"
+													className="h-7 w-7 p-0"
+													onClick={() => handleDelete(c.id)}
+												>
+													<Trash2 className="w-3.5 h-3.5 text-gray-400 hover:text-rose-600" />
+												</Button>
+											</div>
+										</TableCell>
+									</TableRow>
+								);
+							})
 						)}
 					</TableBody>
 				</Table>
@@ -536,6 +640,7 @@ export default function ConstructionContractors() {
 			<ContractorDialog
 				contractor={dialog}
 				specs={specOptions}
+				stages={stages}
 				onAddSpec={handleAddSpec}
 				onClose={() => setDialog(null)}
 				onSaved={() =>

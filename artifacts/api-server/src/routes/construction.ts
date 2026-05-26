@@ -15,14 +15,16 @@ import {
   constructionUnitsTable,
   currencyRatesTable,
 } from "../lib/db";
-import { constructionSalesContractsTable } from "../lib/db/schema";
+import { constructionSalesContractsTable } from "../lib/db";
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
+import { requireTenantCompany } from "../middleware/tenant";
+import { sendServerError } from "../lib/http-errors";
 import { getPaginationParams, createPaginatedResponse, getPaginationQuery } from "../lib/pagination";
 import { validateQuery, commonSchemas } from "../middleware/validation";
 import { cache, cacheKeys } from "../lib/cache";
 import { seedProjectUnits } from "../lib/seed-project-units";
 import { parseProjectDocument } from "../lib/parse-project-document";
-import { constructionUnitStatusesTable } from "../lib/db/schema/construction_unit_statuses";
+import { constructionUnitStatusesTable } from "../lib/db";
 import {
   ensureUnitStatuses,
   resolveUnitStatus,
@@ -32,11 +34,13 @@ import { UNIT_STATUS_COLOR_PRESETS, type UnitStatusColorKey } from "../lib/defau
 
 const router: ReturnType<typeof Router> = Router();
 
+router.use(requireAuth, requireTenantCompany);
+
 // ── PROJECTS ──────────────────────────────────────────────────────────────────
 
 // GET /projects/all — все проекты без пагинации (для дропдаунов)
-router.get("/projects/all", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const companyId = req.companyId!;
+router.get("/projects/all", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
   const rows = await db.select().from(constructionProjectsTable)
     .where(eq(constructionProjectsTable.companyId, companyId))
     .orderBy(desc(constructionProjectsTable.createdAt));
@@ -44,7 +48,7 @@ router.get("/projects/all", requireAuth, async (req: AuthenticatedRequest, res):
 });
 
 router.get("/projects", requireAuth, validateQuery(commonSchemas.pagination), async (req: AuthenticatedRequest, res): Promise<void> => {
-  const companyId = req.companyId!;
+  const companyId = req.scopedCompanyId!;
   const pagination = getPaginationParams(req);
 
   // Try cache first
@@ -74,7 +78,7 @@ router.get("/projects", requireAuth, validateQuery(commonSchemas.pagination), as
 });
 
 /** Парсинг титульного листа / PDF проекта (Claude Vision / текст) */
-router.post("/projects/parse-document", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/projects/parse-document", async (req: AuthenticatedRequest, res): Promise<void> => {
   try {
     const { base64, mimeType, fileName } = req.body;
     if (!base64 || !mimeType) {
@@ -92,12 +96,11 @@ router.post("/projects/parse-document", requireAuth, async (req: AuthenticatedRe
     });
     res.json(parsed);
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Ошибка распознавания документа";
-    res.status(500).json({ error: msg });
+    sendServerError(res, e, "Ошибка распознавания документа");
   }
 });
 
-router.post("/projects", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/projects", async (req: AuthenticatedRequest, res): Promise<void> => {
   const body = req.body;
   const totalArea = parseFloat(body.totalArea || "0");
   const costPerSqm = parseFloat(body.costPerSqm || "0");
@@ -105,7 +108,7 @@ router.post("/projects", requireAuth, async (req: AuthenticatedRequest, res): Pr
   const estimatedCostKgs = totalArea * costPerSqm * (body.currency === "KGS" ? 1 : exchangeRate);
 
   const [row] = await db.insert(constructionProjectsTable).values({
-    companyId: req.companyId!,
+    companyId: req.scopedCompanyId!,
     name: body.name,
     address: body.address,
     region: body.region,
@@ -131,12 +134,12 @@ router.post("/projects", requireAuth, async (req: AuthenticatedRequest, res): Pr
   }).returning();
 
   // Invalidate cache
-  cache.deletePattern(`projects:${req.companyId!}:*`);
+  cache.deletePattern(`projects:${req.scopedCompanyId!}:*`);
 
   let unitsCreated = 0;
   if (row.totalFloors && row.totalUnits) {
     unitsCreated = await seedProjectUnits(
-      req.companyId!,
+      req.scopedCompanyId!,
       row.id,
       row.totalFloors,
       row.totalUnits,
@@ -146,7 +149,7 @@ router.post("/projects", requireAuth, async (req: AuthenticatedRequest, res): Pr
   res.status(201).json({ ...row, unitsCreated });
 });
 
-router.post("/projects/:id/generate-units", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/projects/:id/generate-units", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
   const [project] = await db
     .select()
@@ -154,7 +157,7 @@ router.post("/projects/:id/generate-units", requireAuth, async (req: Authenticat
     .where(
       and(
         eq(constructionProjectsTable.id, id),
-        eq(constructionProjectsTable.companyId, req.companyId!),
+        eq(constructionProjectsTable.companyId, req.scopedCompanyId!),
       ),
     );
 
@@ -178,7 +181,7 @@ router.post("/projects/:id/generate-units", requireAuth, async (req: Authenticat
     .where(
       and(
         eq(constructionUnitsTable.projectId, id),
-        eq(constructionUnitsTable.companyId, req.companyId!),
+        eq(constructionUnitsTable.companyId, req.scopedCompanyId!),
       ),
     );
 
@@ -198,13 +201,13 @@ router.post("/projects/:id/generate-units", requireAuth, async (req: Authenticat
       .where(
         and(
           eq(constructionUnitsTable.projectId, id),
-          eq(constructionUnitsTable.companyId, req.companyId!),
+          eq(constructionUnitsTable.companyId, req.scopedCompanyId!),
         ),
       );
   }
 
   const unitsCreated = await seedProjectUnits(
-    req.companyId!,
+    req.scopedCompanyId!,
     id,
     project.totalFloors,
     project.totalUnits,
@@ -213,7 +216,7 @@ router.post("/projects/:id/generate-units", requireAuth, async (req: Authenticat
   res.json({ success: true, unitsCreated });
 });
 
-router.patch("/projects/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.patch("/projects/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
   const body = req.body;
   const totalArea = parseFloat(body.totalArea || "0");
@@ -245,14 +248,14 @@ router.patch("/projects/:id", requireAuth, async (req: AuthenticatedRequest, res
           : JSON.stringify(body.contractTemplateMeta))
         : undefined,
     })
-    .where(and(eq(constructionProjectsTable.id, id), eq(constructionProjectsTable.companyId, req.companyId!)))
+    .where(and(eq(constructionProjectsTable.id, id), eq(constructionProjectsTable.companyId, req.scopedCompanyId!)))
     .returning();
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
 
   let unitsCreated = 0;
   if (row.totalFloors && row.totalUnits) {
     unitsCreated = await seedProjectUnits(
-      req.companyId!,
+      req.scopedCompanyId!,
       row.id,
       row.totalFloors,
       row.totalUnits,
@@ -260,19 +263,19 @@ router.patch("/projects/:id", requireAuth, async (req: AuthenticatedRequest, res
   }
 
   // Invalidate cache
-  cache.deletePattern(`projects:${req.companyId!}:*`);
+  cache.deletePattern(`projects:${req.scopedCompanyId!}:*`);
   cache.delete(cacheKeys.project(id));
 
   res.json({ ...row, unitsCreated });
 });
 
-router.delete("/projects/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.delete("/projects/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
   await db.delete(constructionProjectsTable)
-    .where(and(eq(constructionProjectsTable.id, id), eq(constructionProjectsTable.companyId, req.companyId!)));
+    .where(and(eq(constructionProjectsTable.id, id), eq(constructionProjectsTable.companyId, req.scopedCompanyId!)));
 
   // Invalidate cache
-  cache.deletePattern(`projects:${req.companyId!}:*`);
+  cache.deletePattern(`projects:${req.scopedCompanyId!}:*`);
   cache.delete(cacheKeys.project(id));
 
   res.json({ ok: true });
@@ -280,53 +283,55 @@ router.delete("/projects/:id", requireAuth, async (req: AuthenticatedRequest, re
 
 // ── STAGES ────────────────────────────────────────────────────────────────────
 
-router.get("/stages", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/stages", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { projectId } = req.query;
-  let q = db.select().from(constructionStagesTable).where(eq(constructionStagesTable.companyId, req.companyId!));
+  let q = db.select().from(constructionStagesTable).where(eq(constructionStagesTable.companyId, req.scopedCompanyId!));
   const rows = await db.select().from(constructionStagesTable)
     .where(and(
-      eq(constructionStagesTable.companyId, req.companyId!),
+      eq(constructionStagesTable.companyId, req.scopedCompanyId!),
       ...(projectId ? [eq(constructionStagesTable.projectId, parseInt(projectId as string))] : [])
     ))
     .orderBy(constructionStagesTable.sortOrder, constructionStagesTable.createdAt);
   res.json(rows);
 });
 
-router.post("/stages", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const { projectId, name, description, status, startDate, plannedEndDate, budgetAmount, sortOrder } = req.body;
+router.post("/stages", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const { projectId, name, description, status, startDate, plannedEndDate, budgetAmount, sortOrder, parentStageId } = req.body;
   const [row] = await db.insert(constructionStagesTable).values({
-    companyId: req.companyId!, projectId, name, description, status: status || "planned",
+    companyId: req.scopedCompanyId!, projectId, name, description, status: status || "planned",
     startDate: startDate || null, plannedEndDate: plannedEndDate || null,
     budgetAmount: budgetAmount ? String(budgetAmount) : null,
     sortOrder: sortOrder || 0,
+    parentStageId: parentStageId ? parseInt(parentStageId) : null,
   }).returning();
   res.status(201).json(row);
 });
 
-router.patch("/stages/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.patch("/stages/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
-  const { name, description, status, progress, startDate, plannedEndDate, actualEndDate, budgetAmount, sortOrder } = req.body;
+  const { name, description, status, progress, startDate, plannedEndDate, actualEndDate, budgetAmount, sortOrder, parentStageId } = req.body;
   const [row] = await db.update(constructionStagesTable)
     .set({ name, description, status, progress, startDate, plannedEndDate, actualEndDate,
-      budgetAmount: budgetAmount ? String(budgetAmount) : null, sortOrder })
-    .where(and(eq(constructionStagesTable.id, id), eq(constructionStagesTable.companyId, req.companyId!)))
+      budgetAmount: budgetAmount ? String(budgetAmount) : null, sortOrder,
+      parentStageId: parentStageId ? parseInt(parentStageId) : null })
+    .where(and(eq(constructionStagesTable.id, id), eq(constructionStagesTable.companyId, req.scopedCompanyId!)))
     .returning();
   res.json(row);
 });
 
-router.delete("/stages/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.delete("/stages/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
-  await db.delete(constructionStagesTable).where(and(eq(constructionStagesTable.id, id), eq(constructionStagesTable.companyId, req.companyId!)));
+  await db.delete(constructionStagesTable).where(and(eq(constructionStagesTable.id, id), eq(constructionStagesTable.companyId, req.scopedCompanyId!)));
   res.json({ ok: true });
 });
 
 // ── TASKS ─────────────────────────────────────────────────────────────────────
 
-router.get("/tasks", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/tasks", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { projectId, stageId } = req.query;
   const rows = await db.select().from(constructionTasksTable)
     .where(and(
-      eq(constructionTasksTable.companyId, req.companyId!),
+      eq(constructionTasksTable.companyId, req.scopedCompanyId!),
       ...(projectId ? [eq(constructionTasksTable.projectId, parseInt(projectId as string))] : []),
       ...(stageId ? [eq(constructionTasksTable.stageId, parseInt(stageId as string))] : [])
     ))
@@ -334,48 +339,50 @@ router.get("/tasks", requireAuth, async (req: AuthenticatedRequest, res): Promis
   res.json(rows);
 });
 
-router.post("/tasks", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const { projectId, stageId, title, description, status, priority, dueDate, estimatedHours } = req.body;
+router.post("/tasks", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const { projectId, stageId, title, description, status, priority, dueDate, estimatedHours, assignedTo } = req.body;
   const [row] = await db.insert(constructionTasksTable).values({
-    companyId: req.companyId!, projectId, stageId: stageId || null, title, description,
+    companyId: req.scopedCompanyId!, projectId, stageId: stageId || null, title, description,
     status: status || "todo", priority: priority || "medium",
     dueDate: dueDate || null,
     estimatedHours: estimatedHours ? String(estimatedHours) : null,
+    assignedTo: assignedTo ? parseInt(assignedTo) : null,
   }).returning();
   res.status(201).json(row);
 });
 
-router.patch("/tasks/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.patch("/tasks/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
-  const { title, description, status, priority, dueDate, estimatedHours, actualHours, completedAt } = req.body;
+  const { title, description, status, priority, dueDate, estimatedHours, actualHours, completedAt, assignedTo } = req.body;
   const [row] = await db.update(constructionTasksTable)
     .set({ title, description, status, priority, dueDate, completedAt,
       estimatedHours: estimatedHours ? String(estimatedHours) : null,
-      actualHours: actualHours ? String(actualHours) : null })
-    .where(and(eq(constructionTasksTable.id, id), eq(constructionTasksTable.companyId, req.companyId!)))
+      actualHours: actualHours ? String(actualHours) : null,
+      assignedTo: assignedTo ? parseInt(assignedTo) : null })
+    .where(and(eq(constructionTasksTable.id, id), eq(constructionTasksTable.companyId, req.scopedCompanyId!)))
     .returning();
   res.json(row);
 });
 
-router.delete("/tasks/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.delete("/tasks/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
-  await db.delete(constructionTasksTable).where(and(eq(constructionTasksTable.id, id), eq(constructionTasksTable.companyId, req.companyId!)));
+  await db.delete(constructionTasksTable).where(and(eq(constructionTasksTable.id, id), eq(constructionTasksTable.companyId, req.scopedCompanyId!)));
   res.json({ ok: true });
 });
 
 // ── WORKERS ───────────────────────────────────────────────────────────────────
 
-router.get("/workers", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/workers", async (req: AuthenticatedRequest, res): Promise<void> => {
   const rows = await db.select().from(constructionWorkersTable)
-    .where(eq(constructionWorkersTable.companyId, req.companyId!))
+    .where(eq(constructionWorkersTable.companyId, req.scopedCompanyId!))
     .orderBy(desc(constructionWorkersTable.createdAt));
   res.json(rows);
 });
 
-router.post("/workers", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/workers", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { fullName, brigade, specialization, phone, dailyRate, currency, status, projectId, notes } = req.body;
   const [row] = await db.insert(constructionWorkersTable).values({
-    companyId: req.companyId!, fullName, brigade, specialization, phone,
+    companyId: req.scopedCompanyId!, fullName, brigade, specialization, phone,
     dailyRate: dailyRate ? String(dailyRate) : null,
     currency: currency || "KGS", status: status || "active",
     projectId: projectId || null, notes,
@@ -383,57 +390,67 @@ router.post("/workers", requireAuth, async (req: AuthenticatedRequest, res): Pro
   res.status(201).json(row);
 });
 
-router.patch("/workers/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.patch("/workers/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
   const { fullName, brigade, specialization, phone, dailyRate, currency, status, projectId, notes } = req.body;
   const [row] = await db.update(constructionWorkersTable)
     .set({ fullName, brigade, specialization, phone, dailyRate: dailyRate ? String(dailyRate) : null, currency, status, projectId: projectId || null, notes })
-    .where(and(eq(constructionWorkersTable.id, id), eq(constructionWorkersTable.companyId, req.companyId!)))
+    .where(and(eq(constructionWorkersTable.id, id), eq(constructionWorkersTable.companyId, req.scopedCompanyId!)))
     .returning();
   res.json(row);
 });
 
-router.delete("/workers/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.delete("/workers/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
-  await db.delete(constructionWorkersTable).where(and(eq(constructionWorkersTable.id, id), eq(constructionWorkersTable.companyId, req.companyId!)));
+  await db.delete(constructionWorkersTable).where(and(eq(constructionWorkersTable.id, id), eq(constructionWorkersTable.companyId, req.scopedCompanyId!)));
   res.json({ ok: true });
 });
 
 // ── CONTRACTORS ───────────────────────────────────────────────────────────────
 
-router.get("/contractors", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/contractors", async (req: AuthenticatedRequest, res): Promise<void> => {
   const rows = await db.select().from(constructionContractorsTable)
-    .where(eq(constructionContractorsTable.companyId, req.companyId!))
+    .where(eq(constructionContractorsTable.companyId, req.scopedCompanyId!))
     .orderBy(desc(constructionContractorsTable.createdAt));
   res.json(rows);
 });
 
-router.post("/contractors", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const { fullName, type, specialization, phone, email, inn, contractNumber, contractAmount, currency, status, rating, notes } = req.body;
+router.post("/contractors", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const { fullName, type, specialization, phone, email, inn, contractNumber, contractAmount, currency, status, rating, notes, okpo, bic, stageId, paymentMilestones, paidAmount, documentPath } = req.body;
   const [row] = await db.insert(constructionContractorsTable).values({
-    companyId: req.companyId!, fullName, type: type || "company", specialization, phone, email, inn,
+    companyId: req.scopedCompanyId!, fullName, type: type || "company", specialization, phone, email, inn,
     contractNumber, contractAmount: contractAmount ? String(contractAmount) : null,
     currency: currency || "KGS", status: status || "active",
     rating: rating ? parseInt(rating) : null, notes,
+    okpo: okpo || null, bic: bic || null,
+    stageId: stageId ? parseInt(stageId) : null,
+    paymentMilestones: paymentMilestones || null,
+    paidAmount: paidAmount ? String(paidAmount) : "0",
+    documentPath: documentPath || null,
   }).returning();
   res.status(201).json(row);
 });
 
-router.patch("/contractors/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.patch("/contractors/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
-  const { fullName, type, specialization, phone, email, inn, contractNumber, contractAmount, currency, status, rating, notes } = req.body;
+  const { fullName, type, specialization, phone, email, inn, contractNumber, contractAmount, currency, status, rating, notes, okpo, bic, stageId, paymentMilestones, paidAmount, documentPath } = req.body;
   const [row] = await db.update(constructionContractorsTable)
     .set({ fullName, type, specialization, phone, email, inn, contractNumber,
       contractAmount: contractAmount ? String(contractAmount) : null, currency, status,
-      rating: rating ? parseInt(rating) : null, notes })
-    .where(and(eq(constructionContractorsTable.id, id), eq(constructionContractorsTable.companyId, req.companyId!)))
+      rating: rating ? parseInt(rating) : null, notes,
+      okpo: okpo || null, bic: bic || null,
+      stageId: stageId ? parseInt(stageId) : null,
+      paymentMilestones: paymentMilestones || null,
+      paidAmount: paidAmount !== undefined ? String(paidAmount) : undefined,
+      documentPath: documentPath || null })
+    .where(and(eq(constructionContractorsTable.id, id), eq(constructionContractorsTable.companyId, req.scopedCompanyId!)))
     .returning();
   res.json(row);
 });
 
-router.delete("/contractors/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.delete("/contractors/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
-  await db.delete(constructionContractorsTable).where(and(eq(constructionContractorsTable.id, id), eq(constructionContractorsTable.companyId, req.companyId!)));
+  await db.delete(constructionContractorsTable).where(and(eq(constructionContractorsTable.id, id), eq(constructionContractorsTable.companyId, req.scopedCompanyId!)));
   res.json({ ok: true });
 });
 
@@ -467,8 +484,8 @@ async function ensureDefaultContractorSpecializations(companyId: number): Promis
   );
 }
 
-router.get("/contractors/specializations", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const companyId = req.companyId!;
+router.get("/contractors/specializations", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
   await ensureDefaultContractorSpecializations(companyId);
   const rows = await db.select()
     .from(constructionContractorSpecializationsTable)
@@ -477,13 +494,13 @@ router.get("/contractors/specializations", requireAuth, async (req: Authenticate
   res.json(rows);
 });
 
-router.post("/contractors/specializations", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/contractors/specializations", async (req: AuthenticatedRequest, res): Promise<void> => {
   const name = String(req.body.name || "").trim();
   if (!name) {
     res.status(400).json({ error: "Укажите название специализации" });
     return;
   }
-  const companyId = req.companyId!;
+  const companyId = req.scopedCompanyId!;
   const existing = await db.select()
     .from(constructionContractorSpecializationsTable)
     .where(and(
@@ -506,17 +523,17 @@ router.post("/contractors/specializations", requireAuth, async (req: Authenticat
   res.status(201).json(row);
 });
 
-router.delete("/contractors/specializations/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.delete("/contractors/specializations/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
   await db.delete(constructionContractorSpecializationsTable)
     .where(and(
       eq(constructionContractorSpecializationsTable.id, id),
-      eq(constructionContractorSpecializationsTable.companyId, req.companyId!),
+      eq(constructionContractorSpecializationsTable.companyId, req.scopedCompanyId!),
     ));
   res.json({ ok: true });
 });
 
-router.post("/projects/:id/contract-template", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/projects/:id/contract-template", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
   const { fileName, dataBase64, label } = req.body;
   if (!fileName || !dataBase64) {
@@ -542,13 +559,13 @@ router.post("/projects/:id/contract-template", requireAuth, async (req: Authenti
 
   const [row] = await db.update(constructionProjectsTable)
     .set({ contractTemplateMeta: meta })
-    .where(and(eq(constructionProjectsTable.id, id), eq(constructionProjectsTable.companyId, req.companyId!)))
+    .where(and(eq(constructionProjectsTable.id, id), eq(constructionProjectsTable.companyId, req.scopedCompanyId!)))
     .returning();
   if (!row) {
     res.status(404).json({ error: "Проект не найден" });
     return;
   }
-  cache.deletePattern(`projects:${req.companyId!}:*`);
+  cache.deletePattern(`projects:${req.scopedCompanyId!}:*`);
   cache.delete(cacheKeys.project(id));
   res.json({
     ok: true,
@@ -560,48 +577,48 @@ router.post("/projects/:id/contract-template", requireAuth, async (req: Authenti
   });
 });
 
-router.delete("/projects/:id/contract-template", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.delete("/projects/:id/contract-template", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
   const [row] = await db.update(constructionProjectsTable)
     .set({ contractTemplateMeta: null })
-    .where(and(eq(constructionProjectsTable.id, id), eq(constructionProjectsTable.companyId, req.companyId!)))
+    .where(and(eq(constructionProjectsTable.id, id), eq(constructionProjectsTable.companyId, req.scopedCompanyId!)))
     .returning();
   if (!row) {
     res.status(404).json({ error: "Проект не найден" });
     return;
   }
-  cache.deletePattern(`projects:${req.companyId!}:*`);
+  cache.deletePattern(`projects:${req.scopedCompanyId!}:*`);
   cache.delete(cacheKeys.project(id));
   res.json({ ok: true });
 });
 
 // ── MATERIALS ─────────────────────────────────────────────────────────────────
 
-router.get("/materials", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/materials", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { projectId } = req.query;
   const rows = await db.select().from(constructionMaterialsTable)
     .where(and(
-      eq(constructionMaterialsTable.companyId, req.companyId!),
+      eq(constructionMaterialsTable.companyId, req.scopedCompanyId!),
       ...(projectId ? [eq(constructionMaterialsTable.projectId, parseInt(projectId as string))] : [])
     ))
     .orderBy(desc(constructionMaterialsTable.createdAt));
   res.json(rows);
 });
 
-router.post("/materials", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/materials", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { projectId, name, category, unit, quantity, unitPrice, currency, supplierId, status, notes } = req.body;
   const qty = parseFloat(quantity || "0");
   const price = parseFloat(unitPrice || "0");
   const total = qty * price;
   const [row] = await db.insert(constructionMaterialsTable).values({
-    companyId: req.companyId!, projectId: projectId || null, name, category, unit: unit || "шт",
+    companyId: req.scopedCompanyId!, projectId: projectId || null, name, category, unit: unit || "шт",
     quantity: String(qty), unitPrice: String(price), totalPrice: String(total),
     currency: currency || "KGS", supplierId: supplierId || null, status: status || "planned", notes,
   }).returning();
   res.status(201).json(row);
 });
 
-router.patch("/materials/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.patch("/materials/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
   const { name, category, unit, quantity, unitPrice, currency, status, deliveredAt, notes } = req.body;
   const qty = parseFloat(quantity || "0");
@@ -609,34 +626,34 @@ router.patch("/materials/:id", requireAuth, async (req: AuthenticatedRequest, re
   const [row] = await db.update(constructionMaterialsTable)
     .set({ name, category, unit, quantity: String(qty), unitPrice: String(price),
       totalPrice: String(qty * price), currency, status, deliveredAt: deliveredAt || null, notes })
-    .where(and(eq(constructionMaterialsTable.id, id), eq(constructionMaterialsTable.companyId, req.companyId!)))
+    .where(and(eq(constructionMaterialsTable.id, id), eq(constructionMaterialsTable.companyId, req.scopedCompanyId!)))
     .returning();
   res.json(row);
 });
 
-router.delete("/materials/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.delete("/materials/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
-  await db.delete(constructionMaterialsTable).where(and(eq(constructionMaterialsTable.id, id), eq(constructionMaterialsTable.companyId, req.companyId!)));
+  await db.delete(constructionMaterialsTable).where(and(eq(constructionMaterialsTable.id, id), eq(constructionMaterialsTable.companyId, req.scopedCompanyId!)));
   res.json({ ok: true });
 });
 
 // ── BUDGET ────────────────────────────────────────────────────────────────────
 
-router.get("/budget", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/budget", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { projectId } = req.query;
   const rows = await db.select().from(constructionBudgetItemsTable)
     .where(and(
-      eq(constructionBudgetItemsTable.companyId, req.companyId!),
+      eq(constructionBudgetItemsTable.companyId, req.scopedCompanyId!),
       ...(projectId ? [eq(constructionBudgetItemsTable.projectId, parseInt(projectId as string))] : [])
     ))
     .orderBy(constructionBudgetItemsTable.category, constructionBudgetItemsTable.createdAt);
   res.json(rows);
 });
 
-router.post("/budget", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/budget", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { projectId, stageId, category, name, plannedAmount, currency, exchangeRateSource, exchangeRate, notes } = req.body;
   const [row] = await db.insert(constructionBudgetItemsTable).values({
-    companyId: req.companyId!, projectId, stageId: stageId || null,
+    companyId: req.scopedCompanyId!, projectId, stageId: stageId || null,
     category, name, plannedAmount: String(plannedAmount || 0),
     currency: currency || "KGS", exchangeRateSource: exchangeRateSource || "nbkr",
     exchangeRate: String(exchangeRate || 1), notes,
@@ -644,27 +661,27 @@ router.post("/budget", requireAuth, async (req: AuthenticatedRequest, res): Prom
   res.status(201).json(row);
 });
 
-router.patch("/budget/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.patch("/budget/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
   const { category, name, plannedAmount, actualAmount, currency, exchangeRateSource, exchangeRate, notes } = req.body;
   const [row] = await db.update(constructionBudgetItemsTable)
     .set({ category, name, plannedAmount: String(plannedAmount || 0),
       actualAmount: actualAmount ? String(actualAmount) : undefined,
       currency, exchangeRateSource, exchangeRate: String(exchangeRate || 1), notes })
-    .where(and(eq(constructionBudgetItemsTable.id, id), eq(constructionBudgetItemsTable.companyId, req.companyId!)))
+    .where(and(eq(constructionBudgetItemsTable.id, id), eq(constructionBudgetItemsTable.companyId, req.scopedCompanyId!)))
     .returning();
   res.json(row);
 });
 
-router.delete("/budget/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.delete("/budget/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
-  await db.delete(constructionBudgetItemsTable).where(and(eq(constructionBudgetItemsTable.id, id), eq(constructionBudgetItemsTable.companyId, req.companyId!)));
+  await db.delete(constructionBudgetItemsTable).where(and(eq(constructionBudgetItemsTable.id, id), eq(constructionBudgetItemsTable.companyId, req.scopedCompanyId!)));
   res.json({ ok: true });
 });
 
 // ── EXPENSES ──────────────────────────────────────────────────────────────────
 
-router.get("/expenses", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/expenses", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { projectId } = req.query;
   const rows = await db.select({
     id: constructionExpensesTable.id,
@@ -691,20 +708,20 @@ router.get("/expenses", requireAuth, async (req: AuthenticatedRequest, res): Pro
     .leftJoin(constructionContractorsTable, eq(constructionExpensesTable.contractorId, constructionContractorsTable.id))
     .leftJoin(constructionProjectsTable, eq(constructionExpensesTable.projectId, constructionProjectsTable.id))
     .where(and(
-      eq(constructionExpensesTable.companyId, req.companyId!),
+      eq(constructionExpensesTable.companyId, req.scopedCompanyId!),
       ...(projectId ? [eq(constructionExpensesTable.projectId, parseInt(projectId as string))] : [])
     ))
     .orderBy(desc(constructionExpensesTable.date));
   res.json(rows);
 });
 
-router.post("/expenses", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/expenses", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { projectId, stageId, budgetItemId, category, description, amount, currency, exchangeRateSource, exchangeRate, contractorId, date, paymentMethod, notes } = req.body;
   const amt = parseFloat(amount || "0");
   const rate = parseFloat(exchangeRate || "1");
   const amtKgs = currency === "KGS" ? amt : amt * rate;
   const [row] = await db.insert(constructionExpensesTable).values({
-    companyId: req.companyId!, projectId, stageId: stageId || null,
+    companyId: req.scopedCompanyId!, projectId, stageId: stageId || null,
     budgetItemId: budgetItemId || null, category, description,
     amount: String(amt), currency: currency || "KGS",
     exchangeRateSource: exchangeRateSource || "nbkr",
@@ -717,31 +734,31 @@ router.post("/expenses", requireAuth, async (req: AuthenticatedRequest, res): Pr
   res.status(201).json(row);
 });
 
-router.delete("/expenses/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.delete("/expenses/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
-  await db.delete(constructionExpensesTable).where(and(eq(constructionExpensesTable.id, id), eq(constructionExpensesTable.companyId, req.companyId!)));
+  await db.delete(constructionExpensesTable).where(and(eq(constructionExpensesTable.id, id), eq(constructionExpensesTable.companyId, req.scopedCompanyId!)));
   res.json({ ok: true });
 });
 
 // ── CHESS UNITS ───────────────────────────────────────────────────────────────
 
-router.get("/units", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/units", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { projectId } = req.query;
   const rows = await db.select().from(constructionUnitsTable)
     .where(and(
-      eq(constructionUnitsTable.companyId, req.companyId!),
+      eq(constructionUnitsTable.companyId, req.scopedCompanyId!),
       ...(projectId ? [eq(constructionUnitsTable.projectId, parseInt(projectId as string))] : [])
     ))
     .orderBy(constructionUnitsTable.floor, constructionUnitsTable.unitNumber);
   res.json(rows);
 });
 
-router.post("/units", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/units", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { projectId, unitNumber, floor, block, unitType, roomCount, area, pricePerSqm, currency, status, notes } = req.body;
   const a = parseFloat(area || "0");
   const pps = parseFloat(pricePerSqm || "0");
   const [row] = await db.insert(constructionUnitsTable).values({
-    companyId: req.companyId!, projectId, unitNumber, floor: floor ? parseInt(floor) : null,
+    companyId: req.scopedCompanyId!, projectId, unitNumber, floor: floor ? parseInt(floor) : null,
     block, unitType: unitType || "apartment", roomCount: roomCount ? parseInt(roomCount) : null,
     area: a > 0 ? String(a) : null, pricePerSqm: pps > 0 ? String(pps) : null,
     totalPrice: a > 0 && pps > 0 ? String(a * pps) : null,
@@ -750,7 +767,7 @@ router.post("/units", requireAuth, async (req: AuthenticatedRequest, res): Promi
   res.status(201).json(row);
 });
 
-router.patch("/units/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.patch("/units/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
   const { unitNumber, floor, block, unitType, roomCount, area, pricePerSqm, currency, status, buyerId, contractDate, notes } = req.body;
   const a = parseFloat(area || "0");
@@ -763,12 +780,12 @@ router.patch("/units/:id", requireAuth, async (req: AuthenticatedRequest, res): 
       totalPrice: a > 0 && pps > 0 ? String(a * pps) : null,
       currency, status, buyerId: buyerId || null, contractDate: contractDate || null, notes,
     })
-    .where(and(eq(constructionUnitsTable.id, id), eq(constructionUnitsTable.companyId, req.companyId!)))
+    .where(and(eq(constructionUnitsTable.id, id), eq(constructionUnitsTable.companyId, req.scopedCompanyId!)))
     .returning();
   res.json(row);
 });
 
-router.post("/units/bulk", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/units/bulk", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { projectId, floors, unitsPerFloor, block, unitType, area, pricePerSqm, currency } = req.body;
   const a = parseFloat(area || "0");
   const pps = parseFloat(pricePerSqm || "0");
@@ -777,7 +794,7 @@ router.post("/units/bulk", requireAuth, async (req: AuthenticatedRequest, res): 
     for (let u = 1; u <= parseInt(unitsPerFloor); u++) {
       const unitNum = `${f}${String(u).padStart(2, "0")}`;
       values.push({
-        companyId: req.companyId!, projectId, unitNumber: unitNum,
+        companyId: req.scopedCompanyId!, projectId, unitNumber: unitNum,
         floor: f, block: block || null, unitType: unitType || "apartment",
         area: a > 0 ? String(a) : null,
         pricePerSqm: pps > 0 ? String(pps) : null,
@@ -791,13 +808,13 @@ router.post("/units/bulk", requireAuth, async (req: AuthenticatedRequest, res): 
 });
 
 /** Квартиры + активный договор (покупатель, оплачено, остаток) для шахматки */
-router.get("/units/overview", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/units/overview", async (req: AuthenticatedRequest, res): Promise<void> => {
   const projectId = parseInt(String(req.query.projectId || ""), 10);
   if (!projectId) {
     res.status(400).json({ error: "projectId обязателен" });
     return;
   }
-  const companyId = req.companyId!;
+  const companyId = req.scopedCompanyId!;
 
   const [units, contracts] = await Promise.all([
     db.select().from(constructionUnitsTable).where(
@@ -846,8 +863,8 @@ router.get("/units/overview", requireAuth, async (req: AuthenticatedRequest, res
 });
 
 /** Импорт квартир из Excel (JSON-строки) */
-router.post("/units/import", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const companyId = req.companyId!;
+router.post("/units/import", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
   const projectId = parseInt(String(req.body.projectId || ""), 10);
   const rows: Record<string, unknown>[] = Array.isArray(req.body.rows) ? req.body.rows : [];
 
@@ -939,7 +956,7 @@ router.post("/units/import", requireAuth, async (req: AuthenticatedRequest, res)
 
 // ── CURRENCY RATES ────────────────────────────────────────────────────────────
 
-router.get("/currency-rates", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/currency-rates", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { date } = req.query;
   const today = (date as string) || new Date().toISOString().split("T")[0];
   const rows = await db.select().from(currencyRatesTable)
@@ -948,7 +965,7 @@ router.get("/currency-rates", requireAuth, async (req: AuthenticatedRequest, res
   res.json(rows);
 });
 
-router.post("/currency-rates", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/currency-rates", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { date, currencyCode, nbkrRate, optimaRate, rsbRate, bakaiRate, dobankRate, mBankRate } = req.body;
   const today = date || new Date().toISOString().split("T")[0];
   // Upsert: delete existing for same date+currency, then insert
@@ -969,11 +986,11 @@ router.post("/currency-rates", requireAuth, async (req: AuthenticatedRequest, re
 
 // ── PROJECT COST ANALYSIS ─────────────────────────────────────────────────────
 
-router.get("/projects/:id/cost-analysis", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/projects/:id/cost-analysis", async (req: AuthenticatedRequest, res): Promise<void> => {
   const projectId = parseInt(req.params.id as string);
 
   const [project] = await db.select().from(constructionProjectsTable)
-    .where(and(eq(constructionProjectsTable.id, projectId), eq(constructionProjectsTable.companyId, req.companyId!)));
+    .where(and(eq(constructionProjectsTable.id, projectId), eq(constructionProjectsTable.companyId, req.scopedCompanyId!)));
 
   if (!project) {
     res.status(404).json({ error: "Project not found" });
@@ -982,11 +999,11 @@ router.get("/projects/:id/cost-analysis", requireAuth, async (req: Authenticated
 
   // Get all expenses for this project
   const expenses = await db.select().from(constructionExpensesTable)
-    .where(and(eq(constructionExpensesTable.projectId, projectId), eq(constructionExpensesTable.companyId, req.companyId!)));
+    .where(and(eq(constructionExpensesTable.projectId, projectId), eq(constructionExpensesTable.companyId, req.scopedCompanyId!)));
 
   // Get all units for this project
   const units = await db.select().from(constructionUnitsTable)
-    .where(and(eq(constructionUnitsTable.projectId, projectId), eq(constructionUnitsTable.companyId, req.companyId!)));
+    .where(and(eq(constructionUnitsTable.projectId, projectId), eq(constructionUnitsTable.companyId, req.scopedCompanyId!)));
 
   // Calculate totals
   const totalArea = parseFloat(project.totalArea || "0");
@@ -1052,13 +1069,13 @@ router.get("/projects/:id/cost-analysis", requireAuth, async (req: Authenticated
 
 // ── UNIT STATUSES (шахматка) ───────────────────────────────────────────────────
 
-router.get("/unit-statuses", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const rows = await ensureUnitStatuses(req.companyId!);
+router.get("/unit-statuses", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const rows = await ensureUnitStatuses(req.scopedCompanyId!);
   res.json(rows);
 });
 
-router.post("/unit-statuses", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const companyId = req.companyId!;
+router.post("/unit-statuses", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
   const label = String(req.body.label || "").trim();
   if (!label) {
     res.status(400).json({ error: "Укажите название статуса" });
@@ -1104,8 +1121,8 @@ router.post("/unit-statuses", requireAuth, async (req: AuthenticatedRequest, res
   res.status(201).json(row);
 });
 
-router.patch("/unit-statuses/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const companyId = req.companyId!;
+router.patch("/unit-statuses/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
   const id = parseInt(String(req.params.id), 10);
   const [current] = await db.select().from(constructionUnitStatusesTable).where(
     and(eq(constructionUnitStatusesTable.id, id), eq(constructionUnitStatusesTable.companyId, companyId)),
@@ -1149,8 +1166,8 @@ router.patch("/unit-statuses/:id", requireAuth, async (req: AuthenticatedRequest
   res.json(row);
 });
 
-router.delete("/unit-statuses/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const companyId = req.companyId!;
+router.delete("/unit-statuses/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
   const id = parseInt(String(req.params.id), 10);
   const [current] = await db.select().from(constructionUnitStatusesTable).where(
     and(eq(constructionUnitStatusesTable.id, id), eq(constructionUnitStatusesTable.companyId, companyId)),
@@ -1183,14 +1200,14 @@ router.delete("/unit-statuses/:id", requireAuth, async (req: AuthenticatedReques
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
 
-router.get("/dashboard", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/dashboard", async (req: AuthenticatedRequest, res): Promise<void> => {
   const [projects, stages, tasks, expenses, budget, units] = await Promise.all([
-    db.select().from(constructionProjectsTable).where(eq(constructionProjectsTable.companyId, req.companyId!)),
-    db.select().from(constructionStagesTable).where(eq(constructionStagesTable.companyId, req.companyId!)),
-    db.select().from(constructionTasksTable).where(eq(constructionTasksTable.companyId, req.companyId!)),
-    db.select().from(constructionExpensesTable).where(eq(constructionExpensesTable.companyId, req.companyId!)),
-    db.select().from(constructionBudgetItemsTable).where(eq(constructionBudgetItemsTable.companyId, req.companyId!)),
-    db.select().from(constructionUnitsTable).where(eq(constructionUnitsTable.companyId, req.companyId!)),
+    db.select().from(constructionProjectsTable).where(eq(constructionProjectsTable.companyId, req.scopedCompanyId!)),
+    db.select().from(constructionStagesTable).where(eq(constructionStagesTable.companyId, req.scopedCompanyId!)),
+    db.select().from(constructionTasksTable).where(eq(constructionTasksTable.companyId, req.scopedCompanyId!)),
+    db.select().from(constructionExpensesTable).where(eq(constructionExpensesTable.companyId, req.scopedCompanyId!)),
+    db.select().from(constructionBudgetItemsTable).where(eq(constructionBudgetItemsTable.companyId, req.scopedCompanyId!)),
+    db.select().from(constructionUnitsTable).where(eq(constructionUnitsTable.companyId, req.scopedCompanyId!)),
   ]);
 
   const totalBudget = budget.reduce((s, b) => s + parseFloat(b.plannedAmount), 0);

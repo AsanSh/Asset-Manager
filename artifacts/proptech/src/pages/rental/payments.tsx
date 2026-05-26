@@ -1,14 +1,34 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+	getListAccrualsQueryKey,
+	getListLeaseContractsQueryKey,
+	getListPaymentsQueryKey,
+	getListRentalPropertiesQueryKey,
+	getListTenantsQueryKey,
+	getRentalAccountsQueryKey,
+	getDistributionsQueryKey,
+	getRentalPaymentsAllQueryKey,
+	getRentalExpensesAllQueryKey,
+	getAccrualsOpenQueryKey,
+} from "@/lib/rental-query-keys";
+import {
 	AlertCircle,
+	Banknote,
 	Building2,
 	ChevronDown,
 	CreditCard,
 	Plus,
+	Receipt,
+	TrendingUp,
 	Undo2,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { defaultPeriod, inPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
+import { KpiCard, KpiRow } from "@/components/kpi-card";
+import { RentalExcelTable, type RentalExcelColumn } from "@/components/rental/rental-excel-table";
+import { RentalViewModeToggle } from "@/components/rental/rental-view-mode-toggle";
+import { useRentalViewMode } from "@/hooks/use-rental-view-mode";
+import { useSortable } from "@/lib/use-sortable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,6 +56,8 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+import { getApiErrorMessage } from "@/lib/api-error";
+import { RentalQueryState } from "@/components/rental/rental-query-state";
 import { api } from "@/lib/api";
 import { getApiBase } from "@/lib/api-base";
 import { cn } from "@/lib/utils";
@@ -89,12 +111,12 @@ function PaymentDialog({ open, onClose }: PaymentDialogProps) {
 	const { toast } = useToast();
 
 	const { data: leases } = useQuery<any[]>({
-		queryKey: ["leases"],
+		queryKey: getListLeaseContractsQueryKey(),
 		queryFn: () => api.get("/rental/contracts").then((r) => r.data),
 	});
 
 	const { data: accounts = [] } = useQuery<any[]>({
-		queryKey: ["rental-accounts"],
+		queryKey: getRentalAccountsQueryKey(),
 		queryFn: () => api.get("/rental/accounts").then((r) => r.data),
 	});
 
@@ -116,9 +138,19 @@ function PaymentDialog({ open, onClose }: PaymentDialogProps) {
 	>({});
 	const [loading, setLoading] = useState(false);
 
+	const accountsArray = Array.isArray(accounts) ? accounts : [];
+
+	useEffect(() => {
+		if (!open) return;
+		setFormData((prev) => ({
+			...prev,
+			accountId: prev.accountId || (accountsArray[0] ? String(accountsArray[0].id) : ""),
+		}));
+	}, [open, accountsArray]);
+
 	// Load open accruals for selected contract
 	const { data: openAccruals = [] } = useQuery<OpenAccrual[]>({
-		queryKey: ["accruals-open", formData.leaseContractId],
+		queryKey: getAccrualsOpenQueryKey(formData.leaseContractId),
 		queryFn: async () => {
 			if (!formData.leaseContractId) return [];
 			const all = await api.get("/rental/accruals").then((r) => r.data);
@@ -157,7 +189,7 @@ function PaymentDialog({ open, onClose }: PaymentDialogProps) {
 			toast({ title: "Заполните обязательные поля", variant: "destructive" });
 			return;
 		}
-		if (!formData.accountId || formData.accountId === "none") {
+		if (!formData.accountId) {
 			toast({ title: "Выберите расчётный счёт", description: "Без счёта зарегистрировать платёж невозможно", variant: "destructive" });
 			return;
 		}
@@ -169,7 +201,7 @@ function PaymentDialog({ open, onClose }: PaymentDialogProps) {
 				currency: formData.currency,
 				paymentDate: formData.paymentDate,
 				paymentMethod: formData.paymentMethod,
-				accountId: formData.accountId ? parseInt(formData.accountId, 10) : null,
+				accountId: parseInt(formData.accountId, 10),
 				note: formData.note || null,
 			};
 
@@ -200,9 +232,9 @@ function PaymentDialog({ open, onClose }: PaymentDialogProps) {
 				title: "Платёж зарегистрирован",
 				description: `${fmtCurrency(parseFloat(formData.amount))} · распределено по ${allocCount} начислениям${unallocAmt > 0 ? ` · нераспред.: ${fmtCurrency(unallocAmt)}` : ""}`,
 			});
-			queryClient.invalidateQueries({ queryKey: ["payments"] });
-			queryClient.invalidateQueries({ queryKey: ["accruals"] });
-			queryClient.invalidateQueries({ queryKey: ["rental-accounts"] });
+			queryClient.invalidateQueries({ queryKey: getListPaymentsQueryKey() });
+			queryClient.invalidateQueries({ queryKey: getListAccrualsQueryKey() });
+			queryClient.invalidateQueries({ queryKey: getRentalAccountsQueryKey() });
 			onClose();
 		} catch (err: any) {
 			toast({
@@ -346,17 +378,17 @@ function PaymentDialog({ open, onClose }: PaymentDialogProps) {
 					<div>
 						<Label>Расчётный счёт *</Label>
 						<Select
-							value={formData.accountId || "none"}
+							value={formData.accountId}
 							onValueChange={(v) =>
-								setFormData({ ...formData, accountId: v === "none" ? "" : v })
+								setFormData({ ...formData, accountId: v })
 							}
 						>
-							<SelectTrigger className={`mt-1 ${!formData.accountId || formData.accountId === "none" ? "border-rose-300" : ""}`}>
+							<SelectTrigger className={`mt-1 ${!formData.accountId ? "border-rose-300" : ""}`}>
 								<SelectValue placeholder="Выберите счёт *" />
 							</SelectTrigger>
 							<SelectContent>
 								{(accounts as any[]).length === 0 ? (
-									<SelectItem value="none" disabled>Нет счетов — создайте в Расчётных счетах</SelectItem>
+									<SelectItem value="_empty" disabled>Нет счетов — создайте в Расчётных счетах</SelectItem>
 								) : (
 									(accounts as any[]).map((a: any) => (
 										<SelectItem key={a.id} value={String(a.id)}>
@@ -489,7 +521,9 @@ function PaymentDialog({ open, onClose }: PaymentDialogProps) {
 						<Button
 							type="submit"
 							disabled={
-								loading || (allocationMode === "manual" && unallocated < 0)
+								loading ||
+								!formData.accountId ||
+								(allocationMode === "manual" && unallocated < 0)
 							}
 						>
 							{loading ? "Сохранение..." : "Зарегистрировать"}
@@ -507,6 +541,7 @@ export default function Payments() {
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod());
+	const [viewMode, setViewMode] = useRentalViewMode("payments");
 
 	const handleCancel = async (payment: any) => {
 		if (!confirm(`Отменить платёж ${fmtCurrency(payment.amount)} от ${formatDate(payment.paymentDate)}? Начисление будет восстановлено.`)) return;
@@ -517,9 +552,9 @@ export default function Payments() {
 			});
 			if (!res.ok) throw new Error("Ошибка отмены платежа");
 			toast({ title: "Платёж отменён", description: "Начисление восстановлено" });
-			qc.invalidateQueries({ queryKey: ["payments"] });
-			qc.invalidateQueries({ queryKey: ["accruals"] });
-			qc.invalidateQueries({ queryKey: ["rental-accounts"] });
+			qc.invalidateQueries({ queryKey: getListPaymentsQueryKey() });
+			qc.invalidateQueries({ queryKey: getListAccrualsQueryKey() });
+			qc.invalidateQueries({ queryKey: getRentalAccountsQueryKey() });
 		} catch {
 			toast({ title: "Ошибка", description: "Не удалось отменить платёж", variant: "destructive" });
 		}
@@ -534,13 +569,13 @@ export default function Payments() {
 		});
 	};
 
-	const { data: payments, isLoading } = useQuery<any[]>({
-		queryKey: ["payments"],
+	const { data: payments, isLoading, isError, error, refetch } = useQuery<any[]>({
+		queryKey: getListPaymentsQueryKey(),
 		queryFn: () => api.get("/rental/payments").then((r) => r.data),
 	});
 
 	const { data: leases } = useQuery<any[]>({
-		queryKey: ["leases"],
+		queryKey: getListLeaseContractsQueryKey(),
 		queryFn: () => api.get("/rental/contracts").then((r) => r.data),
 	});
 
@@ -568,6 +603,21 @@ export default function Payments() {
 	);
 
 	// Group payments by project name
+	const enrichedPayments = useMemo(
+		() =>
+			filteredPayments.map((p) => ({
+				...p,
+				projectName: leaseInfo[p.leaseContractId]?.projectName || "Без проекта",
+				contractLabel:
+					leaseInfo[p.leaseContractId]?.label || `Договор #${p.leaseContractId}`,
+			})),
+		[filteredPayments, leaseInfo],
+	);
+	const { sorted: sortedPayments, sortKey, sortDir, toggle } = useSortable(
+		enrichedPayments,
+		"paymentDate",
+	);
+
 	const grouped = useMemo(() => {
 		const map = new Map<string, any[]>();
 		for (const p of filteredPayments) {
@@ -578,42 +628,89 @@ export default function Payments() {
 		return map;
 	}, [filteredPayments, leaseInfo]);
 
+	const paymentColumns: RentalExcelColumn<(typeof enrichedPayments)[number]>[] = useMemo(
+		() => [
+		{ key: "projectName", label: "Объект", width: 140, render: (r) => r.projectName },
+		{ key: "contractLabel", label: "Договор", width: 180, render: (r) => r.contractLabel },
+		{ key: "paymentDate", label: "Дата", width: 100, render: (r) => formatDate(r.paymentDate) },
+		{ key: "amount", label: "Сумма", width: 120, align: "right", render: (r) => fmtCurrency(r.amount) },
+		{
+			key: "paymentMethod", label: "Способ", width: 110,
+			render: (r) => r.paymentMethod ? methodLabels[r.paymentMethod] || r.paymentMethod : "—",
+		},
+		{ key: "note", label: "Примечание", width: 160, sortable: false, render: (r) => r.note || "—" },
+		{
+			key: "actions",
+			label: "",
+			width: 44,
+			align: "center",
+			sortable: false,
+			resizable: false,
+			render: (r) => (
+				<button
+					type="button"
+					title="Отменить платёж"
+					onClick={() => handleCancel(r)}
+					className="inline-flex items-center justify-center w-7 h-7 rounded-md text-gray-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+				>
+					<Undo2 className="w-3.5 h-3.5" />
+				</button>
+			),
+		},
+	],
+		[handleCancel],
+	);
+
 	return (
-		<div className="space-y-5">
-			<div className="flex justify-between items-start">
+		<div className="space-y-3">
+			<KpiRow>
+				<KpiCard variant="strip" label="Платежей" value={filteredPayments.length} sub="за период" icon={Receipt} color="blue" loading={isLoading} />
+				<KpiCard variant="strip" label="Получено" value={fmtCurrency(totalPaid)} sub="за период" icon={TrendingUp} color="green" loading={isLoading} />
+				<KpiCard variant="strip" label="Объектов" value={new Set(enrichedPayments.map((p) => p.projectName)).size} sub="с платежами" icon={Building2} color="purple" loading={isLoading} />
+				<KpiCard variant="strip" label="Средний платёж" value={filteredPayments.length ? fmtCurrency(totalPaid / filteredPayments.length) : "—"} sub="за период" icon={Banknote} color="yellow" loading={isLoading} />
+			</KpiRow>
+
+			<div className="flex justify-between items-start flex-wrap gap-3">
 				<div>
 					<h1 className="text-2xl font-bold text-gray-900">Платежи</h1>
 					<p className="text-sm text-gray-500 mt-1">
 						История поступивших платежей
 					</p>
 				</div>
-				<div className="flex items-center gap-4">
-					{totalPaid > 0 && (
-						<div className="text-right">
-							<p className="text-xs text-gray-400">Всего получено</p>
-							<p className="text-lg font-bold text-emerald-600">
-								{fmtCurrency(totalPaid)}
-							</p>
-						</div>
-					)}
+				<div className="flex items-center gap-2 flex-wrap">
+					<RentalViewModeToggle mode={viewMode} onChange={setViewMode} />
 					<Button onClick={() => setDialogOpen(true)}>
 						<Plus className="w-4 h-4 mr-2" /> Зарегистрировать
 					</Button>
 				</div>
 			</div>
-			<PeriodPicker value={period} onChange={setPeriod} />
 
-			{isLoading ? (
-				<div className="bg-white rounded-xl border border-gray-200 p-6 space-y-3">
-					{Array.from({ length: 3 }).map((_, i) => (
-						<Skeleton key={i} className="h-10 w-full" />
-					))}
-				</div>
-			) : !filteredPayments.length ? (
+			<div className="flex items-center justify-between flex-wrap gap-2">
+				<PeriodPicker value={period} onChange={setPeriod} />
+				<p className="text-xs text-gray-500">{sortedPayments.length} записей</p>
+			</div>
+
+			<RentalQueryState isLoading={isLoading} isError={isError} error={error} onRetry={() => refetch()}>
+			{!filteredPayments.length ? (
 				<div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">
 					<CreditCard className="w-8 h-8 mx-auto mb-2 opacity-30" />
 					<p className="text-sm">Платежи не найдены</p>
 				</div>
+			) : viewMode === "report" ? (
+				<RentalExcelTable
+					columns={paymentColumns}
+					rows={sortedPayments}
+					sortKey={sortKey}
+					sortDir={sortDir}
+					onSort={toggle}
+					emptyMessage="Платежи не найдены"
+					rowKey={(r) => r.id}
+					footer={[
+						{ colSpan: 3, content: `Итого: ${filteredPayments.length}` },
+						{ content: fmtCurrency(totalPaid), align: "right" },
+						{ colSpan: 3, content: "" },
+					]}
+				/>
 			) : (
 				<div className="space-y-3">
 					{Array.from(grouped.entries()).map(([projectName, rows]) => {
@@ -710,6 +807,7 @@ export default function Payments() {
 					})}
 				</div>
 			)}
+			</RentalQueryState>
 
 			<PaymentDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
 		</div>

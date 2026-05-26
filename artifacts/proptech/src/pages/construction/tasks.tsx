@@ -7,7 +7,7 @@ import {
 	Plus,
 	Trash2,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { defaultPeriod, inPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -79,6 +79,7 @@ interface Task {
 	description?: string;
 	status: string;
 	priority: string;
+	assignedTo?: number | null;
 	dueDate?: string;
 	estimatedHours?: string;
 	actualHours?: string;
@@ -89,15 +90,22 @@ interface Project {
 	id: number;
 	name: string;
 }
+interface User {
+	id: number;
+	fullName: string;
+	email: string;
+}
 
 function TaskDialog({
 	task,
 	projects,
+	users,
 	onClose,
 	onSaved,
 }: {
 	task: Task | null | "new";
 	projects: Project[];
+	users: User[];
 	onClose: () => void;
 	onSaved: () => void;
 }) {
@@ -112,9 +120,21 @@ function TaskDialog({
 		priority: init?.priority || "medium",
 		dueDate: init?.dueDate || "",
 		estimatedHours: init?.estimatedHours || "",
+		assignedTo: String(init?.assignedTo || ""),
 	});
 	const [loading, setLoading] = useState(false);
 	const set = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
+
+	// Re-initialize when task prop changes
+	useEffect(() => {
+		if (!task) return;
+		if (task === "new") {
+			setForm({ projectId: String(projects[0]?.id || ""), title: "", description: "", status: "todo", priority: "medium", dueDate: "", estimatedHours: "", assignedTo: "" });
+		} else {
+			const t = task as Task;
+			setForm({ projectId: String(t.projectId), title: t.title, description: t.description || "", status: t.status, priority: t.priority, dueDate: t.dueDate || "", estimatedHours: t.estimatedHours || "", assignedTo: String(t.assignedTo || "") });
+		}
+	}, [task]);
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -130,7 +150,11 @@ function TaskDialog({
 			await fetch(url, {
 				method: isEdit ? "PATCH" : "POST",
 				headers: ah(),
-				body: JSON.stringify({ ...form, projectId: parseInt(form.projectId, 10) }),
+				body: JSON.stringify({
+					...form,
+					projectId: parseInt(form.projectId, 10),
+					assignedTo: form.assignedTo ? parseInt(form.assignedTo, 10) : null,
+				}),
 			});
 			toast({ title: isEdit ? "Задача обновлена" : "Задача добавлена" });
 			onSaved();
@@ -242,6 +266,27 @@ function TaskDialog({
 							/>
 						</div>
 					</div>
+					{users.length > 0 && (
+						<div>
+							<Label>Ответственный</Label>
+							<Select
+								value={form.assignedTo || "none"}
+								onValueChange={(v) => set("assignedTo", v === "none" ? "" : v)}
+							>
+								<SelectTrigger className="mt-1">
+									<SelectValue placeholder="Не назначен" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="none">— Не назначен —</SelectItem>
+									{users.map((u) => (
+										<SelectItem key={u.id} value={String(u.id)}>
+											{u.fullName}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+					)}
 					<div className="flex justify-end gap-2 pt-1">
 						<Button
 							type="button"
@@ -275,6 +320,10 @@ export default function ConstructionTasks() {
 	const { data: projects = [] } = useQuery<Project[]>({
 		queryKey: ["construction-projects"],
 		queryFn: () => api.get("/construction/projects/all").then((r) => r.data),
+	});
+	const { data: users = [] } = useQuery<User[]>({
+		queryKey: ["users"],
+		queryFn: () => api.get("/users").then((r) => Array.isArray(r.data) ? r.data : r.data?.data ?? []),
 	});
 	const { data: tasks = [], isLoading } = useQuery<Task[]>({
 		queryKey: ["construction-tasks", projectFilter],
@@ -315,6 +364,7 @@ export default function ConstructionTasks() {
 		tasks: filteredTasks.filter((t) => t.status === s.value),
 	}));
 	const projectMap = Object.fromEntries(projects.map((p) => [p.id, p.name]));
+	const userMap = Object.fromEntries(users.map((u) => [u.id, u.fullName]));
 
 	return (
 		<div className="space-y-6">
@@ -388,9 +438,14 @@ export default function ConstructionTasks() {
 													<Trash2 className="w-3 h-3" />
 												</button>
 											</div>
-											<p className="text-[10px] text-gray-400 mb-2">
+											<p className="text-[10px] text-gray-400 mb-1">
 												{projectMap[t.projectId]}
 											</p>
+											{t.assignedTo && userMap[t.assignedTo] && (
+												<p className="text-[10px] text-blue-500 mb-1">
+													👤 {userMap[t.assignedTo]}
+												</p>
+											)}
 											<div className="flex items-center justify-between">
 												<Badge
 													className={`text-[10px] px-1.5 py-0 ${PRIORITY_COLORS[t.priority] || ""}`}
@@ -449,6 +504,7 @@ export default function ConstructionTasks() {
 			<TaskDialog
 				task={dialog}
 				projects={projects}
+				users={users}
 				onClose={() => setDialog(null)}
 				onSaved={() =>
 					qc.invalidateQueries({ queryKey: ["construction-tasks"] })

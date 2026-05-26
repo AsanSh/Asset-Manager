@@ -5,12 +5,15 @@ import {
   counterpartiesTable, accrualsTable, paymentsTable, activityLogTable
 } from "../lib/db";
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
+import { requireTenantCompany } from "../middleware/tenant";
 import { cache, cacheKeys } from "../lib/cache";
 
 const router: ReturnType<typeof Router> = Router();
 
-router.get("/dashboard/summary", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const cid = req.companyId;
+router.use(requireAuth, requireTenantCompany);
+
+router.get("/dashboard/summary", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const cid = req.scopedCompanyId!;
 
   // Try cache first
   const cacheKey = cacheKeys.dashboard(cid!);
@@ -22,20 +25,13 @@ router.get("/dashboard/summary", requireAuth, async (req: AuthenticatedRequest, 
 
   // Все запросы параллельно
   const [allProps, tenants, leaseContracts, contracts, counterparties, accruals] = await Promise.all([
-    cid ? db.select().from(propertiesTable).where(eq(propertiesTable.companyId, cid))
-        : db.select().from(propertiesTable),
-    cid ? db.select({ status: tenantsTable.status }).from(tenantsTable).where(eq(tenantsTable.companyId, cid))
-        : db.select({ status: tenantsTable.status }).from(tenantsTable),
-    cid ? db.select({ status: leaseContractsTable.status }).from(leaseContractsTable).where(eq(leaseContractsTable.companyId, cid))
-        : db.select({ status: leaseContractsTable.status }).from(leaseContractsTable),
-    cid ? db.select({ status: contractsTable.status }).from(contractsTable).where(eq(contractsTable.companyId, cid))
-        : db.select({ status: contractsTable.status }).from(contractsTable),
-    cid ? db.select({ id: counterpartiesTable.id }).from(counterpartiesTable).where(eq(counterpartiesTable.companyId, cid))
-        : db.select({ id: counterpartiesTable.id }).from(counterpartiesTable),
-    cid ? db.select({ period: accrualsTable.period, amount: accrualsTable.amount, paidAmount: accrualsTable.paidAmount, balance: accrualsTable.balance })
-             .from(accrualsTable).where(eq(accrualsTable.companyId, cid))
-        : db.select({ period: accrualsTable.period, amount: accrualsTable.amount, paidAmount: accrualsTable.paidAmount, balance: accrualsTable.balance })
-             .from(accrualsTable),
+    db.select().from(propertiesTable).where(eq(propertiesTable.companyId, cid)),
+    db.select({ status: tenantsTable.status }).from(tenantsTable).where(eq(tenantsTable.companyId, cid)),
+    db.select({ status: leaseContractsTable.status }).from(leaseContractsTable).where(eq(leaseContractsTable.companyId, cid)),
+    db.select({ status: contractsTable.status }).from(contractsTable).where(eq(contractsTable.companyId, cid)),
+    db.select({ id: counterpartiesTable.id }).from(counterpartiesTable).where(eq(counterpartiesTable.companyId, cid)),
+    db.select({ period: accrualsTable.period, amount: accrualsTable.amount, paidAmount: accrualsTable.paidAmount, balance: accrualsTable.balance })
+         .from(accrualsTable).where(eq(accrualsTable.companyId, cid)),
   ]);
 
   const now = new Date();
@@ -63,28 +59,22 @@ router.get("/dashboard/summary", requireAuth, async (req: AuthenticatedRequest, 
   res.json(result);
 });
 
-router.get("/dashboard/activity", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/dashboard/activity", async (req: AuthenticatedRequest, res): Promise<void> => {
   const limit = parseInt((req.query.limit as string) || "20", 10);
-  const cid = req.companyId;
-  const rows = cid
-    ? await db.select().from(activityLogTable).where(eq(activityLogTable.companyId, cid)).orderBy(sql`${activityLogTable.createdAt} desc`).limit(limit)
-    : await db.select().from(activityLogTable).orderBy(sql`${activityLogTable.createdAt} desc`).limit(limit);
+  const cid = req.scopedCompanyId!;
+  const rows = await db.select().from(activityLogTable).where(eq(activityLogTable.companyId, cid)).orderBy(sql`${activityLogTable.createdAt} desc`).limit(limit);
   res.json(rows);
 });
 
-router.get("/dashboard/rental-overview", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const cid = req.companyId;
+router.get("/dashboard/rental-overview", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const cid = req.scopedCompanyId!;
 
   // Параллельно запрашиваем properties, accruals и последние платежи
   const [props, allAccruals, payments] = await Promise.all([
-    cid ? db.select({ rentalStatus: propertiesTable.rentalStatus }).from(propertiesTable).where(eq(propertiesTable.companyId, cid))
-        : db.select({ rentalStatus: propertiesTable.rentalStatus }).from(propertiesTable),
-    cid ? db.select({ leaseContractId: accrualsTable.leaseContractId, balance: accrualsTable.balance })
-             .from(accrualsTable).where(eq(accrualsTable.companyId, cid))
-        : db.select({ leaseContractId: accrualsTable.leaseContractId, balance: accrualsTable.balance })
-             .from(accrualsTable),
-    cid ? db.select().from(paymentsTable).where(eq(paymentsTable.companyId, cid)).orderBy(sql`${paymentsTable.createdAt} desc`).limit(5)
-        : db.select().from(paymentsTable).orderBy(sql`${paymentsTable.createdAt} desc`).limit(5),
+    db.select({ rentalStatus: propertiesTable.rentalStatus }).from(propertiesTable).where(eq(propertiesTable.companyId, cid)),
+    db.select({ leaseContractId: accrualsTable.leaseContractId, balance: accrualsTable.balance })
+         .from(accrualsTable).where(eq(accrualsTable.companyId, cid)),
+    db.select().from(paymentsTable).where(eq(paymentsTable.companyId, cid)).orderBy(sql`${paymentsTable.createdAt} desc`).limit(5),
   ]);
 
   // Статусы объектов

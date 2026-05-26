@@ -9,19 +9,22 @@ import {
   notificationsTable,
 } from "../lib/db";
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
+import { requireTenantCompany } from "../middleware/tenant";
 
 const router: ReturnType<typeof Router> = Router();
+
+router.use(requireAuth, requireTenantCompany);
 
 // ══════════════════════════════════════════════════════════════════════════════
 // BUDGET CATEGORIES
 // ══════════════════════════════════════════════════════════════════════════════
 
 // GET /construction/projects/:projectId/budget - Get full budget structure
-router.get("/projects/:projectId/budget", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/projects/:projectId/budget", async (req: AuthenticatedRequest, res): Promise<void> => {
   const projectId = parseInt(req.params.projectId as string);
 
   const [project] = await db.select().from(constructionProjectsTable)
-    .where(and(eq(constructionProjectsTable.id, projectId), eq(constructionProjectsTable.companyId, req.companyId!)));
+    .where(and(eq(constructionProjectsTable.id, projectId), eq(constructionProjectsTable.companyId, req.scopedCompanyId!)));
 
   if (!project) {
     res.status(404).json({ error: "Project not found" });
@@ -32,7 +35,7 @@ router.get("/projects/:projectId/budget", requireAuth, async (req: Authenticated
   const categories = await db.select().from(constructionBudgetCategoriesTable)
     .where(and(
       eq(constructionBudgetCategoriesTable.projectId, projectId),
-      eq(constructionBudgetCategoriesTable.companyId, req.companyId!)
+      eq(constructionBudgetCategoriesTable.companyId, req.scopedCompanyId!)
     ))
     .orderBy(constructionBudgetCategoriesTable.sortOrder);
 
@@ -40,7 +43,7 @@ router.get("/projects/:projectId/budget", requireAuth, async (req: Authenticated
   const lineItems = await db.select().from(constructionBudgetLineItemsTable)
     .where(and(
       eq(constructionBudgetLineItemsTable.projectId, projectId),
-      eq(constructionBudgetLineItemsTable.companyId, req.companyId!)
+      eq(constructionBudgetLineItemsTable.companyId, req.scopedCompanyId!)
     ));
 
   // Calculate totals
@@ -83,12 +86,12 @@ router.get("/projects/:projectId/budget", requireAuth, async (req: Authenticated
 });
 
 // POST /construction/projects/:projectId/budget/categories - Create category
-router.post("/projects/:projectId/budget/categories", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/projects/:projectId/budget/categories", async (req: AuthenticatedRequest, res): Promise<void> => {
   const projectId = parseInt(req.params.projectId as string);
   const { name, description, plannedAmount } = req.body;
 
   const [category] = await db.insert(constructionBudgetCategoriesTable).values({
-    companyId: req.companyId!,
+    companyId: req.scopedCompanyId!,
     projectId,
     name,
     description: description || null,
@@ -101,7 +104,7 @@ router.post("/projects/:projectId/budget/categories", requireAuth, async (req: A
 });
 
 // PATCH /construction/budget/categories/:id - Update category
-router.patch("/budget/categories/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.patch("/budget/categories/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
   const { name, description, plannedAmount } = req.body;
 
@@ -113,7 +116,7 @@ router.patch("/budget/categories/:id", requireAuth, async (req: AuthenticatedReq
     })
     .where(and(
       eq(constructionBudgetCategoriesTable.id, id),
-      eq(constructionBudgetCategoriesTable.companyId, req.companyId!)
+      eq(constructionBudgetCategoriesTable.companyId, req.scopedCompanyId!)
     ))
     .returning();
 
@@ -126,21 +129,21 @@ router.patch("/budget/categories/:id", requireAuth, async (req: AuthenticatedReq
 });
 
 // DELETE /construction/budget/categories/:id
-router.delete("/budget/categories/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.delete("/budget/categories/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
 
   // Delete line items first
   await db.delete(constructionBudgetLineItemsTable)
     .where(and(
       eq(constructionBudgetLineItemsTable.categoryId, id),
-      eq(constructionBudgetLineItemsTable.companyId, req.companyId!)
+      eq(constructionBudgetLineItemsTable.companyId, req.scopedCompanyId!)
     ));
 
   // Delete category
   await db.delete(constructionBudgetCategoriesTable)
     .where(and(
       eq(constructionBudgetCategoriesTable.id, id),
-      eq(constructionBudgetCategoriesTable.companyId, req.companyId!)
+      eq(constructionBudgetCategoriesTable.companyId, req.scopedCompanyId!)
     ));
 
   res.json({ ok: true });
@@ -151,12 +154,12 @@ router.delete("/budget/categories/:id", requireAuth, async (req: AuthenticatedRe
 // ══════════════════════════════════════════════════════════════════════════════
 
 // POST /construction/projects/:projectId/budget/line-items
-router.post("/projects/:projectId/budget/line-items", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/projects/:projectId/budget/line-items", async (req: AuthenticatedRequest, res): Promise<void> => {
   const projectId = parseInt(req.params.projectId as string);
   const { categoryId, name, unit, quantity, unitPrice, plannedAmount, notes } = req.body;
 
   const [item] = await db.insert(constructionBudgetLineItemsTable).values({
-    companyId: req.companyId!,
+    companyId: req.scopedCompanyId!,
     projectId,
     categoryId,
     name,
@@ -169,13 +172,13 @@ router.post("/projects/:projectId/budget/line-items", requireAuth, async (req: A
   }).returning();
 
   // Update category planned amount
-  await updateCategoryTotals(categoryId, req.companyId!);
+  await updateCategoryTotals(categoryId, req.scopedCompanyId!);
 
   res.status(201).json(item);
 });
 
 // PATCH /construction/budget/line-items/:id
-router.patch("/budget/line-items/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.patch("/budget/line-items/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
   const { name, unit, quantity, unitPrice, plannedAmount, spentAmount, notes } = req.body;
 
@@ -191,7 +194,7 @@ router.patch("/budget/line-items/:id", requireAuth, async (req: AuthenticatedReq
     })
     .where(and(
       eq(constructionBudgetLineItemsTable.id, id),
-      eq(constructionBudgetLineItemsTable.companyId, req.companyId!)
+      eq(constructionBudgetLineItemsTable.companyId, req.scopedCompanyId!)
     ))
     .returning();
 
@@ -201,22 +204,22 @@ router.patch("/budget/line-items/:id", requireAuth, async (req: AuthenticatedReq
   }
 
   // Update category totals
-  await updateCategoryTotals(item.categoryId, req.companyId!);
+  await updateCategoryTotals(item.categoryId, req.scopedCompanyId!);
 
   // Check for budget alerts
-  await checkBudgetAlerts(item.projectId, req.companyId!);
+  await checkBudgetAlerts(item.projectId, req.scopedCompanyId!);
 
   res.json(item);
 });
 
 // DELETE /construction/budget/line-items/:id
-router.delete("/budget/line-items/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.delete("/budget/line-items/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
 
   const [item] = await db.select().from(constructionBudgetLineItemsTable)
     .where(and(
       eq(constructionBudgetLineItemsTable.id, id),
-      eq(constructionBudgetLineItemsTable.companyId, req.companyId!)
+      eq(constructionBudgetLineItemsTable.companyId, req.scopedCompanyId!)
     ));
 
   if (!item) {
@@ -227,11 +230,11 @@ router.delete("/budget/line-items/:id", requireAuth, async (req: AuthenticatedRe
   await db.delete(constructionBudgetLineItemsTable)
     .where(and(
       eq(constructionBudgetLineItemsTable.id, id),
-      eq(constructionBudgetLineItemsTable.companyId, req.companyId!)
+      eq(constructionBudgetLineItemsTable.companyId, req.scopedCompanyId!)
     ));
 
   // Update category totals
-  await updateCategoryTotals(item.categoryId, req.companyId!);
+  await updateCategoryTotals(item.categoryId, req.scopedCompanyId!);
 
   res.json({ ok: true });
 });

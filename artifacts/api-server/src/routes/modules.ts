@@ -2,8 +2,11 @@ import { Router } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, moduleSettingsTable } from "../lib/db";
 import { requireAuth, requireRole, AuthenticatedRequest } from "../middleware/auth";
+import { requireTenantCompany } from "../middleware/tenant";
 
 const router: ReturnType<typeof Router> = Router();
+
+router.use(requireAuth, requireTenantCompany);
 
 const AVAILABLE_MODULES = [
   {
@@ -79,8 +82,8 @@ const AVAILABLE_MODULES = [
 ];
 
 // GET /modules — список модулей с состоянием для компании
-router.get("/modules", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const cid = req.companyId;
+router.get("/modules", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const cid = req.scopedCompanyId!;
   if (!cid) { res.json(AVAILABLE_MODULES.map(m => ({ ...m, isEnabled: false }))); return; }
 
   const settings = await db.select().from(moduleSettingsTable).where(eq(moduleSettingsTable.companyId, cid));
@@ -100,9 +103,9 @@ router.get("/modules", requireAuth, async (req: AuthenticatedRequest, res): Prom
 });
 
 // POST /modules/:key/toggle — включить/выключить модуль
-router.post("/modules/:key/toggle", requireAuth, requireRole("admin", "company_admin"), async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/modules/:key/toggle", requireRole("admin", "company_admin"), async (req: AuthenticatedRequest, res): Promise<void> => {
   const key = req.params.key as string;
-  const cid = req.companyId;
+  const cid = req.scopedCompanyId!;
   if (!cid) { res.status(400).json({ error: "Нет привязки к организации" }); return; }
 
   const module = AVAILABLE_MODULES.find(m => m.key === key);
@@ -131,8 +134,8 @@ router.post("/modules/:key/toggle", requireAuth, requireRole("admin", "company_a
 });
 
 // GET /modules/enabled — список включённых ключей модулей
-router.get("/modules/enabled", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const cid = req.companyId;
+router.get("/modules/enabled", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const cid = req.scopedCompanyId!;
   if (!cid) { res.json(["rental"]); return; }
 
   const settings = await db.select().from(moduleSettingsTable)

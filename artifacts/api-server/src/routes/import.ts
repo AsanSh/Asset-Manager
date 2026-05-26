@@ -2,8 +2,11 @@ import { Router } from "express";
 import { eq, and, SQL } from "drizzle-orm";
 import { db, importJobsTable, counterpartiesTable, propertiesTable, contractsTable } from "../lib/db";
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
+import { requireTenantCompany } from "../middleware/tenant";
 
 const router: ReturnType<typeof Router> = Router();
+
+router.use(requireAuth, requireTenantCompany);
 
 function validateCounterparty(row: Record<string, unknown>, index: number) {
   const errors: Array<{ row: number; field: string | null; message: string }> = [];
@@ -29,25 +32,25 @@ function validateContract(row: Record<string, unknown>, index: number) {
   return errors;
 }
 
-router.get("/import/jobs", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/import/jobs", async (req: AuthenticatedRequest, res): Promise<void> => {
   const conditions: SQL[] = [];
-  if (req.companyId) conditions.push(eq(importJobsTable.companyId, req.companyId));
+  conditions.push(eq(importJobsTable.companyId, req.scopedCompanyId!));
   const rows = await db.select().from(importJobsTable)
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(importJobsTable.createdAt);
   res.json(rows);
 });
 
-router.get("/import/jobs/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/import/jobs/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
   const conditions: SQL[] = [eq(importJobsTable.id, id)];
-  if (req.companyId) conditions.push(eq(importJobsTable.companyId, req.companyId));
+  conditions.push(eq(importJobsTable.companyId, req.scopedCompanyId!));
   const [row] = await db.select().from(importJobsTable).where(and(...conditions));
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
   res.json(row);
 });
 
-router.post("/import/preview", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/import/preview", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { type, data } = req.body;
   if (!type || !Array.isArray(data)) {
     res.status(400).json({ error: "type and data[] required" });
@@ -73,14 +76,14 @@ router.post("/import/preview", requireAuth, async (req: AuthenticatedRequest, re
   });
 });
 
-router.post("/import/commit", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/import/commit", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { type, data, onlyValid } = req.body;
   if (!type || !Array.isArray(data)) {
     res.status(400).json({ error: "type and data[] required" });
     return;
   }
 
-  const companyId = req.companyId;
+  const companyId = req.scopedCompanyId!;
   let successRows = 0;
   let errorRows = 0;
   const jobErrors: string[] = [];

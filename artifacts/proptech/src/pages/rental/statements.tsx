@@ -3,11 +3,18 @@ import {
 	FileText,
 	Printer,
 	RefreshCw,
+	TrendingDown,
+	TrendingUp,
+	Wallet,
 	X,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useListProperties } from "@/api-client";
 import { defaultPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
+import { KpiCard, KpiRow } from "@/components/kpi-card";
+import { RentalExcelTable, type RentalExcelColumn } from "@/components/rental/rental-excel-table";
+import { RentalViewModeToggle } from "@/components/rental/rental-view-mode-toggle";
+import { useRentalViewMode } from "@/hooks/use-rental-view-mode";
 import { useSortable } from "@/lib/use-sortable";
 import { SortHead } from "@/components/sort-head";
 import { Button } from "@/components/ui/button";
@@ -114,6 +121,7 @@ export default function OwnerStatements() {
 	const [isGenerating, setIsGenerating] = useState(false);
 	const [selectedStatement, setSelectedStatement] =
 		useState<OwnerStatement | null>(null);
+	const [viewMode, setViewMode] = useRentalViewMode("statements");
 	const { data: properties } = useListProperties();
 	const propertiesArray = Array.isArray(properties) ? properties : [];
 	const { toast } = useToast();
@@ -124,7 +132,31 @@ export default function OwnerStatements() {
 		queryFn: () => fetchStatements(propertyFilter, monthFilter),
 	});
 	const statementsArray = Array.isArray(statements) ? statements : [];
-	const { sorted: sortedStatements, sortKey, sortDir, toggle } = useSortable(statementsArray, "period");
+	const enrichedStatements = useMemo(
+		() =>
+			statementsArray.map((s) => ({
+				...s,
+				propertyLabel: s.unitNumber || `Объект #${s.propertyId}`,
+				periodLabel: fmtPeriod(s.period),
+				chargedNum: parseFloat(String(s.rentCharged || 0)),
+				receivedNum: parseFloat(String(s.rentReceived || 0)),
+				expensesNum: parseFloat(String(s.expenses || 0)),
+				netNum: parseFloat(String(s.netIncome || 0)),
+				collectionPct:
+					parseFloat(String(s.rentCharged || 0)) > 0
+						? (
+								(parseFloat(String(s.rentReceived || 0)) /
+									parseFloat(String(s.rentCharged || 0))) *
+								100
+							).toFixed(0)
+						: "0",
+			})),
+		[statementsArray],
+	);
+	const { sorted: sortedStatements, sortKey, sortDir, toggle } = useSortable(
+		enrichedStatements,
+		"period",
+	);
 
 	const { data: expenses = [] } = useQuery<any[]>({
 		queryKey: ["rental-expenses"],
@@ -174,9 +206,65 @@ export default function OwnerStatements() {
 		0,
 	);
 
+	const statementColumns: RentalExcelColumn<(typeof enrichedStatements)[number]>[] = [
+		{ key: "propertyLabel", label: "Объект", width: 140, render: (r) => r.propertyLabel },
+		{ key: "period", label: "Период", width: 110, render: (r) => r.periodLabel },
+		{ key: "rentCharged", label: "Начислено", width: 110, align: "right", render: (r) => fmtKGS(r.chargedNum) },
+		{
+			key: "rentReceived", label: "Собрано", width: 120, align: "right",
+			render: (r) => (
+				<span>
+					<span className="text-emerald-700">{fmtKGS(r.receivedNum)}</span>
+					<span className="text-gray-400 ml-1 text-[10px]">{r.collectionPct}%</span>
+				</span>
+			),
+		},
+		{ key: "expenses", label: "Расходы", width: 100, align: "right", render: (r) => <span className="text-rose-600">{fmtKGS(r.expensesNum)}</span> },
+		{
+			key: "netIncome", label: "Чистый доход", width: 120, align: "right",
+			render: (r) => (
+				<span className={r.netNum >= 0 ? "text-emerald-700 font-medium" : "text-rose-600 font-medium"}>
+					{r.netNum >= 0 ? "+" : ""}
+					{fmtKGS(r.netNum)}
+				</span>
+			),
+		},
+		{
+			key: "generatedAt", label: "Сформирован", width: 100,
+			render: (r) => new Date(r.generatedAt).toLocaleDateString("ru-KG"),
+		},
+		{
+			key: "actions", label: "", width: 70, sortable: false, align: "center",
+			render: (r) => (
+				<button
+					type="button"
+					onClick={() => setSelectedStatement(r)}
+					className="text-blue-600 hover:text-blue-800 text-[10px] font-medium"
+				>
+					Акт
+				</button>
+			),
+		},
+	];
+
 	return (
-		<div className="space-y-5">
-			<div className="flex items-start justify-between">
+		<div className="space-y-3">
+			<KpiRow>
+				<KpiCard variant="strip" label="Начислено" value={fmtKGS(totalCharged)} sub="за период" icon={TrendingUp} color="blue" loading={isLoading} />
+				<KpiCard variant="strip" label="Собрано" value={fmtKGS(totalReceived)} sub="за период" icon={Wallet} color="green" loading={isLoading} />
+				<KpiCard variant="strip" label="Расходы" value={fmtKGS(totalExpenses)} sub="за период" icon={TrendingDown} color="red" loading={isLoading} />
+				<KpiCard
+					variant="strip"
+					label="Чистый доход"
+					value={`${totalNet >= 0 ? "+" : ""}${fmtKGS(totalNet)}`}
+					sub={`${statementsArray.length} актов`}
+					icon={FileText}
+					color={totalNet >= 0 ? "green" : "red"}
+					loading={isLoading}
+				/>
+			</KpiRow>
+
+			<div className="flex items-start justify-between flex-wrap gap-3">
 				<div>
 					<h1 className="text-2xl font-bold text-gray-900">
 						Акты собственников
@@ -185,6 +273,7 @@ export default function OwnerStatements() {
 						Ежемесячные отчёты о доходах и расходах по объектам
 					</p>
 				</div>
+				<RentalViewModeToggle mode={viewMode} onChange={setViewMode} />
 			</div>
 
 			{/* Unified filters + generate row */}
@@ -229,49 +318,33 @@ export default function OwnerStatements() {
 				)}
 			</div>
 
-			{/* KPIs */}
-			{!isLoading && statementsArray.length > 0 && (
-				<div className="grid grid-cols-4 gap-4">
-					{[
-						{
-							label: "Начислено",
-							value: totalCharged,
-							color: "text-blue-600",
-							bg: "bg-blue-50",
-						},
-						{
-							label: "Собрано",
-							value: totalReceived,
-							color: "text-emerald-600",
-							bg: "bg-emerald-50",
-						},
-						{
-							label: "Расходы",
-							value: totalExpenses,
-							color: "text-rose-600",
-							bg: "bg-rose-50",
-						},
-						{
-							label: "Чистый доход",
-							value: totalNet,
-							color: totalNet >= 0 ? "text-emerald-700" : "text-rose-600",
-							bg: totalNet >= 0 ? "bg-emerald-50" : "bg-rose-50",
-						},
-					].map((stat, i) => (
-						<div
-							key={i}
-							className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4"
-						>
-							<p className="text-xs text-gray-500 mb-1">{stat.label}</p>
-							<p className={`text-lg font-bold ${stat.color}`}>
-								{fmtKGS(stat.value)}
-							</p>
-						</div>
-					))}
-				</div>
-			)}
-
-			{/* Table */}
+			{viewMode === "report" ? (
+				isLoading ? (
+					<div className="bg-white rounded-xl border border-gray-200 p-6">
+						{Array.from({ length: 4 }).map((_, i) => (
+							<Skeleton key={i} className="h-8 w-full mb-2" />
+						))}
+					</div>
+				) : (
+					<RentalExcelTable
+						columns={statementColumns}
+						rows={sortedStatements}
+						sortKey={sortKey}
+						sortDir={sortDir}
+						onSort={toggle}
+						emptyMessage="Актов не найдено. Выберите объект и нажмите «Сформировать акт»."
+						rowKey={(r) => r.id}
+						footer={statementsArray.length > 0 ? [
+							{ colSpan: 2, content: `Итого: ${statementsArray.length}` },
+							{ content: fmtKGS(totalCharged), align: "right" },
+							{ content: fmtKGS(totalReceived), align: "right" },
+							{ content: fmtKGS(totalExpenses), align: "right" },
+							{ content: `${totalNet >= 0 ? "+" : ""}${fmtKGS(totalNet)}`, align: "right", className: totalNet >= 0 ? "text-emerald-700" : "text-rose-600" },
+							{ colSpan: 2, content: "" },
+						] : undefined}
+					/>
+				)
+			) : (
 			<div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
 				<Table>
 					<TableHeader>
@@ -309,44 +382,37 @@ export default function OwnerStatements() {
 								</TableCell>
 							</TableRow>
 						) : (
-							sortedStatements.map((s) => {
-								const charged = parseFloat(s.rentCharged);
-								const received = parseFloat(s.rentReceived);
-								const exp = parseFloat(s.expenses);
-								const net = parseFloat(s.netIncome);
-								const collectionPct =
-									charged > 0 ? ((received / charged) * 100).toFixed(0) : "0";
-								return (
+							sortedStatements.map((s) => (
 									<TableRow
 										key={s.id}
 										className="hover:bg-blue-50/30 cursor-pointer"
 										onClick={() => setSelectedStatement(s)}
 									>
 										<TableCell className="font-medium">
-											{s.unitNumber || `Объект #${s.propertyId}`}
+											{s.propertyLabel}
 										</TableCell>
 										<TableCell className="text-gray-600">
-											{fmtPeriod(s.period)}
+											{s.periodLabel}
 										</TableCell>
 										<TableCell className="text-right text-blue-600 font-medium">
-											{fmtKGS(charged)}
+											{fmtKGS(s.chargedNum)}
 										</TableCell>
 										<TableCell className="text-right">
 											<span className="text-emerald-600 font-medium">
-												{fmtKGS(received)}
+												{fmtKGS(s.receivedNum)}
 											</span>
 											<span className="text-xs text-gray-400 ml-1">
-												{collectionPct}%
+												{s.collectionPct}%
 											</span>
 										</TableCell>
 										<TableCell className="text-right text-rose-600">
-											{fmtKGS(exp)}
+											{fmtKGS(s.expensesNum)}
 										</TableCell>
 										<TableCell
-											className={`text-right font-semibold ${net >= 0 ? "text-emerald-700" : "text-rose-600"}`}
+											className={`text-right font-semibold ${s.netNum >= 0 ? "text-emerald-700" : "text-rose-600"}`}
 										>
-											{net >= 0 ? "+" : ""}
-											{fmtKGS(net)}
+											{s.netNum >= 0 ? "+" : ""}
+											{fmtKGS(s.netNum)}
 										</TableCell>
 										<TableCell className="text-xs text-gray-400">
 											{new Date(s.generatedAt).toLocaleDateString("ru-KG")}
@@ -365,12 +431,12 @@ export default function OwnerStatements() {
 											</Button>
 										</TableCell>
 									</TableRow>
-								);
-							})
+							))
 						)}
 					</TableBody>
 				</Table>
 			</div>
+			)}
 
 			{/* Reconciliation act modal */}
 			{selectedStatement && (

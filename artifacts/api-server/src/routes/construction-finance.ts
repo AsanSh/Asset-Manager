@@ -5,9 +5,11 @@ import {
   constructionSalesContractsTable, constructionAccrualsTable,
   constructionUnitsTable,
   counterpartiesTable,
-} from "../lib/db/schema";
+} from "../lib/db";
 import { eq, and, desc, sql, ilike } from "drizzle-orm";
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
+import { requireTenantCompany } from "../middleware/tenant";
+import { sendServerError } from "../lib/http-errors";
 import {
   buildPaymentSchedule,
   scheduleTotal,
@@ -31,19 +33,21 @@ import {
 
 const router = Router();
 
+router.use(requireAuth, requireTenantCompany);
+
 const CONSTRUCTION_ACCOUNTS = BANK_ACCOUNT_MODULE.construction;
 
 // ── Bank Accounts (только модуль «Строительство») ───────────────────────
-router.get("/accounts", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const companyId = req.companyId!;
+router.get("/accounts", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
   const rows = await db.select().from(bankAccountsTable)
     .where(companyModuleAccountWhere(companyId, CONSTRUCTION_ACCOUNTS))
     .orderBy(bankAccountsTable.name);
   res.json(rows);
 });
 
-router.post("/accounts", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const companyId = req.companyId!;
+router.post("/accounts", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
   const { module: _m, companyId: _c, ...body } = req.body ?? {};
   const opening = body.openingBalance ?? "0";
   const [row] = await db.insert(bankAccountsTable).values({
@@ -56,8 +60,8 @@ router.post("/accounts", requireAuth, async (req: AuthenticatedRequest, res): Pr
   res.json(row);
 });
 
-router.patch("/accounts/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const companyId = req.companyId!;
+router.patch("/accounts/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
   const { module: _m, companyId: _c, ...body } = req.body ?? {};
   const [row] = await db.update(bankAccountsTable)
     .set(body)
@@ -76,8 +80,8 @@ router.patch("/accounts/:id", requireAuth, async (req: AuthenticatedRequest, res
   res.json(row);
 });
 
-router.delete("/accounts/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const companyId = req.companyId!;
+router.delete("/accounts/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
   const deleted = await db.delete(bankAccountsTable)
     .where(
       companyModuleAccountByIdWhere(
@@ -95,8 +99,8 @@ router.delete("/accounts/:id", requireAuth, async (req: AuthenticatedRequest, re
 });
 
 // ── Operations ──────────────────────────────────────────────────────────
-router.get("/operations", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const companyId = req.companyId!;
+router.get("/operations", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
   const rows = await db.select().from(constructionOperationsTable)
     .where(eq(constructionOperationsTable.companyId, companyId))
     .orderBy(desc(constructionOperationsTable.date));
@@ -114,8 +118,8 @@ function normalizeOpDate(raw: unknown): string {
   return s.slice(0, 10);
 }
 
-router.post("/operations", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const companyId = req.companyId!;
+router.post("/operations", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
   const body = req.body ?? {};
 
   const type = String(body.type || "expense");
@@ -150,6 +154,19 @@ router.post("/operations", requireAuth, async (req: AuthenticatedRequest, res): 
     (type === "expense" || type === "transfer" ? legacyAccountId : null);
   const toAccountId =
     parseAcc(body.toAccountId) ?? (type === "income" ? legacyAccountId : null);
+
+  if (type === "income" && !toAccountId) {
+    res.status(400).json({ error: "Укажите счёт зачисления" });
+    return;
+  }
+  if (type === "expense" && !fromAccountId) {
+    res.status(400).json({ error: "Укажите счёт списания" });
+    return;
+  }
+  if (type === "transfer" && (!fromAccountId || !toAccountId)) {
+    res.status(400).json({ error: "Укажите счёт списания и счёт зачисления" });
+    return;
+  }
 
   let category = String(body.category || "").trim();
   if (!category) {
@@ -206,15 +223,12 @@ router.post("/operations", requireAuth, async (req: AuthenticatedRequest, res): 
 
     res.status(201).json(row);
   } catch (e) {
-    console.error("Create operation error:", e);
-    res.status(500).json({
-      error: e instanceof Error ? e.message : "Не удалось сохранить операцию",
-    });
+    sendServerError(res, e, "Не удалось сохранить операцию");
   }
 });
 
-router.patch("/operations/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const companyId = req.companyId!;
+router.patch("/operations/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
   const id = Number(req.params.id);
   const body = req.body ?? {};
 
@@ -277,6 +291,19 @@ router.patch("/operations/:id", requireAuth, async (req: AuthenticatedRequest, r
   }
   if (type === "expense") toAccountId = null;
   if (type === "income") fromAccountId = null;
+
+  if (type === "income" && !toAccountId) {
+    res.status(400).json({ error: "Укажите счёт зачисления" });
+    return;
+  }
+  if (type === "expense" && !fromAccountId) {
+    res.status(400).json({ error: "Укажите счёт списания" });
+    return;
+  }
+  if (type === "transfer" && (!fromAccountId || !toAccountId)) {
+    res.status(400).json({ error: "Укажите счёт списания и счёт зачисления" });
+    return;
+  }
 
   const status =
     body.status != null
@@ -355,23 +382,35 @@ router.patch("/operations/:id", requireAuth, async (req: AuthenticatedRequest, r
     await applyOpBalances(companyId, balanceOp);
     res.json(row);
   } catch (e) {
-    console.error("Update operation error:", e);
-    res.status(500).json({
-      error: e instanceof Error ? e.message : "Не удалось обновить операцию",
-    });
+    sendServerError(res, e, "Не удалось обновить операцию");
   }
 });
 
-router.delete("/operations/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const companyId = req.companyId!;
-  await db.delete(constructionOperationsTable)
-    .where(and(eq(constructionOperationsTable.id, Number(req.params.id)), eq(constructionOperationsTable.companyId, companyId)));
-  res.json({ ok: true });
+router.delete("/operations/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
+  const id = Number(req.params.id);
+  const [existing] = await db.select().from(constructionOperationsTable)
+    .where(and(eq(constructionOperationsTable.id, id), eq(constructionOperationsTable.companyId, companyId)));
+  if (!existing) { res.status(404).json({ error: "Операция не найдена" }); return; }
+  try {
+    await reverseOpBalances(companyId, {
+      type: existing.type,
+      status: existing.status,
+      fromAccountId: existing.fromAccountId,
+      toAccountId: existing.toAccountId,
+      amountKgs: existing.amountKgs,
+    });
+    await db.delete(constructionOperationsTable)
+      .where(and(eq(constructionOperationsTable.id, id), eq(constructionOperationsTable.companyId, companyId)));
+    res.json({ ok: true });
+  } catch (e) {
+    sendServerError(res, e, "Не удалось удалить операцию");
+  }
 });
 
 // ── Sales Contracts ─────────────────────────────────────────────────────
-router.get("/contracts-sales", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const companyId = req.companyId!;
+router.get("/contracts-sales", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
   const rows = await db.select().from(constructionSalesContractsTable)
     .where(eq(constructionSalesContractsTable.companyId, companyId))
     .orderBy(desc(constructionSalesContractsTable.createdAt));
@@ -409,8 +448,8 @@ async function insertAccrualsFromSchedule(
   return db.insert(constructionAccrualsTable).values(values).returning();
 }
 
-router.post("/contracts-sales", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const companyId = req.companyId!;
+router.post("/contracts-sales", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
   const body = req.body;
   const total = parseFloat(body.totalAmount || "0");
   const down = parseFloat(body.downPayment || "0");
@@ -448,8 +487,8 @@ router.post("/contracts-sales", requireAuth, async (req: AuthenticatedRequest, r
 });
 
 /** Оформление брони/продажи из шахматки: договор на утверждение + график */
-router.post("/contracts-sales/from-unit", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const companyId = req.companyId!;
+router.post("/contracts-sales/from-unit", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
   const body = req.body;
   const unitId = Number(body.unitId);
   const projectId = Number(body.projectId);
@@ -601,8 +640,8 @@ router.post("/contracts-sales/from-unit", requireAuth, async (req: Authenticated
   res.status(201).json({ contract, accruals, schedule });
 });
 
-router.patch("/contracts-sales/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const companyId = req.companyId!;
+router.patch("/contracts-sales/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
   const body = req.body;
 
   if (body.status === "signed" || body.status === "completed") {
@@ -622,15 +661,15 @@ router.patch("/contracts-sales/:id", requireAuth, async (req: AuthenticatedReque
   res.json(row);
 });
 
-router.delete("/contracts-sales/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const companyId = req.companyId!;
+router.delete("/contracts-sales/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
   await db.delete(constructionSalesContractsTable)
     .where(and(eq(constructionSalesContractsTable.id, Number(req.params.id)), eq(constructionSalesContractsTable.companyId, companyId)));
   res.json({ ok: true });
 });
 
-router.post("/contracts-sales/:id/generate-schedule", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const companyId = req.companyId!;
+router.post("/contracts-sales/:id/generate-schedule", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
   const [contract] = await db.select().from(constructionSalesContractsTable)
     .where(and(eq(constructionSalesContractsTable.id, Number(req.params.id)), eq(constructionSalesContractsTable.companyId, companyId)));
   if (!contract) {
@@ -649,8 +688,8 @@ router.post("/contracts-sales/:id/generate-schedule", requireAuth, async (req: A
 });
 
 // ── Accruals ────────────────────────────────────────────────────────────
-router.get("/accruals", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const companyId = req.companyId!;
+router.get("/accruals", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
   const { contractId } = req.query;
   const rows = await db.select().from(constructionAccrualsTable)
     .where(
@@ -662,8 +701,8 @@ router.get("/accruals", requireAuth, async (req: AuthenticatedRequest, res): Pro
   res.json(rows);
 });
 
-router.patch("/accruals/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const companyId = req.companyId!;
+router.patch("/accruals/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
   const id = Number(req.params.id);
 
   const [before] = await db
@@ -729,7 +768,7 @@ router.post(
   "/accruals/:id/cancel-payment",
   requireAuth,
   async (req: AuthenticatedRequest, res): Promise<void> => {
-    const companyId = req.companyId!;
+    const companyId = req.scopedCompanyId!;
     const id = Number(req.params.id);
     try {
       const result = await cancelAccrualPayment(companyId, id);
@@ -743,8 +782,8 @@ router.post(
 );
 
 // ── Cashier — accept payment ────────────────────────────────────────────
-router.post("/cashier/payment", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const companyId = req.companyId!;
+router.post("/cashier/payment", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
   const {
     contractId,
     accrualId,
@@ -785,8 +824,8 @@ router.post("/cashier/payment", requireAuth, async (req: AuthenticatedRequest, r
 });
 
 // ── Analytics ───────────────────────────────────────────────────────────
-router.get("/analytics/cashflow", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const companyId = req.companyId!;
+router.get("/analytics/cashflow", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
   const { year = new Date().getFullYear() } = req.query;
 
   const rows = await db.select({
@@ -804,8 +843,8 @@ router.get("/analytics/cashflow", requireAuth, async (req: AuthenticatedRequest,
   res.json(rows);
 });
 
-router.get("/analytics/debt", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const companyId = req.companyId!;
+router.get("/analytics/debt", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
   const rows = await db.select().from(constructionAccrualsTable)
     .where(and(
       eq(constructionAccrualsTable.companyId, companyId),
@@ -815,8 +854,8 @@ router.get("/analytics/debt", requireAuth, async (req: AuthenticatedRequest, res
   res.json(rows);
 });
 
-router.get("/analytics/summary", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const companyId = req.companyId!;
+router.get("/analytics/summary", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
 
   const [opStats] = await db.select({
     totalIncome: sql<number>`sum(case when type='income' then amount_kgs::numeric else 0 end)`,

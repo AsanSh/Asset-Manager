@@ -14,6 +14,7 @@ export const constructionStagesTable = pgTable("construction_stages", {
   plannedEndDate: text("planned_end_date"),
   actualEndDate: text("actual_end_date"),
   budgetAmount: numeric("budget_amount", { precision: 15, scale: 2 }),
+  parentStageId: integer("parent_stage_id"),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

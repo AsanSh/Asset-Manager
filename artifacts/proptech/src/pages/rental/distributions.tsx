@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { getDistributionsQueryKey } from "@/lib/rental-query-keys";
 import { BarChart2, CheckCircle2, Play, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -29,16 +30,9 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
-import { getApiBase } from "@/lib/api-base";
-
-const BASE = getApiBase();
-const authHeaders = () => {
-	const token = localStorage.getItem("auth_token");
-	return {
-		"Content-Type": "application/json",
-		...(token ? { Authorization: `Bearer ${token}` } : {}),
-	};
-};
+import { authFetch } from "@/lib/auth-fetch";
+import { getApiErrorMessage } from "@/lib/api-error";
+import { RentalQueryState } from "@/components/rental/rental-query-state";
 
 function fmtCurrency(v: number | string) {
 	const n = typeof v === "string" ? parseFloat(v) : v;
@@ -114,22 +108,20 @@ function AddDialog({
 		}
 		setLoading(true);
 		try {
-			const res = await fetch(`${BASE}/rental/distributions`, {
+			await authFetch("/rental/distributions", {
 				method: "POST",
-				headers: authHeaders(),
 				body: JSON.stringify({
 					...form,
 					propertyId: parseInt(form.propertyId, 10),
 				}),
 			});
-			if (!res.ok) throw new Error("Ошибка");
 			toast({ title: "Распределение добавлено" });
 			onSaved();
 			onClose();
-		} catch (e: any) {
+		} catch (e: unknown) {
 			toast({
 				title: "Ошибка",
-				description: e.message,
+				description: getApiErrorMessage(e),
 				variant: "destructive",
 			});
 		} finally {
@@ -232,8 +224,8 @@ export default function Distributions() {
 	const { toast } = useToast();
 	const [showAdd, setShowAdd] = useState(false);
 
-	const { data: distributions = [], isLoading } = useQuery<Distribution[]>({
-		queryKey: ["distributions"],
+	const { data: distributions = [], isLoading, isError, error, refetch } = useQuery<Distribution[]>({
+		queryKey: getDistributionsQueryKey(),
 		queryFn: () => api.get("/rental/distributions").then((r) => r.data),
 	});
 
@@ -246,25 +238,29 @@ export default function Distributions() {
 		.reduce((s, d) => s + parseFloat(d.netProfit || "0"), 0);
 
 	const updateStatus = async (id: number, status: string) => {
-		await fetch(`${BASE}/rental/distributions/${id}/status`, {
-			method: "PATCH",
-			headers: authHeaders(),
-			body: JSON.stringify({ status }),
-		});
-		toast({
-			title: status === "paid" ? "Отмечено как выплачено" : "Статус обновлён",
-		});
-		queryClient.invalidateQueries({ queryKey: ["distributions"] });
+		try {
+			await authFetch(`/rental/distributions/${id}/status`, {
+				method: "PATCH",
+				body: JSON.stringify({ status }),
+			});
+			toast({
+				title: status === "paid" ? "Отмечено как выплачено" : "Статус обновлён",
+			});
+			queryClient.invalidateQueries({ queryKey: getDistributionsQueryKey() });
+		} catch (e: unknown) {
+			toast({ title: "Ошибка", description: getApiErrorMessage(e), variant: "destructive" });
+		}
 	};
 
 	const handleDelete = async (id: number) => {
 		if (!confirm("Удалить запись?")) return;
-		await fetch(`${BASE}/rental/distributions/${id}`, {
-			method: "DELETE",
-			headers: authHeaders(),
-		});
-		toast({ title: "Удалено" });
-		queryClient.invalidateQueries({ queryKey: ["distributions"] });
+		try {
+			await authFetch(`/rental/distributions/${id}`, { method: "DELETE" });
+			toast({ title: "Удалено" });
+			queryClient.invalidateQueries({ queryKey: getDistributionsQueryKey() });
+		} catch (e: unknown) {
+			toast({ title: "Ошибка", description: getApiErrorMessage(e), variant: "destructive" });
+		}
 	};
 
 	return (
@@ -304,6 +300,7 @@ export default function Distributions() {
 				</div>
 			</div>
 
+			<RentalQueryState isLoading={isLoading} isError={isError} error={error} onRetry={() => refetch()}>
 			<div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
 				<Table>
 					<TableHeader>
@@ -414,12 +411,13 @@ export default function Distributions() {
 					</TableBody>
 				</Table>
 			</div>
+			</RentalQueryState>
 
 			{showAdd && (
 				<AddDialog
 					onClose={() => setShowAdd(false)}
 					onSaved={() =>
-						queryClient.invalidateQueries({ queryKey: ["distributions"] })
+						queryClient.invalidateQueries({ queryKey: getDistributionsQueryKey() })
 					}
 				/>
 			)}

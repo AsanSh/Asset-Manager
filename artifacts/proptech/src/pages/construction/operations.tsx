@@ -160,15 +160,16 @@ export default function ConstructionOperations() {
 				status: String(op.status || "approved"),
 			});
 		} else {
+			const firstId = accounts[0] ? String((accounts[0] as { id: number }).id) : "";
 			setForm((f) => ({
 				...f,
 				type,
 				category: "",
 				description: "",
 				amount: "",
-				fromAccountId: "",
+				fromAccountId: type === "transfer" ? firstId : "",
 				toAccountId: "",
-				accountId: "",
+				accountId: type !== "transfer" ? firstId : "",
 			}));
 		}
 	}
@@ -228,19 +229,10 @@ export default function ConstructionOperations() {
 					: null,
 		};
 		if (form.type === "transfer") {
-			payload.fromAccountId =
-				form.fromAccountId && form.fromAccountId !== "none"
-					? Number(form.fromAccountId)
-					: null;
-			payload.toAccountId =
-				form.toAccountId && form.toAccountId !== "none"
-					? Number(form.toAccountId)
-					: null;
+			payload.fromAccountId = Number(form.fromAccountId);
+			payload.toAccountId = Number(form.toAccountId);
 		} else {
-			payload.accountId =
-				form.accountId && form.accountId !== "none"
-					? Number(form.accountId)
-					: null;
+			payload.accountId = Number(form.accountId);
 		}
 		return payload;
 	}
@@ -298,7 +290,6 @@ export default function ConstructionOperations() {
 		(form.type === "expense" || form.type === "transfer") &&
 		form.status === "approved" &&
 		expenseAccountId &&
-		expenseAccountId !== "none" &&
 		amountKgs > accountBalance + 0.01;
 
 	const totalIncome = filteredArray
@@ -712,7 +703,7 @@ export default function ConstructionOperations() {
 						) : (
 							<div>
 								<Label className="text-xs text-gray-500">
-									{panelType === "expense" ? "СЧЁТ СПИСАНИЯ *" : "СЧЁТ ЗАЧИСЛЕНИЯ"}
+									{panelType === "income" ? "СЧЁТ ЗАЧИСЛЕНИЯ *" : "СЧЁТ СПИСАНИЯ *"}
 								</Label>
 								<Select
 									value={form.accountId}
@@ -724,7 +715,6 @@ export default function ConstructionOperations() {
 										<SelectValue placeholder="Выберите счёт" />
 									</SelectTrigger>
 									<SelectContent>
-										<SelectItem value="none">Не указан</SelectItem>
 										{accounts.map((a: { id: number; name: string; currentBalance: string; currency: string }) => (
 											<SelectItem key={a.id} value={String(a.id)}>
 												{a.name} ({fmt(a.currentBalance)} {a.currency})
@@ -889,9 +879,8 @@ export default function ConstructionOperations() {
 								insufficientFunds ||
 								(panelType === "transfer" &&
 									(!form.fromAccountId || !form.toAccountId)) ||
-								(panelType === "expense" &&
-									form.status === "approved" &&
-									(!form.accountId || form.accountId === "none"))
+								(panelType === "expense" && !form.accountId) ||
+								(panelType === "income" && !form.accountId)
 							}
 							onClick={() =>
 								saveMut.mutate({

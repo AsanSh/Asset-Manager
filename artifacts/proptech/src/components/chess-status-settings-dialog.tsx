@@ -18,6 +18,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { getApiErrorMessage } from "@/lib/api-error";
 import { api } from "@/lib/api";
 import {
 	STATUS_COLOR_PRESETS,
@@ -98,10 +99,7 @@ export function ChessStatusSettingsDialog({
 			invalidate();
 		},
 		onError: (e: unknown) => {
-			const msg =
-				(e as { response?: { data?: { error?: string } } })?.response?.data
-					?.error || "Не удалось удалить";
-			toast({ title: msg, variant: "destructive" });
+			toast({ title: getApiErrorMessage(e, "Не удалось удалить"), variant: "destructive" });
 		},
 	});
 

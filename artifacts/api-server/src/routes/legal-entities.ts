@@ -2,20 +2,18 @@ import { Router } from "express";
 import { eq, and, SQL } from "drizzle-orm";
 import { db, legalEntitiesTable } from "../lib/db";
 import { requireAuth, requireRole, AuthenticatedRequest } from "../middleware/auth";
+import { requireTenantCompany } from "../middleware/tenant";
 
 const router: ReturnType<typeof Router> = Router();
 
+router.use(requireAuth, requireTenantCompany);
+
 // GET /api/legal-entities - List all legal entities for company
-router.get(
-  "/legal-entities",
-  requireAuth,
+router.get("/legal-entities",
   async (req: AuthenticatedRequest, res): Promise<void> => {
     try {
       const conditions: SQL[] = [];
-
-      if (req.companyId) {
-        conditions.push(eq(legalEntitiesTable.companyId, req.companyId));
-      }
+      conditions.push(eq(legalEntitiesTable.companyId, req.scopedCompanyId!));
 
       const rows = await db
         .select()
@@ -60,7 +58,7 @@ router.post(
       const [row] = await db
         .insert(legalEntitiesTable)
         .values({
-          companyId: req.companyId!,
+          companyId: req.scopedCompanyId!,
           name,
           fullLegalName,
           inn,
@@ -111,10 +109,7 @@ router.patch(
       } = req.body;
 
       const conditions: SQL[] = [eq(legalEntitiesTable.id, id)];
-
-      if (req.companyId) {
-        conditions.push(eq(legalEntitiesTable.companyId, req.companyId));
-      }
+      conditions.push(eq(legalEntitiesTable.companyId, req.scopedCompanyId!));
 
       const [row] = await db
         .update(legalEntitiesTable)
@@ -163,10 +158,7 @@ router.delete(
       }
 
       const conditions: SQL[] = [eq(legalEntitiesTable.id, id)];
-
-      if (req.companyId) {
-        conditions.push(eq(legalEntitiesTable.companyId, req.companyId));
-      }
+      conditions.push(eq(legalEntitiesTable.companyId, req.scopedCompanyId!));
 
       await db.delete(legalEntitiesTable).where(and(...conditions));
 

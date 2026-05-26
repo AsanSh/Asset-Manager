@@ -45,11 +45,11 @@ export default function RentalCashflow() {
 	const [year, setYear] = useState(new Date().getFullYear().toString());
 
 	const { data: payments = [] } = useQuery<any[]>({
-		queryKey: ["rental-payments-all"],
+		queryKey: getRentalPaymentsAllQueryKey(),
 		queryFn: () => api.get("/rental/payments").then((r) => r.data),
 	});
 	const { data: expenses = [] } = useQuery<any[]>({
-		queryKey: ["rental-expenses-all"],
+		queryKey: getRentalExpensesAllQueryKey(),
 		queryFn: () => api.get("/rental/expenses").then((r) => r.data),
 	});
 

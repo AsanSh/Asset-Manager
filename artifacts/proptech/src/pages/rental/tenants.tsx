@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronUp, ChevronsUpDown, Edit2, ExternalLink, Plus } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronsUpDown, Edit2, ExternalLink, Plus, Trash2, UserCheck, Users, UserX } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useColResize } from "@/lib/use-col-resize";
@@ -28,8 +28,12 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { KpiCard, KpiRow } from "@/components/kpi-card";
 import { useToast } from "@/hooks/use-toast";
 import { useSortable } from "@/lib/use-sortable";
+import { getApiErrorMessage } from "@/lib/api-error";
+import { RentalQueryState } from "@/components/rental/rental-query-state";
+import { api } from "@/lib/api";
 
 const statusColors: Record<string, string> = {
 	active: "bg-emerald-100 text-emerald-800",
@@ -204,6 +208,42 @@ function TenantDialog({ open, onClose, tenant }: TenantDialogProps) {
 						/>
 					</div>
 					<div className="flex justify-end gap-2 pt-2">
+						{tenant && (
+							<Button
+								type="button"
+								variant="outline"
+								className="mr-auto text-rose-600 border-rose-200 hover:bg-rose-50"
+								disabled={isPending}
+								onClick={async () => {
+									if (
+										!confirm(
+											`Удалить арендатора «${tenant.fullName}»?\n\nДействие необратимо.`,
+										)
+									) {
+										return;
+									}
+									try {
+										await api.delete(`/rental/tenants/${tenant.id}`);
+										toast({ title: "Арендатор удалён" });
+										queryClient.invalidateQueries({ queryKey: getListTenantsQueryKey() });
+										onClose();
+									} catch (e: unknown) {
+										const msg =
+											e && typeof e === "object" && "response" in e
+												? getApiErrorMessage(e)
+												: null;
+										toast({
+											title: "Не удалось удалить",
+											description: msg || undefined,
+											variant: "destructive",
+										});
+									}
+								}}
+							>
+								<Trash2 className="w-4 h-4 mr-1" />
+								Удалить
+							</Button>
+						)}
 						<Button type="button" variant="outline" onClick={onClose}>
 							Отмена
 						</Button>
@@ -217,7 +257,7 @@ function TenantDialog({ open, onClose, tenant }: TenantDialogProps) {
 	);
 }
 
-const TH = "relative border border-gray-200 px-2 py-1.5 text-left font-semibold text-gray-600 whitespace-nowrap bg-gray-100 sticky top-0 z-10 select-none";
+const TH = "relative border border-gray-200 px-2 py-1.5 text-left font-semibold text-gray-600 whitespace-nowrap bg-gray-100 sticky top-0 z-20 select-none shadow-[0_1px_0_0_#e5e7eb]";
 const TD = "border border-gray-200 px-2 py-1 text-gray-700";
 
 function SortTh({
@@ -244,21 +284,58 @@ function SortTh({
 }
 
 export default function RentalTenants() {
-	const { data: tenants, isLoading } = useListTenants();
+	const { data: tenants, isLoading, isError, error, refetch } = useListTenants();
+	const queryClient = useQueryClient();
+	const { toast } = useToast();
 	const tenantsArray = Array.isArray(tenants) ? tenants : [];
 	const { sorted, sortKey, sortDir, toggle } = useSortable(tenantsArray, "fullName");
 	const [, navigate] = useLocation();
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [selectedTenant, setSelectedTenant] = useState<Tenant | undefined>();
-	const { widths, startResize } = useColResize({ fullName: 220, iin: 130, phone: 140, email: 180, status: 110, actions: 100 });
+	const { widths, startResize } = useColResize({ fullName: 220, iin: 130, phone: 140, email: 180, status: 110, actions: 120 });
 
 	const activeCount = tenantsArray.filter((t) => t.status === "active").length;
+	const inactiveCount = tenantsArray.length - activeCount;
+	const companyCount = tenantsArray.filter((t) => t.type === "company").length;
+	const individualCount = tenantsArray.length - companyCount;
 
 	const handleAdd = () => { setSelectedTenant(undefined); setDialogOpen(true); };
 	const handleEdit = (tenant: Tenant) => { setSelectedTenant(tenant); setDialogOpen(true); };
 
+	const handleDelete = async (tenant: Tenant) => {
+		if (
+			!confirm(
+				`Удалить арендатора «${tenant.fullName}»?\n\nДействие необратимо. Удаление возможно только без активных договоров и задолженности.`,
+			)
+		) {
+			return;
+		}
+		try {
+			await api.delete(`/rental/tenants/${tenant.id}`);
+			toast({ title: "Арендатор удалён" });
+			queryClient.invalidateQueries({ queryKey: getListTenantsQueryKey() });
+		} catch (e: unknown) {
+			const msg =
+				e && typeof e === "object" && "response" in e
+					? getApiErrorMessage(e)
+					: null;
+			toast({
+				title: "Не удалось удалить",
+				description: msg || "Сначала расторгните или удалите связанные договоры",
+				variant: "destructive",
+			});
+		}
+	};
+
 	return (
-		<div className="p-6 space-y-4">
+		<div className="p-6 space-y-3">
+			<KpiRow>
+				<KpiCard variant="strip" label="Всего арендаторов" value={tenantsArray.length} sub="в базе" icon={Users} color="blue" loading={isLoading} />
+				<KpiCard variant="strip" label="Активных" value={activeCount} sub={inactiveCount > 0 ? `${inactiveCount} неактивных` : "все активны"} icon={UserCheck} color="green" loading={isLoading} />
+				<KpiCard variant="strip" label="Физлица" value={individualCount} sub={`${companyCount} юрлиц`} icon={Users} color="purple" loading={isLoading} />
+				<KpiCard variant="strip" label="Неактивных" value={inactiveCount} sub={inactiveCount > 0 ? "требуют проверки" : "нет"} icon={UserX} color={inactiveCount > 0 ? "yellow" : "green"} loading={isLoading} />
+			</KpiRow>
+
 			<div className="flex justify-between items-center">
 				<div>
 					<h1 className="text-2xl font-bold">Арендаторы</h1>
@@ -269,20 +346,15 @@ export default function RentalTenants() {
 				</Button>
 			</div>
 
-			<div className="overflow-auto border border-gray-200 rounded-lg">
-				<table className="w-full text-xs border-collapse">
+			<RentalQueryState isLoading={isLoading} isError={isError} error={error} onRetry={() => refetch()}>
+			<div className="overflow-auto border border-gray-200 rounded-lg" style={{ maxHeight: "calc(100vh - 300px)" }}>
+				<table className="w-full text-xs border-separate border-spacing-0">
 					<thead>
 						<tr>
 							<SortTh label="ФИО" col="fullName" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} widths={widths} startResize={startResize} />
 							<SortTh label="ИИН" col="iin" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} widths={widths} startResize={startResize} />
-							<th className={TH} style={{ width: widths.phone, minWidth: widths.phone }}>
-								Телефон
-								<div className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-400 z-20" onMouseDown={startResize("phone")} />
-							</th>
-							<th className={TH} style={{ width: widths.email, minWidth: widths.email }}>
-								Email
-								<div className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-400 z-20" onMouseDown={startResize("email")} />
-							</th>
+							<SortTh label="Телефон" col="phone" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} widths={widths} startResize={startResize} />
+							<SortTh label="Email" col="email" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} widths={widths} startResize={startResize} />
 							<SortTh label="Статус" col="status" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} widths={widths} startResize={startResize} />
 							<th className={TH} style={{ width: widths.actions }}>Действия</th>
 						</tr>
@@ -317,8 +389,11 @@ export default function RentalTenants() {
 											<button className="text-blue-600 hover:underline flex items-center gap-0.5" onClick={() => navigate(`/rental/tenants/${tenant.id}`)}>
 												<ExternalLink className="w-3 h-3" /> Портал
 											</button>
-											<button className="ml-1 text-gray-500 hover:text-gray-800" onClick={() => handleEdit(tenant)}>
+											<button type="button" title="Редактировать" className="ml-1 text-gray-500 hover:text-gray-800" onClick={() => handleEdit(tenant)}>
 												<Edit2 className="w-3.5 h-3.5" />
+											</button>
+											<button type="button" title="Удалить" className="text-gray-400 hover:text-rose-600" onClick={() => handleDelete(tenant)}>
+												<Trash2 className="w-3.5 h-3.5" />
 											</button>
 										</div>
 									</td>
@@ -337,6 +412,7 @@ export default function RentalTenants() {
 					)}
 				</table>
 			</div>
+			</RentalQueryState>
 
 			<TenantDialog open={dialogOpen} onClose={() => setDialogOpen(false)} tenant={selectedTenant} />
 		</div>

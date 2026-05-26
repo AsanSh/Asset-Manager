@@ -83,9 +83,11 @@ export async function validateOpBalances(
     return null;
   }
 
-  if (op.type === "income" && op.toAccountId) {
+  if (op.type === "income") {
+    if (!op.toAccountId) return "Укажите счёт зачисления";
     const bal = await getAccountBalance(companyId, op.toAccountId);
     if (bal === null) return "Счёт зачисления не найден или не относится к модулю «Строительство»";
+    return null;
   }
 
   return null;

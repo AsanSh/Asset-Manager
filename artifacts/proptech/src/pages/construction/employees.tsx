@@ -125,7 +125,7 @@ export default function ConstructionEmployees() {
 			closeModal();
 		} catch (e: unknown) {
 			const err = e as { response?: { data?: { error?: string } } };
-			setError(err?.response?.data?.error || "Ошибка сохранения");
+			setError(getApiErrorMessage(err, "Ошибка сохранения"));
 		} finally {
 			setSaving(false);
 		}

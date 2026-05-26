@@ -5,6 +5,8 @@ import { db, usersTable, sessionsTable } from "../lib/db";
 export interface AuthenticatedRequest extends Request {
   userId?: number;
   companyId?: number;
+  /** Resolved tenant scope (set by requireTenantCompany middleware). */
+  scopedCompanyId?: number;
   userRole?: string;
 }
 

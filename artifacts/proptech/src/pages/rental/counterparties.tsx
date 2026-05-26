@@ -55,11 +55,11 @@ export default function RentalCounterparties() {
 	const qc = useQueryClient();
 
 	const { data: tenants = [], isLoading } = useQuery<Tenant[]>({
-		queryKey: ["rental-tenants"],
+		queryKey: getListTenantsQueryKey(),
 		queryFn: () => api.get("/rental/tenants").then((r) => r.data),
 	});
 	const { data: contracts = [] } = useQuery<any[]>({
-		queryKey: ["rental-contracts"],
+		queryKey: getListLeaseContractsQueryKey(),
 		queryFn: () => api.get("/rental/contracts").then((r) => r.data),
 	});
 
@@ -121,10 +121,10 @@ export default function RentalCounterparties() {
 			} else {
 				await api.post("/rental/tenants", editing);
 			}
-			qc.invalidateQueries({ queryKey: ["rental-tenants"] });
+			qc.invalidateQueries({ queryKey: getListTenantsQueryKey() });
 			closeModal();
 		} catch (e: any) {
-			setError(e?.response?.data?.error || "Ошибка сохранения");
+			setError(getApiErrorMessage(e, "Ошибка сохранения"));
 		} finally {
 			setSaving(false);
 		}

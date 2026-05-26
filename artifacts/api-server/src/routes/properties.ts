@@ -2,13 +2,14 @@ import { Router } from "express";
 import { eq, ilike, and, SQL } from "drizzle-orm";
 import { db, propertiesTable } from "../lib/db";
 import { requireAuth, requireRole, AuthenticatedRequest } from "../middleware/auth";
+import { requireTenantCompany } from "../middleware/tenant";
 import { sanitizeLikePattern } from "../lib/security";
 
 const router: ReturnType<typeof Router> = Router();
 
-router.get(
-  "/properties",
-  requireAuth,
+router.use(requireAuth, requireTenantCompany);
+
+router.get("/properties",
   async (req: AuthenticatedRequest, res): Promise<void> => {
     try {
       const { status, project, type, search } = req.query as Record<
@@ -16,10 +17,7 @@ router.get(
         string | undefined
       >;
       const conditions: SQL[] = [];
-
-      if (req.companyId) {
-        conditions.push(eq(propertiesTable.companyId, req.companyId));
-      }
+      conditions.push(eq(propertiesTable.companyId, req.scopedCompanyId!));
 
       if (status) {
         conditions.push(eq(propertiesTable.status, status));
@@ -81,7 +79,7 @@ router.post(
       const [row] = await db
         .insert(propertiesTable)
         .values({
-          companyId: req.companyId,
+          companyId: req.scopedCompanyId!,
           projectName,
           block,
           floor,
@@ -102,9 +100,7 @@ router.post(
   }
 );
 
-router.get(
-  "/properties/:id",
-  requireAuth,
+router.get("/properties/:id",
   async (req: AuthenticatedRequest, res): Promise<void> => {
     try {
       const id = parseInt(
@@ -118,10 +114,7 @@ router.get(
       }
 
       const conditions: SQL[] = [eq(propertiesTable.id, id)];
-
-      if (req.companyId) {
-        conditions.push(eq(propertiesTable.companyId, req.companyId));
-      }
+      conditions.push(eq(propertiesTable.companyId, req.scopedCompanyId!));
 
       const [row] = await db
         .select()
@@ -168,10 +161,7 @@ router.patch(
         comment,
       } = req.body;
       const conditions: SQL[] = [eq(propertiesTable.id, id)];
-
-      if (req.companyId) {
-        conditions.push(eq(propertiesTable.companyId, req.companyId));
-      }
+      conditions.push(eq(propertiesTable.companyId, req.scopedCompanyId!));
 
       const [row] = await db
         .update(propertiesTable)
@@ -218,10 +208,7 @@ router.delete(
       }
 
       const conditions: SQL[] = [eq(propertiesTable.id, id)];
-
-      if (req.companyId) {
-        conditions.push(eq(propertiesTable.companyId, req.companyId));
-      }
+      conditions.push(eq(propertiesTable.companyId, req.scopedCompanyId!));
 
       await db.delete(propertiesTable).where(and(...conditions));
 

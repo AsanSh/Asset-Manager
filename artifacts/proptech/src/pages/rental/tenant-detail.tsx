@@ -76,12 +76,12 @@ export default function TenantDetail() {
 	const id = parseInt(params.id, 10);
 
 	const { data: allTenants = [], isLoading } = useQuery<any[]>({
-		queryKey: ["rental-tenants"],
+		queryKey: getListTenantsQueryKey(),
 		queryFn: () => api.get("/rental/tenants").then((r) => r.data),
 	});
 
 	const { data: allContracts = [] } = useQuery<any[]>({
-		queryKey: ["rental-contracts"],
+		queryKey: getListLeaseContractsQueryKey(),
 		queryFn: () => api.get("/rental/contracts").then((r) => r.data),
 	});
 
@@ -154,7 +154,7 @@ export default function TenantDetail() {
 		} catch (e: any) {
 			setPortalStatus({
 				type: "error",
-				msg: e?.response?.data?.error || "Ошибка создания аккаунта",
+				msg: getApiErrorMessage(e, "Ошибка создания аккаунта"),
 			});
 		} finally {
 			setPortalLoading(false);

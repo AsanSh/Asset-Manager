@@ -1,6 +1,22 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	getListAccrualsQueryKey,
+	getListLeaseContractsQueryKey,
+	getListPaymentsQueryKey,
+	getListRentalPropertiesQueryKey,
+	getListTenantsQueryKey,
+	getRentalAccountsQueryKey,
+	getDistributionsQueryKey,
+	getRentalPaymentsAllQueryKey,
+	getRentalExpensesAllQueryKey,
+	getAccrualsOpenQueryKey,
+} from "@/lib/rental-query-keys";
 import { useSortable } from "@/lib/use-sortable";
 import { SortHead } from "@/components/sort-head";
+import { KpiCard, KpiRow } from "@/components/kpi-card";
+import { RentalExcelTable, type RentalExcelColumn } from "@/components/rental/rental-excel-table";
+import { RentalViewModeToggle } from "@/components/rental/rental-view-mode-toggle";
+import { useRentalViewMode } from "@/hooks/use-rental-view-mode";
 import {
 	AlertCircle,
 	ArrowRightLeft,
@@ -106,12 +122,13 @@ export default function RentalAccounts() {
 	const [loading, setLoading] = useState(false);
 	const [deleting, setDeleting] = useState<number | null>(null);
 	const [recalculating, setRecalculating] = useState(false);
+	const [viewMode, setViewMode] = useRentalViewMode("accounts");
 
 	const handleRecalculate = async () => {
 		setRecalculating(true);
 		try {
 			await api.post("/rental/accounts/recalculate");
-			await queryClient.invalidateQueries({ queryKey: ["rental-accounts"] });
+			await queryClient.invalidateQueries({ queryKey: getRentalAccountsQueryKey() });
 			toast({ title: "Балансы пересчитаны", description: "Данные синхронизированы с платежами и расходами" });
 		} catch {
 			toast({ title: "Ошибка пересчёта", variant: "destructive" });
@@ -121,7 +138,7 @@ export default function RentalAccounts() {
 	};
 
 	const { data: accounts = [], isLoading } = useQuery<any[]>({
-		queryKey: ["rental-accounts"],
+		queryKey: getRentalAccountsQueryKey(),
 		queryFn: () => api.get("/rental/accounts").then((r) => r.data),
 	});
 
@@ -129,6 +146,34 @@ export default function RentalAccounts() {
 	const totalBalance = accounts
 		.filter((a) => a.currency === "KGS")
 		.reduce((s, a) => s + parseFloat(a.currentBalance || "0"), 0);
+	const activeCount = accounts.filter((a) => parseFloat(a.currentBalance || "0") > 0).length;
+
+	const accountColumns: RentalExcelColumn<(typeof accounts)[number]>[] = [
+		{ key: "name", label: "Название", width: 160, render: (r) => r.name },
+		{
+			key: "type", label: "Тип", width: 120,
+			render: (r) => (
+				<span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${typeColors[r.type] || typeColors.bank}`}>
+					{typeLabels[r.type] || r.type}
+				</span>
+			),
+		},
+		{ key: "bank", label: "Банк", width: 120, render: (r) => r.bank || "—" },
+		{ key: "accountNumber", label: "Номер счёта", width: 150, render: (r) => r.accountNumber || "—" },
+		{ key: "currency", label: "Валюта", width: 70, align: "center", render: (r) => r.currency },
+		{
+			key: "currentBalance", label: "Баланс", width: 120, align: "right",
+			render: (r) => (
+				<span className={parseFloat(r.currentBalance || "0") >= 0 ? "text-emerald-700 font-medium" : "text-rose-600 font-medium"}>
+					{fmt(r.currentBalance, r.currency)}
+				</span>
+			),
+		},
+		{
+			key: "notes", label: "Примечание", width: 140, sortable: false,
+			render: (r) => r.notes || "—",
+		},
+	];
 
 	// Fetch NBKR rates when transfer dialog opens
 	useEffect(() => {
@@ -202,7 +247,7 @@ export default function RentalAccounts() {
 				await api.post("/rental/accounts", form);
 				toast({ title: "Счёт создан" });
 			}
-			queryClient.invalidateQueries({ queryKey: ["rental-accounts"] });
+			queryClient.invalidateQueries({ queryKey: getRentalAccountsQueryKey() });
 			setOpen(false);
 		} catch {
 			toast({ title: "Ошибка при сохранении", variant: "destructive" });
@@ -216,7 +261,7 @@ export default function RentalAccounts() {
 		setDeleting(id);
 		try {
 			await api.delete(`/rental/accounts/${id}`);
-			queryClient.invalidateQueries({ queryKey: ["rental-accounts"] });
+			queryClient.invalidateQueries({ queryKey: getRentalAccountsQueryKey() });
 			toast({ title: "Счёт удалён" });
 		} catch {
 			toast({ title: "Ошибка при удалении", variant: "destructive" });
@@ -244,7 +289,7 @@ export default function RentalAccounts() {
 				date: transfer.date,
 				note: transfer.note,
 			});
-			queryClient.invalidateQueries({ queryKey: ["rental-accounts"] });
+			queryClient.invalidateQueries({ queryKey: getRentalAccountsQueryKey() });
 			toast({
 				title: "Перевод выполнен",
 				description: `${fmt(transfer.amount, fromAcc?.currency)} → ${fmt(creditAmount, toAcc?.currency)}`,
@@ -254,7 +299,7 @@ export default function RentalAccounts() {
 		} catch (e: any) {
 			toast({
 				title: "Ошибка перевода",
-				description: e?.response?.data?.error || "Попробуйте снова",
+				description: getApiErrorMessage(e, "Попробуйте снова"),
 				variant: "destructive",
 			});
 		} finally {
@@ -263,15 +308,22 @@ export default function RentalAccounts() {
 	}
 
 	return (
-		<div>
-			<div className="flex items-center justify-between mb-6">
+		<div className="space-y-3">
+			<KpiRow cols={3}>
+				<KpiCard variant="strip" label="Всего счетов" value={accounts.length} sub="в модуле аренды" icon={Wallet} color="blue" loading={isLoading} />
+				<KpiCard variant="strip" label="Суммарный баланс" value={fmt(totalBalance, "KGS")} sub="в сомах" icon={CreditCard} color="green" loading={isLoading} />
+				<KpiCard variant="strip" label="Активных счетов" value={activeCount} sub="с положительным балансом" icon={Building2} color="purple" loading={isLoading} />
+			</KpiRow>
+
+			<div className="flex items-center justify-between flex-wrap gap-3">
 				<div>
 					<h1 className="text-2xl font-bold text-gray-900">Расчётные счета</h1>
 					<p className="text-gray-500 text-sm mt-0.5">
 						Только модуль «Аренда» — счета строительства и других модулей не видны
 					</p>
 				</div>
-				<div className="flex items-center gap-2">
+				<div className="flex items-center gap-2 flex-wrap">
+					<RentalViewModeToggle mode={viewMode} onChange={setViewMode} />
 					<CashSummary accounts={accounts} />
 					<Button
 						variant="outline"
@@ -296,31 +348,30 @@ export default function RentalAccounts() {
 				</div>
 			</div>
 
-			{/* Summary cards */}
-			<div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-				<div className="bg-white border rounded-xl p-4">
-					<p className="text-sm text-gray-500">Всего счетов</p>
-					<p className="text-2xl font-bold text-gray-900 mt-1">
-						{accounts.length}
-					</p>
-				</div>
-				<div className="bg-white border rounded-xl p-4">
-					<p className="text-sm text-gray-500">Суммарный баланс (KGS)</p>
-					<p className="text-2xl font-bold text-emerald-600 mt-1">
-						{fmt(totalBalance, "KGS")}
-					</p>
-				</div>
-				<div className="bg-white border rounded-xl p-4">
-					<p className="text-sm text-gray-500">Активных счетов</p>
-					<p className="text-2xl font-bold text-blue-600 mt-1">
-						{
-							accounts.filter((a) => parseFloat(a.currentBalance || "0") > 0)
-								.length
-						}
-					</p>
-				</div>
-			</div>
-
+			{viewMode === "report" ? (
+				isLoading ? (
+					<div className="bg-white rounded-xl border border-gray-200 p-6">
+						{Array.from({ length: 3 }).map((_, i) => (
+							<Skeleton key={i} className="h-8 w-full mb-2" />
+						))}
+					</div>
+				) : (
+					<RentalExcelTable
+						columns={accountColumns}
+						rows={sortedAccounts}
+						sortKey={sortKey}
+						sortDir={sortDir}
+						onSort={toggle}
+						emptyMessage="Нет расчётных счетов. Добавьте первый."
+						rowKey={(r) => r.id}
+						footer={accounts.length > 0 ? [
+							{ colSpan: 5, content: `Итого: ${accounts.length} счетов` },
+							{ content: new Intl.NumberFormat("ru-RU").format(totalBalance) + " KGS", align: "right", className: "text-emerald-700" },
+							{ content: "" },
+						] : undefined}
+					/>
+				)
+			) : (
 			<div className="bg-white border rounded-xl overflow-hidden">
 				<Table>
 					<TableHeader>
@@ -441,6 +492,7 @@ export default function RentalAccounts() {
 					)}
 				</Table>
 			</div>
+			)}
 
 			{/* Create/Edit dialog */}
 			<Dialog open={open} onOpenChange={setOpen}>

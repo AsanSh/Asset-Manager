@@ -2,20 +2,18 @@ import { Router } from "express";
 import { eq, and, SQL } from "drizzle-orm";
 import { db, rolesTable } from "../lib/db";
 import { requireAuth, requireRole, AuthenticatedRequest } from "../middleware/auth";
+import { requireTenantCompany } from "../middleware/tenant";
 
 const router: ReturnType<typeof Router> = Router();
 
+router.use(requireAuth, requireTenantCompany);
+
 // GET /api/roles - List all roles
-router.get(
-  "/roles",
-  requireAuth,
+router.get("/roles",
   async (req: AuthenticatedRequest, res): Promise<void> => {
     try {
       const conditions: SQL[] = [];
-
-      if (req.companyId) {
-        conditions.push(eq(rolesTable.companyId, req.companyId));
-      }
+      conditions.push(eq(rolesTable.companyId, req.scopedCompanyId!));
 
       const rows = await db
         .select()
@@ -32,9 +30,7 @@ router.get(
 );
 
 // GET /api/roles/:id - Get role with permissions
-router.get(
-  "/roles/:id",
-  requireAuth,
+router.get("/roles/:id",
   async (req: AuthenticatedRequest, res): Promise<void> => {
     try {
       const id = parseInt(
@@ -48,10 +44,7 @@ router.get(
       }
 
       const conditions: SQL[] = [eq(rolesTable.id, id)];
-
-      if (req.companyId) {
-        conditions.push(eq(rolesTable.companyId, req.companyId));
-      }
+      conditions.push(eq(rolesTable.companyId, req.scopedCompanyId!));
 
       const [row] = await db
         .select()
@@ -103,7 +96,7 @@ router.post(
       const [row] = await db
         .insert(rolesTable)
         .values({
-          companyId: req.companyId!,
+          companyId: req.scopedCompanyId!,
           name,
           description,
           permissions: permissions || [],
@@ -149,10 +142,7 @@ router.patch(
         eq(rolesTable.id, id),
         eq(rolesTable.isSystem, false),
       ];
-
-      if (req.companyId) {
-        conditions.push(eq(rolesTable.companyId, req.companyId));
-      }
+      conditions.push(eq(rolesTable.companyId, req.scopedCompanyId!));
 
       const updateData: Record<string, unknown> = {};
       if (name !== undefined) updateData.name = name;
@@ -209,10 +199,7 @@ router.delete(
         eq(rolesTable.id, id),
         eq(rolesTable.isSystem, false),
       ];
-
-      if (req.companyId) {
-        conditions.push(eq(rolesTable.companyId, req.companyId));
-      }
+      conditions.push(eq(rolesTable.companyId, req.scopedCompanyId!));
 
       const [existing] = await db
         .select()

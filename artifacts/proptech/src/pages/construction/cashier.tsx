@@ -7,7 +7,7 @@ import {
 	Search,
 	User,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,6 +56,14 @@ export default function ConstructionCashier() {
 		queryKey: ["construction-accounts"],
 		queryFn: () => api.get("/construction/accounts").then((r) => r.data),
 	});
+
+	const accountsList = Array.isArray(accounts) ? accounts : [];
+
+	useEffect(() => {
+		if (accountsList.length > 0 && !paymentForm.accountId) {
+			setPaymentForm((f) => ({ ...f, accountId: String(accountsList[0].id) }));
+		}
+	}, [accountsList, paymentForm.accountId]);
 	const { data: operations = [] } = useQuery({
 		queryKey: ["construction-operations"],
 		queryFn: () => api.get("/construction/operations").then((r) => r.data),
@@ -120,6 +128,10 @@ export default function ConstructionCashier() {
 
 	function handlePay() {
 		if (!selectedContract) return;
+		if (!paymentForm.accountId) {
+			toast.error("Выберите счёт зачисления");
+			return;
+		}
 		payMut.mutate({
 			contractId: selectedContract.id,
 			projectId: selectedContract.projectId,
@@ -127,10 +139,7 @@ export default function ConstructionCashier() {
 			amount: paymentForm.amount,
 			currency: paymentForm.currency,
 			exchangeRate: paymentForm.exchangeRate,
-			accountId:
-				paymentForm.accountId && paymentForm.accountId !== "none"
-					? Number(paymentForm.accountId)
-					: null,
+			accountId: Number(paymentForm.accountId),
 			paymentMethod: paymentForm.paymentMethod,
 			date: paymentForm.date,
 			notes: paymentForm.notes,
@@ -426,7 +435,7 @@ export default function ConstructionCashier() {
 									</Select>
 								</div>
 								<div>
-									<Label className="text-xs">Счёт зачисления</Label>
+									<Label className="text-xs">Счёт зачисления *</Label>
 									<Select
 										value={paymentForm.accountId}
 										onValueChange={(v) =>
@@ -437,8 +446,7 @@ export default function ConstructionCashier() {
 											<SelectValue placeholder="Выберите счёт" />
 										</SelectTrigger>
 										<SelectContent>
-											<SelectItem value="none">Не указывать</SelectItem>
-											{accounts.map((a: any) => (
+											{accountsList.map((a: any) => (
 												<SelectItem key={a.id} value={String(a.id)}>
 													{a.name} ({a.currency})
 												</SelectItem>
@@ -477,7 +485,8 @@ export default function ConstructionCashier() {
 								disabled={
 									payMut.isPending ||
 									!paymentForm.amount ||
-									parseFloat(paymentForm.amount) <= 0
+									parseFloat(paymentForm.amount) <= 0 ||
+									!paymentForm.accountId
 								}
 								onClick={handlePay}
 							>

@@ -1,6 +1,6 @@
 import { and, eq, SQL } from "drizzle-orm";
 import { db } from "./db";
-import { bankAccountsTable } from "./db/schema/bank_accounts";
+import { bankAccountsTable } from "./db";
 
 /** Изоляция счетов по модулям платформы */
 export const BANK_ACCOUNT_MODULE = {

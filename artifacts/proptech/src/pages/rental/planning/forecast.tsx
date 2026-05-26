@@ -64,11 +64,11 @@ export default function RentalForecast() {
 		queryFn: () => api.get("/rental/accruals").then((r) => r.data),
 	});
 	const { data: contracts = [] } = useQuery<any[]>({
-		queryKey: ["rental-contracts"],
+		queryKey: getListLeaseContractsQueryKey(),
 		queryFn: () => api.get("/rental/contracts").then((r) => r.data),
 	});
 	const { data: tenants = [] } = useQuery<any[]>({
-		queryKey: ["rental-tenants"],
+		queryKey: getListTenantsQueryKey(),
 		queryFn: () => api.get("/rental/tenants").then((r) => r.data),
 	});
 	const cols = useMemo(() => getMonthCols(parseInt(horizon, 10)), [horizon]);
@@ -175,10 +175,16 @@ export default function RentalForecast() {
 			case "pending":
 				return "bg-blue-100 text-blue-800";
 			case "future":
-				return "bg-gray-50 text-gray-400";
+				return "bg-violet-50 text-violet-800 border border-violet-200";
 			default:
-				return "text-gray-300";
+				return "text-gray-500";
 		}
+	}
+
+	function headerStyle(colKey: string) {
+		if (colKey === todayKey) return "bg-blue-50 text-blue-700";
+		if (colKey > todayKey) return "bg-violet-50 text-violet-800";
+		return "text-gray-700";
 	}
 
 	return (
@@ -248,7 +254,7 @@ export default function RentalForecast() {
 					{ label: "Частично", cls: "bg-amber-100 text-amber-800" },
 					{ label: "Просрочено", cls: "bg-rose-100 text-rose-800" },
 					{ label: "Ожидается", cls: "bg-blue-100 text-blue-800" },
-					{ label: "Прогноз", cls: "bg-gray-50 text-gray-400 border" },
+					{ label: "Прогноз", cls: "bg-violet-50 text-violet-800 border border-violet-200" },
 				].map((l) => (
 					<div
 						key={l.label}
@@ -270,7 +276,7 @@ export default function RentalForecast() {
 							{cols.map((col) => (
 								<th
 									key={col.key}
-									className={`text-center p-3 font-medium text-white min-w-[110px] ${col.key === todayKey ? "bg-blue-50 text-blue-700" : ""}`}
+									className={`text-center p-3 font-medium min-w-[110px] ${headerStyle(col.key)}`}
 								>
 									{col.label}
 									{col.key === todayKey && (
@@ -331,7 +337,7 @@ export default function RentalForecast() {
 											return (
 												<td
 													key={col.key}
-													className={`p-2 text-center ${col.key === todayKey ? "bg-blue-50/40" : ""}`}
+													className={`p-2 text-center ${col.key === todayKey ? "bg-blue-50/40" : col.key > todayKey ? "bg-violet-50/30" : ""}`}
 												>
 													{cell && cell.charged > 0 ? (
 														<div
@@ -369,7 +375,7 @@ export default function RentalForecast() {
 								{cols.map((col) => (
 									<td
 										key={col.key}
-										className={`p-3 text-center text-blue-700 ${col.key === todayKey ? "bg-blue-100" : ""}`}
+										className={`p-3 text-center ${col.key === todayKey ? "bg-blue-100 text-blue-700" : col.key > todayKey ? "bg-violet-50 text-violet-800" : "text-blue-700"}`}
 									>
 										{fmtKGS(colTotals[col.key])}
 									</td>

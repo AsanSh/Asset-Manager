@@ -8,6 +8,7 @@ import { useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useListLeaseContracts, useListProperties } from "@/api-client";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useColResize } from "@/lib/use-col-resize";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 
@@ -158,7 +159,7 @@ function ImportModal({ rows, onClose, onDone }: { rows: ImportRow[]; onClose: ()
 				log.push(`✓ ${row.tenantName} — ${row.projectName} каб.${row.unitNumber}`);
 			} catch (e: any) {
 				errors++;
-				log.push(`✗ ${row.tenantName}: ${e?.response?.data?.error ?? e.message}`);
+				log.push(`✗ ${row.tenantName}: ${getApiErrorMessage(e)}`);
 			}
 			setProgress({ done: done + errors, total: rows.length, errors, log: [...log] });
 		}
@@ -324,7 +325,7 @@ function EditRowDialog({ row, onClose, onSaved }: { row: EditRow; onClose: () =>
 			]);
 			onSaved(); onClose();
 		} catch (e: any) {
-			setError(e?.response?.data?.error ?? e.message ?? "Ошибка сохранения");
+			setError(getApiErrorMessage(e) ?? "Ошибка сохранения");
 		} finally { setSaving(false); }
 	};
 
@@ -473,6 +474,12 @@ export default function RentalSummary() {
 	const toggleCol  = (key: string) => setVisibleCols(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
 	const visibleDefs = COLUMNS.filter(c => visibleCols.has(c.key));
 	const isLoading   = leasesLoading || propsLoading;
+
+	const colWidthInitial = useMemo(
+		() => Object.fromEntries(COLUMNS.map((c) => [c.key, c.width ?? 100])),
+		[],
+	);
+	const { widths: colWidths, startResize } = useColResize(colWidthInitial);
 
 	// KPI aggregates
 	const nbkrRates = nbkr?.rates ?? {};
@@ -712,20 +719,28 @@ export default function RentalSummary() {
 			</div>
 
 			{/* ── Excel table ── */}
-			<div className="overflow-auto border border-gray-300 rounded-sm flex-1" style={{ maxHeight: "calc(100vh - 380px)" }}>
-				<table className="text-xs border-collapse" style={{ minWidth: visibleDefs.reduce((s, c) => s + (c.width ?? 100), 50) + "px" }}>
-					<thead className="sticky top-0 z-20">
+			<div className="overflow-auto border border-gray-300 rounded-sm flex-1" style={{ maxHeight: "calc(100vh - 300px)" }}>
+				<table className="text-xs border-separate border-spacing-0 table-fixed" style={{ minWidth: visibleDefs.reduce((s, c) => s + (colWidths[c.key] ?? c.width ?? 100), 50) + "px" }}>
+					<thead>
 						<tr>
-							<th className="border border-gray-300 bg-[#E8EAED] text-center text-gray-500 font-semibold py-1.5 px-2 select-none sticky left-0 z-10 text-[11px]">#</th>
-							{visibleDefs.map(col => (
+							<th className="border border-gray-300 text-center text-gray-500 font-semibold py-1.5 px-2 select-none sticky top-0 left-0 z-30 text-[11px] shadow-[0_1px_0_0_#d1d5db] w-10" style={{ backgroundColor: "#E8EAED" }}>#</th>
+							{visibleDefs.map(col => {
+								const w = colWidths[col.key] ?? col.width ?? 100;
+								return (
 								<th key={col.key} onClick={() => handleSort(col.key)}
-									className="border border-gray-300 bg-[#E8EAED] text-left py-1.5 px-2 font-semibold text-gray-700 cursor-pointer select-none hover:bg-[#d8dde3] transition-colors whitespace-nowrap text-[11px]">
-									<span className="inline-flex items-center gap-1">
+									className="border border-gray-300 text-left py-1.5 px-2 font-semibold text-gray-700 cursor-pointer select-none hover:bg-[#d8dde3] transition-colors whitespace-nowrap text-[11px] sticky top-0 z-20 shadow-[0_1px_0_0_#d1d5db] relative"
+									style={{ backgroundColor: "#E8EAED", width: w, minWidth: w, maxWidth: w }}>
+									<span className="inline-flex items-center gap-1 pr-1">
 										{col.label}
 										{sortKey === col.key ? (sortDir === "asc" ? <ChevronUp className="w-3 h-3 text-blue-600" /> : <ChevronDown className="w-3 h-3 text-blue-600" />) : <ChevronsUpDown className="w-3 h-3 text-gray-300" />}
 									</span>
+									<div
+										className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-blue-400 z-30"
+										onMouseDown={startResize(col.key)}
+										onClick={(e) => e.stopPropagation()}
+									/>
 								</th>
-							))}
+							);})}
 						</tr>
 					</thead>
 					<tbody>

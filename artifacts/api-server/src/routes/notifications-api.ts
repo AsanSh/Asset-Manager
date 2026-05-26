@@ -2,15 +2,18 @@ import { Router } from "express";
 import { eq, and, desc, or } from "drizzle-orm";
 import { db, notificationsTable } from "../lib/db";
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
+import { requireTenantCompany } from "../middleware/tenant";
 
 const router: ReturnType<typeof Router> = Router();
 
+router.use(requireAuth, requireTenantCompany);
+
 // GET /api/notifications - Get user notifications
-router.get("/notifications", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/notifications", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { limit = "50", unreadOnly } = req.query;
 
   let conditions = and(
-    eq(notificationsTable.companyId, req.companyId!),
+    eq(notificationsTable.companyId, req.scopedCompanyId!),
     or(
       eq(notificationsTable.userId, req.userId!),
       eq(notificationsTable.userId, null as any) // Company-wide notifications
@@ -31,11 +34,11 @@ router.get("/notifications", requireAuth, async (req: AuthenticatedRequest, res)
 });
 
 // GET /api/notifications/unread-count
-router.get("/notifications/unread-count", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.get("/notifications/unread-count", async (req: AuthenticatedRequest, res): Promise<void> => {
   const result = await db.select({ count: notificationsTable.id })
     .from(notificationsTable)
     .where(and(
-      eq(notificationsTable.companyId, req.companyId!),
+      eq(notificationsTable.companyId, req.scopedCompanyId!),
       or(
         eq(notificationsTable.userId, req.userId!),
         eq(notificationsTable.userId, null as any)
@@ -48,7 +51,7 @@ router.get("/notifications/unread-count", requireAuth, async (req: Authenticated
 });
 
 // PATCH /api/notifications/:id/read
-router.patch("/notifications/:id/read", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.patch("/notifications/:id/read", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
 
   const [notification] = await db.update(notificationsTable)
@@ -58,7 +61,7 @@ router.patch("/notifications/:id/read", requireAuth, async (req: AuthenticatedRe
     })
     .where(and(
       eq(notificationsTable.id, id),
-      eq(notificationsTable.companyId, req.companyId!)
+      eq(notificationsTable.companyId, req.scopedCompanyId!)
     ))
     .returning();
 
@@ -71,14 +74,14 @@ router.patch("/notifications/:id/read", requireAuth, async (req: AuthenticatedRe
 });
 
 // PATCH /api/notifications/mark-all-read
-router.patch("/notifications/mark-all-read", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.patch("/notifications/mark-all-read", async (req: AuthenticatedRequest, res): Promise<void> => {
   await db.update(notificationsTable)
     .set({
       isRead: true,
       read: true
     })
     .where(and(
-      eq(notificationsTable.companyId, req.companyId!),
+      eq(notificationsTable.companyId, req.scopedCompanyId!),
       or(
         eq(notificationsTable.userId, req.userId!),
         eq(notificationsTable.userId, null as any)
@@ -90,24 +93,24 @@ router.patch("/notifications/mark-all-read", requireAuth, async (req: Authentica
 });
 
 // DELETE /api/notifications/:id
-router.delete("/notifications/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.delete("/notifications/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
 
   await db.delete(notificationsTable)
     .where(and(
       eq(notificationsTable.id, id),
-      eq(notificationsTable.companyId, req.companyId!)
+      eq(notificationsTable.companyId, req.scopedCompanyId!)
     ));
 
   res.json({ ok: true });
 });
 
 // POST /api/notifications (internal use for creating notifications)
-router.post("/notifications", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+router.post("/notifications", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { userId, type, title, body, message, icon, color, link, metadata } = req.body;
 
   const [notification] = await db.insert(notificationsTable).values({
-    companyId: req.companyId!,
+    companyId: req.scopedCompanyId!,
     userId: userId || null,
     type,
     title,

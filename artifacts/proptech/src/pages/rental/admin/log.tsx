@@ -210,7 +210,7 @@ function LogRow({
 		} catch (e: any) {
 			toast({
 				title: "Ошибка восстановления",
-				description: e?.response?.data?.error || "Неизвестная ошибка",
+				description: getApiErrorMessage(e, "Неизвестная ошибка"),
 				variant: "destructive",
 			});
 		} finally {
