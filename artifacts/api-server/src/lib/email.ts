@@ -66,6 +66,93 @@ export async function sendVerificationEmail(email: string, code: string, firstNa
   }
 }
 
+interface PortalAccessOptions {
+  email: string;
+  firstName: string;
+  password: string;
+  loginUrl: string;
+  portalLabel: string; // "покупателя", "арендатора", "подрядчика", "поставщика"
+  companyName?: string;
+}
+
+export async function sendPortalAccessEmail(opts: PortalAccessOptions): Promise<{ sent: boolean; error?: string }> {
+  const { email, firstName, password, loginUrl, portalLabel, companyName } = opts;
+  const titleSuffix = companyName ? ` · ${companyName}` : "";
+  const html = `
+<!DOCTYPE html>
+<html lang="ru">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f9;padding:40px 0">
+    <tr><td align="center">
+      <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
+        <tr>
+          <td style="background:#f97316;padding:32px;text-align:center">
+            <h1 style="margin:0;color:#fff;font-size:22px;font-weight:700">${APP_NAME}${titleSuffix}</h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:40px 40px 24px">
+            <p style="margin:0 0 16px;font-size:16px;color:#1e293b">Здравствуйте, <strong>${firstName}</strong>!</p>
+            <p style="margin:0 0 24px;font-size:15px;color:#475569;line-height:1.6">
+              Для вас создан личный кабинет <strong>${portalLabel}</strong>${companyName ? ` в системе компании <strong>${companyName}</strong>` : ""}. Войдите по данным ниже и при первой возможности смените пароль.
+            </p>
+            <table cellpadding="0" cellspacing="0" style="width:100%;background:#f8fafc;border-radius:10px;padding:20px;margin:0 0 24px">
+              <tr>
+                <td style="padding:6px 0;font-size:13px;color:#64748b">Логин (email):</td>
+                <td style="padding:6px 0;font-size:14px;color:#0f172a;font-weight:600;text-align:right">${email}</td>
+              </tr>
+              <tr>
+                <td style="padding:6px 0;font-size:13px;color:#64748b;border-top:1px solid #e2e8f0">Пароль:</td>
+                <td style="padding:6px 0;font-size:14px;color:#0f172a;font-weight:600;text-align:right;border-top:1px solid #e2e8f0;font-family:monospace">${password}</td>
+              </tr>
+            </table>
+            <div style="text-align:center;margin:0 0 28px">
+              <a href="${loginUrl}" style="display:inline-block;background:#f97316;color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:16px;font-weight:600">
+                Войти в кабинет
+              </a>
+            </div>
+            <p style="margin:0 0 16px;font-size:13px;color:#94a3b8;word-break:break-all">
+              Или откройте: <a href="${loginUrl}" style="color:#f97316">${loginUrl}</a>
+            </p>
+            <p style="margin:0;font-size:12px;color:#94a3b8;text-align:center">
+              Это автоматическое письмо. Не передавайте данные третьим лицам.
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="background:#f8fafc;padding:20px 40px;border-top:1px solid #e2e8f0">
+            <p style="margin:0;font-size:12px;color:#94a3b8;text-align:center">
+              © ${new Date().getFullYear()} ${APP_NAME}
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+  if (!resend) {
+    logger.warn({ email }, "RESEND_API_KEY not set — portal access email not sent");
+    return { sent: false, error: "Email-сервис не настроен" };
+  }
+
+  const { error } = await resend.emails.send({
+    from: FROM,
+    to: email,
+    subject: `Доступ в личный кабинет — ${APP_NAME}`,
+    html,
+  });
+
+  if (error) {
+    logger.error({ error, email }, "Failed to send portal access email");
+    return { sent: false, error: String((error as { message?: string }).message ?? error) };
+  }
+
+  return { sent: true };
+}
+
 export async function sendPasswordResetEmail(
   email: string,
   firstName: string,

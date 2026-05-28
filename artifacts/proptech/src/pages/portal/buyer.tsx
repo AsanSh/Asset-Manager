@@ -71,13 +71,19 @@ const STATUS_LABELS: Record<string, string> = {
 	completed: "Завершён",
 };
 
-export default function BuyerPortal() {
+export default function BuyerPortal({ previewBuyerId }: { previewBuyerId?: number } = {}) {
 	const { user, logout } = useAuth();
 	const { toast } = useToast();
+	const isPreview = !!previewBuyerId;
 
 	const { data, isLoading } = useQuery({
-		queryKey: ["portal-buyer-me"],
-		queryFn: () => api.get("/portal/buyer/me").then((r) => r.data),
+		queryKey: isPreview ? ["portal-buyer-preview", previewBuyerId] : ["portal-buyer-me"],
+		queryFn: () => {
+			const url = isPreview
+				? `/portal/buyer/preview/${previewBuyerId}`
+				: "/portal/buyer/me";
+			return api.get(url).then((r) => r.data);
+		},
 	});
 
 	const handleDownloadContract = async (contractId: number) => {
@@ -116,8 +122,9 @@ export default function BuyerPortal() {
 	const currency = summary.currency ?? "KGS";
 	const outstanding = parseFloat(String(summary.outstanding ?? 0));
 
-	const userName =
-		[user?.firstName, user?.lastName].filter(Boolean).join(" ") || "Покупатель";
+	const userName = isPreview
+		? data?.buyer?.fullName || "Покупатель"
+		: [user?.firstName, user?.lastName].filter(Boolean).join(" ") || "Покупатель";
 
 	return (
 		<div className="min-h-screen bg-gray-50">
@@ -133,15 +140,22 @@ export default function BuyerPortal() {
 						</div>
 					</div>
 					<div className="flex items-center gap-3">
+						{isPreview && (
+							<span className="text-[10px] uppercase tracking-wide bg-amber-100 text-amber-800 px-2 py-1 rounded-full font-semibold">
+								👁 Предпросмотр для админа
+							</span>
+						)}
 						<span className="text-sm text-gray-600 font-medium">{userName}</span>
-						<Button
-							variant="ghost"
-							size="sm"
-							onClick={logout}
-							className="text-gray-500 gap-1.5"
-						>
-							<LogOut className="w-4 h-4" /> Выйти
-						</Button>
+						{!isPreview && (
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={logout}
+								className="text-gray-500 gap-1.5"
+							>
+								<LogOut className="w-4 h-4" /> Выйти
+							</Button>
+						)}
 					</div>
 				</div>
 			</header>

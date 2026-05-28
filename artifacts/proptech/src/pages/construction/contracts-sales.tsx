@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, FileText, Plus, Search, UserPlus } from "lucide-react";
+import { ChevronRight, Eye, FileText, Plus, Search, UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useSearch } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -82,6 +82,7 @@ function ContractDetailSummary({
 		password: "",
 	});
 	const [portalLoading, setPortalLoading] = useState(false);
+	const [, navigate] = useLocation();
 
 	const { data: reconciliationData } = useQuery({
 		queryKey: ["contract-sales-reconciliation", contract.id],
@@ -116,14 +117,20 @@ function ContractDetailSummary({
 		}
 		setPortalLoading(true);
 		try {
-			await api.post("/portal/create-buyer-account", {
+			const { data: resp } = await api.post("/portal/create-buyer-account", {
 				buyerId: contract.buyerId || undefined,
 				contractId: contract.id,
 				buyerName: contract.buyerName || `${portalForm.firstName} ${portalForm.lastName}`.trim(),
 				phone: contract.buyerPhone || undefined,
 				...portalForm,
 			});
-			toast.success("Доступ в портал покупателя создан");
+			if (resp?.emailSent) {
+				toast.success(`Доступ создан · письмо отправлено на ${portalForm.email}`);
+			} else {
+				toast.success(
+					`Доступ создан · ${resp?.emailError ? `письмо не отправлено (${resp.emailError})` : "письмо не отправлено"}`,
+				);
+			}
 			onRefresh();
 		} catch (err: unknown) {
 			toast.error(getApiErrorMessage(err, "Не удалось создать доступ"));
@@ -290,17 +297,31 @@ function ContractDetailSummary({
 							/>
 						</div>
 					</div>
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						className="gap-1.5"
-						onClick={() => void createPortalAccount()}
-						disabled={portalLoading}
-					>
-						<UserPlus className="w-4 h-4" />
-						{portalLoading ? "..." : "Создать доступ в портал"}
-					</Button>
+					<div className="flex gap-2 flex-wrap">
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							className="gap-1.5"
+							onClick={() => void createPortalAccount()}
+							disabled={portalLoading}
+						>
+							<UserPlus className="w-4 h-4" />
+							{portalLoading ? "..." : "Создать доступ + отправить email"}
+						</Button>
+						{contract.buyerId && (
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								className="gap-1.5"
+								onClick={() => navigate(`/admin/portal/buyer/${contract.buyerId}`)}
+							>
+								<Eye className="w-4 h-4" />
+								Глазами покупателя
+							</Button>
+						)}
+					</div>
 				</div>
 		</div>
 	);

@@ -8,10 +8,12 @@ import {
   warehouseSupplierPaymentsTable,
   counterpartiesTable, constructionSalesContractsTable, constructionAccrualsTable,
   constructionOperationsTable, constructionUnitsTable, constructionProjectsTable,
+  companiesTable,
 } from "../lib/db";
 import { requireAuth, requireRole, AuthenticatedRequest } from "../middleware/auth";
 import { requireTenantCompany } from "../middleware/tenant";
 import { hashPassword, validatePassword } from "../lib/security";
+import { sendPortalAccessEmail } from "../lib/email";
 import { parseContractDocumentMeta, summarizeContractDocument } from "../lib/contract-document";
 import { buildBuyerReconciliation, buildSupplierReconciliation } from "../lib/portal-reconciliation";
 
@@ -560,8 +562,28 @@ router.post("/portal/create-buyer-account", requireRole("admin", "company_admin"
     isActive: true,
   }).returning();
 
+  // Отправляем письмо с доступом
+  const [company] = await db.select({ name: companiesTable.name })
+    .from(companiesTable)
+    .where(eq(companiesTable.id, companyId));
+  const origin = (req.headers.origin as string) || `https://${req.headers.host}` || "https://proptech-sigma-eight.vercel.app";
+  const loginUrl = `${origin}/login?role=buyer`;
+  const emailResult = await sendPortalAccessEmail({
+    email,
+    firstName,
+    password,
+    loginUrl,
+    portalLabel: "покупателя",
+    companyName: company?.name,
+  }).catch((e) => ({ sent: false, error: String((e as Error).message) }));
+
   const { passwordHash: _ph4, ...safeUser } = user;
-  res.status(201).json({ user: safeUser });
+  res.status(201).json({
+    user: safeUser,
+    emailSent: emailResult.sent,
+    emailError: emailResult.error,
+    loginUrl,
+  });
 });
 
 // GET /portal/buyer/me — портал покупателя
@@ -676,6 +698,100 @@ router.get("/portal/buyer/me", async (req: AuthenticatedRequest, res): Promise<v
       activeContracts: contracts.filter((c) => c.status === "signed" || c.status === "review").length,
     },
     reconciliation,
+  });
+});
+
+// GET /portal/buyer/preview/:buyerId — предпросмотр портала покупателя для админа
+router.get("/portal/buyer/preview/:buyerId", requireRole("admin", "company_admin"), async (req: AuthenticatedRequest, res): Promise<void> => {
+  const buyerId = parseInt(req.params.buyerId as string, 10);
+  if (!buyerId) { res.status(400).json({ error: "buyerId обязателен" }); return; }
+  const companyId = req.scopedCompanyId!;
+
+  const [buyer] = await db.select().from(counterpartiesTable)
+    .where(and(eq(counterpartiesTable.id, buyerId), eq(counterpartiesTable.companyId, companyId)));
+  if (!buyer) { res.status(404).json({ error: "Покупатель не найден" }); return; }
+
+  const contracts = await db.select({
+    id: constructionSalesContractsTable.id,
+    contractNumber: constructionSalesContractsTable.contractNumber,
+    status: constructionSalesContractsTable.status,
+    totalAmount: constructionSalesContractsTable.totalAmount,
+    downPayment: constructionSalesContractsTable.downPayment,
+    paidAmount: constructionSalesContractsTable.paidAmount,
+    remainingAmount: constructionSalesContractsTable.remainingAmount,
+    currency: constructionSalesContractsTable.currency,
+    contractDate: constructionSalesContractsTable.contractDate,
+    signedAt: constructionSalesContractsTable.signedAt,
+    handoverDate: constructionSalesContractsTable.handoverDate,
+    unitId: constructionSalesContractsTable.unitId,
+    projectId: constructionSalesContractsTable.projectId,
+    contractDocumentMeta: constructionSalesContractsTable.contractDocumentMeta,
+    projectName: constructionProjectsTable.name,
+    unitNumber: constructionUnitsTable.unitNumber,
+  })
+    .from(constructionSalesContractsTable)
+    .leftJoin(constructionProjectsTable, eq(constructionSalesContractsTable.projectId, constructionProjectsTable.id))
+    .leftJoin(constructionUnitsTable, eq(constructionSalesContractsTable.unitId, constructionUnitsTable.id))
+    .where(and(
+      eq(constructionSalesContractsTable.buyerId, buyerId),
+      eq(constructionSalesContractsTable.companyId, companyId),
+    ))
+    .orderBy(desc(constructionSalesContractsTable.createdAt));
+
+  const contractIds = contracts.map((c) => c.id);
+  const accruals = contractIds.length > 0
+    ? await db.select().from(constructionAccrualsTable)
+        .where(and(
+          eq(constructionAccrualsTable.companyId, companyId),
+          inArray(constructionAccrualsTable.contractId, contractIds),
+        ))
+        .orderBy(constructionAccrualsTable.dueDate)
+    : [];
+
+  const payments = contractIds.length > 0
+    ? await db.select({
+        id: constructionOperationsTable.id,
+        date: constructionOperationsTable.date,
+        description: constructionOperationsTable.description,
+        amount: constructionOperationsTable.amount,
+        currency: constructionOperationsTable.currency,
+        paymentMethod: constructionOperationsTable.paymentMethod,
+        contractId: constructionOperationsTable.contractId,
+      })
+        .from(constructionOperationsTable)
+        .where(and(
+          eq(constructionOperationsTable.companyId, companyId),
+          eq(constructionOperationsTable.type, "income"),
+          inArray(constructionOperationsTable.contractId, contractIds),
+        ))
+        .orderBy(desc(constructionOperationsTable.date))
+    : [];
+
+  const totalCharged = accruals.reduce((s, a) => s + parseFloat(String(a.amount ?? 0)), 0);
+  const totalPaid = payments.reduce((s, p) => s + parseFloat(String(p.amount ?? 0)), 0);
+  const contractAmount = contracts.reduce((s, c) => s + parseFloat(String(c.totalAmount ?? 0)), 0);
+  const currency = contracts[0]?.currency ?? "KGS";
+
+  const reconciliation = buildBuyerReconciliation({
+    accruals, payments, contractAmount, totalCharged, totalPaid, currency,
+  });
+
+  res.json({
+    buyer,
+    contracts: contracts.map(({ contractDocumentMeta, ...c }) => ({
+      ...c,
+      contractDocument: summarizeContractDocument(contractDocumentMeta),
+    })),
+    accruals,
+    payments,
+    summary: {
+      contractAmount, totalCharged, totalPaid,
+      outstanding: totalCharged - totalPaid,
+      currency,
+      activeContracts: contracts.filter((c) => c.status === "signed" || c.status === "review").length,
+    },
+    reconciliation,
+    preview: true,
   });
 });
 

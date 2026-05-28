@@ -269,6 +269,13 @@ function Router() {
 			<Route path="/buyer-portal">
 				<PortalRoute component={BuyerPortal} />
 			</Route>
+			<Route path="/admin/portal/buyer/:buyerId">
+				{(params) => (
+					<ProtectedRoute
+						component={() => <BuyerPortal previewBuyerId={parseInt(params.buyerId)} />}
+					/>
+				)}
+			</Route>
 
 			{/* ── Админ-панель платформы (super_admin) ── */}
 			<Route path="/platform-admin/companies/:id">
