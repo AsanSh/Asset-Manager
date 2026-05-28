@@ -40,6 +40,7 @@ export const constructionUnitsTable = pgTable("construction_units", {
   areaDelta: numeric("area_delta", { precision: 10, scale: 2 }),
   recalculationPrice: numeric("recalculation_price", { precision: 15, scale: 2 }),
   supplementStatus: text("supplement_status").default("none"),
+  areaChangeDocumentMeta: text("area_change_document_meta"),
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

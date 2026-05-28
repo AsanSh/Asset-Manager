@@ -480,23 +480,27 @@ function PtoAreaDisplay({ unit }: { unit: Unit }) {
 function PtoEditAreaDialog({
 	unit,
 	open,
+	hideFinancials,
 	onClose,
 	onSaved,
 }: {
 	unit: Unit | null;
 	open: boolean;
+	hideFinancials?: boolean;
 	onClose: () => void;
 	onSaved: () => void;
 }) {
 	const { toast } = useToast();
 	const [area, setArea] = useState("");
 	const [reason, setReason] = useState("");
+	const [doc, setDoc] = useState<{ fileName: string; mimeType: string; base64: string } | null>(null);
 	const [loading, setLoading] = useState(false);
 
 	useEffect(() => {
 		if (unit) {
 			setArea(unit.area || "");
 			setReason("");
+			setDoc(null);
 		}
 	}, [unit?.id, open]);
 
@@ -508,13 +512,32 @@ function PtoEditAreaDialog({
 	const pps = parseFloat(unit.pricePerSqm || "0");
 	const newTotal = pps > 0 ? newArea * pps : 0;
 
+	const handleFile = async (file: File) => {
+		if (file.size > 8 * 1024 * 1024) {
+			toast({ title: "Файл слишком большой (макс. 8 МБ)", variant: "destructive" });
+			return;
+		}
+		const allowed = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
+		if (!allowed.includes(file.type)) {
+			toast({ title: "Только PDF или изображение", variant: "destructive" });
+			return;
+		}
+		const reader = new FileReader();
+		reader.onload = () => {
+			const result = reader.result as string;
+			const base64 = result.split(",")[1] || "";
+			setDoc({ fileName: file.name, mimeType: file.type, base64 });
+		};
+		reader.readAsDataURL(file);
+	};
+
 	const save = async () => {
 		if (!area || newArea <= 0) {
 			toast({ title: "Укажите корректную площадь", variant: "destructive" });
 			return;
 		}
-		if (newArea === oldArea) {
-			toast({ title: "Площадь не изменилась" });
+		if (newArea === oldArea && !doc) {
+			toast({ title: "Нет изменений для сохранения" });
 			onClose();
 			return;
 		}
@@ -523,6 +546,7 @@ function PtoEditAreaDialog({
 			await api.patch(`/construction/units/${unit.id}/area`, {
 				area,
 				reason: reason.trim() || undefined,
+				document: doc || undefined,
 			});
 			toast({
 				title: "Площадь обновлена",
@@ -541,6 +565,14 @@ function PtoEditAreaDialog({
 		}
 	};
 
+	// Документ, который уже был загружен ранее (если есть)
+	let existingDoc: { fileName?: string; mimeType?: string } | null = null;
+	try {
+		if ((unit as any).areaChangeDocumentMeta) {
+			existingDoc = JSON.parse((unit as any).areaChangeDocumentMeta);
+		}
+	} catch {}
+
 	return (
 		<Dialog open={open} onOpenChange={(v) => !v && onClose()}>
 			<DialogContent className="sm:max-w-md">
@@ -548,7 +580,8 @@ function PtoEditAreaDialog({
 					<DialogTitle>Изменение площади · кв. {unit.unitNumber}</DialogTitle>
 				</DialogHeader>
 				<div className="space-y-4">
-					<div className="grid grid-cols-2 gap-3 text-sm bg-gray-50 rounded-lg p-3">
+					{/* Базовая информация — без цены если ПТО */}
+					<div className={`grid ${hideFinancials ? "grid-cols-3" : "grid-cols-2"} gap-3 text-sm bg-gray-50 rounded-lg p-3`}>
 						<div>
 							<p className="text-xs text-gray-500">Этаж</p>
 							<p className="font-medium">{unit.floor || "—"}</p>
@@ -561,12 +594,14 @@ function PtoEditAreaDialog({
 							<p className="text-xs text-gray-500">Текущая площадь</p>
 							<p className="font-bold text-base">{oldArea} м²</p>
 						</div>
-						<div>
-							<p className="text-xs text-gray-500">Цена за м²</p>
-							<p className="font-medium">
-								{pps > 0 ? `${pps.toLocaleString("ru-KG")} ${unit.currency || "KGS"}` : "—"}
-							</p>
-						</div>
+						{!hideFinancials && (
+							<div>
+								<p className="text-xs text-gray-500">Цена за м²</p>
+								<p className="font-medium">
+									{pps > 0 ? `${pps.toLocaleString("ru-KG")} ${unit.currency || "KGS"}` : "—"}
+								</p>
+							</div>
+						)}
 					</div>
 
 					<div>
@@ -582,7 +617,8 @@ function PtoEditAreaDialog({
 						/>
 					</div>
 
-					{delta !== 0 && newArea > 0 && (
+					{/* Финансовая сводка скрыта для ПТО */}
+					{!hideFinancials && delta !== 0 && newArea > 0 && (
 						<div className={`rounded-lg p-3 text-sm ${delta > 0 ? "bg-emerald-50 border border-emerald-200" : "bg-rose-50 border border-rose-200"}`}>
 							<p className="flex justify-between">
 								<span className="text-gray-600">Изменение:</span>
@@ -611,14 +647,59 @@ function PtoEditAreaDialog({
 						</div>
 					)}
 
+					{/* Для ПТО — простое отображение дельты без сумм */}
+					{hideFinancials && delta !== 0 && newArea > 0 && (
+						<div className={`rounded-lg p-3 text-sm ${delta > 0 ? "bg-emerald-50 border border-emerald-200" : "bg-rose-50 border border-rose-200"}`}>
+							<p className="flex justify-between">
+								<span className="text-gray-600">Изменение:</span>
+								<span className={`font-bold ${delta > 0 ? "text-emerald-700" : "text-rose-700"}`}>
+									{delta > 0 ? "+" : ""}{delta.toFixed(2)} м²
+								</span>
+							</p>
+						</div>
+					)}
+
 					<div>
-						<Label className="text-sm">Причина изменения (необязательно)</Label>
+						<Label className="text-sm">Причина изменения</Label>
 						<textarea
 							className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm h-20 resize-none"
 							value={reason}
 							onChange={(e) => setReason(e.target.value)}
 							placeholder="Например: уточнение по обмерам БТИ, перепланировка..."
 						/>
+					</div>
+
+					{/* Загрузка PDF/фото — обоснование (акт обмера, чертёж и т.д.) */}
+					<div>
+						<Label className="text-sm">Документ (PDF / фото)</Label>
+						<div className="mt-1 border-2 border-dashed border-gray-200 rounded-lg p-3">
+							<input
+								type="file"
+								accept="application/pdf,image/*"
+								onChange={(e) => {
+									const f = e.target.files?.[0];
+									if (f) handleFile(f);
+								}}
+								className="hidden"
+								id="pto-doc-upload"
+							/>
+							<label
+								htmlFor="pto-doc-upload"
+								className="cursor-pointer flex items-center justify-center gap-2 text-sm text-gray-600 hover:text-amber-600"
+							>
+								📎 {doc ? doc.fileName : existingDoc?.fileName ? `Заменить: ${existingDoc.fileName}` : "Прикрепить файл (акт обмера, чертёж)"}
+							</label>
+							{doc && (
+								<button
+									type="button"
+									onClick={() => setDoc(null)}
+									className="mt-1 text-[10px] text-rose-500 hover:underline w-full text-center"
+								>
+									✕ убрать
+								</button>
+							)}
+						</div>
+						<p className="text-[10px] text-gray-400 mt-1">PDF, JPG, PNG · до 8 МБ</p>
 					</div>
 
 					<div className="flex justify-end gap-2 pt-1">
@@ -628,9 +709,9 @@ function PtoEditAreaDialog({
 						<Button
 							className="bg-amber-500 hover:bg-orange-600"
 							onClick={save}
-							disabled={loading || !area || newArea === oldArea}
+							disabled={loading || !area || (newArea === oldArea && !doc)}
 						>
-							{loading ? "Сохранение..." : "Сохранить изменение"}
+							{loading ? "Сохранение..." : "Сохранить"}
 						</Button>
 					</div>
 				</div>
@@ -1216,6 +1297,7 @@ export default function ConstructionChess() {
 			<PtoEditAreaDialog
 				unit={ptoEditUnit}
 				open={!!ptoEditUnit}
+				hideFinancials={forcedRoleByUser}
 				onClose={() => setPtoEditUnit(null)}
 				onSaved={invalidateAll}
 			/>

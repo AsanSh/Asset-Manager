@@ -1472,7 +1472,7 @@ router.get("/dashboard", async (req: AuthenticatedRequest, res): Promise<void> =
 /** PATCH /units/:id/area — изменение площади от имени ПТО */
 router.patch("/units/:id/area", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
-  const { area, reason } = req.body;
+  const { area, reason, document } = req.body;
   const newArea = parseFloat(area);
   if (!newArea || newArea <= 0) {
     res.status(400).json({ error: "Укажите корректную площадь" });
@@ -1492,6 +1492,21 @@ router.patch("/units/:id/area", async (req: AuthenticatedRequest, res): Promise<
   const pricePerSqm = parseFloat(String(unit.pricePerSqm || "0"));
   const newTotalPrice = pricePerSqm > 0 ? newArea * pricePerSqm : null;
 
+  // Валидация документа: до 8 МБ в base64
+  let docMeta: string | null = null;
+  if (document && typeof document === "object" && document.base64) {
+    if (String(document.base64).length > 12_000_000) {
+      res.status(400).json({ error: "Файл слишком большой (макс. ~8 МБ)" });
+      return;
+    }
+    docMeta = JSON.stringify({
+      fileName: String(document.fileName || "document"),
+      mimeType: String(document.mimeType || "application/pdf"),
+      base64: String(document.base64),
+      uploadedAt: new Date().toISOString(),
+    });
+  }
+
   // Обновляем помещение
   const [updated] = await db.update(constructionUnitsTable)
     .set({
@@ -1503,6 +1518,7 @@ router.patch("/units/:id/area", async (req: AuthenticatedRequest, res): Promise<
       areaModifiedAt: new Date(),
       areaDelta: String(delta),
       supplementStatus: "pending",
+      ...(docMeta ? { areaChangeDocumentMeta: docMeta } : {}),
     })
     .where(and(eq(constructionUnitsTable.id, id), eq(constructionUnitsTable.companyId, companyId)))
     .returning();
@@ -1512,7 +1528,7 @@ router.patch("/units/:id/area", async (req: AuthenticatedRequest, res): Promise<
     companyId,
     module: "kontrol",
     operationType: "area_change",
-    description: `Изменена площадь квартиры ${unit.unitNumber}: ${oldArea} → ${newArea} м² (Δ${delta > 0 ? "+" : ""}${delta.toFixed(2)})`,
+    description: `Изменена площадь квартиры ${unit.unitNumber}: ${oldArea} → ${newArea} м² (Δ${delta > 0 ? "+" : ""}${delta.toFixed(2)})${reason ? `. ${reason}` : ""}`,
     sourceTable: "construction_units",
     sourceId: id,
     operationDate: new Date().toISOString().slice(0, 10),
