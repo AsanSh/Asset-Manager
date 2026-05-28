@@ -14,6 +14,9 @@ import {
   constructionExpensesTable,
   constructionUnitsTable,
   currencyRatesTable,
+  taskCommentsTable,
+  consolidatedLogsTable,
+  constructionSupplementsTable,
 } from "../lib/db";
 import { constructionSalesContractsTable } from "../lib/db";
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
@@ -489,6 +492,18 @@ router.post("/tasks", async (req: AuthenticatedRequest, res): Promise<void> => {
     assignedTo: assignedTo ? parseInt(assignedTo) : null,
     createdBy: req.userId ?? null,
   }).returning();
+
+  // Автоматический комментарий-системное сообщение о создании задачи
+  if (row.id) {
+    await db.insert(taskCommentsTable).values({
+      companyId: req.scopedCompanyId!,
+      taskId: row.id,
+      userId: req.userId!,
+      content: `Задача создана: «${title}»`,
+      commentType: "status_change",
+    }).catch(() => {});
+  }
+
   res.status(201).json(row);
 });
 
@@ -1450,6 +1465,175 @@ router.get("/dashboard", async (req: AuthenticatedRequest, res): Promise<void> =
     soldRevenue,
     projects: projects.slice(0, 5),
   });
+});
+
+// ── PTO: ИЗМЕНЕНИЕ ПЛОЩАДИ ПОМЕЩЕНИЯ ─────────────────────────────────────────
+
+/** PATCH /units/:id/area — изменение площади от имени ПТО */
+router.patch("/units/:id/area", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const id = parseInt(req.params.id as string);
+  const { area, reason } = req.body;
+  const newArea = parseFloat(area);
+  if (!newArea || newArea <= 0) {
+    res.status(400).json({ error: "Укажите корректную площадь" });
+    return;
+  }
+  const companyId = req.scopedCompanyId!;
+
+  // Получаем текущую квартиру
+  const [unit] = await db.select()
+    .from(constructionUnitsTable)
+    .where(and(eq(constructionUnitsTable.id, id), eq(constructionUnitsTable.companyId, companyId)));
+
+  if (!unit) { res.status(404).json({ error: "Помещение не найдено" }); return; }
+
+  const oldArea = parseFloat(String(unit.area || "0"));
+  const delta = newArea - oldArea;
+  const pricePerSqm = parseFloat(String(unit.pricePerSqm || "0"));
+  const newTotalPrice = pricePerSqm > 0 ? newArea * pricePerSqm : null;
+
+  // Обновляем помещение
+  const [updated] = await db.update(constructionUnitsTable)
+    .set({
+      area: String(newArea),
+      totalPrice: newTotalPrice ? String(newTotalPrice) : null,
+      originalArea: unit.originalArea ?? String(oldArea),
+      areaModified: true,
+      areaModifiedBy: req.userId ?? null,
+      areaModifiedAt: new Date(),
+      areaDelta: String(delta),
+      supplementStatus: "pending",
+    })
+    .where(and(eq(constructionUnitsTable.id, id), eq(constructionUnitsTable.companyId, companyId)))
+    .returning();
+
+  // Логируем изменение
+  await db.insert(consolidatedLogsTable).values({
+    companyId,
+    module: "kontrol",
+    operationType: "area_change",
+    description: `Изменена площадь квартиры ${unit.unitNumber}: ${oldArea} → ${newArea} м² (Δ${delta > 0 ? "+" : ""}${delta.toFixed(2)})`,
+    sourceTable: "construction_units",
+    sourceId: id,
+    operationDate: new Date().toISOString().slice(0, 10),
+  } as any);
+
+  res.json({ ...updated, oldArea, delta });
+});
+
+/** POST /units/:id/supplement — создать доп. соглашение */
+router.post("/units/:id/supplement", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const id = parseInt(req.params.id as string);
+  const { contractId, pricePerSqm } = req.body;
+  const companyId = req.scopedCompanyId!;
+
+  const [unit] = await db.select()
+    .from(constructionUnitsTable)
+    .where(and(eq(constructionUnitsTable.id, id), eq(constructionUnitsTable.companyId, companyId)));
+
+  if (!unit || !unit.areaModified) {
+    res.status(400).json({ error: "Площадь не изменялась" });
+    return;
+  }
+
+  const oldArea = parseFloat(String(unit.originalArea || "0"));
+  const newArea = parseFloat(String(unit.area || "0"));
+  const pps = parseFloat(String(pricePerSqm || unit.pricePerSqm || "0"));
+  const balanceDelta = (newArea - oldArea) * pps;
+
+  const [supplement] = await db.insert(constructionSupplementsTable).values({
+    companyId,
+    unitId: id,
+    contractId: contractId ? parseInt(contractId) : null,
+    oldArea: String(oldArea),
+    newArea: String(newArea),
+    pricePerSqm: String(pps),
+    balanceDelta: String(balanceDelta),
+    currency: unit.currency || "KGS",
+    status: "draft",
+  }).returning();
+
+  // Обновить статус помещения
+  await db.update(constructionUnitsTable)
+    .set({ supplementStatus: "generated" })
+    .where(eq(constructionUnitsTable.id, id));
+
+  res.status(201).json(supplement);
+});
+
+/** GET /units/:id/supplements — список доп. соглашений по помещению */
+router.get("/units/:id/supplements", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const id = parseInt(req.params.id as string);
+  const rows = await db.select()
+    .from(constructionSupplementsTable)
+    .where(and(
+      eq(constructionSupplementsTable.unitId, id),
+      eq(constructionSupplementsTable.companyId, req.scopedCompanyId!),
+    ))
+    .orderBy(desc(constructionSupplementsTable.createdAt));
+  res.json(rows);
+});
+
+// ── TASK COMMENTS (ЧАТ) ──────────────────────────────────────────────────────
+
+router.get("/tasks/:id/comments", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const taskId = parseInt(req.params.id as string);
+  const rows = await db.select()
+    .from(taskCommentsTable)
+    .where(and(
+      eq(taskCommentsTable.taskId, taskId),
+      eq(taskCommentsTable.companyId, req.scopedCompanyId!),
+    ))
+    .orderBy(asc(taskCommentsTable.createdAt));
+  res.json(rows);
+});
+
+router.post("/tasks/:id/comments", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const taskId = parseInt(req.params.id as string);
+  const { content, commentType } = req.body;
+  if (!content?.trim()) {
+    res.status(400).json({ error: "Пустой комментарий" });
+    return;
+  }
+
+  const [comment] = await db.insert(taskCommentsTable).values({
+    companyId: req.scopedCompanyId!,
+    taskId,
+    userId: req.userId!,
+    content: content.trim(),
+    commentType: commentType || "message",
+  }).returning();
+
+  // Если это возврат задачи — обновить статус задачи
+  if (commentType === "return") {
+    await db.update(constructionTasksTable)
+      .set({ status: "todo" })
+      .where(and(
+        eq(constructionTasksTable.id, taskId),
+        eq(constructionTasksTable.companyId, req.scopedCompanyId!),
+      ));
+  }
+
+  res.status(201).json(comment);
+});
+
+// ── CONSOLIDATED LOGS ─────────────────────────────────────────────────────────
+
+router.get("/consolidated", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
+  const { module, counterpartyId, from, to, limit: lim = "100" } = req.query;
+
+  const conditions: any[] = [eq(consolidatedLogsTable.companyId, companyId)];
+  if (module) conditions.push(eq(consolidatedLogsTable.module, String(module)));
+  if (counterpartyId) conditions.push(eq(consolidatedLogsTable.counterpartyId, parseInt(String(counterpartyId))));
+
+  const rows = await db.select()
+    .from(consolidatedLogsTable)
+    .where(and(...conditions))
+    .orderBy(desc(consolidatedLogsTable.createdAt))
+    .limit(parseInt(String(lim), 10));
+
+  res.json(rows);
 });
 
 export default router;

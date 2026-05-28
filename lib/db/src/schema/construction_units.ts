@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, numeric } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, numeric, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -31,6 +31,16 @@ export const constructionUnitsTable = pgTable("construction_units", {
   progressPercent: integer("progress_percent").default(0),
 
   notes: text("notes"),
+
+  // PTO area modification tracking
+  originalArea: numeric("original_area", { precision: 10, scale: 2 }),
+  areaModified: boolean("area_modified").default(false),
+  areaModifiedBy: integer("area_modified_by"),
+  areaModifiedAt: timestamp("area_modified_at", { withTimezone: true }),
+  areaDelta: numeric("area_delta", { precision: 10, scale: 2 }),
+  recalculationPrice: numeric("recalculation_price", { precision: 15, scale: 2 }),
+  supplementStatus: text("supplement_status").default("none"),
+
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

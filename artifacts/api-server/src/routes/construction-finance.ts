@@ -465,7 +465,20 @@ async function insertAccrualsFromSchedule(
 router.post("/contracts-sales", async (req: AuthenticatedRequest, res): Promise<void> => {
   const companyId = req.scopedCompanyId!;
   const body = req.body;
-  const total = parseFloat(body.totalAmount || "0");
+
+  // Auto-calculate total amount from unit area × pricePerSqm if not provided
+  let total = parseFloat(body.totalAmount || "0");
+  if (total <= 0 && body.unitId) {
+    const [unit] = await db.select()
+      .from(constructionUnitsTable)
+      .where(and(eq(constructionUnitsTable.id, Number(body.unitId)), eq(constructionUnitsTable.companyId, companyId)));
+    if (unit) {
+      const area = parseFloat(String(unit.area || "0"));
+      const pps = parseFloat(String(unit.pricePerSqm || "0"));
+      if (area > 0 && pps > 0) total = area * pps;
+    }
+  }
+
   const down = parseFloat(body.downPayment || "0");
   const remainingAmount = String(Math.max(0, total - down));
 

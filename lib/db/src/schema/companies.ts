@@ -12,6 +12,8 @@ export const companiesTable = pgTable("companies", {
   address: text("address"),
   logoUrl: text("logo_url"),
   defaultCurrency: text("default_currency").notNull().default("KGS"),
+  moduleType: text("module_type"),
+  innSuffix: text("inn_suffix"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

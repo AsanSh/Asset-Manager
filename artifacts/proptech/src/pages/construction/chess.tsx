@@ -8,8 +8,12 @@ import {
 	Upload,
 	Users,
 	Building2,
+	Pencil,
+	Check,
+	X,
 } from "lucide-react";
 import { useState } from "react";
+import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import {
 	ChessByCounterpartyView,
@@ -78,6 +82,12 @@ interface Unit {
 	currency: string;
 	status: string;
 	notes?: string;
+	// PTO area tracking
+	areaModified?: boolean;
+	originalArea?: string;
+	areaDelta?: string;
+	recalculationPrice?: string;
+	supplementStatus?: string;
 }
 interface Project {
 	id: number;
@@ -452,8 +462,69 @@ function BulkGenerateDialog({
 
 type ViewMode = "grid" | "by-unit" | "by-counterparty";
 
+/** Инлайн-редактор площади для ПТО */
+function PtoAreaCell({ unit, onSaved }: { unit: Unit; onSaved: () => void }) {
+	const { toast } = useToast();
+	const [editing, setEditing] = useState(false);
+	const [val, setVal] = useState(unit.area || "");
+	const [loading, setLoading] = useState(false);
+
+	const save = async () => {
+		if (!val || parseFloat(val) <= 0) return;
+		setLoading(true);
+		try {
+			const t = localStorage.getItem("auth_token");
+			await api.patch(`/construction/units/${unit.id}/area`, {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json", ...(t ? { Authorization: `Bearer ${t}` } : {}) },
+				body: JSON.stringify({ area: val }),
+			});
+			toast({ title: `Площадь обновлена: ${val} м²` });
+			onSaved();
+			setEditing(false);
+		} catch {
+			toast({ title: "Ошибка", variant: "destructive" });
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	if (editing) {
+		return (
+			<div className="flex items-center gap-0.5 mt-0.5" onClick={(e) => e.stopPropagation()}>
+				<input
+					className="w-12 h-4 text-[9px] border rounded px-0.5 text-center"
+					value={val}
+					onChange={(e) => setVal(e.target.value)}
+					type="number"
+					autoFocus
+					onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") setEditing(false); }}
+				/>
+				<button onClick={save} disabled={loading} className="text-emerald-600 hover:text-emerald-700">
+					<Check className="w-3 h-3" />
+				</button>
+				<button onClick={() => setEditing(false)} className="text-gray-400 hover:text-gray-600">
+					<X className="w-3 h-3" />
+				</button>
+			</div>
+		);
+	}
+
+	return (
+		<button
+			className="flex items-center gap-0.5 text-[8px] opacity-80 hover:opacity-100 group"
+			onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+		>
+			{unit.area ? `${unit.area}м²` : "—"}
+			<Pencil className="w-2 h-2 opacity-0 group-hover:opacity-100" />
+		</button>
+	);
+}
+
 export default function ConstructionChess() {
 	const qc = useQueryClient();
+	const { user } = useAuth();
+	const isPTO = (user as any)?.role === "pto" || (user as any)?.role === "engineer";
 	const [projectId, setProjectId] = useState<number | null>(null);
 	const [selectedUnit, setSelectedUnit] = useState<Unit | null | "new">(null);
 	const [saleFlow, setSaleFlow] = useState<{
@@ -900,33 +971,32 @@ export default function ConstructionChess() {
 															statusGridMap,
 															unit.status,
 														);
+														const cellModified = !!(unit as any).areaModified;
+														const ptoBg = cellModified ? "bg-amber-100" : cfg.bg;
+														const ptoBorder = cellModified ? "border-amber-500" : cfg.border;
 														return (
-															<button
+															<div
 																key={unit.id}
-																onClick={() => setSelectedUnit(unit)}
 																title={`${unit.unitNumber} · ${unit.area ? `${unit.area} м²` : ""} · ${cfg.label}`}
-																className={`w-14 h-12 rounded border-2 text-center transition-all flex flex-col items-center justify-center p-0.5 ${cfg.bg} ${cfg.border}`}
+																className={`w-14 rounded border-2 text-center transition-all flex flex-col items-center justify-center p-0.5 relative cursor-pointer ${isPTO ? `${ptoBg} ${ptoBorder}` : `${cfg.bg} ${cfg.border}`}`}
+																style={{ minHeight: "48px" }}
+																onClick={() => !isPTO && setSelectedUnit(unit)}
 															>
-																<span
-																	className={`text-[10px] font-bold ${cfg.text}`}
-																>
+																{!isPTO && cellModified && (
+																	<div className="absolute -top-1.5 -right-1.5 bg-orange-500 text-white text-[7px] font-bold px-0.5 rounded z-10">Δ</div>
+																)}
+																<span className={`text-[10px] font-bold ${cfg.text}`}>
 																	{unit.unitNumber}
 																</span>
-																{unit.area && (
-																	<span
-																		className={`text-[8px] ${cfg.text} opacity-70`}
-																	>
-																		{unit.area}м²
-																	</span>
+																{isPTO ? (
+																	<PtoAreaCell unit={unit as any} onSaved={invalidateAll} />
+																) : (
+																	<>
+																		{unit.area && <span className={`text-[8px] ${cfg.text} opacity-70`}>{unit.area}м²</span>}
+																		{unit.roomCount && <span className={`text-[8px] ${cfg.text} opacity-70`}>{unit.roomCount}к</span>}
+																	</>
 																)}
-																{unit.roomCount && (
-																	<span
-																		className={`text-[8px] ${cfg.text} opacity-70`}
-																	>
-																		{unit.roomCount}к
-																	</span>
-																)}
-															</button>
+															</div>
 														);
 													})}
 												</div>

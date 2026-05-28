@@ -80,6 +80,8 @@ import ConstructionReports from "@/pages/construction/reports";
 import ConstructionSettings from "@/pages/construction/settings";
 import ConstructionStages from "@/pages/construction/stages";
 import ConstructionTasks from "@/pages/construction/tasks";
+import TaskChat from "@/pages/construction/task-chat";
+import ConsolidatedModule from "@/pages/consolidated";
 import ConstructionWorkers from "@/pages/construction/workers";
 import Counterparties from "@/pages/counterparties";
 import CrmClients from "@/pages/crm/clients";
@@ -284,6 +286,9 @@ function Router() {
 			</Route>
 
 			{/* ── Сводное (consolidated) ── */}
+			<Route path="/consolidated">
+				<ProtectedRoute component={ConsolidatedModule} />
+			</Route>
 			<Route path="/dashboard">
 				<ProtectedRoute component={Dashboard} />
 			</Route>
@@ -389,6 +394,9 @@ function Router() {
 			</Route>
 			<Route path="/construction/tasks">
 				<ProtectedRoute component={ConstructionTasks} />
+			</Route>
+			<Route path="/construction/tasks/:id">
+				{(params) => <ProtectedRoute component={() => <TaskChat taskId={parseInt(params.id)} />} />}
 			</Route>
 			<Route path="/construction/workers">
 				<ProtectedRoute component={ConstructionWorkers} />

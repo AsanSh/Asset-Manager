@@ -486,6 +486,7 @@ const MODULES: Module[] = [
 						label: "Шахматка объектов",
 						icon: Grid3X3,
 					},
+					{ href: "/consolidated", label: "Сводное", icon: BarChart3 },
 					{ href: "/counterparties", label: "Контрагенты", icon: Users },
 					{ href: "/companies", label: "Компании", icon: Building },
 					{ href: "/users", label: "Пользователи", icon: UserCircle },

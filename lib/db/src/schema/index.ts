@@ -57,4 +57,7 @@ export * from "./construction_budget_categories";
 export * from "./construction_budget_line_items";
 export * from "./email_verifications";
 export * from "./password_reset_tokens";
+export * from "./task_comments";
+export * from "./consolidated_logs";
+export * from "./construction_supplements";
 

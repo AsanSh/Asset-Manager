@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import {
 	AlertCircle,
 	CheckCircle2,
@@ -7,6 +8,7 @@ import {
 	Edit2,
 	Flag,
 	Inbox,
+	MessageSquare,
 	Plus,
 	Send,
 	Trash2,
@@ -14,7 +16,6 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -90,14 +91,14 @@ function userName(u: ApiUser) { return `${u.firstName} ${u.lastName}`.trim(); }
 
 function taskAssignedTo(t: Task): number | null {
 	const raw = t.assignedTo ?? (t as Task & { assigned_to?: number | null }).assigned_to;
-	if (raw == null || raw === "") return null;
+	if (raw == null) return null;
 	const n = Number(raw);
 	return Number.isFinite(n) ? n : null;
 }
 
 function taskCreatedBy(t: Task): number | null {
 	const raw = t.createdBy ?? (t as Task & { created_by?: number | null }).created_by;
-	if (raw == null || raw === "") return null;
+	if (raw == null) return null;
 	const n = Number(raw);
 	return Number.isFinite(n) ? n : null;
 }
@@ -121,7 +122,7 @@ function normalizeTask(raw: Record<string, unknown>): Task {
 		...(raw as Task),
 		assignedTo: raw.assignedTo ?? raw.assigned_to ?? null,
 		createdBy: raw.createdBy ?? raw.created_by ?? null,
-	} as Task;
+	} as unknown as Task;
 }
 
 function TaskDialog({
@@ -310,6 +311,7 @@ function TaskCard({
 	onDelete: (id: number) => void;
 	onStatusChange: (task: Task, status: string) => void;
 }) {
+	const [, navigate] = useLocation();
 	const statusOpt = STATUS_OPTS.find((s) => s.value === task.status);
 	const StatusIcon = statusOpt?.icon ?? Circle;
 	const priorityOpt = PRIORITY_OPTS.find((p) => p.value === task.priority);
@@ -341,6 +343,13 @@ function TaskCard({
 					</div>
 				</div>
 				<div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+					<button
+						onClick={() => navigate(`/construction/tasks/${task.id}`)}
+						className="text-gray-300 hover:text-amber-500"
+						title="Открыть чат задачи"
+					>
+						<MessageSquare className="w-3.5 h-3.5" />
+					</button>
 					<button onClick={() => onEdit(task)} className="text-gray-300 hover:text-gray-600">
 						<Edit2 className="w-3.5 h-3.5" />
 					</button>

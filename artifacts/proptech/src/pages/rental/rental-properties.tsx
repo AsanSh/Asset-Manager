@@ -1,4 +1,4 @@
-import { useListRentalProperties } from "@/api-client";
+import { useListRentalProperties, getListRentalPropertiesQueryKey } from "@/api-client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2, ChevronDown, ChevronUp, ChevronsUpDown, Home, Pencil, Plus, Trash2, UserCircle, Wallet } from "lucide-react";
 import { useSortable } from "@/lib/use-sortable";
