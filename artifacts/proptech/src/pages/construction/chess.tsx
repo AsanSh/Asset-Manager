@@ -524,7 +524,12 @@ function PtoAreaCell({ unit, onSaved }: { unit: Unit; onSaved: () => void }) {
 export default function ConstructionChess() {
 	const qc = useQueryClient();
 	const { user } = useAuth();
-	const isPTO = (user as any)?.role === "pto" || (user as any)?.role === "engineer";
+	const userRole = (user as any)?.role;
+	const isAdmin = userRole === "admin" || userRole === "super_admin" || userRole === "company_admin";
+	const forcedRoleByUser = userRole === "pto" || userRole === "engineer";
+	// Админы могут вручную переключать режим ПТО/CRM
+	const [adminModeOverride, setAdminModeOverride] = useState<"crm" | "pto">("crm");
+	const isPTO = forcedRoleByUser || (isAdmin && adminModeOverride === "pto");
 	const [projectId, setProjectId] = useState<number | null>(null);
 	const [selectedUnit, setSelectedUnit] = useState<Unit | null | "new">(null);
 	const [saleFlow, setSaleFlow] = useState<{
@@ -699,12 +704,37 @@ export default function ConstructionChess() {
 		<div className="space-y-6">
 			<div className="flex items-center justify-between flex-wrap gap-3">
 				<div>
-					<h1 className="text-2xl font-bold text-gray-900">Шахматка</h1>
+					<h1 className="text-2xl font-bold text-gray-900">
+						Шахматка
+						{isPTO && (
+							<span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full text-xs font-medium align-middle">
+								🔧 Режим ПТО
+							</span>
+						)}
+					</h1>
 					<p className="text-sm text-gray-500 mt-0.5">
-						Визуальная карта квартир по этажам
+						{isPTO
+							? "Управление площадями · клик по площади для редактирования"
+							: "Визуальная карта квартир · договоры и финансы"}
 					</p>
 				</div>
-				<div className="flex gap-2 flex-wrap">
+				<div className="flex gap-2 flex-wrap items-center">
+					{isAdmin && (
+						<div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+							<button
+								onClick={() => setAdminModeOverride("crm")}
+								className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${adminModeOverride === "crm" ? "bg-white shadow text-gray-900" : "text-gray-500 hover:text-gray-700"}`}
+							>
+								CRM
+							</button>
+							<button
+								onClick={() => setAdminModeOverride("pto")}
+								className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${adminModeOverride === "pto" ? "bg-white shadow text-amber-700" : "text-gray-500 hover:text-gray-700"}`}
+							>
+								ПТО
+							</button>
+						</div>
+					)}
 					<Button
 						variant="outline"
 						onClick={() => setShowStatusSettings(true)}

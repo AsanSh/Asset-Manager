@@ -67,6 +67,8 @@ export default function Users() {
 		staff: "Сотрудник",
 		company_admin: "Администратор компании",
 		sales_manager: "Менеджер продаж",
+		pto: "ПТО (площади)",
+		engineer: "Инженер ПТО",
 	};
 
 	const displayRole = (role: string) =>

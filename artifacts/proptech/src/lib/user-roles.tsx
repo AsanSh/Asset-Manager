@@ -16,6 +16,8 @@ export const SYSTEM_ROLE_LABELS: Record<string, string> = {
 	rental_manager: "Менеджер аренды",
 	finance: "Финансы",
 	staff: "Сотрудник",
+	pto: "ПТО (управление площадями)",
+	engineer: "Инженер ПТО",
 };
 
 export interface CompanyRole {
@@ -75,6 +77,8 @@ export function RoleSelect({
 				<SelectItem value="sales_manager">Менеджер продаж</SelectItem>
 				<SelectItem value="rental_manager">Менеджер аренды</SelectItem>
 				<SelectItem value="finance">Финансы</SelectItem>
+				<SelectItem value="pto">ПТО (управление площадями)</SelectItem>
+				<SelectItem value="engineer">Инженер ПТО</SelectItem>
 				<SelectItem value="staff">Сотрудник</SelectItem>
 				{activeCustom.length > 0 && (
 					<>
