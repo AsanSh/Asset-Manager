@@ -11,6 +11,12 @@ import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
 import { requireTenantCompany } from "../middleware/tenant";
 import { sendServerError } from "../lib/http-errors";
 import {
+  buildContractDocumentMeta,
+  parseContractDocumentMeta,
+  summarizeContractDocument,
+} from "../lib/contract-document";
+import { buildBuyerReconciliation } from "../lib/portal-reconciliation";
+import {
   buildPaymentSchedule,
   scheduleTotal,
   type ScheduleRow,
@@ -34,6 +40,14 @@ import {
 const router = Router();
 
 router.use(requireAuth, requireTenantCompany);
+
+function mapSalesContractResponse(row: typeof constructionSalesContractsTable.$inferSelect) {
+  const { contractDocumentMeta, ...rest } = row;
+  return {
+    ...rest,
+    contractDocument: summarizeContractDocument(contractDocumentMeta),
+  };
+}
 
 const CONSTRUCTION_ACCOUNTS = BANK_ACCOUNT_MODULE.construction;
 
@@ -414,7 +428,7 @@ router.get("/contracts-sales", async (req: AuthenticatedRequest, res): Promise<v
   const rows = await db.select().from(constructionSalesContractsTable)
     .where(eq(constructionSalesContractsTable.companyId, companyId))
     .orderBy(desc(constructionSalesContractsTable.createdAt));
-  res.json(rows);
+  res.json(rows.map(mapSalesContractResponse));
 });
 
 async function insertAccrualsFromSchedule(
@@ -642,29 +656,170 @@ router.post("/contracts-sales/from-unit", async (req: AuthenticatedRequest, res)
 
 router.patch("/contracts-sales/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const companyId = req.scopedCompanyId!;
+  const id = Number(req.params.id);
   const body = req.body;
 
-  if (body.status === "signed" || body.status === "completed") {
-    const [contract] = await db.select().from(constructionSalesContractsTable)
-      .where(and(eq(constructionSalesContractsTable.id, Number(req.params.id)), eq(constructionSalesContractsTable.companyId, companyId)));
-    if (contract?.unitId) {
+  const [contract] = await db.select().from(constructionSalesContractsTable)
+    .where(and(eq(constructionSalesContractsTable.id, id), eq(constructionSalesContractsTable.companyId, companyId)));
+  if (!contract) {
+    res.status(404).json({ error: "Договор не найден" });
+    return;
+  }
+
+  if (body.status && contract.unitId) {
+    if (body.status === "signed" || body.status === "completed") {
       await db.update(constructionUnitsTable)
         .set({ status: "sold" })
+        .where(and(eq(constructionUnitsTable.id, contract.unitId), eq(constructionUnitsTable.companyId, companyId)));
+    } else if (body.status === "cancelled") {
+      await db.update(constructionUnitsTable)
+        .set({
+          status: "available",
+          buyerId: null,
+          contractDate: null,
+        })
+        .where(and(eq(constructionUnitsTable.id, contract.unitId), eq(constructionUnitsTable.companyId, companyId)));
+    } else if (body.status === "draft" && contract.status === "cancelled") {
+      await db.update(constructionUnitsTable)
+        .set({ status: "reserved" })
         .where(and(eq(constructionUnitsTable.id, contract.unitId), eq(constructionUnitsTable.companyId, companyId)));
     }
   }
 
   const [row] = await db.update(constructionSalesContractsTable)
     .set({ ...body, updatedAt: new Date() })
-    .where(and(eq(constructionSalesContractsTable.id, Number(req.params.id)), eq(constructionSalesContractsTable.companyId, companyId)))
+    .where(and(eq(constructionSalesContractsTable.id, id), eq(constructionSalesContractsTable.companyId, companyId)))
     .returning();
   res.json(row);
 });
 
 router.delete("/contracts-sales/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const companyId = req.scopedCompanyId!;
+  const id = Number(req.params.id);
+
+  const [contract] = await db.select().from(constructionSalesContractsTable)
+    .where(and(eq(constructionSalesContractsTable.id, id), eq(constructionSalesContractsTable.companyId, companyId)));
+
   await db.delete(constructionSalesContractsTable)
-    .where(and(eq(constructionSalesContractsTable.id, Number(req.params.id)), eq(constructionSalesContractsTable.companyId, companyId)));
+    .where(and(eq(constructionSalesContractsTable.id, id), eq(constructionSalesContractsTable.companyId, companyId)));
+
+  if (contract?.unitId) {
+    await db.update(constructionUnitsTable)
+      .set({
+        status: "available",
+        buyerId: null,
+        contractDate: null,
+      })
+      .where(and(eq(constructionUnitsTable.id, contract.unitId), eq(constructionUnitsTable.companyId, companyId)));
+  }
+
+  res.json({ ok: true });
+});
+
+router.get("/contracts-sales/:id/reconciliation", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
+  const id = Number(req.params.id);
+
+  const [contract] = await db.select().from(constructionSalesContractsTable)
+    .where(and(eq(constructionSalesContractsTable.id, id), eq(constructionSalesContractsTable.companyId, companyId)));
+  if (!contract) {
+    res.status(404).json({ error: "Договор не найден" });
+    return;
+  }
+
+  const accruals = await db.select().from(constructionAccrualsTable)
+    .where(and(
+      eq(constructionAccrualsTable.contractId, id),
+      eq(constructionAccrualsTable.companyId, companyId),
+    ))
+    .orderBy(constructionAccrualsTable.dueDate);
+
+  const payments = await db.select({
+    date: constructionOperationsTable.date,
+    description: constructionOperationsTable.description,
+    amount: constructionOperationsTable.amount,
+    currency: constructionOperationsTable.currency,
+    paymentMethod: constructionOperationsTable.paymentMethod,
+  })
+    .from(constructionOperationsTable)
+    .where(and(
+      eq(constructionOperationsTable.contractId, id),
+      eq(constructionOperationsTable.companyId, companyId),
+      eq(constructionOperationsTable.type, "income"),
+    ))
+    .orderBy(desc(constructionOperationsTable.date));
+
+  const totalCharged = accruals.reduce(
+    (s, a) => s + parseFloat(String(a.amount ?? 0)),
+    0,
+  );
+  const totalPaid = payments.reduce(
+    (s, p) => s + parseFloat(String(p.amount ?? 0)),
+    0,
+  );
+  const contractAmount = parseFloat(String(contract.totalAmount ?? 0));
+  const currency = contract.currency ?? "KGS";
+
+  res.json({
+    contract: mapSalesContractResponse(contract),
+    reconciliation: buildBuyerReconciliation({
+      accruals,
+      payments,
+      contractAmount,
+      totalCharged,
+      totalPaid,
+      currency,
+    }),
+  });
+});
+
+router.post("/contracts-sales/:id/contract-document", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
+  const id = Number(req.params.id);
+  const built = buildContractDocumentMeta(req.body);
+  if (built.error) {
+    res.status(400).json({ error: built.error });
+    return;
+  }
+  const [row] = await db.update(constructionSalesContractsTable)
+    .set({ contractDocumentMeta: built.meta! })
+    .where(and(eq(constructionSalesContractsTable.id, id), eq(constructionSalesContractsTable.companyId, companyId)))
+    .returning();
+  if (!row) {
+    res.status(404).json({ error: "Договор не найден" });
+    return;
+  }
+  res.json({ ok: true, contractDocument: built.summary });
+});
+
+router.get("/contracts-sales/:id/contract-document", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
+  const id = Number(req.params.id);
+  const [row] = await db.select().from(constructionSalesContractsTable)
+    .where(and(eq(constructionSalesContractsTable.id, id), eq(constructionSalesContractsTable.companyId, companyId)));
+  if (!row) {
+    res.status(404).json({ error: "Договор не найден" });
+    return;
+  }
+  const doc = parseContractDocumentMeta(row.contractDocumentMeta);
+  if (!doc) {
+    res.status(404).json({ error: "Договор не загружен" });
+    return;
+  }
+  res.json(doc);
+});
+
+router.delete("/contracts-sales/:id/contract-document", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
+  const id = Number(req.params.id);
+  const [row] = await db.update(constructionSalesContractsTable)
+    .set({ contractDocumentMeta: null })
+    .where(and(eq(constructionSalesContractsTable.id, id), eq(constructionSalesContractsTable.companyId, companyId)))
+    .returning();
+  if (!row) {
+    res.status(404).json({ error: "Договор не найден" });
+    return;
+  }
   res.json({ ok: true });
 });
 

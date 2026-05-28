@@ -1,6 +1,14 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Briefcase, Edit2, ExternalLink, Plus, Star, Trash2 } from "lucide-react";
-import { useState } from "react";
+import {
+	Briefcase,
+	Edit2,
+	FileText,
+	Plus,
+	Star,
+	Trash2,
+	UserPlus,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,8 +36,14 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+import { ContractFileUpload } from "@/components/contract-file-upload";
+import {
+	AdminReconciliationAct,
+	reconciliationFmtMoney,
+} from "@/components/admin-reconciliation-act";
 import { api } from "@/lib/api";
 import { getApiBase } from "@/lib/api-base";
+import { getApiErrorMessage } from "@/lib/api-error";
 
 const BASE = getApiBase();
 const ah = () => {
@@ -84,7 +98,59 @@ interface Contractor {
 	stageId?: number | null;
 	paymentMilestones?: string;
 	paidAmount?: string;
-	documentPath?: string;
+	contractDocument?: { fileName: string; mimeType: string; uploadedAt: string } | null;
+}
+
+interface ReconciliationLine {
+	date: string | null;
+	description: string | null;
+	amount: number;
+	currency: string | null;
+	balanceAfter: number;
+}
+
+function emptyForm() {
+	return {
+		fullName: "",
+		type: "company",
+		specialization: "",
+		phone: "",
+		email: "",
+		inn: "",
+		okpo: "",
+		bic: "",
+		contractNumber: "",
+		contractAmount: "",
+		currency: "KGS",
+		status: "active",
+		rating: "",
+		notes: "",
+		stageId: "",
+		paymentMilestones: "",
+		paidAmount: "0",
+	};
+}
+
+function formFromContractor(c: Contractor) {
+	return {
+		fullName: c.fullName || "",
+		type: c.type || "company",
+		specialization: c.specialization || "",
+		phone: c.phone || "",
+		email: c.email || "",
+		inn: c.inn || "",
+		okpo: c.okpo || "",
+		bic: c.bic || "",
+		contractNumber: c.contractNumber || "",
+		contractAmount: c.contractAmount || "",
+		currency: c.currency || "KGS",
+		status: c.status || "active",
+		rating: c.rating ? String(c.rating) : "",
+		notes: c.notes || "",
+		stageId: c.stageId ? String(c.stageId) : "",
+		paymentMilestones: c.paymentMilestones || "",
+		paidAmount: c.paidAmount || "0",
+	};
 }
 
 function ContractorDialog({
@@ -105,34 +171,83 @@ function ContractorDialog({
 	const { toast } = useToast();
 	const isEdit = contractor && contractor !== "new";
 	const init = isEdit ? (contractor as Contractor) : null;
-	const [form, setForm] = useState({
-		fullName: init?.fullName || "",
-		type: init?.type || "company",
-		specialization: init?.specialization || "",
-		phone: init?.phone || "",
-		email: init?.email || "",
-		inn: init?.inn || "",
-		okpo: init?.okpo || "",
-		bic: init?.bic || "",
-		contractNumber: init?.contractNumber || "",
-		contractAmount: init?.contractAmount || "",
-		currency: init?.currency || "KGS",
-		status: init?.status || "active",
-		rating: String(init?.rating || ""),
-		notes: init?.notes || "",
-		stageId: String(init?.stageId || ""),
-		paymentMilestones: init?.paymentMilestones || "",
-		paidAmount: init?.paidAmount || "0",
-		documentPath: init?.documentPath || "",
-	});
+	const [form, setForm] = useState(emptyForm);
 	const [loading, setLoading] = useState(false);
 	const [newSpec, setNewSpec] = useState("");
 	const [addingSpec, setAddingSpec] = useState(false);
+	const [portalForm, setPortalForm] = useState({
+		email: "",
+		firstName: "",
+		lastName: "",
+		password: "",
+	});
+	const [portalLoading, setPortalLoading] = useState(false);
 	const set = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
+
+	const { data: reconciliationData } = useQuery<{
+		reconciliation: {
+			contractAmount: number;
+			paidAmount: number;
+			outstanding: number;
+			currency: string;
+			lines: ReconciliationLine[];
+		};
+	}>({
+		queryKey: ["contractor-reconciliation", init?.id],
+		queryFn: () =>
+			api
+				.get(`/construction/contractors/${init!.id}/reconciliation`)
+				.then((r) => r.data),
+		enabled: !!init?.id,
+	});
+
+	useEffect(() => {
+		if (!contractor || contractor === "new") {
+			setForm(emptyForm());
+			setPortalForm({ email: "", firstName: "", lastName: "", password: "" });
+			setNewSpec("");
+			return;
+		}
+		const c = contractor as Contractor;
+		setForm(formFromContractor(c));
+		const nameParts = (c.fullName || "").trim().split(/\s+/);
+		setPortalForm({
+			email: c.email || "",
+			firstName: nameParts[0] || "",
+			lastName: nameParts.slice(1).join(" ") || "",
+			password: "",
+		});
+		setNewSpec("");
+	}, [contractor]);
 
 	const contractAmount = parseFloat(form.contractAmount || "0");
 	const paidAmount = parseFloat(form.paidAmount || "0");
 	const outstanding = contractAmount - paidAmount;
+	const reconciliation = reconciliationData?.reconciliation;
+
+	const createPortalAccount = async () => {
+		if (!isEdit || !init?.id) return;
+		if (!portalForm.email || !portalForm.firstName || !portalForm.lastName || !portalForm.password) {
+			toast({ title: "Заполните все поля портала", variant: "destructive" });
+			return;
+		}
+		setPortalLoading(true);
+		try {
+			await api.post("/portal/create-contractor-account", {
+				contractorId: init.id,
+				...portalForm,
+			});
+			toast({ title: "Доступ в портал создан" });
+			setPortalForm({ email: "", firstName: "", lastName: "", password: "" });
+		} catch (e: unknown) {
+			toast({
+				title: getApiErrorMessage(e, "Ошибка создания аккаунта"),
+				variant: "destructive",
+			});
+		} finally {
+			setPortalLoading(false);
+		}
+	};
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -357,16 +472,126 @@ function ContractorDialog({
 						</div>
 					</div>
 
-					{/* Document link */}
-					<div>
-						<Label>Ссылка на документ (договор, скан)</Label>
-						<Input
-							className="mt-1"
-							value={form.documentPath}
-							onChange={(e) => set("documentPath", e.target.value)}
-							placeholder="https://... или путь к файлу"
+					{/* Document upload */}
+					{isEdit && init?.id && (
+						<ContractFileUpload
+							entityType="contractor"
+							entityId={init.id}
+							contractDocument={init.contractDocument}
+							onUploaded={onSaved}
+							portalPrompt={{
+								entityType: "contractor",
+								entityId: init.id,
+								entityName: init.fullName,
+								defaultEmail: form.email,
+							}}
 						/>
-					</div>
+					)}
+
+					{isEdit && init?.id && reconciliation && (
+						<AdminReconciliationAct
+							mode="contractor"
+							subjectLabel="Подрядчик"
+							subjectName={init.fullName}
+							contractLabel={`Договор №${form.contractNumber || "—"}`}
+							currency={reconciliation.currency ?? form.currency}
+							summary={[
+								{
+									label: "Договор",
+									value: reconciliationFmtMoney(
+										reconciliation.contractAmount ?? contractAmount,
+										reconciliation.currency ?? form.currency,
+									),
+								},
+								{
+									label: "Оплачено",
+									value: reconciliationFmtMoney(
+										reconciliation.paidAmount ?? paidAmount,
+										reconciliation.currency ?? form.currency,
+									),
+									tone: "emerald",
+								},
+								{
+									label: "Остаток",
+									value: reconciliationFmtMoney(
+										reconciliation.outstanding ?? outstanding,
+										reconciliation.currency ?? form.currency,
+									),
+									tone: "amber",
+								},
+							]}
+							lines={(reconciliation.lines ?? []).map((line) => ({
+								date: line.date ?? "",
+								description: line.description || "—",
+								amount: line.amount,
+								currency: line.currency ?? undefined,
+								balanceAfter: line.balanceAfter,
+							}))}
+						/>
+					)}
+
+					{isEdit && init?.id && (
+						<div className="border-t pt-3 space-y-3">
+							<p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+								Доступ в портал подрядчика
+							</p>
+							<div className="grid grid-cols-2 gap-3">
+								<div>
+									<Label>Email</Label>
+									<Input
+										className="mt-1"
+										type="email"
+										value={portalForm.email}
+										onChange={(e) =>
+											setPortalForm((p) => ({ ...p, email: e.target.value }))
+										}
+									/>
+								</div>
+								<div>
+									<Label>Пароль</Label>
+									<Input
+										className="mt-1"
+										type="password"
+										value={portalForm.password}
+										onChange={(e) =>
+											setPortalForm((p) => ({ ...p, password: e.target.value }))
+										}
+									/>
+								</div>
+								<div>
+									<Label>Имя</Label>
+									<Input
+										className="mt-1"
+										value={portalForm.firstName}
+										onChange={(e) =>
+											setPortalForm((p) => ({ ...p, firstName: e.target.value }))
+										}
+									/>
+								</div>
+								<div>
+									<Label>Фамилия</Label>
+									<Input
+										className="mt-1"
+										value={portalForm.lastName}
+										onChange={(e) =>
+											setPortalForm((p) => ({ ...p, lastName: e.target.value }))
+										}
+									/>
+								</div>
+							</div>
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								className="gap-1.5"
+								onClick={() => void createPortalAccount()}
+								disabled={portalLoading}
+							>
+								<UserPlus className="w-4 h-4" />
+								{portalLoading ? "..." : "Создать доступ в портал"}
+							</Button>
+						</div>
+					)}
 
 					<div>
 						<Label>Заметки</Label>
@@ -546,19 +771,24 @@ export default function ConstructionContractors() {
 											)}
 											{contractAmt > 0 && (
 												<p className="text-gray-400 text-xs">
-													{contractAmt.toLocaleString("ru-KG")} ₸
+													{contractAmt.toLocaleString("ru-KG")} сом
 												</p>
 											)}
-											{!c.contractNumber && "—"}
+											{c.contractDocument && (
+												<p className="text-amber-600 text-xs flex items-center gap-0.5 mt-0.5">
+													<FileText className="w-3 h-3" /> договор
+												</p>
+											)}
+											{!c.contractNumber && !c.contractDocument && "—"}
 										</TableCell>
 										<TableCell className="text-xs">
 											{contractAmt > 0 ? (
 												<div>
 													<p className="text-emerald-700 font-medium">
-														{paid.toLocaleString("ru-KG")} ₸
+														{paid.toLocaleString("ru-KG")} сом
 													</p>
 													<p className={outstanding > 0 ? "text-amber-600" : "text-gray-400"}>
-														ост. {outstanding.toLocaleString("ru-KG")} ₸
+														ост. {outstanding.toLocaleString("ru-KG")} сом
 													</p>
 												</div>
 											) : "—"}
@@ -600,17 +830,6 @@ export default function ConstructionContractors() {
 										</TableCell>
 										<TableCell>
 											<div className="flex gap-1 justify-center">
-												{c.documentPath && (
-													<a
-														href={c.documentPath}
-														target="_blank"
-														rel="noreferrer"
-														title="Открыть документ"
-														className="h-7 w-7 p-0 inline-flex items-center justify-center text-blue-400 hover:text-blue-600"
-													>
-														<ExternalLink className="w-3.5 h-3.5" />
-													</a>
-												)}
 												<Button
 													size="sm"
 													variant="ghost"
@@ -638,6 +857,13 @@ export default function ConstructionContractors() {
 			</div>
 
 			<ContractorDialog
+				key={
+					dialog && dialog !== "new"
+						? `edit-${dialog.id}`
+						: dialog === "new"
+							? "new"
+							: "closed"
+				}
 				contractor={dialog}
 				specs={specOptions}
 				stages={stages}

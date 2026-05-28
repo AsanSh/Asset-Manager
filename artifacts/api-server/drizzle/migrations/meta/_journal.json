@@ -29,6 +29,41 @@
       "when": 1779700000000,
       "tag": "0003_contractor_specs_project_template",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1779800000000,
+      "tag": "0004_construction_substages_contractor_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1779810000000,
+      "tag": "0005_tasks_created_by",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1779820000000,
+      "tag": "0006_contract_documents_contractor_portal",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1779830000000,
+      "tag": "0007_supplier_portal",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1779840000000,
+      "tag": "0008_buyer_portal",
+      "breakpoints": true
     }
   ]
 }

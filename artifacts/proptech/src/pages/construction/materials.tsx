@@ -386,7 +386,7 @@ export default function ConstructionMaterials() {
 				<div className="bg-white rounded-xl border border-gray-200 p-4">
 					<p className="text-xs text-gray-500 mb-1">Общая сумма</p>
 					<p className="text-xl font-bold text-blue-600">
-						{fmtNum(totalCost)} ₸
+						{fmtNum(totalCost)} сом
 					</p>
 				</div>
 			</div>
@@ -469,10 +469,10 @@ export default function ConstructionMaterials() {
 										{fmtNum(m.quantity)} {m.unit}
 									</TableCell>
 									<TableCell className="text-right text-sm text-gray-600">
-										{fmtNum(m.unitPrice)} ₸
+										{fmtNum(m.unitPrice)} сом
 									</TableCell>
 									<TableCell className="text-right text-sm font-semibold text-gray-800">
-										{fmtNum(m.totalPrice)} ₸
+										{fmtNum(m.totalPrice)} сом
 									</TableCell>
 									<TableCell>
 										<Badge

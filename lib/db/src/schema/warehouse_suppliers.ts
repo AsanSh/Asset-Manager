@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, boolean, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -11,6 +11,11 @@ export const warehouseSuppliersTable = pgTable("warehouse_suppliers", {
   email: text("email"),
   address: text("address"),
   inn: text("inn"),
+  contractNumber: text("contract_number"),
+  contractDocumentMeta: text("contract_document_meta"),
+  contractAmount: numeric("contract_amount", { precision: 15, scale: 2 }),
+  paidAmount: numeric("paid_amount", { precision: 15, scale: 2 }).default("0"),
+  currency: text("currency").default("KGS"),
   paymentTerms: text("payment_terms"),
   rating: integer("rating"),
   isActive: boolean("is_active").notNull().default(true),

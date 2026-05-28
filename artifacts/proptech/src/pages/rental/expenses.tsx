@@ -12,6 +12,7 @@ import {
 	getAccrualsOpenQueryKey,
 } from "@/lib/rental-query-keys";
 import { Building2, Pencil, Plus, Receipt, Tag, Trash2, Wallet } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useEffect, useMemo, useState } from "react";
 import { defaultPeriod, inPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
 import { KpiCard, KpiRow } from "@/components/kpi-card";

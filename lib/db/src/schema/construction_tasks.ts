@@ -12,6 +12,7 @@ export const constructionTasksTable = pgTable("construction_tasks", {
   status: text("status").notNull().default("todo"),
   priority: text("priority").notNull().default("medium"),
   assignedTo: integer("assigned_to"),
+  createdBy: integer("created_by"),
   dueDate: text("due_date"),
   completedAt: text("completed_at"),
   estimatedHours: numeric("estimated_hours", { precision: 8, scale: 2 }),

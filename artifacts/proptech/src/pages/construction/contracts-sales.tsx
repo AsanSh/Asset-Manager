@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, FileText, Plus, Search } from "lucide-react";
+import { ChevronRight, FileText, Plus, Search, UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSearch } from "wouter";
 import { toast } from "sonner";
@@ -25,6 +25,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ContractStatusStepper } from "@/components/contract-status-stepper";
 import { ContractTab } from "@/components/contract-tab";
+import { ContractFileUpload } from "@/components/contract-file-upload";
+import {
+	AdminReconciliationAct,
+	reconciliationFmtMoney,
+} from "@/components/admin-reconciliation-act";
 import { getApiErrorMessage } from "@/lib/api-error";
 import { api } from "@/lib/api";
 
@@ -55,6 +60,247 @@ function fmt(n: any) {
 	const v = parseFloat(n);
 	if (Number.isNaN(v)) return "0";
 	return new Intl.NumberFormat("ru-RU").format(v);
+}
+
+function ContractDetailSummary({
+	contract,
+	proj,
+	statusMut,
+	scheduleMut,
+	onRefresh,
+}: {
+	contract: any;
+	proj: any;
+	statusMut: any;
+	scheduleMut: any;
+	onRefresh: () => void;
+}) {
+	const [portalForm, setPortalForm] = useState({
+		email: "",
+		firstName: "",
+		lastName: "",
+		password: "",
+	});
+	const [portalLoading, setPortalLoading] = useState(false);
+
+	const { data: reconciliationData } = useQuery({
+		queryKey: ["contract-sales-reconciliation", contract.id],
+		queryFn: () =>
+			api
+				.get(`/construction/contracts-sales/${contract.id}/reconciliation`)
+				.then((r) => r.data),
+	});
+
+	useEffect(() => {
+		const parts = (contract.buyerName || "").trim().split(/\s+/);
+		setPortalForm({
+			email: contract.buyerEmail || "",
+			firstName: parts[0] || "",
+			lastName: parts.slice(1).join(" ") || "",
+			password: "",
+		});
+	}, [contract.id, contract.buyerName, contract.buyerEmail]);
+
+	const reconciliation = reconciliationData?.reconciliation;
+	const currency = contract.currency || "KGS";
+
+	const createPortalAccount = async () => {
+		if (!contract.buyerId) {
+			toast.error("У договора нет привязанного покупателя в справочнике");
+			return;
+		}
+		if (
+			!portalForm.email ||
+			!portalForm.firstName ||
+			!portalForm.lastName ||
+			!portalForm.password
+		) {
+			toast.error("Заполните все поля портала");
+			return;
+		}
+		setPortalLoading(true);
+		try {
+			await api.post("/portal/create-buyer-account", {
+				buyerId: contract.buyerId,
+				...portalForm,
+			});
+			toast.success("Доступ в портал покупателя создан");
+		} catch (err: unknown) {
+			toast.error(getApiErrorMessage(err, "Не удалось создать доступ"));
+		} finally {
+			setPortalLoading(false);
+		}
+	};
+
+	return (
+		<div className="space-y-4 mt-4">
+			<div className="grid grid-cols-2 gap-3 text-sm">
+				<div>
+					<span className="text-gray-500">Покупатель:</span>{" "}
+					<span className="font-medium">{contract.buyerName}</span>
+				</div>
+				<div>
+					<span className="text-gray-500">Телефон:</span>{" "}
+					<span>{contract.buyerPhone || "—"}</span>
+				</div>
+				<div>
+					<span className="text-gray-500">Проект:</span>{" "}
+					<span>{proj?.name || "—"}</span>
+				</div>
+				<div>
+					<span className="text-gray-500">Дата:</span>{" "}
+					<span>{contract.contractDate}</span>
+				</div>
+			</div>
+			<div className="grid grid-cols-3 gap-2 bg-gray-50 rounded-xl p-3 text-center text-sm">
+				<div>
+					<div className="text-xs text-gray-500">Сумма</div>
+					<div className="font-bold">
+						{fmt(contract.totalAmount)} {currency}
+					</div>
+				</div>
+				<div>
+					<div className="text-xs text-gray-500">Оплачено</div>
+					<div className="font-bold text-emerald-600">{fmt(contract.paidAmount)}</div>
+				</div>
+				<div>
+					<div className="text-xs text-gray-500">Остаток</div>
+					<div className="font-bold text-amber-600">{fmt(contract.remainingAmount)}</div>
+				</div>
+			</div>
+			<ContractStatusStepper
+				status={contract.status}
+				loading={statusMut.isPending}
+				onStatusChange={(nextStatus: string) =>
+					statusMut.mutate({ id: contract.id, status: nextStatus })
+				}
+			/>
+			<div className="rounded-lg border border-blue-100 bg-blue-50/50 p-3 space-y-2">
+				<p className="text-xs text-blue-900">
+					<strong>График платежей</strong> — отдельное действие после подписания:
+					создаёт начисления в разделе «Начисления».
+				</p>
+				<Button
+					className="w-full bg-blue-600 hover:bg-blue-700"
+					onClick={() => scheduleMut.mutate(contract.id)}
+					disabled={scheduleMut.isPending}
+				>
+					{scheduleMut.isPending ? "Генерация..." : "Сформировать график платежей"}
+				</Button>
+			</div>
+
+			<ContractFileUpload
+				entityType="buyer"
+				entityId={contract.id}
+				contractDocument={contract.contractDocument}
+				onUploaded={onRefresh}
+				portalPrompt={
+					contract.buyerId
+						? {
+								entityType: "buyer",
+								entityId: contract.buyerId,
+								entityName: contract.buyerName,
+								defaultEmail: portalForm.email,
+							}
+						: undefined
+				}
+			/>
+
+			{reconciliation && (
+				<AdminReconciliationAct
+					mode="buyer"
+					subjectLabel="Покупатель"
+					subjectName={contract.buyerName || "—"}
+					contractLabel={`Договор №${contract.contractNumber}`}
+					currency={reconciliation.currency ?? currency}
+					summary={[
+						{
+							label: "Договор",
+							value: reconciliationFmtMoney(reconciliation.contractAmount, currency),
+						},
+						{
+							label: "По графику",
+							value: reconciliationFmtMoney(reconciliation.totalCharged, currency),
+						},
+						{
+							label: "Оплачено",
+							value: reconciliationFmtMoney(reconciliation.totalPaid, currency),
+							tone: "emerald",
+						},
+						{
+							label: "Остаток",
+							value: reconciliationFmtMoney(reconciliation.outstanding, currency),
+							tone: "amber",
+						},
+					]}
+					lines={reconciliation.lines ?? []}
+				/>
+			)}
+
+			{contract.buyerId && (
+				<div className="border rounded-lg p-3 space-y-3">
+					<p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+						Доступ в портал покупателя
+					</p>
+					<div className="grid grid-cols-2 gap-3">
+						<div>
+							<Label>Email</Label>
+							<Input
+								className="mt-1"
+								type="email"
+								value={portalForm.email}
+								onChange={(e) =>
+									setPortalForm((p) => ({ ...p, email: e.target.value }))
+								}
+							/>
+						</div>
+						<div>
+							<Label>Пароль</Label>
+							<Input
+								className="mt-1"
+								type="password"
+								value={portalForm.password}
+								onChange={(e) =>
+									setPortalForm((p) => ({ ...p, password: e.target.value }))
+								}
+							/>
+						</div>
+						<div>
+							<Label>Имя</Label>
+							<Input
+								className="mt-1"
+								value={portalForm.firstName}
+								onChange={(e) =>
+									setPortalForm((p) => ({ ...p, firstName: e.target.value }))
+								}
+							/>
+						</div>
+						<div>
+							<Label>Фамилия</Label>
+							<Input
+								className="mt-1"
+								value={portalForm.lastName}
+								onChange={(e) =>
+									setPortalForm((p) => ({ ...p, lastName: e.target.value }))
+								}
+							/>
+						</div>
+					</div>
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						className="gap-1.5"
+						onClick={() => void createPortalAccount()}
+						disabled={portalLoading}
+					>
+						<UserPlus className="w-4 h-4" />
+						{portalLoading ? "..." : "Создать доступ в портал"}
+					</Button>
+				</div>
+			)}
+		</div>
+	);
 }
 
 export default function ConstructionContractsSales() {
@@ -117,6 +363,8 @@ export default function ConstructionContractsSales() {
 				.then((r) => r.data),
 		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: ["construction-contracts-sales"] });
+			qc.invalidateQueries({ queryKey: ["construction-units"] });
+			qc.invalidateQueries({ queryKey: ["construction-units-overview"] });
 			toast.success("Статус обновлён");
 		},
 		onError: (err: unknown) => {
@@ -682,71 +930,24 @@ export default function ConstructionContractsSales() {
 										<TabsTrigger value="summary">Сводка</TabsTrigger>
 										<TabsTrigger value="contract">Договор</TabsTrigger>
 									</TabsList>
-									<TabsContent value="summary" className="space-y-4 mt-4">
-									<div className="grid grid-cols-2 gap-3 text-sm">
-										<div>
-											<span className="text-gray-500">Покупатель:</span>{" "}
-											<span className="font-medium">{contract.buyerName}</span>
-										</div>
-										<div>
-											<span className="text-gray-500">Телефон:</span>{" "}
-											<span>{contract.buyerPhone || "—"}</span>
-										</div>
-										<div>
-											<span className="text-gray-500">Проект:</span>{" "}
-											<span>{proj?.name || "—"}</span>
-										</div>
-										<div>
-											<span className="text-gray-500">Дата:</span>{" "}
-											<span>{contract.contractDate}</span>
-										</div>
-									</div>
-									<div className="grid grid-cols-3 gap-2 bg-gray-50 rounded-xl p-3 text-center text-sm">
-										<div>
-											<div className="text-xs text-gray-500">Сумма</div>
-											<div className="font-bold">
-												{fmt(contract.totalAmount)} {contract.currency}
-											</div>
-										</div>
-										<div>
-											<div className="text-xs text-gray-500">Оплачено</div>
-											<div className="font-bold text-emerald-600">
-												{fmt(contract.paidAmount)}
-											</div>
-										</div>
-										<div>
-											<div className="text-xs text-gray-500">Остаток</div>
-											<div className="font-bold text-amber-600">
-												{fmt(contract.remainingAmount)}
-											</div>
-										</div>
-									</div>
-									<ContractStatusStepper
-										status={contract.status}
-										loading={statusMut.isPending}
-										onStatusChange={(nextStatus) =>
-											statusMut.mutate({
-												id: contract.id,
-												status: nextStatus,
-											})
-										}
-									/>
-									<div className="rounded-lg border border-blue-100 bg-blue-50/50 p-3 space-y-2">
-										<p className="text-xs text-blue-900">
-											<strong>График платежей</strong> — отдельное действие после
-											подписания: создаёт начисления в разделе «Начисления» по
-											сумме и рассрочке договора.
-										</p>
-										<Button
-											className="w-full bg-blue-600 hover:bg-blue-700"
-											onClick={() => scheduleMut.mutate(contract.id)}
-											disabled={scheduleMut.isPending}
-										>
-											{scheduleMut.isPending
-												? "Генерация..."
-												: "Сформировать график платежей"}
-										</Button>
-									</div>
+									<TabsContent value="summary">
+										<ContractDetailSummary
+											contract={contract}
+											proj={proj}
+											statusMut={statusMut}
+											scheduleMut={scheduleMut}
+											onRefresh={() => {
+												qc.invalidateQueries({
+													queryKey: ["construction-contracts-sales"],
+												});
+												qc.invalidateQueries({
+													queryKey: [
+														"contract-sales-reconciliation",
+														contract.id,
+													],
+												});
+											}}
+										/>
 									</TabsContent>
 									<TabsContent value="contract" className="mt-4">
 										<ContractTab

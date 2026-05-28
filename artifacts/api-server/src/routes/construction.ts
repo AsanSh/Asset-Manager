@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, and, desc, sql, asc } from "drizzle-orm";
+import { eq, and, desc, sql, asc, gte } from "drizzle-orm";
 import { z } from "zod";
 import {
   db,
@@ -23,6 +23,61 @@ import { getPaginationParams, createPaginatedResponse, getPaginationQuery } from
 import { validateQuery, commonSchemas } from "../middleware/validation";
 import { cache, cacheKeys } from "../lib/cache";
 import { seedProjectUnits } from "../lib/seed-project-units";
+import {
+  buildContractDocumentMeta,
+  parseContractDocumentMeta,
+  summarizeContractDocument,
+} from "../lib/contract-document";
+
+function mapContractorResponse(row: typeof constructionContractorsTable.$inferSelect) {
+  const { contractDocumentMeta, ...rest } = row;
+  return {
+    ...rest,
+    contractDocument: summarizeContractDocument(contractDocumentMeta),
+  };
+}
+
+function buildContractorReconciliation(
+  contractor: typeof constructionContractorsTable.$inferSelect,
+  payments: Array<{
+    date: string | null;
+    description: string | null;
+    amount: string | null;
+    currency: string | null;
+    status: string | null;
+  }>,
+) {
+  const contractAmount = parseFloat(String(contractor.contractAmount ?? 0));
+  const paidAmount = parseFloat(String(contractor.paidAmount ?? 0));
+  const outstanding = contractAmount - paidAmount;
+
+  const paidExpenses = payments
+    .filter((p) => p.status === "paid" || p.status === "approved")
+    .slice()
+    .reverse();
+
+  let balance = contractAmount;
+  const lines = paidExpenses.map((p) => {
+    const amt = parseFloat(String(p.amount ?? 0));
+    balance -= amt;
+    return {
+      date: p.date,
+      description: p.description,
+      amount: amt,
+      currency: p.currency,
+      balanceAfter: balance,
+    };
+  });
+
+  return {
+    contractAmount,
+    paidAmount,
+    outstanding,
+    currency: contractor.currency ?? "KGS",
+    contractNumber: contractor.contractNumber,
+    lines,
+  };
+}
 import { parseProjectDocument } from "../lib/parse-project-document";
 import { constructionUnitStatusesTable } from "../lib/db";
 import {
@@ -291,18 +346,62 @@ router.get("/stages", async (req: AuthenticatedRequest, res): Promise<void> => {
       eq(constructionStagesTable.companyId, req.scopedCompanyId!),
       ...(projectId ? [eq(constructionStagesTable.projectId, parseInt(projectId as string))] : [])
     ))
-    .orderBy(constructionStagesTable.sortOrder, constructionStagesTable.createdAt);
+    .orderBy(asc(constructionStagesTable.sortOrder), asc(constructionStagesTable.createdAt));
   res.json(rows);
 });
 
 router.post("/stages", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { projectId, name, description, status, startDate, plannedEndDate, budgetAmount, sortOrder, parentStageId } = req.body;
+  const parsedProjectId = parseInt(String(projectId), 10);
+  const parsedParentId = parentStageId ? parseInt(String(parentStageId), 10) : null;
+
+  let nextSortOrder =
+    sortOrder != null && sortOrder !== ""
+      ? parseInt(String(sortOrder), 10)
+      : NaN;
+
+  const projectScope = and(
+    eq(constructionStagesTable.companyId, req.scopedCompanyId!),
+    eq(constructionStagesTable.projectId, parsedProjectId),
+  );
+
+  if (!Number.isFinite(nextSortOrder)) {
+    if (parsedParentId) {
+      const [parent] = await db.select().from(constructionStagesTable)
+        .where(and(projectScope, eq(constructionStagesTable.id, parsedParentId)));
+      if (!parent) {
+        res.status(404).json({ error: "Родительский этап не найден" });
+        return;
+      }
+
+      const existingChildren = await db.select({ sortOrder: constructionStagesTable.sortOrder })
+        .from(constructionStagesTable)
+        .where(and(projectScope, eq(constructionStagesTable.parentStageId, parsedParentId)))
+        .orderBy(desc(constructionStagesTable.sortOrder));
+
+      const anchorOrder = existingChildren.length > 0
+        ? (existingChildren[0].sortOrder ?? parent.sortOrder ?? 0)
+        : (parent.sortOrder ?? 0);
+      nextSortOrder = anchorOrder + 1;
+
+      // Сдвигаем этапы ниже: подэтап встаёт между родителем и следующим этапом
+      await db.update(constructionStagesTable)
+        .set({ sortOrder: sql`${constructionStagesTable.sortOrder} + 1` })
+        .where(and(projectScope, gte(constructionStagesTable.sortOrder, nextSortOrder)));
+    } else {
+      const all = await db.select({ sortOrder: constructionStagesTable.sortOrder })
+        .from(constructionStagesTable)
+        .where(projectScope);
+      nextSortOrder = all.reduce((max, s) => Math.max(max, s.sortOrder ?? 0), 0) + 1;
+    }
+  }
+
   const [row] = await db.insert(constructionStagesTable).values({
-    companyId: req.scopedCompanyId!, projectId, name, description, status: status || "planned",
+    companyId: req.scopedCompanyId!, projectId: parsedProjectId, name, description, status: status || "planned",
     startDate: startDate || null, plannedEndDate: plannedEndDate || null,
     budgetAmount: budgetAmount ? String(budgetAmount) : null,
-    sortOrder: sortOrder || 0,
-    parentStageId: parentStageId ? parseInt(parentStageId) : null,
+    sortOrder: nextSortOrder,
+    parentStageId: parsedParentId,
   }).returning();
   res.status(201).json(row);
 });
@@ -313,10 +412,51 @@ router.patch("/stages/:id", async (req: AuthenticatedRequest, res): Promise<void
   const [row] = await db.update(constructionStagesTable)
     .set({ name, description, status, progress, startDate, plannedEndDate, actualEndDate,
       budgetAmount: budgetAmount ? String(budgetAmount) : null, sortOrder,
-      parentStageId: parentStageId ? parseInt(parentStageId) : null })
+      parentStageId: parentStageId ? parseInt(String(parentStageId), 10) : null })
     .where(and(eq(constructionStagesTable.id, id), eq(constructionStagesTable.companyId, req.scopedCompanyId!)))
     .returning();
   res.json(row);
+});
+
+router.post("/stages/reorder", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const body = req.body as {
+    projectId?: number;
+    stageIds?: number[];
+    items?: { id: number; parentStageId?: number | null }[];
+  };
+  const { projectId, stageIds, items } = body;
+  if (!projectId) {
+    res.status(400).json({ error: "projectId обязателен" });
+    return;
+  }
+  const parsedProjectId = parseInt(String(projectId), 10);
+  const orderedItems = Array.isArray(items) && items.length > 0
+    ? items
+    : Array.isArray(stageIds) && stageIds.length > 0
+      ? stageIds.map((id) => ({ id: parseInt(String(id), 10), parentStageId: undefined as number | null | undefined }))
+      : null;
+  if (!orderedItems) {
+    res.status(400).json({ error: "items или stageIds обязательны" });
+    return;
+  }
+
+  await Promise.all(
+    orderedItems.map((item, index) =>
+      db.update(constructionStagesTable)
+        .set({
+          sortOrder: (index + 1) * 10,
+          ...(item.parentStageId !== undefined
+            ? { parentStageId: item.parentStageId != null ? parseInt(String(item.parentStageId), 10) : null }
+            : {}),
+        })
+        .where(and(
+          eq(constructionStagesTable.id, parseInt(String(item.id), 10)),
+          eq(constructionStagesTable.companyId, req.scopedCompanyId!),
+          eq(constructionStagesTable.projectId, parsedProjectId),
+        )),
+    ),
+  );
+  res.json({ ok: true });
 });
 
 router.delete("/stages/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
@@ -347,6 +487,7 @@ router.post("/tasks", async (req: AuthenticatedRequest, res): Promise<void> => {
     dueDate: dueDate || null,
     estimatedHours: estimatedHours ? String(estimatedHours) : null,
     assignedTo: assignedTo ? parseInt(assignedTo) : null,
+    createdBy: req.userId ?? null,
   }).returning();
   res.status(201).json(row);
 });
@@ -358,7 +499,7 @@ router.patch("/tasks/:id", async (req: AuthenticatedRequest, res): Promise<void>
     .set({ title, description, status, priority, dueDate, completedAt,
       estimatedHours: estimatedHours ? String(estimatedHours) : null,
       actualHours: actualHours ? String(actualHours) : null,
-      assignedTo: assignedTo ? parseInt(assignedTo) : null })
+      assignedTo: assignedTo !== undefined ? (assignedTo ? parseInt(assignedTo) : null) : undefined })
     .where(and(eq(constructionTasksTable.id, id), eq(constructionTasksTable.companyId, req.scopedCompanyId!)))
     .returning();
   res.json(row);
@@ -412,7 +553,7 @@ router.get("/contractors", async (req: AuthenticatedRequest, res): Promise<void>
   const rows = await db.select().from(constructionContractorsTable)
     .where(eq(constructionContractorsTable.companyId, req.scopedCompanyId!))
     .orderBy(desc(constructionContractorsTable.createdAt));
-  res.json(rows);
+  res.json(rows.map(mapContractorResponse));
 });
 
 router.post("/contractors", async (req: AuthenticatedRequest, res): Promise<void> => {
@@ -428,7 +569,7 @@ router.post("/contractors", async (req: AuthenticatedRequest, res): Promise<void
     paidAmount: paidAmount ? String(paidAmount) : "0",
     documentPath: documentPath || null,
   }).returning();
-  res.status(201).json(row);
+  res.status(201).json(mapContractorResponse(row));
 });
 
 router.patch("/contractors/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
@@ -445,7 +586,87 @@ router.patch("/contractors/:id", async (req: AuthenticatedRequest, res): Promise
       documentPath: documentPath || null })
     .where(and(eq(constructionContractorsTable.id, id), eq(constructionContractorsTable.companyId, req.scopedCompanyId!)))
     .returning();
-  res.json(row);
+  if (!row) {
+    res.status(404).json({ error: "Подрядчик не найден" });
+    return;
+  }
+  res.json(mapContractorResponse(row));
+});
+
+router.post("/contractors/:id/contract-document", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const id = parseInt(req.params.id as string);
+  const built = buildContractDocumentMeta(req.body);
+  if (built.error) {
+    res.status(400).json({ error: built.error });
+    return;
+  }
+  const [row] = await db.update(constructionContractorsTable)
+    .set({ contractDocumentMeta: built.meta! })
+    .where(and(eq(constructionContractorsTable.id, id), eq(constructionContractorsTable.companyId, req.scopedCompanyId!)))
+    .returning();
+  if (!row) {
+    res.status(404).json({ error: "Подрядчик не найден" });
+    return;
+  }
+  res.json({ ok: true, contractDocument: built.summary });
+});
+
+router.get("/contractors/:id/contract-document", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const id = parseInt(req.params.id as string);
+  const [row] = await db.select().from(constructionContractorsTable)
+    .where(and(eq(constructionContractorsTable.id, id), eq(constructionContractorsTable.companyId, req.scopedCompanyId!)));
+  if (!row) {
+    res.status(404).json({ error: "Подрядчик не найден" });
+    return;
+  }
+  const doc = parseContractDocumentMeta(row.contractDocumentMeta);
+  if (!doc) {
+    res.status(404).json({ error: "Договор не загружен" });
+    return;
+  }
+  res.json(doc);
+});
+
+router.delete("/contractors/:id/contract-document", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const id = parseInt(req.params.id as string);
+  const [row] = await db.update(constructionContractorsTable)
+    .set({ contractDocumentMeta: null })
+    .where(and(eq(constructionContractorsTable.id, id), eq(constructionContractorsTable.companyId, req.scopedCompanyId!)))
+    .returning();
+  if (!row) {
+    res.status(404).json({ error: "Подрядчик не найден" });
+    return;
+  }
+  res.json({ ok: true });
+});
+
+router.get("/contractors/:id/reconciliation", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const id = parseInt(req.params.id as string);
+  const [contractor] = await db.select().from(constructionContractorsTable)
+    .where(and(eq(constructionContractorsTable.id, id), eq(constructionContractorsTable.companyId, req.scopedCompanyId!)));
+  if (!contractor) {
+    res.status(404).json({ error: "Подрядчик не найден" });
+    return;
+  }
+
+  const payments = await db.select({
+    date: constructionExpensesTable.date,
+    description: constructionExpensesTable.description,
+    amount: constructionExpensesTable.amount,
+    currency: constructionExpensesTable.currency,
+    status: constructionExpensesTable.status,
+  })
+    .from(constructionExpensesTable)
+    .where(and(
+      eq(constructionExpensesTable.contractorId, id),
+      eq(constructionExpensesTable.companyId, req.scopedCompanyId!),
+    ))
+    .orderBy(desc(constructionExpensesTable.date));
+
+  res.json({
+    contractor: mapContractorResponse(contractor),
+    reconciliation: buildContractorReconciliation(contractor, payments),
+  });
 });
 
 router.delete("/contractors/:id", async (req: AuthenticatedRequest, res): Promise<void> => {

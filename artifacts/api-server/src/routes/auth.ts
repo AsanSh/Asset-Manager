@@ -168,10 +168,23 @@ router.post("/auth/login", validateBody(loginSchema), async (req, res): Promise<
       return;
     }
 
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email));
+    const [user] = await db
+      .select({
+        id: usersTable.id,
+        companyId: usersTable.companyId,
+        email: usersTable.email,
+        passwordHash: usersTable.passwordHash,
+        firstName: usersTable.firstName,
+        lastName: usersTable.lastName,
+        role: usersTable.role,
+        isActive: usersTable.isActive,
+        createdAt: usersTable.createdAt,
+        updatedAt: usersTable.updatedAt,
+      })
+      .from(usersTable)
+      .where(eq(usersTable.email, email));
 
-    // Проверка через bcrypt
-    if (!user || !(await verifyPassword(password, user.passwordHash))) {
+    if (!user || !user.passwordHash || !(await verifyPassword(password, user.passwordHash))) {
       res.status(401).json({ error: "Неверный email или пароль" });
       return;
     }

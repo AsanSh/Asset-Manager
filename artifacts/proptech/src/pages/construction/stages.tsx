@@ -1,8 +1,9 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, Edit2, Flag, Plus, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
-import { Badge } from "@/components/ui/badge";
+import { Edit2, Flag, Folder, GripVertical, Layers, Plus, Trash2, TrendingDown, TrendingUp, Wallet } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { CurrencyToggle } from "@/components/currency-toggle";
+import { KpiCard, KpiRow } from "@/components/kpi-card";
 import {
 	Dialog,
 	DialogContent,
@@ -22,6 +23,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { getApiBase } from "@/lib/api-base";
+import {
+	fmtCurrencyAmount,
+	kgsToDisplay,
+	nbkrUsdRateLabel,
+	type DisplayCurrency,
+	type NbkrResponse,
+} from "@/lib/nbkr-currency";
 
 const BASE = getApiBase();
 const ah = () => {
@@ -38,12 +46,6 @@ const STATUS_OPTS = [
 	{ value: "completed", label: "Завершён" },
 	{ value: "paused", label: "Приостановлен" },
 ];
-const STATUS_COLORS: Record<string, string> = {
-	planned: "bg-gray-100 text-gray-700",
-	active: "bg-blue-100 text-blue-700",
-	completed: "bg-emerald-100 text-emerald-700",
-	paused: "bg-amber-100 text-amber-700",
-};
 
 interface Stage {
 	id: number;
@@ -64,7 +66,54 @@ interface Project {
 	name: string;
 }
 
+interface ExpenseRow {
+	id: number;
+	projectId: number;
+	stageId?: number | null;
+	amountKgs?: string | null;
+	amount?: string | null;
+}
+
 type DialogState = Stage | null | "new" | { parentStageId: number; projectId: number };
+
+function stageParentId(s: Stage): number | null {
+	const raw = s.parentStageId ?? (s as Stage & { parent_stage_id?: number | null }).parent_stage_id;
+	if (raw == null || raw === "") return null;
+	const n = Number(raw);
+	return Number.isFinite(n) ? n : null;
+}
+
+function bySortOrder(a: Stage, b: Stage) {
+	return (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.id - b.id;
+}
+
+/** Плоский список: этап 4 → его подэтапы → этап 5 → … */
+function buildFlatStageList(stages: Stage[]): Stage[] {
+	const childrenByParent = stages.reduce<Record<number, Stage[]>>((acc, s) => {
+		const pid = stageParentId(s);
+		if (pid == null) return acc;
+		if (!acc[pid]) acc[pid] = [];
+		acc[pid].push(s);
+		return acc;
+	}, {});
+	for (const pid of Object.keys(childrenByParent)) {
+		childrenByParent[Number(pid)].sort(bySortOrder);
+	}
+
+	const roots = stages.filter((s) => stageParentId(s) == null).sort(bySortOrder);
+	const result: Stage[] = [];
+	for (const root of roots) {
+		result.push(root);
+		result.push(...(childrenByParent[root.id] ?? []));
+	}
+
+	// Подэтапы без найденного родителя — в конец, чтобы не терялись
+	const placed = new Set(result.map((s) => s.id));
+	for (const s of stages) {
+		if (!placed.has(s.id)) result.push(s);
+	}
+	return result;
+}
 
 function StageDialog({
 	stage,
@@ -301,7 +350,7 @@ function StageDialog({
 						</div>
 					</div>
 					<div>
-						<Label>Бюджет этапа (KGS)</Label>
+						<Label>Бюджет этапа (сом)</Label>
 						<Input
 							className="mt-1"
 							type="number"
@@ -332,118 +381,137 @@ function StageDialog({
 	);
 }
 
-function StageCard({
+function flatToHierarchy(flat: Stage[]): { id: number; parentStageId: number | null }[] {
+	const result: { id: number; parentStageId: number | null }[] = [];
+	let currentRootId: number | null = null;
+
+	for (const s of flat) {
+		const dbIsRoot = stageParentId(s) == null;
+		if (currentRootId === null || dbIsRoot) {
+			currentRootId = s.id;
+			result.push({ id: s.id, parentStageId: null });
+		} else {
+			result.push({ id: s.id, parentStageId: currentRootId });
+		}
+	}
+	return result;
+}
+
+function childIdsFromFlat(flat: Stage[]): Set<number> {
+	const hierarchy = flatToHierarchy(flat);
+	return new Set(hierarchy.filter((h) => h.parentStageId != null).map((h) => h.id));
+}
+
+function getBlockRange(flat: Stage[], childIds: Set<number>, startIdx: number): { start: number; end: number } {
+	const item = flat[startIdx];
+	if (!childIds.has(item.id)) {
+		let end = startIdx + 1;
+		while (end < flat.length && childIds.has(flat[end].id)) end++;
+		return { start: startIdx, end };
+	}
+	return { start: startIdx, end: startIdx + 1 };
+}
+
+function moveFlatBlock(flat: Stage[], childIds: Set<number>, fromIdx: number, toIdx: number): Stage[] | null {
+	const { start, end } = getBlockRange(flat, childIds, fromIdx);
+	const block = flat.slice(start, end);
+	const rest = flat.filter((_, i) => i < start || i >= end);
+	if (toIdx >= start && toIdx < end) return null;
+	const insertAt = toIdx > start ? toIdx - (end - start) : toIdx;
+	if (insertAt < 0 || insertAt > rest.length) return null;
+	const next = [...rest.slice(0, insertAt), ...block, ...rest.slice(insertAt)];
+	return next;
+}
+
+function StageRow({
 	s,
-	children,
+	isChild = false,
 	projectMap,
 	onEdit,
 	onDelete,
 	onAddSub,
+	dragging,
+	dropTarget,
+	onDragStart,
+	onDragOver,
+	onDrop,
+	onDragEnd,
 }: {
 	s: Stage;
-	children?: React.ReactNode;
+	isChild?: boolean;
 	projectMap: Record<number, string>;
 	onEdit: (s: Stage) => void;
 	onDelete: (id: number) => void;
 	onAddSub: (s: Stage) => void;
+	dragging?: boolean;
+	dropTarget?: boolean;
+	onDragStart: () => void;
+	onDragOver: (e: React.DragEvent) => void;
+	onDrop: (e: React.DragEvent) => void;
+	onDragEnd: () => void;
 }) {
-	const [expanded, setExpanded] = useState(true);
-	const hasChildren = !!children;
+	const isRoot = !isChild;
 
 	return (
-		<div>
-			<div className="bg-white rounded-xl border border-gray-200 p-4 hover:border-amber-200 transition-colors">
-				<div className="flex items-start justify-between mb-2">
-					<div className="flex-1 flex items-start gap-2">
-						{hasChildren && (
-							<button
-								type="button"
-								className="mt-0.5 text-gray-400 hover:text-gray-700"
-								onClick={() => setExpanded((v) => !v)}
-							>
-								{expanded
-									? <ChevronDown className="w-4 h-4" />
-									: <ChevronRight className="w-4 h-4" />}
-							</button>
-						)}
-						{!hasChildren && <div className="w-4" />}
-						<div className="flex-1">
-							<div className="flex items-center gap-2 mb-0.5">
-								<h3 className="font-semibold text-gray-900 text-sm">{s.name}</h3>
-								<Badge
-									className={STATUS_COLORS[s.status] || ""}
-									variant="secondary"
-								>
-									{STATUS_OPTS.find((o) => o.value === s.status)?.label}
-								</Badge>
-							</div>
-							<p className="text-xs text-gray-400">
-								{projectMap[s.projectId] || `Проект #${s.projectId}`}
-							</p>
-							{s.description && (
-								<p className="text-xs text-gray-500 mt-1">{s.description}</p>
-							)}
-						</div>
-					</div>
-					<div className="flex gap-1 ml-3 flex-shrink-0">
-						<Button
-							size="sm"
-							variant="ghost"
-							className="h-7 px-2 text-[10px] text-amber-600 hover:text-amber-700"
-							onClick={() => onAddSub(s)}
-						>
-							<Plus className="w-3 h-3 mr-1" />
-							Под-этап
-						</Button>
-						<Button
-							size="sm"
-							variant="ghost"
-							className="h-7 w-7 p-0"
-							onClick={() => onEdit(s)}
-						>
-							<Edit2 className="w-3.5 h-3.5 text-gray-400" />
-						</Button>
-						<Button
-							size="sm"
-							variant="ghost"
-							className="h-7 w-7 p-0"
-							onClick={() => onDelete(s.id)}
-						>
-							<Trash2 className="w-3.5 h-3.5 text-gray-400 hover:text-rose-600" />
-						</Button>
-					</div>
-				</div>
-				<div className="space-y-1 ml-6">
-					<div className="flex justify-between text-xs text-gray-500">
-						<span>Прогресс</span>
-						<span className="font-medium">{s.progress}%</span>
-					</div>
-					<div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-						<div
-							className={`h-full rounded-full transition-all ${s.progress >= 100 ? "bg-emerald-600" : s.progress >= 50 ? "bg-blue-600" : "bg-orange-400"}`}
-							style={{ width: `${s.progress}%` }}
-						/>
-					</div>
-				</div>
-				<div className="flex gap-4 mt-2 ml-6 text-xs text-gray-400">
-					{s.startDate && (
-						<span>Нач: {new Date(s.startDate).toLocaleDateString("ru-KG")}</span>
-					)}
-					{s.plannedEndDate && (
-						<span>Конец: {new Date(s.plannedEndDate).toLocaleDateString("ru-KG")}</span>
-					)}
-					{s.budgetAmount && (
-						<span>
-							Бюджет: {parseFloat(s.budgetAmount).toLocaleString("ru-KG")} ₸
-						</span>
-					)}
-				</div>
-			</div>
-			{hasChildren && expanded && (
-				<div className="ml-8 mt-2 space-y-2 border-l-2 border-amber-100 pl-4">
-					{children}
-				</div>
+		<div
+			draggable
+			onDragStart={(e) => {
+				e.dataTransfer.effectAllowed = "move";
+				onDragStart();
+			}}
+			onDragOver={onDragOver}
+			onDrop={onDrop}
+			onDragEnd={onDragEnd}
+			className={`group flex items-center gap-2 rounded-lg border px-2 py-2 transition-colors ${
+				dragging ? "opacity-40 border-dashed border-amber-300" : ""
+			} ${dropTarget ? "border-amber-400 bg-amber-50/60" : "border-gray-200 bg-white hover:border-amber-200"} ${
+				isChild ? "ml-8" : ""
+			}`}
+		>
+			<button
+				type="button"
+				className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 p-0.5"
+				title="Перетащить"
+			>
+				<GripVertical className="w-4 h-4" />
+			</button>
+
+			{isRoot ? (
+				<Folder className="w-4 h-4 text-gray-500 shrink-0" />
+			) : (
+				<span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
 			)}
+
+			<div className="min-w-0 flex-1">
+				<p className={`truncate text-gray-900 ${isRoot ? "text-sm font-semibold" : "text-sm"}`}>
+					{s.name}
+				</p>
+				{isRoot && (
+					<p className="text-[10px] text-gray-400 truncate">
+						{projectMap[s.projectId] || `Проект #${s.projectId}`}
+					</p>
+				)}
+			</div>
+
+			<div className="flex gap-0.5 shrink-0 opacity-70 group-hover:opacity-100">
+				{isRoot && (
+					<Button
+						size="sm"
+						variant="ghost"
+						className="h-7 w-7 p-0 text-gray-500 hover:text-amber-600"
+						title="Добавить подэтап"
+						onClick={() => onAddSub(s)}
+					>
+						<Plus className="w-4 h-4" />
+					</Button>
+				)}
+				<Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => onEdit(s)}>
+					<Edit2 className="w-3.5 h-3.5 text-gray-400" />
+				</Button>
+				<Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => onDelete(s.id)}>
+					<Trash2 className="w-3.5 h-3.5 text-gray-400 hover:text-rose-600" />
+				</Button>
+			</div>
 		</div>
 	);
 }
@@ -453,6 +521,7 @@ export default function ConstructionStages() {
 	const { toast } = useToast();
 	const [dialog, setDialog] = useState<DialogState>(null);
 	const [projectFilter, setProjectFilter] = useState<string>("all");
+	const [displayCurrency, setDisplayCurrency] = useState<DisplayCurrency>("KGS");
 
 	const { data: projects = [] } = useQuery<Project[]>({
 		queryKey: ["construction-projects"],
@@ -468,6 +537,21 @@ export default function ConstructionStages() {
 				})
 				.then((r) => r.data),
 	});
+	const { data: expenses = [] } = useQuery<ExpenseRow[]>({
+		queryKey: ["construction-expenses", projectFilter],
+		queryFn: () =>
+			api
+				.get("/construction/expenses", {
+					params:
+						projectFilter !== "all" ? { projectId: projectFilter } : undefined,
+				})
+				.then((r) => (Array.isArray(r.data) ? r.data : [])),
+	});
+	const { data: nbkr, isLoading: nbkrLoading } = useQuery<NbkrResponse>({
+		queryKey: ["nbkr-rates"],
+		queryFn: () => api.get("/nbkr/rates").then((r) => r.data),
+		staleTime: 60 * 60 * 1000,
+	});
 
 	const handleDelete = async (id: number) => {
 		if (!confirm("Удалить этап?")) return;
@@ -481,27 +565,216 @@ export default function ConstructionStages() {
 
 	const projectMap = Object.fromEntries(projects.map((p) => [p.id, p.name]));
 
-	// Build nested tree: root stages + their children
-	const rootStages = stages.filter((s) => !s.parentStageId);
-	const childrenOf = (parentId: number) =>
-		stages.filter((s) => s.parentStageId === parentId);
+	const flatStages = useMemo(() => buildFlatStageList(stages), [stages]);
+	const [orderedStages, setOrderedStages] = useState<Stage[]>([]);
+	const [dragIndex, setDragIndex] = useState<number | null>(null);
+	const [dropIndex, setDropIndex] = useState<number | null>(null);
+
+	const childIds = useMemo(() => childIdsFromFlat(orderedStages), [orderedStages]);
+
+	const summary = useMemo(() => {
+		const roots = stages.filter((s) => stageParentId(s) == null);
+		const subs = stages.filter((s) => stageParentId(s) != null);
+		const active = stages.filter((s) => s.status === "active").length;
+		const completed = stages.filter((s) => s.status === "completed").length;
+		const avgProgress = stages.length
+			? Math.round(stages.reduce((sum, s) => sum + (s.progress ?? 0), 0) / stages.length)
+			: 0;
+
+		const budgetKgs = stages.reduce(
+			(sum, s) => sum + (parseFloat(s.budgetAmount || "0") || 0),
+			0,
+		);
+		const stageIds = new Set(stages.map((s) => s.id));
+		const factKgs = expenses.reduce((sum, e) => {
+			if (e.stageId == null || !stageIds.has(e.stageId)) return sum;
+			const kgs = parseFloat(e.amountKgs || e.amount || "0") || 0;
+			return sum + kgs;
+		}, 0);
+		const remainderKgs = budgetKgs - factKgs;
+		const utilization = budgetKgs > 0 ? Math.round((factKgs / budgetKgs) * 100) : 0;
+
+		return {
+			roots: roots.length,
+			subs: subs.length,
+			total: stages.length,
+			active,
+			completed,
+			avgProgress,
+			budgetKgs,
+			factKgs,
+			remainderKgs,
+			utilization,
+		};
+	}, [stages, expenses]);
+
+	const rates = nbkr?.rates || {};
+	const fmt = (kgs: number) =>
+		fmtCurrencyAmount(kgsToDisplay(kgs, displayCurrency, rates), displayCurrency);
+
+	useEffect(() => {
+		setOrderedStages(flatStages);
+	}, [flatStages]);
+
+	const persistOrder = async (next: Stage[]) => {
+		if (next.length === 0) return;
+		const projectId = next[0].projectId;
+		const items = flatToHierarchy(next);
+		try {
+			const res = await fetch(`${BASE}/construction/stages/reorder`, {
+				method: "POST",
+				headers: ah(),
+				body: JSON.stringify({ projectId, items }),
+			});
+			if (!res.ok) throw new Error("reorder failed");
+			qc.invalidateQueries({ queryKey: ["construction-stages"] });
+		} catch {
+			toast({ title: "Не удалось сохранить порядок", variant: "destructive" });
+			setOrderedStages(flatStages);
+		}
+	};
+
+	const handleDrop = (toIdx: number) => {
+		if (dragIndex == null || dragIndex === toIdx) {
+			setDragIndex(null);
+			setDropIndex(null);
+			return;
+		}
+		const next = moveFlatBlock(orderedStages, childIds, dragIndex, toIdx);
+		if (!next) {
+			setDragIndex(null);
+			setDropIndex(null);
+			return;
+		}
+		setOrderedStages(next);
+		void persistOrder(next);
+		setDragIndex(null);
+		setDropIndex(null);
+	};
 
 	return (
 		<div className="space-y-6">
-			<div className="flex items-center justify-between">
+			<div className="flex items-start justify-between gap-4 flex-wrap">
 				<div>
 					<h1 className="text-2xl font-bold text-gray-900">Этапы работ</h1>
 					<p className="text-sm text-gray-500 mt-0.5">
 						Плановые этапы строительных проектов
 					</p>
 				</div>
-				<Button
-					onClick={() => setDialog("new")}
-					className="bg-amber-500 hover:bg-orange-600 gap-2"
-				>
-					<Plus className="w-4 h-4" /> Добавить этап
-				</Button>
+				<div className="flex items-center gap-3 flex-wrap">
+					<CurrencyToggle
+						value={displayCurrency}
+						onChange={setDisplayCurrency}
+						rateLabel={displayCurrency === "USD" ? nbkrUsdRateLabel(rates) : null}
+						nbkrDate={nbkr?.date}
+					/>
+					<Button
+						onClick={() => setDialog("new")}
+						className="bg-amber-500 hover:bg-orange-600 gap-2"
+					>
+						<Plus className="w-4 h-4" /> Добавить этап
+					</Button>
+				</div>
 			</div>
+
+			<div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+				<div className="bg-white rounded-xl border border-gray-200 p-4">
+					<p className="text-xs text-gray-500 mb-1 flex items-center gap-1">
+						<Wallet className="w-3.5 h-3.5" /> Бюджет этапов
+					</p>
+					<p className="text-xl font-bold text-blue-600">
+						{isLoading || nbkrLoading ? "…" : fmt(summary.budgetKgs)}
+					</p>
+					<p className="text-[10px] text-gray-400 mt-1">
+						{summary.total} этапов · {summary.roots} корн. · {summary.subs} подэтапов
+					</p>
+				</div>
+				<div className="bg-white rounded-xl border border-gray-200 p-4">
+					<p className="text-xs text-gray-500 mb-1 flex items-center gap-1">
+						<TrendingDown className="w-3.5 h-3.5" /> Факт расходов
+					</p>
+					<p className="text-xl font-bold text-amber-600">
+						{isLoading || nbkrLoading ? "…" : fmt(summary.factKgs)}
+					</p>
+					<p className="text-[10px] text-gray-400 mt-1">
+						Освоение {summary.utilization}%
+					</p>
+				</div>
+				<div
+					className={`rounded-xl border p-4 ${
+						summary.remainderKgs >= 0
+							? "bg-emerald-50 border-emerald-200"
+							: "bg-rose-50 border-rose-200"
+					}`}
+				>
+					<p className="text-xs text-gray-500 mb-1 flex items-center gap-1">
+						<TrendingUp className="w-3.5 h-3.5" /> Остаток бюджета
+					</p>
+					<p
+						className={`text-xl font-bold ${
+							summary.remainderKgs >= 0 ? "text-emerald-600" : "text-rose-600"
+						}`}
+					>
+						{isLoading || nbkrLoading ? "…" : fmt(summary.remainderKgs)}
+					</p>
+					<p className="text-[10px] text-gray-400 mt-1">
+						{displayCurrency === "USD" ? "Курс НБКР" : "Суммы в сомах"}
+					</p>
+				</div>
+			</div>
+
+			<KpiRow cols={6}>
+				<KpiCard
+					variant="strip"
+					label="Всего этапов"
+					value={summary.total}
+					sub={`${summary.roots} + ${summary.subs}`}
+					icon={Layers}
+					color="blue"
+					loading={isLoading}
+				/>
+				<KpiCard
+					variant="strip"
+					label="В работе"
+					value={summary.active}
+					icon={Flag}
+					color="yellow"
+					loading={isLoading}
+				/>
+				<KpiCard
+					variant="strip"
+					label="Завершено"
+					value={summary.completed}
+					icon={Folder}
+					color="green"
+					loading={isLoading}
+				/>
+				<KpiCard
+					variant="strip"
+					label="Средний прогресс"
+					value={`${summary.avgProgress}%`}
+					icon={TrendingUp}
+					color="purple"
+					loading={isLoading}
+				/>
+				<KpiCard
+					variant="strip"
+					label="Бюджет"
+					value={isLoading || nbkrLoading ? "…" : fmt(summary.budgetKgs)}
+					icon={Wallet}
+					color="blue"
+					loading={isLoading || nbkrLoading}
+				/>
+				<KpiCard
+					variant="strip"
+					label="Освоение"
+					value={`${summary.utilization}%`}
+					sub={isLoading || nbkrLoading ? undefined : fmt(summary.factKgs)}
+					icon={TrendingDown}
+					color="yellow"
+					loading={isLoading}
+				/>
+			</KpiRow>
 
 			<div className="flex gap-2 flex-wrap">
 				<button
@@ -521,10 +794,10 @@ export default function ConstructionStages() {
 				))}
 			</div>
 
-			<div className="space-y-3">
+			<div className="space-y-1.5">
 				{isLoading ? (
 					Array.from({ length: 3 }).map((_, i) => (
-						<Skeleton key={i} className="h-24 rounded-xl" />
+						<Skeleton key={i} className="h-10 rounded-lg" />
 					))
 				) : stages.length === 0 ? (
 					<div className="text-center py-16 text-gray-400">
@@ -532,42 +805,41 @@ export default function ConstructionStages() {
 						<p>Этапов нет. Добавьте первый.</p>
 					</div>
 				) : (
-					rootStages.map((s) => {
-						const children = childrenOf(s.id);
-						return (
-							<StageCard
-								key={s.id}
-								s={s}
-								projectMap={projectMap}
-								onEdit={(s) => setDialog(s)}
-								onDelete={handleDelete}
-								onAddSub={(parent) =>
-									setDialog({ parentStageId: parent.id, projectId: parent.projectId })
-								}
-							>
-								{children.length > 0 &&
-									children.map((child) => (
-										<StageCard
-											key={child.id}
-											s={child}
-											projectMap={projectMap}
-											onEdit={(s) => setDialog(s)}
-											onDelete={handleDelete}
-											onAddSub={(parent) =>
-												setDialog({ parentStageId: parent.id, projectId: parent.projectId })
-											}
-										/>
-									))}
-							</StageCard>
-						);
-					})
+					orderedStages.map((s, idx) => (
+						<StageRow
+							key={s.id}
+							s={s}
+							isChild={childIds.has(s.id)}
+							projectMap={projectMap}
+							onEdit={(stage) => setDialog(stage)}
+							onDelete={handleDelete}
+							onAddSub={(parent) =>
+								setDialog({ parentStageId: parent.id, projectId: parent.projectId })
+							}
+							dragging={dragIndex === idx}
+							dropTarget={dropIndex === idx}
+							onDragStart={() => setDragIndex(idx)}
+							onDragOver={(e) => {
+								e.preventDefault();
+								setDropIndex(idx);
+							}}
+							onDrop={(e) => {
+								e.preventDefault();
+								handleDrop(idx);
+							}}
+							onDragEnd={() => {
+								setDragIndex(null);
+								setDropIndex(null);
+							}}
+						/>
+					))
 				)}
 			</div>
 
 			<StageDialog
 				stage={dialog}
 				projects={projects}
-				parentStages={stages.filter((s) => !s.parentStageId)}
+				parentStages={stages.filter((s) => stageParentId(s) == null)}
 				onClose={() => setDialog(null)}
 				onSaved={() =>
 					qc.invalidateQueries({ queryKey: ["construction-stages"] })

@@ -412,7 +412,7 @@ export default function ConstructionWorkers() {
 									</TableCell>
 									<TableCell className="text-right text-sm font-medium text-gray-800">
 										{w.dailyRate
-											? `${parseFloat(w.dailyRate).toLocaleString("ru-KG")} ₸`
+											? `${parseFloat(w.dailyRate).toLocaleString("ru-KG")} сом`
 											: "—"}
 									</TableCell>
 									<TableCell>

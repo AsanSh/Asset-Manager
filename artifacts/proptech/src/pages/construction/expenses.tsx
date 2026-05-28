@@ -45,7 +45,7 @@ function fmtKgs(v: string | number) {
 	return (
 		`${new Intl.NumberFormat("ru-KG", { maximumFractionDigits: 0 }).format(
 			parseFloat(String(v)) || 0,
-		)} ₸`
+		)} сом`
 	);
 }
 

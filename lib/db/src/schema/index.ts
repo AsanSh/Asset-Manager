@@ -43,6 +43,7 @@ export * from "./legal_entities";
 export * from "./roles";
 export * from "./warehouse_items";
 export * from "./warehouse_suppliers";
+export * from "./warehouse_supplier_payments";
 export * from "./warehouse_incoming";
 export * from "./warehouse_outgoing";
 export * from "./warehouse_inventory";

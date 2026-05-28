@@ -2,6 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, Wallet } from "lucide-react";
 import { api } from "@/lib/api";
 import {
+	convertViaKgs,
+	type NbkrResponse,
+} from "@/lib/nbkr-currency";
+import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
@@ -12,39 +16,6 @@ export interface CashAccount {
 	name: string;
 	currentBalance: string | number;
 	currency: string;
-}
-
-interface NbkrRate {
-	name: string;
-	rate: string;
-	scale: string;
-}
-interface NbkrResponse {
-	date: string;
-	rates: Record<string, NbkrRate>;
-}
-
-/** Сколько KGS стоит 1 единица валюты (по курсу НБКР). KGS = 1. */
-function unitInKgs(currency: string, rates: Record<string, NbkrRate>): number {
-	if (currency === "KGS") return 1;
-	const r = rates[currency];
-	if (!r) return 1;
-	const rate = parseFloat(r.rate);
-	const scale = parseFloat(r.scale || "1") || 1;
-	if (!rate) return 1;
-	return rate / scale;
-}
-
-/** Конвертирует сумму из валюты from в валюту to через KGS. */
-function convert(
-	amount: number,
-	from: string,
-	to: string,
-	rates: Record<string, NbkrRate>,
-): number {
-	if (from === to) return amount;
-	const kgs = amount * unitInKgs(from, rates);
-	return kgs / unitInKgs(to, rates);
 }
 
 function fmtMoney(n: number, currency: string): string {
@@ -79,7 +50,7 @@ export function CashSummary({ accounts }: { accounts: CashAccount[] }) {
 	const total = list.reduce(
 		(sum, a) =>
 			sum +
-			convert(
+			convertViaKgs(
 				parseFloat(String(a.currentBalance || "0")) || 0,
 				a.currency || "KGS",
 				defaultCurrency,
@@ -113,7 +84,7 @@ export function CashSummary({ accounts }: { accounts: CashAccount[] }) {
 					) : (
 						list.map((a) => {
 							const bal = parseFloat(String(a.currentBalance || "0")) || 0;
-							const inDefault = convert(
+							const inDefault = convertViaKgs(
 								bal,
 								a.currency || "KGS",
 								defaultCurrency,

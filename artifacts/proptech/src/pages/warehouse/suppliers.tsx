@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Plus, Search, Star, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { Pencil, Plus, Search, Star, Trash2, FileText, UserPlus } from "lucide-react";
+import { useEffect, useState } from "react";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -39,7 +39,13 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { ContractFileUpload } from "@/components/contract-file-upload";
+import {
+	AdminReconciliationAct,
+	reconciliationFmtMoney,
+} from "@/components/admin-reconciliation-act";
 import { api } from "@/lib/api";
+import { getApiErrorMessage } from "@/lib/api-error";
 
 interface Supplier {
 	id: number;
@@ -49,9 +55,14 @@ interface Supplier {
 	email?: string;
 	inn?: string;
 	address?: string;
+	contractNumber?: string;
+	contractAmount?: string;
+	paidAmount?: string;
+	currency?: string;
 	rating?: number;
 	status: "active" | "inactive";
 	note?: string;
+	contractDocument?: { fileName: string; mimeType: string; uploadedAt: string } | null;
 }
 
 const statusLabels: Record<string, string> = {
@@ -74,6 +85,13 @@ function SupplierDialog({ open, onClose, supplier }: SupplierDialogProps) {
 	const queryClient = useQueryClient();
 	const { toast } = useToast();
 	const [loading, setLoading] = useState(false);
+	const [portalForm, setPortalForm] = useState({
+		email: supplier?.email || "",
+		firstName: "",
+		lastName: "",
+		password: "",
+	});
+	const [portalLoading, setPortalLoading] = useState(false);
 
 	const [formData, setFormData] = useState({
 		name: supplier?.name || "",
@@ -82,10 +100,79 @@ function SupplierDialog({ open, onClose, supplier }: SupplierDialogProps) {
 		email: supplier?.email || "",
 		inn: supplier?.inn || "",
 		address: supplier?.address || "",
+		contractNumber: supplier?.contractNumber || "",
+		contractAmount: supplier?.contractAmount || "",
+		paidAmount: supplier?.paidAmount || "0",
+		currency: supplier?.currency || "KGS",
 		rating: supplier?.rating?.toString() || "5",
 		status: supplier?.status || "active",
 		note: supplier?.note || "",
 	});
+
+	const contractAmount = parseFloat(formData.contractAmount || "0");
+	const paidAmount = parseFloat(formData.paidAmount || "0");
+	const outstanding = contractAmount - paidAmount;
+
+	const { data: reconciliationData } = useQuery({
+		queryKey: ["supplier-reconciliation", supplier?.id],
+		queryFn: () =>
+			api
+				.get(`/warehouse/suppliers/${supplier!.id}/reconciliation`)
+				.then((r) => r.data),
+		enabled: !!supplier?.id && open,
+	});
+
+	useEffect(() => {
+		if (!open) return;
+		setFormData({
+			name: supplier?.name || "",
+			contactPerson: supplier?.contactPerson || "",
+			phone: supplier?.phone || "",
+			email: supplier?.email || "",
+			inn: supplier?.inn || "",
+			address: supplier?.address || "",
+			contractNumber: supplier?.contractNumber || "",
+			contractAmount: supplier?.contractAmount || "",
+			paidAmount: supplier?.paidAmount || "0",
+			currency: supplier?.currency || "KGS",
+			rating: supplier?.rating?.toString() || "5",
+			status: supplier?.status || "active",
+			note: supplier?.note || "",
+		});
+		const parts = (supplier?.name || "").trim().split(/\s+/);
+		setPortalForm({
+			email: supplier?.email || "",
+			firstName: parts[0] || "",
+			lastName: parts.slice(1).join(" ") || "",
+			password: "",
+		});
+	}, [open, supplier]);
+
+	const reconciliation = reconciliationData?.reconciliation;
+
+	const createPortalAccount = async () => {
+		if (!supplier?.id) return;
+		if (!portalForm.email || !portalForm.firstName || !portalForm.lastName || !portalForm.password) {
+			toast({ title: "Заполните все поля портала", variant: "destructive" });
+			return;
+		}
+		setPortalLoading(true);
+		try {
+			await api.post("/portal/create-supplier-account", {
+				supplierId: supplier.id,
+				...portalForm,
+			});
+			toast({ title: "Доступ в портал создан" });
+			setPortalForm({ email: "", firstName: "", lastName: "", password: "" });
+		} catch (e: unknown) {
+			toast({
+				title: getApiErrorMessage(e, "Ошибка создания аккаунта"),
+				variant: "destructive",
+			});
+		} finally {
+			setPortalLoading(false);
+		}
+	};
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -98,6 +185,10 @@ function SupplierDialog({ open, onClose, supplier }: SupplierDialogProps) {
 				email: formData.email || null,
 				inn: formData.inn || null,
 				address: formData.address || null,
+				contractNumber: formData.contractNumber || null,
+				contractAmount: formData.contractAmount || null,
+				paidAmount: formData.paidAmount || "0",
+				currency: formData.currency || "KGS",
 				rating: parseInt(formData.rating, 10),
 				status: formData.status,
 				note: formData.note || null,
@@ -111,6 +202,11 @@ function SupplierDialog({ open, onClose, supplier }: SupplierDialogProps) {
 				toast({ title: "Поставщик добавлен" });
 			}
 			queryClient.invalidateQueries({ queryKey: ["warehouse-suppliers"] });
+			if (supplier?.id) {
+				queryClient.invalidateQueries({
+					queryKey: ["supplier-reconciliation", supplier.id],
+				});
+			}
 			onClose();
 		} catch (error: any) {
 			toast({
@@ -241,6 +337,194 @@ function SupplierDialog({ open, onClose, supplier }: SupplierDialogProps) {
 					</div>
 
 					<div>
+						<Label>№ договора</Label>
+						<Input
+							value={formData.contractNumber}
+							onChange={(e) =>
+								setFormData({ ...formData, contractNumber: e.target.value })
+							}
+							placeholder="Д-2026/01"
+						/>
+					</div>
+
+					<div className="grid grid-cols-2 gap-4">
+						<div>
+							<Label>Сумма договора</Label>
+							<Input
+								type="number"
+								value={formData.contractAmount}
+								onChange={(e) =>
+									setFormData({ ...formData, contractAmount: e.target.value })
+								}
+							/>
+						</div>
+						<div>
+							<Label>Оплачено</Label>
+							<Input
+								type="number"
+								value={formData.paidAmount}
+								onChange={(e) =>
+									setFormData({ ...formData, paidAmount: e.target.value })
+								}
+							/>
+						</div>
+						<div>
+							<Label>Валюта</Label>
+							<Select
+								value={formData.currency}
+								onValueChange={(v) => setFormData({ ...formData, currency: v })}
+							>
+								<SelectTrigger>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="KGS">KGS</SelectItem>
+									<SelectItem value="USD">USD</SelectItem>
+									<SelectItem value="EUR">EUR</SelectItem>
+									<SelectItem value="RUB">RUB</SelectItem>
+								</SelectContent>
+							</Select>
+						</div>
+						<div>
+							<Label>Остаток к оплате</Label>
+							<div
+								className={`h-10 px-3 flex items-center rounded-md border text-sm font-medium ${
+									outstanding < 0
+										? "text-rose-700 bg-rose-50 border-rose-200"
+										: outstanding === 0
+											? "text-emerald-700 bg-emerald-50 border-emerald-200"
+											: "text-amber-700 bg-amber-50 border-amber-200"
+								}`}
+							>
+								{outstanding.toLocaleString("ru-KG")} {formData.currency}
+							</div>
+						</div>
+					</div>
+
+					{supplier?.id && (
+						<ContractFileUpload
+							entityType="supplier"
+							entityId={supplier.id}
+							contractDocument={supplier.contractDocument}
+							onUploaded={() => {
+								queryClient.invalidateQueries({ queryKey: ["warehouse-suppliers"] });
+								queryClient.invalidateQueries({
+									queryKey: ["supplier-reconciliation", supplier.id],
+								});
+							}}
+							portalPrompt={{
+								entityType: "supplier",
+								entityId: supplier.id,
+								entityName: supplier.name,
+								defaultEmail: supplier.email,
+							}}
+						/>
+					)}
+
+					{supplier?.id && reconciliation && (
+						<AdminReconciliationAct
+							mode="supplier"
+							subjectLabel="Поставщик"
+							subjectName={supplier.name}
+							contractLabel={`Договор №${formData.contractNumber || "—"}`}
+							currency={reconciliation.currency ?? formData.currency}
+							summary={[
+								{
+									label: "Договор",
+									value: reconciliationFmtMoney(
+										reconciliation.contractAmount,
+										reconciliation.currency,
+									),
+								},
+								{
+									label: "Оплачено",
+									value: reconciliationFmtMoney(
+										reconciliation.paidAmount,
+										reconciliation.currency,
+									),
+									tone: "emerald",
+								},
+								{
+									label: "Остаток",
+									value: reconciliationFmtMoney(
+										reconciliation.outstanding,
+										reconciliation.currency,
+									),
+									tone: "amber",
+								},
+								{
+									label: "Поставлено",
+									value: reconciliationFmtMoney(
+										reconciliation.totalSupplied,
+										reconciliation.currency,
+									),
+									tone: "violet",
+								},
+							]}
+							lines={reconciliation.lines ?? []}
+						/>
+					)}
+
+					{supplier?.id && (
+						<div className="border-t pt-4 space-y-3">
+							<p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+								Доступ в портал поставщика
+							</p>
+							<div className="grid grid-cols-2 gap-3">
+								<div>
+									<Label>Email</Label>
+									<Input
+										type="email"
+										value={portalForm.email}
+										onChange={(e) =>
+											setPortalForm((p) => ({ ...p, email: e.target.value }))
+										}
+									/>
+								</div>
+								<div>
+									<Label>Пароль</Label>
+									<Input
+										type="password"
+										value={portalForm.password}
+										onChange={(e) =>
+											setPortalForm((p) => ({ ...p, password: e.target.value }))
+										}
+									/>
+								</div>
+								<div>
+									<Label>Имя</Label>
+									<Input
+										value={portalForm.firstName}
+										onChange={(e) =>
+											setPortalForm((p) => ({ ...p, firstName: e.target.value }))
+										}
+									/>
+								</div>
+								<div>
+									<Label>Фамилия</Label>
+									<Input
+										value={portalForm.lastName}
+										onChange={(e) =>
+											setPortalForm((p) => ({ ...p, lastName: e.target.value }))
+										}
+									/>
+								</div>
+							</div>
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								className="gap-1.5"
+								onClick={() => void createPortalAccount()}
+								disabled={portalLoading}
+							>
+								<UserPlus className="w-4 h-4" />
+								{portalLoading ? "..." : "Создать доступ в портал"}
+							</Button>
+						</div>
+					)}
+
+					<div>
 						<Label>Примечание</Label>
 						<Textarea
 							value={formData.note}
@@ -282,7 +566,15 @@ function RatingStars({ rating }: { rating: number }) {
 export default function Suppliers() {
 	const { data: suppliers, isLoading } = useQuery<Supplier[]>({
 		queryKey: ["warehouse-suppliers"],
-		queryFn: () => api.get("/warehouse/suppliers").then((r) => r.data),
+		queryFn: () =>
+			api.get("/warehouse/suppliers").then((r) => {
+				const list = Array.isArray(r.data) ? r.data : [];
+				return list.map((s: Record<string, unknown>) => ({
+					...s,
+					status: s.isActive === false ? "inactive" : "active",
+					note: s.notes,
+				})) as Supplier[];
+			}),
 	});
 
 	const suppliersArray = Array.isArray(suppliers) ? suppliers : [];

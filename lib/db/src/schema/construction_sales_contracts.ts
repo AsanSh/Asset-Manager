@@ -24,6 +24,7 @@ export const constructionSalesContractsTable = pgTable("construction_sales_contr
   buyerPhone: varchar("buyer_phone", { length: 32 }),
   /** JSON: паспорт, дата рождения, род. падеж — дополнение к карточке контрагента */
   buyerMeta: text("buyer_meta"),
+  contractDocumentMeta: text("contract_document_meta"),
   notes: text("notes"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

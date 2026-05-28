@@ -57,6 +57,7 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
+import { getApiErrorMessage } from "@/lib/api-error";
 import { CashSummary } from "@/components/cash-summary";
 
 const typeLabels: Record<string, string> = {

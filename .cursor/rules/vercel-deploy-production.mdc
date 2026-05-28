@@ -1,0 +1,63 @@
+---
+description: Vercel deploy, API production alias, migrations, auth — avoid login/DB breakage
+alwaysApply: true
+---
+
+# Vercel & Production (Asset-Manager)
+
+## Куда деплоить
+
+| Приложение | Vercel project | Production URL |
+|------------|----------------|----------------|
+| Frontend | `proptech` | https://proptech-sigma-eight.vercel.app |
+| **API (реальный prod)** | **`proptech-api`** | alias **https://api-server-rho-six.vercel.app** |
+
+- Не деплоить API в project `api-server` для production — alias `api-server-rho-six` смотрит на **`proptech-api`**.
+- `VITE_API_URL` во frontend: `https://api-server-rho-six.vercel.app`.
+
+## Деплой API (рабочий сценарий)
+
+```bash
+cd artifacts/api-server
+npx vercel link --project proptech-api --yes
+npm run build
+npx vercel pull --yes --environment=production
+npx vercel build --prod
+npx vercel deploy --prebuilt --prod --yes
+npx vercel alias set <deployment-url> api-server-rho-six.vercel.app
+```
+
+Проверка после деплоя:
+- `GET /health` → `{"status":"ok"}`
+- `POST /auth/login` с тестовым аккаунтом → **200** (не 500, не 404)
+
+При `FUNCTION_INVOCATION_FAILED` — откат alias на предыдущий Ready deployment, не оставлять prod сломанным.
+
+## bcrypt → bcryptjs
+
+- На Vercel использовать **`bcryptjs`**, не `bcrypt` (native `.node` → `invalid ELF header` на Linux).
+- Не бандлить macOS `node_modules/bcrypt` в prebuilt output.
+
+## Миграции БД (критично для входа)
+
+- Новый SQL в `artifacts/api-server/drizzle/migrations/` **обязательно** добавить в `meta/_journal.json` — иначе на prod колонки не создадутся.
+- `drizzle/` **не** добавлять в `.vercelignore` — миграции нужны при старте (`runMigrations()`).
+- Схема `users` / другие таблицы в `lib/db` без миграции на prod → **500 на `/auth/login`**, пользователи при этом **не удаляются**.
+- После изменения schema: `ADD COLUMN IF NOT EXISTS` в migration, затем deploy API.
+
+## Auth & rate limit
+
+- Лимит входа: **30 попыток / 5 мин**, `skipSuccessfulRequests: true`. Не ужимать до 5 без причины — блокирует пользователей после отладки.
+- Login query: select только нужные поля `users`, если schema опережает prod.
+
+## Деплой frontend
+
+```bash
+cd artifacts/proptech && npx vercel deploy --prod --yes
+```
+
+## Запреты
+
+- Не удалять/не truncate users, sessions, companies.
+- Не менять alias prod без smoke-test login.
+- Не коммитить `.env`, DATABASE_URL, токены.

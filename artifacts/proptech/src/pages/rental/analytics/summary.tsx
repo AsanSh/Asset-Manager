@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useColResize } from "@/lib/use-col-resize";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { getApiErrorMessage } from "@/lib/api-error";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 type SortDir = "asc" | "desc";

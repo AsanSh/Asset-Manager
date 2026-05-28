@@ -1,0 +1,16 @@
+{
+  "projectId": "prj_UrvCPEl8BT1FHK7LpMaSA5XtLN86",
+  "orgId": "team_qAoTAQ23XcOvbSRXVfeWOmWa",
+  "projectName": "api-server",
+  "settings": {
+    "createdAt": 1778093205311,
+    "framework": null,
+    "devCommand": null,
+    "installCommand": null,
+    "buildCommand": null,
+    "outputDirectory": null,
+    "rootDirectory": null,
+    "directoryListing": false,
+    "nodeVersion": "24.x"
+  }
+}

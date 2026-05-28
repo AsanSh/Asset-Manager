@@ -7,10 +7,25 @@ import {
   warehouseIncomingTable,
   warehouseOutgoingTable,
   warehouseInventoryTable,
+  warehouseSupplierPaymentsTable,
   activityLogTable,
 } from "../lib/db";
 import { requireAuth, requireRole, AuthenticatedRequest } from "../middleware/auth";
 import { requireTenantCompany } from "../middleware/tenant";
+import {
+  buildContractDocumentMeta,
+  parseContractDocumentMeta,
+  summarizeContractDocument,
+} from "../lib/contract-document";
+import { buildSupplierReconciliation } from "../lib/portal-reconciliation";
+
+function mapSupplierResponse(row: typeof warehouseSuppliersTable.$inferSelect) {
+  const { contractDocumentMeta, ...rest } = row;
+  return {
+    ...rest,
+    contractDocument: summarizeContractDocument(contractDocumentMeta),
+  };
+}
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -786,7 +801,7 @@ router.get("/warehouse/suppliers", async (req: AuthenticatedRequest, res): Promi
       .where(and(...conditions))
       .orderBy(warehouseSuppliersTable.name);
 
-    res.json(suppliers);
+    res.json(suppliers.map(mapSupplierResponse));
   } catch (error) {
     console.error("Error fetching suppliers:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -802,6 +817,10 @@ router.post("/warehouse/suppliers", async (req: AuthenticatedRequest, res): Prom
       email,
       address,
       inn,
+      contractNumber,
+      contractAmount,
+      paidAmount,
+      currency,
       paymentTerms,
       rating,
       notes,
@@ -820,11 +839,27 @@ router.post("/warehouse/suppliers", async (req: AuthenticatedRequest, res): Prom
       email,
       address,
       inn,
+      contractNumber: contractNumber || null,
+      contractAmount: contractAmount != null && contractAmount !== "" ? String(contractAmount) : null,
+      paidAmount: paidAmount != null && paidAmount !== "" ? String(paidAmount) : "0",
+      currency: currency || "KGS",
       paymentTerms,
       rating: rating ? parseInt(String(rating), 10) : null,
       isActive: true,
       notes,
     }).returning();
+
+    const initialPaid = parseFloat(String(paidAmount ?? 0));
+    if (initialPaid > 0) {
+      await db.insert(warehouseSupplierPaymentsTable).values({
+        companyId: req.scopedCompanyId!,
+        supplierId: supplier.id,
+        date: new Date().toISOString().slice(0, 10),
+        amount: String(initialPaid),
+        currency: currency || "KGS",
+        description: "Оплата по договору",
+      });
+    }
 
     await logWarehouseActivity(
       req.scopedCompanyId!,
@@ -836,9 +871,69 @@ router.post("/warehouse/suppliers", async (req: AuthenticatedRequest, res): Prom
       supplier
     );
 
-    res.status(201).json(supplier);
+    res.status(201).json(mapSupplierResponse(supplier));
   } catch (error) {
     console.error("Error creating supplier:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/warehouse/suppliers/:id/reconciliation", async (req: AuthenticatedRequest, res): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id as string, 10);
+    const [supplier] = await db.select().from(warehouseSuppliersTable)
+      .where(and(
+        eq(warehouseSuppliersTable.id, id),
+        eq(warehouseSuppliersTable.companyId, req.scopedCompanyId!),
+      ));
+    if (!supplier) {
+      res.status(404).json({ error: "Supplier not found" });
+      return;
+    }
+
+    const deliveries = await db.select({
+      documentDate: warehouseIncomingTable.documentDate,
+      documentNumber: warehouseIncomingTable.documentNumber,
+      itemName: warehouseItemsTable.name,
+      totalAmount: warehouseIncomingTable.totalAmount,
+      currency: warehouseIncomingTable.currency,
+    })
+      .from(warehouseIncomingTable)
+      .leftJoin(warehouseItemsTable, eq(warehouseIncomingTable.itemId, warehouseItemsTable.id))
+      .where(and(
+        eq(warehouseIncomingTable.supplierId, id),
+        eq(warehouseIncomingTable.companyId, req.scopedCompanyId!),
+      ))
+      .orderBy(desc(warehouseIncomingTable.documentDate));
+
+    const payments = await db.select({
+      date: warehouseSupplierPaymentsTable.date,
+      amount: warehouseSupplierPaymentsTable.amount,
+      currency: warehouseSupplierPaymentsTable.currency,
+      description: warehouseSupplierPaymentsTable.description,
+    })
+      .from(warehouseSupplierPaymentsTable)
+      .where(and(
+        eq(warehouseSupplierPaymentsTable.supplierId, id),
+        eq(warehouseSupplierPaymentsTable.companyId, req.scopedCompanyId!),
+      ))
+      .orderBy(desc(warehouseSupplierPaymentsTable.date));
+
+    const contractAmount = parseFloat(String(supplier.contractAmount ?? 0));
+    const paidAmount = parseFloat(String(supplier.paidAmount ?? 0));
+
+    res.json({
+      supplier: mapSupplierResponse(supplier),
+      reconciliation: buildSupplierReconciliation({
+        deliveries,
+        payments,
+        contractAmount,
+        paidAmount,
+        currency: supplier.currency ?? "KGS",
+      }),
+    });
+  } catch (error) {
+    console.error("Error fetching supplier reconciliation:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -851,6 +946,39 @@ router.patch("/warehouse/suppliers/:id", async (req: AuthenticatedRequest, res):
     if (updates.rating) {
       updates.rating = parseInt(String(updates.rating), 10);
     }
+    if (updates.contractAmount !== undefined) {
+      updates.contractAmount = updates.contractAmount != null && updates.contractAmount !== ""
+        ? String(updates.contractAmount)
+        : null;
+    }
+    if (updates.paidAmount !== undefined) {
+      updates.paidAmount = updates.paidAmount != null && updates.paidAmount !== ""
+        ? String(updates.paidAmount)
+        : "0";
+    }
+    if (updates.status !== undefined) {
+      updates.isActive = updates.status === "active";
+      delete updates.status;
+    }
+    if (updates.note !== undefined) {
+      updates.notes = updates.note;
+      delete updates.note;
+    }
+
+    const [existing] = await db.select().from(warehouseSuppliersTable)
+      .where(and(
+        eq(warehouseSuppliersTable.id, id),
+        eq(warehouseSuppliersTable.companyId, req.scopedCompanyId!),
+      ));
+    if (!existing) {
+      res.status(404).json({ error: "Supplier not found" });
+      return;
+    }
+
+    const oldPaid = parseFloat(String(existing.paidAmount ?? 0));
+    const newPaid = updates.paidAmount !== undefined
+      ? parseFloat(String(updates.paidAmount ?? 0))
+      : oldPaid;
 
     const [supplier] = await db.update(warehouseSuppliersTable)
       .set(updates)
@@ -865,6 +993,17 @@ router.patch("/warehouse/suppliers/:id", async (req: AuthenticatedRequest, res):
       return;
     }
 
+    if (newPaid > oldPaid) {
+      await db.insert(warehouseSupplierPaymentsTable).values({
+        companyId: req.scopedCompanyId!,
+        supplierId: id,
+        date: new Date().toISOString().slice(0, 10),
+        amount: String(newPaid - oldPaid),
+        currency: supplier.currency ?? "KGS",
+        description: "Оплата по договору",
+      });
+    }
+
     await logWarehouseActivity(
       req.scopedCompanyId!,
       req.userId,
@@ -875,9 +1014,80 @@ router.patch("/warehouse/suppliers/:id", async (req: AuthenticatedRequest, res):
       supplier
     );
 
-    res.json(supplier);
+    res.json(mapSupplierResponse(supplier));
   } catch (error) {
     console.error("Error updating supplier:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.post("/warehouse/suppliers/:id/contract-document", async (req: AuthenticatedRequest, res): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id as string, 10);
+    const built = buildContractDocumentMeta(req.body);
+    if (built.error) {
+      res.status(400).json({ error: built.error });
+      return;
+    }
+    const [supplier] = await db.update(warehouseSuppliersTable)
+      .set({ contractDocumentMeta: built.meta! })
+      .where(and(
+        eq(warehouseSuppliersTable.id, id),
+        eq(warehouseSuppliersTable.companyId, req.scopedCompanyId!),
+      ))
+      .returning();
+    if (!supplier) {
+      res.status(404).json({ error: "Supplier not found" });
+      return;
+    }
+    res.json({ ok: true, contractDocument: built.summary });
+  } catch (error) {
+    console.error("Error uploading supplier contract:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/warehouse/suppliers/:id/contract-document", async (req: AuthenticatedRequest, res): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id as string, 10);
+    const [supplier] = await db.select().from(warehouseSuppliersTable)
+      .where(and(
+        eq(warehouseSuppliersTable.id, id),
+        eq(warehouseSuppliersTable.companyId, req.scopedCompanyId!),
+      ));
+    if (!supplier) {
+      res.status(404).json({ error: "Supplier not found" });
+      return;
+    }
+    const doc = parseContractDocumentMeta(supplier.contractDocumentMeta);
+    if (!doc) {
+      res.status(404).json({ error: "Договор не загружен" });
+      return;
+    }
+    res.json(doc);
+  } catch (error) {
+    console.error("Error fetching supplier contract:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.delete("/warehouse/suppliers/:id/contract-document", async (req: AuthenticatedRequest, res): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id as string, 10);
+    const [supplier] = await db.update(warehouseSuppliersTable)
+      .set({ contractDocumentMeta: null })
+      .where(and(
+        eq(warehouseSuppliersTable.id, id),
+        eq(warehouseSuppliersTable.companyId, req.scopedCompanyId!),
+      ))
+      .returning();
+    if (!supplier) {
+      res.status(404).json({ error: "Supplier not found" });
+      return;
+    }
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("Error deleting supplier contract:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });

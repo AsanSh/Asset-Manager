@@ -17,12 +17,19 @@ export const generalLimiter = rateLimit({
   },
 });
 
-// Строгий limiter для авторизации
+// Лимит попыток входа (защита от перебора, но без блокировки при обычной работе)
 export const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5, // максимум 5 попыток входа
+  windowMs: 5 * 60 * 1000, // 5 минут
+  max: 30,
   skipSuccessfulRequests: true,
-  message: { error: 'Слишком много попыток входа' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      error: "Слишком много попыток входа",
+      message: "Подождите несколько минут и попробуйте снова.",
+    });
+  },
 });
 
 // Limiter для API endpoints

@@ -95,6 +95,9 @@ import Login from "@/pages/login";
 import ResetPassword from "@/pages/reset-password";
 import InvestorPortal from "@/pages/portal/investor";
 import TenantPortal from "@/pages/portal/tenant";
+import ContractorPortal from "@/pages/portal/contractor";
+import SupplierPortal from "@/pages/portal/supplier";
+import BuyerPortal from "@/pages/portal/buyer";
 import Properties from "@/pages/properties";
 import Register from "@/pages/register";
 import RentalAccounts from "@/pages/rental/accounts";
@@ -182,6 +185,9 @@ function ProtectedRoute({ component: Component, ...rest }: any) {
 	// Portal users see their own portal, not the main app
 	if (role === "investor") return <Redirect to="/investor-portal" />;
 	if (role === "tenant") return <Redirect to="/tenant-portal" />;
+	if (role === "contractor") return <Redirect to="/contractor-portal" />;
+	if (role === "supplier") return <Redirect to="/supplier-portal" />;
+	if (role === "buyer") return <Redirect to="/buyer-portal" />;
 	if (role === "super_admin") return <Redirect to="/platform-admin" />;
 
 	if (!canAccess(location)) return <Redirect to={homePath} />;
@@ -204,6 +210,9 @@ function HomeRedirect() {
 	if (!isAuthenticated) return <Redirect to="/login" />;
 	if (role === "investor") return <Redirect to="/investor-portal" />;
 	if (role === "tenant") return <Redirect to="/tenant-portal" />;
+	if (role === "contractor") return <Redirect to="/contractor-portal" />;
+	if (role === "supplier") return <Redirect to="/supplier-portal" />;
+	if (role === "buyer") return <Redirect to="/buyer-portal" />;
 	if (role === "super_admin") return <Redirect to="/platform-admin" />;
 	return <Redirect to={homePath} />;
 }
@@ -248,6 +257,15 @@ function Router() {
 			</Route>
 			<Route path="/tenant-portal">
 				<PortalRoute component={TenantPortal} />
+			</Route>
+			<Route path="/contractor-portal">
+				<PortalRoute component={ContractorPortal} />
+			</Route>
+			<Route path="/supplier-portal">
+				<PortalRoute component={SupplierPortal} />
+			</Route>
+			<Route path="/buyer-portal">
+				<PortalRoute component={BuyerPortal} />
 			</Route>
 
 			{/* ── Админ-панель платформы (super_admin) ── */}

@@ -23,6 +23,7 @@ export const constructionContractorsTable = pgTable("construction_contractors", 
   paymentMilestones: text("payment_milestones"),
   paidAmount: numeric("paid_amount", { precision: 15, scale: 2 }).default("0"),
   documentPath: text("document_path"),
+  contractDocumentMeta: text("contract_document_meta"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

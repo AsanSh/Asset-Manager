@@ -37,6 +37,8 @@ alwaysApply: true
 - Name migrations descriptively: `add_column_users_stripe_id` not `update1`
 - Always include a rollback/down migration
 - Test migration on dev DB first — never run directly on prod data
+- **Every new file in `artifacts/api-server/drizzle/migrations/*.sql` MUST be registered in `meta/_journal.json`** before API deploy (otherwise prod schema lags → login/API 500)
+- Do NOT add `drizzle/` to `.vercelignore` — migrations run on API startup
 
 ## WHEN IN DOUBT
 - Ask before deleting anything

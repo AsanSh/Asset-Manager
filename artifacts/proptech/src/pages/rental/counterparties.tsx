@@ -23,6 +23,8 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
+import { getApiErrorMessage } from "@/lib/api-error";
+import { getListTenantsQueryKey, getListLeaseContractsQueryKey } from "@/lib/rental-query-keys";
 
 interface Tenant {
 	id: number;

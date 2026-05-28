@@ -14,6 +14,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
+import { getListTenantsQueryKey, getListLeaseContractsQueryKey } from "@/lib/rental-query-keys";
 
 export default function RentalBroadcast() {
 	const { toast } = useToast();

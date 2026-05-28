@@ -1,0 +1,8 @@
+node_modules
+.git
+*.log
+.env*
+.vercel
+src
+build.mjs
+tsconfig.json

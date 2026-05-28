@@ -34,6 +34,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
+import { getApiErrorMessage } from "@/lib/api-error";
 
 function fmt(n: any) {
 	const num = parseFloat(n ?? 0);

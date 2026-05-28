@@ -14,6 +14,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
+import { getRentalPaymentsAllQueryKey, getRentalExpensesAllQueryKey } from "@/lib/rental-query-keys";
 
 const MONTHS = [
 	"Янв",
