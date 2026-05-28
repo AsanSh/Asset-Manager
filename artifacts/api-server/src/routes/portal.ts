@@ -467,18 +467,72 @@ router.get("/portal/supplier/contract-document", async (req: AuthenticatedReques
 
 // POST /portal/create-buyer-account
 router.post("/portal/create-buyer-account", requireRole("admin", "company_admin"), async (req: AuthenticatedRequest, res): Promise<void> => {
-  const { buyerId, email, firstName, lastName, password } = req.body;
-  if (!buyerId || !email || !firstName || !lastName || !password) {
-    res.status(400).json({ error: "Все поля обязательны" }); return;
+  const { buyerId: buyerIdRaw, contractId, buyerName, email, firstName, lastName, password, phone } = req.body;
+  if (!email || !firstName || !lastName || !password) {
+    res.status(400).json({ error: "Email, имя, фамилия и пароль обязательны" }); return;
+  }
+
+  const companyId = req.scopedCompanyId!;
+  let buyerId: number | null = buyerIdRaw ? Number(buyerIdRaw) : null;
+
+  // Если buyerId не передан, попробуем найти/создать контрагента-покупателя
+  if (!buyerId) {
+    // 1. Если есть contractId — посмотрим что в нём
+    if (contractId) {
+      const [contract] = await db.select().from(constructionSalesContractsTable)
+        .where(and(
+          eq(constructionSalesContractsTable.id, Number(contractId)),
+          eq(constructionSalesContractsTable.companyId, companyId),
+        ));
+      if (contract?.buyerId) buyerId = contract.buyerId;
+
+      // Если в договоре нет buyerId, создаём контрагента-покупателя из договора
+      if (!buyerId && contract) {
+        const name = buyerName || contract.buyerName || `${firstName} ${lastName}`;
+        const [created] = await db.insert(counterpartiesTable).values({
+          companyId,
+          category: "buyer",
+          fullName: name,
+          phone: phone || contract.buyerPhone || null,
+        } as any).returning();
+        buyerId = created.id;
+        // Привязать к договору
+        await db.update(constructionSalesContractsTable)
+          .set({ buyerId })
+          .where(eq(constructionSalesContractsTable.id, contract.id));
+      }
+    }
+
+    // 2. Если buyerName есть, но contractId нет — просто создаём
+    if (!buyerId && buyerName) {
+      const [created] = await db.insert(counterpartiesTable).values({
+        companyId,
+        category: "buyer",
+        fullName: buyerName,
+        phone: phone || null,
+      } as any).returning();
+      buyerId = created.id;
+    }
+  }
+
+  if (!buyerId) {
+    res.status(400).json({ error: "Не указан покупатель (buyerId, contractId или buyerName)" });
+    return;
   }
 
   const [buyer] = await db.select().from(counterpartiesTable)
     .where(and(
       eq(counterpartiesTable.id, buyerId),
-      eq(counterpartiesTable.companyId, req.scopedCompanyId!),
-      eq(counterpartiesTable.category, "buyer"),
+      eq(counterpartiesTable.companyId, companyId),
     ));
   if (!buyer) { res.status(404).json({ error: "Покупатель не найден" }); return; }
+
+  // Если контрагент есть, но категория не buyer — обновляем
+  if (buyer.category !== "buyer") {
+    await db.update(counterpartiesTable)
+      .set({ category: "buyer" })
+      .where(eq(counterpartiesTable.id, buyerId));
+  }
 
   const [existingUser] = await db.select().from(usersTable).where(eq(usersTable.email, email));
   if (existingUser) {

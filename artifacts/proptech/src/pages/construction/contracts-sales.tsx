@@ -105,10 +105,6 @@ function ContractDetailSummary({
 	const currency = contract.currency || "KGS";
 
 	const createPortalAccount = async () => {
-		if (!contract.buyerId) {
-			toast.error("У договора нет привязанного покупателя в справочнике");
-			return;
-		}
 		if (
 			!portalForm.email ||
 			!portalForm.firstName ||
@@ -121,10 +117,14 @@ function ContractDetailSummary({
 		setPortalLoading(true);
 		try {
 			await api.post("/portal/create-buyer-account", {
-				buyerId: contract.buyerId,
+				buyerId: contract.buyerId || undefined,
+				contractId: contract.id,
+				buyerName: contract.buyerName || `${portalForm.firstName} ${portalForm.lastName}`.trim(),
+				phone: contract.buyerPhone || undefined,
 				...portalForm,
 			});
 			toast.success("Доступ в портал покупателя создан");
+			onRefresh();
 		} catch (err: unknown) {
 			toast.error(getApiErrorMessage(err, "Не удалось создать доступ"));
 		} finally {
@@ -237,11 +237,15 @@ function ContractDetailSummary({
 				/>
 			)}
 
-			{contract.buyerId && (
-				<div className="border rounded-lg p-3 space-y-3">
+			<div className="border rounded-lg p-3 space-y-3">
 					<p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
 						Доступ в портал покупателя
 					</p>
+					{!contract.buyerId && (
+						<p className="text-[11px] text-amber-600 bg-amber-50 px-2 py-1 rounded">
+							ℹ️ При создании аккаунта покупатель будет автоматически добавлен в справочник контрагентов
+						</p>
+					)}
 					<div className="grid grid-cols-2 gap-3">
 						<div>
 							<Label>Email</Label>
@@ -298,7 +302,6 @@ function ContractDetailSummary({
 						{portalLoading ? "..." : "Создать доступ в портал"}
 					</Button>
 				</div>
-			)}
 		</div>
 	);
 }
