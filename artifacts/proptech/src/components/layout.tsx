@@ -737,14 +737,24 @@ export function Layout({ children }: { children: ReactNode }) {
 					className="flex-1 overflow-y-auto py-3 px-3 space-y-2 scrollbar-thin"
 					style={{ scrollbarColor: "#ffffff12 transparent" }}
 				>
-					{activeModule.sections.map((section, i) => (
-						<SectionGroup
-							key={section.title}
-							section={section}
-							location={location}
-							defaultOpen={i === 0}
-						/>
-					))}
+					{(() => {
+						// ПТО / Инженер видят только базовые разделы Контроля строительства
+						const userRole = (user as any)?.role;
+						const isPtoRole = userRole === "pto" || userRole === "engineer";
+						const sections = isPtoRole && activeModule.id === "construction"
+							? activeModule.sections.filter((s) =>
+									["Объекты", "Работа", "Ресурсы"].includes(s.title),
+								)
+							: activeModule.sections;
+						return sections.map((section, i) => (
+							<SectionGroup
+								key={section.title}
+								section={section}
+								location={location}
+								defaultOpen={i === 0}
+							/>
+						));
+					})()}
 				</nav>
 
 				{/* Quick create — отдельная панель, чтобы не путать с разделами меню */}

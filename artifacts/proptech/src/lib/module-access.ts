@@ -41,6 +41,8 @@ const SYSTEM_ROLE_MODULES: Record<string, ModuleId[] | "all"> = {
 	sales_manager: ["construction", "proptech"],
 	finance: ["consolidated", "rental", "construction"],
 	staff: ["consolidated"],
+	pto: ["construction"],
+	engineer: ["construction"],
 };
 
 const PERMISSION_PREFIX_TO_MODULE: Record<string, ModuleId> = {
@@ -61,6 +63,8 @@ const DEFAULT_HOME: Record<string, string> = {
 	staff: "/dashboard",
 	company_admin: "/dashboard",
 	admin: "/dashboard",
+	pto: "/construction/chess",
+	engineer: "/construction/chess",
 };
 
 export function detectModuleFromPath(path: string): ModuleId {
