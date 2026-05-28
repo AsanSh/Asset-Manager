@@ -8,11 +8,8 @@ import {
 	Upload,
 	Users,
 	Building2,
-	Pencil,
-	Check,
-	X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import {
@@ -463,61 +460,182 @@ function BulkGenerateDialog({
 type ViewMode = "grid" | "by-unit" | "by-counterparty";
 
 /** Инлайн-редактор площади для ПТО */
-function PtoAreaCell({ unit, onSaved }: { unit: Unit; onSaved: () => void }) {
+/** Отображение площади в режиме ПТО (без редактирования — открывается диалогом) */
+function PtoAreaDisplay({ unit }: { unit: Unit }) {
+	const modified = !!(unit as any).areaModified;
+	const orig = (unit as any).originalArea;
+	return (
+		<div className="flex flex-col items-center mt-0.5 leading-tight">
+			<span className={`text-[9px] font-semibold ${modified ? "text-amber-800" : "text-gray-700"}`}>
+				{unit.area ? `${unit.area}м²` : "—"}
+			</span>
+			{modified && orig && (
+				<span className="text-[7px] text-amber-600 line-through">{orig}м²</span>
+			)}
+		</div>
+	);
+}
+
+/** Диалог редактирования площади ПТО */
+function PtoEditAreaDialog({
+	unit,
+	open,
+	onClose,
+	onSaved,
+}: {
+	unit: Unit | null;
+	open: boolean;
+	onClose: () => void;
+	onSaved: () => void;
+}) {
 	const { toast } = useToast();
-	const [editing, setEditing] = useState(false);
-	const [val, setVal] = useState(unit.area || "");
+	const [area, setArea] = useState("");
+	const [reason, setReason] = useState("");
 	const [loading, setLoading] = useState(false);
 
+	useEffect(() => {
+		if (unit) {
+			setArea(unit.area || "");
+			setReason("");
+		}
+	}, [unit?.id, open]);
+
+	if (!unit) return null;
+
+	const oldArea = parseFloat(unit.area || "0");
+	const newArea = parseFloat(area || "0");
+	const delta = newArea - oldArea;
+	const pps = parseFloat(unit.pricePerSqm || "0");
+	const newTotal = pps > 0 ? newArea * pps : 0;
+
 	const save = async () => {
-		if (!val || parseFloat(val) <= 0) return;
+		if (!area || newArea <= 0) {
+			toast({ title: "Укажите корректную площадь", variant: "destructive" });
+			return;
+		}
+		if (newArea === oldArea) {
+			toast({ title: "Площадь не изменилась" });
+			onClose();
+			return;
+		}
 		setLoading(true);
 		try {
-			const t = localStorage.getItem("auth_token");
 			await api.patch(`/construction/units/${unit.id}/area`, {
-				method: "PATCH",
-				headers: { "Content-Type": "application/json", ...(t ? { Authorization: `Bearer ${t}` } : {}) },
-				body: JSON.stringify({ area: val }),
+				area,
+				reason: reason.trim() || undefined,
 			});
-			toast({ title: `Площадь обновлена: ${val} м²` });
+			toast({
+				title: "Площадь обновлена",
+				description: `${oldArea} → ${newArea} м² (Δ${delta > 0 ? "+" : ""}${delta.toFixed(2)})`,
+			});
 			onSaved();
-			setEditing(false);
-		} catch {
-			toast({ title: "Ошибка", variant: "destructive" });
+			onClose();
+		} catch (e: any) {
+			toast({
+				title: "Ошибка обновления",
+				description: e?.response?.data?.error || "—",
+				variant: "destructive",
+			});
 		} finally {
 			setLoading(false);
 		}
 	};
 
-	if (editing) {
-		return (
-			<div className="flex items-center gap-0.5 mt-0.5" onClick={(e) => e.stopPropagation()}>
-				<input
-					className="w-12 h-4 text-[9px] border rounded px-0.5 text-center"
-					value={val}
-					onChange={(e) => setVal(e.target.value)}
-					type="number"
-					autoFocus
-					onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") setEditing(false); }}
-				/>
-				<button onClick={save} disabled={loading} className="text-emerald-600 hover:text-emerald-700">
-					<Check className="w-3 h-3" />
-				</button>
-				<button onClick={() => setEditing(false)} className="text-gray-400 hover:text-gray-600">
-					<X className="w-3 h-3" />
-				</button>
-			</div>
-		);
-	}
-
 	return (
-		<button
-			className="flex items-center gap-0.5 text-[8px] opacity-80 hover:opacity-100 group"
-			onClick={(e) => { e.stopPropagation(); setEditing(true); }}
-		>
-			{unit.area ? `${unit.area}м²` : "—"}
-			<Pencil className="w-2 h-2 opacity-0 group-hover:opacity-100" />
-		</button>
+		<Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+			<DialogContent className="sm:max-w-md">
+				<DialogHeader>
+					<DialogTitle>Изменение площади · кв. {unit.unitNumber}</DialogTitle>
+				</DialogHeader>
+				<div className="space-y-4">
+					<div className="grid grid-cols-2 gap-3 text-sm bg-gray-50 rounded-lg p-3">
+						<div>
+							<p className="text-xs text-gray-500">Этаж</p>
+							<p className="font-medium">{unit.floor || "—"}</p>
+						</div>
+						<div>
+							<p className="text-xs text-gray-500">Блок</p>
+							<p className="font-medium">{unit.block || "—"}</p>
+						</div>
+						<div>
+							<p className="text-xs text-gray-500">Текущая площадь</p>
+							<p className="font-bold text-base">{oldArea} м²</p>
+						</div>
+						<div>
+							<p className="text-xs text-gray-500">Цена за м²</p>
+							<p className="font-medium">
+								{pps > 0 ? `${pps.toLocaleString("ru-KG")} ${unit.currency || "KGS"}` : "—"}
+							</p>
+						</div>
+					</div>
+
+					<div>
+						<Label className="text-sm">Новая площадь (м²) *</Label>
+						<Input
+							className="mt-1 text-base h-11"
+							type="number"
+							step="0.01"
+							value={area}
+							onChange={(e) => setArea(e.target.value)}
+							placeholder="например, 65.5"
+							autoFocus
+						/>
+					</div>
+
+					{delta !== 0 && newArea > 0 && (
+						<div className={`rounded-lg p-3 text-sm ${delta > 0 ? "bg-emerald-50 border border-emerald-200" : "bg-rose-50 border border-rose-200"}`}>
+							<p className="flex justify-between">
+								<span className="text-gray-600">Изменение:</span>
+								<span className={`font-bold ${delta > 0 ? "text-emerald-700" : "text-rose-700"}`}>
+									{delta > 0 ? "+" : ""}{delta.toFixed(2)} м²
+								</span>
+							</p>
+							{pps > 0 && (
+								<>
+									<p className="flex justify-between mt-1">
+										<span className="text-gray-600">Новая стоимость:</span>
+										<span className="font-bold">
+											{newTotal.toLocaleString("ru-KG")} {unit.currency || "KGS"}
+										</span>
+									</p>
+									<p className="flex justify-between mt-1">
+										<span className="text-gray-600">
+											{delta > 0 ? "Клиент доплачивает:" : "Возврат клиенту:"}
+										</span>
+										<span className={`font-bold ${delta > 0 ? "text-amber-700" : "text-blue-700"}`}>
+											{Math.abs(delta * pps).toLocaleString("ru-KG")} {unit.currency || "KGS"}
+										</span>
+									</p>
+								</>
+							)}
+						</div>
+					)}
+
+					<div>
+						<Label className="text-sm">Причина изменения (необязательно)</Label>
+						<textarea
+							className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm h-20 resize-none"
+							value={reason}
+							onChange={(e) => setReason(e.target.value)}
+							placeholder="Например: уточнение по обмерам БТИ, перепланировка..."
+						/>
+					</div>
+
+					<div className="flex justify-end gap-2 pt-1">
+						<Button variant="outline" onClick={onClose} disabled={loading}>
+							Отмена
+						</Button>
+						<Button
+							className="bg-amber-500 hover:bg-orange-600"
+							onClick={save}
+							disabled={loading || !area || newArea === oldArea}
+						>
+							{loading ? "Сохранение..." : "Сохранить изменение"}
+						</Button>
+					</div>
+				</div>
+			</DialogContent>
+		</Dialog>
 	);
 }
 
@@ -529,6 +647,7 @@ export default function ConstructionChess() {
 	const forcedRoleByUser = userRole === "pto" || userRole === "engineer";
 	// Админы могут вручную переключать режим ПТО/CRM
 	const [adminModeOverride, setAdminModeOverride] = useState<"crm" | "pto">("crm");
+	const [ptoEditUnit, setPtoEditUnit] = useState<Unit | null>(null);
 	const isPTO = forcedRoleByUser || (isAdmin && adminModeOverride === "pto");
 	const [projectId, setProjectId] = useState<number | null>(null);
 	const [selectedUnit, setSelectedUnit] = useState<Unit | null | "new">(null);
@@ -1010,7 +1129,10 @@ export default function ConstructionChess() {
 																title={`${unit.unitNumber} · ${unit.area ? `${unit.area} м²` : ""} · ${cfg.label}`}
 																className={`w-14 rounded border-2 text-center transition-all flex flex-col items-center justify-center p-0.5 relative cursor-pointer ${isPTO ? `${ptoBg} ${ptoBorder}` : `${cfg.bg} ${cfg.border}`}`}
 																style={{ minHeight: "48px" }}
-																onClick={() => !isPTO && setSelectedUnit(unit)}
+																onClick={() => {
+																	if (isPTO) setPtoEditUnit(unit);
+																	else setSelectedUnit(unit);
+																}}
 															>
 																{!isPTO && cellModified && (
 																	<div className="absolute -top-1.5 -right-1.5 bg-orange-500 text-white text-[7px] font-bold px-0.5 rounded z-10">Δ</div>
@@ -1019,7 +1141,7 @@ export default function ConstructionChess() {
 																	{unit.unitNumber}
 																</span>
 																{isPTO ? (
-																	<PtoAreaCell unit={unit as any} onSaved={invalidateAll} />
+																	<PtoAreaDisplay unit={unit as any} />
 																) : (
 																	<>
 																		{unit.area && <span className={`text-[8px] ${cfg.text} opacity-70`}>{unit.area}м²</span>}
@@ -1090,6 +1212,13 @@ export default function ConstructionChess() {
 					onImported={invalidateAll}
 				/>
 			)}
+
+			<PtoEditAreaDialog
+				unit={ptoEditUnit}
+				open={!!ptoEditUnit}
+				onClose={() => setPtoEditUnit(null)}
+				onSaved={invalidateAll}
+			/>
 		</div>
 	);
 }
