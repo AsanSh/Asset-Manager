@@ -1,6 +1,7 @@
 import { and, eq, gt, isNull, desc } from "drizzle-orm";
 import { db, otpCodesTable } from "./db";
 import { logger } from "./logger";
+import { sendSmsViaNikita } from "./sms";
 
 const OTP_LENGTH = 6;
 const OTP_TTL_MINUTES = 5;
@@ -28,7 +29,7 @@ function generateCode(): string {
 export async function issueOtp(
   rawPhone: string,
   purpose: "login" | "verify" = "login",
-): Promise<{ code: string; phone: string; expiresAt: Date }> {
+): Promise<{ code: string; phone: string; expiresAt: Date; smsSent: boolean }> {
   const phone = normalizePhone(rawPhone);
   if (!phone || phone.length < 7) {
     throw new Error("Некорректный номер телефона");
@@ -63,10 +64,14 @@ export async function issueOtp(
     expiresAt,
   });
 
-  // Логируем код в console — пока нет SMS-провайдера
-  logger.info({ phone, code, ttlMin: OTP_TTL_MINUTES }, "OTP code generated (no SMS provider)");
+  // Отправляем SMS через Nikita. Если креды не настроены — провайдер сам залогирует.
+  const smsText = `Код для входа: ${code}\nДействует ${OTP_TTL_MINUTES} мин.`;
+  const result = await sendSmsViaNikita(phone, smsText);
+  if (!result.ok) {
+    logger.warn({ phone, status: result.status, error: result.error }, "SMS не отправлена — код виден в логах");
+  }
 
-  return { code, phone, expiresAt };
+  return { code, phone, expiresAt, smsSent: result.ok };
 }
 
 /** Проверить код. Возвращает true если совпал и ещё валиден.

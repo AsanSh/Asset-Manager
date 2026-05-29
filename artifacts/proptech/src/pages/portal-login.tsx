@@ -39,7 +39,12 @@ export default function PortalLogin() {
 			setStep("code");
 			setCountdown(RESEND_SEC);
 			if (data?.devCode) setDevCode(String(data.devCode));
-			toast({ title: "Код отправлен", description: "Введите код, который пришёл в SMS" });
+			toast({
+				title: data?.smsSent ? "SMS отправлено" : "Код выдан",
+				description: data?.smsSent
+					? "Введите код, который пришёл в SMS"
+					: "SMS-провайдер не настроен. Обратитесь к администратору за кодом.",
+			});
 		} catch (e) {
 			toast({ title: getApiErrorMessage(e, "Не удалось отправить код"), variant: "destructive" });
 		} finally {

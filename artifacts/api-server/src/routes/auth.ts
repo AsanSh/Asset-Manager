@@ -229,11 +229,11 @@ router.post("/auth/send-otp", async (req, res): Promise<void> => {
       res.status(401).json({ error: "Аккаунт заблокирован" });
       return;
     }
-    const { code, expiresAt } = await issueOtp(normalized, "login");
-    // Пока нет SMS-провайдера — возвращаем код в dev/staging логи (см. otp.ts).
-    // На фронт отдаём флаг devCode только если включен NODE_ENV=development.
-    const payload: Record<string, unknown> = { ok: true, expiresAt };
-    if (process.env.NODE_ENV !== "production") payload.devCode = code;
+    const { code, expiresAt, smsSent } = await issueOtp(normalized, "login");
+    // На фронт отдаём smsSent. Если SMS не ушло (нет кредов / ошибка провайдера)
+    // и это не production — отдаём devCode для тестирования.
+    const payload: Record<string, unknown> = { ok: true, expiresAt, smsSent };
+    if (process.env.NODE_ENV !== "production" && !smsSent) payload.devCode = code;
     res.json(payload);
   } catch (e: any) {
     if (e?.code === "THROTTLED") {
