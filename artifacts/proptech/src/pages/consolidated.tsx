@@ -64,8 +64,15 @@ function fmtAmt(amount?: string | null, currency?: string) {
 	return `${sign}${new Intl.NumberFormat("ru-KG", { maximumFractionDigits: 0 }).format(n)} ${currency || "KGS"}`;
 }
 
+interface CpRow {
+	id: number;
+	fullName: string;
+	categories?: string[] | null;
+}
+
 export default function ConsolidatedModule() {
 	const [moduleFilter, setModuleFilter] = useState("all");
+	const [counterpartyFilter, setCounterpartyFilter] = useState<string>("all");
 	const [counterpartySearch, setCounterpartySearch] = useState("");
 	const [opTypeFilter, setOpTypeFilter] = useState("all");
 
@@ -81,13 +88,28 @@ export default function ConsolidatedModule() {
 		refetchInterval: 30000,
 	});
 
+	const { data: counterparties = [] } = useQuery<CpRow[]>({
+		queryKey: ["counterparties", "all"],
+		queryFn: () => api.get("/counterparties").then((r) => r.data),
+	});
+
+	const cpMap = useMemo(
+		() => Object.fromEntries(counterparties.map((c) => [c.id, c.fullName])),
+		[counterparties],
+	);
+
 	const filtered = useMemo(() => {
 		return logs.filter((r) => {
 			if (opTypeFilter !== "all" && r.operationType !== opTypeFilter) return false;
+			if (counterpartyFilter !== "all") {
+				const targetName = cpMap[Number(counterpartyFilter)];
+				if (!targetName) return false;
+				if (r.counterpartyName !== targetName && String((r as any).counterpartyId) !== counterpartyFilter) return false;
+			}
 			if (counterpartySearch && !r.counterpartyName?.toLowerCase().includes(counterpartySearch.toLowerCase())) return false;
 			return true;
 		});
-	}, [logs, opTypeFilter, counterpartySearch]);
+	}, [logs, opTypeFilter, counterpartySearch, counterpartyFilter, cpMap]);
 
 	const totals = useMemo(() => {
 		const income = filtered
@@ -153,16 +175,27 @@ export default function ConsolidatedModule() {
 						))}
 					</SelectContent>
 				</Select>
+				<Select value={counterpartyFilter} onValueChange={setCounterpartyFilter}>
+					<SelectTrigger className="w-52 h-8 text-sm">
+						<SelectValue placeholder="Контрагент" />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="all">Все контрагенты</SelectItem>
+						{counterparties.map((c) => (
+							<SelectItem key={c.id} value={String(c.id)}>{c.fullName}</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
 				<Input
-					placeholder="Контрагент..."
+					placeholder="Поиск по названию..."
 					value={counterpartySearch}
 					onChange={(e) => setCounterpartySearch(e.target.value)}
 					className="w-44 h-8 text-sm"
 				/>
-				{(moduleFilter !== "all" || opTypeFilter !== "all" || counterpartySearch) && (
+				{(moduleFilter !== "all" || opTypeFilter !== "all" || counterpartySearch || counterpartyFilter !== "all") && (
 					<button
 						className="text-xs text-gray-400 hover:text-gray-700"
-						onClick={() => { setModuleFilter("all"); setOpTypeFilter("all"); setCounterpartySearch(""); }}
+						onClick={() => { setModuleFilter("all"); setOpTypeFilter("all"); setCounterpartySearch(""); setCounterpartyFilter("all"); }}
 					>
 						✕ сбросить
 					</button>

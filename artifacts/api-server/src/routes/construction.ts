@@ -19,6 +19,7 @@ import {
   constructionSupplementsTable,
 } from "../lib/db";
 import { constructionSalesContractsTable } from "../lib/db";
+import { ensureCounterpartyWithRole } from "../lib/counterparty-sync";
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
 import { requireTenantCompany } from "../middleware/tenant";
 import { sendServerError } from "../lib/http-errors";
@@ -572,9 +573,24 @@ router.get("/contractors", async (req: AuthenticatedRequest, res): Promise<void>
 });
 
 router.post("/contractors", async (req: AuthenticatedRequest, res): Promise<void> => {
-  const { fullName, type, specialization, phone, email, inn, contractNumber, contractAmount, currency, status, rating, notes, okpo, bic, stageId, paymentMilestones, paidAmount, documentPath } = req.body;
+  const { fullName, type, specialization, phone, email, inn, contractNumber, contractAmount, currency, status, rating, notes, okpo, bic, stageId, paymentMilestones, paidAmount, documentPath, counterpartyId } = req.body;
+  const companyId = req.scopedCompanyId!;
+
+  // Создаём/находим контрагента с ролью service_provider (Контроль строительства — только услуги)
+  const cpId = await ensureCounterpartyWithRole({
+    companyId,
+    role: "service_provider",
+    fullName,
+    type: (type as "individual" | "company") || "company",
+    iin: inn,
+    phone,
+    email,
+    existingId: counterpartyId ?? null,
+  });
+
   const [row] = await db.insert(constructionContractorsTable).values({
-    companyId: req.scopedCompanyId!, fullName, type: type || "company", specialization, phone, email, inn,
+    companyId, counterpartyId: cpId,
+    fullName, type: type || "company", specialization, phone, email, inn,
     contractNumber, contractAmount: contractAmount ? String(contractAmount) : null,
     currency: currency || "KGS", status: status || "active",
     rating: rating ? parseInt(rating) : null, notes,

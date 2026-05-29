@@ -239,7 +239,7 @@ const MODULES: Module[] = [
 				title: "Справочники",
 				items: [
 					{
-						href: "/counterparties",
+						href: "/construction/counterparties",
 						label: "Контрагенты",
 						icon: Users,
 					},
@@ -271,6 +271,7 @@ const MODULES: Module[] = [
 					{ href: "/rental/dashboard", label: "Дашборд", icon: BarChart3 },
 					{ href: "/rental/properties", label: "Объекты", icon: Building2 },
 					{ href: "/rental/tenants", label: "Арендаторы", icon: UserCircle },
+					{ href: "/rental/counterparties", label: "Контрагенты", icon: Users },
 					{ href: "/rental/contracts", label: "Договоры", icon: FileText },
 				],
 			},
@@ -376,6 +377,7 @@ const MODULES: Module[] = [
 					},
 					{ href: "/crm/leads", label: "Лиды", icon: Target },
 					{ href: "/crm/clients", label: "Клиенты", icon: Users },
+					{ href: "/crm/counterparties", label: "Контрагенты", icon: Briefcase },
 					{ href: "/crm/deals", label: "Сделки", icon: TrendingUp },
 					{ href: "/crm/sales-contracts", label: "Договоры", icon: FileText },
 					{
@@ -487,7 +489,7 @@ const MODULES: Module[] = [
 						icon: Grid3X3,
 					},
 					{ href: "/consolidated", label: "Сводное", icon: BarChart3 },
-					{ href: "/counterparties", label: "Контрагенты", icon: Users },
+					{ href: "/counterparties", label: "Все контрагенты", icon: Users },
 					{ href: "/companies", label: "Компании", icon: Building },
 					{ href: "/users", label: "Пользователи", icon: UserCircle },
 				],

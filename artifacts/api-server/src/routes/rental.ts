@@ -16,6 +16,7 @@ import {
   companyModuleAccountWhere,
 } from "../lib/bank-account-module";
 import { investmentsTable } from "../lib/db";
+import { ensureCounterpartyWithRole } from "../lib/counterparty-sync";
 
 const RENTAL_ACCOUNTS = BANK_ACCOUNT_MODULE.rental;
 
@@ -277,10 +278,28 @@ router.get("/rental/tenants", async (req: AuthenticatedRequest, res): Promise<vo
 });
 
 router.post("/rental/tenants", async (req: AuthenticatedRequest, res): Promise<void> => {
-  const { fullName, phone, email, iin, type, status, comment } = req.body;
+  const { fullName, phone, email, iin, type, status, comment, counterpartyId } = req.body;
   if (!fullName) { res.status(400).json({ error: "fullName required" }); return; }
+  const companyId = req.scopedCompanyId!;
+
+  // Создаём/находим контрагента с ролью tenant
+  const cpId = await ensureCounterpartyWithRole({
+    companyId,
+    role: "tenant",
+    fullName,
+    type: (type as "individual" | "company") || "individual",
+    iin,
+    phone,
+    email,
+    existingId: counterpartyId ?? null,
+  });
+
   const [row] = await db.insert(tenantsTable).values({
-    companyId: req.scopedCompanyId!, fullName, phone, email, iin, type: type || "individual", status: status || "active", comment
+    companyId, counterpartyId: cpId,
+    fullName, phone, email, iin,
+    type: type || "individual",
+    status: status || "active",
+    comment,
   }).returning();
   res.status(201).json(row);
 });

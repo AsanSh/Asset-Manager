@@ -1,17 +1,13 @@
-import { useEffect } from "react";
-import { useLocation } from "wouter";
+import { CounterpartyDirectory } from "@/components/counterparty-directory";
 
-/** Единый справочник контрагентов — без дублирования mock-страницы. */
 export default function ConstructionCounterparties() {
-	const [, setLocation] = useLocation();
-
-	useEffect(() => {
-		setLocation("/counterparties");
-	}, [setLocation]);
-
 	return (
-		<div className="p-6 text-sm text-gray-500">
-			Переход в справочник контрагентов…
-		</div>
+		<CounterpartyDirectory
+			title="Контрагенты · Контроль строительства"
+			subtitle="Подрядчики и поставщики услуг для проектов строительства"
+			allowedRoles={["service_provider", "subcontractor"]}
+			defaultRole="service_provider"
+			showRoleTabs
+		/>
 	);
 }

@@ -18,6 +18,7 @@ import {
   summarizeContractDocument,
 } from "../lib/contract-document";
 import { buildSupplierReconciliation } from "../lib/portal-reconciliation";
+import { ensureCounterpartyWithRole } from "../lib/counterparty-sync";
 
 function mapSupplierResponse(row: typeof warehouseSuppliersTable.$inferSelect) {
   const { contractDocumentMeta, ...rest } = row;
@@ -831,8 +832,22 @@ router.post("/warehouse/suppliers", async (req: AuthenticatedRequest, res): Prom
       return;
     }
 
+    // Создаём/находим контрагента с ролью material_supplier (Закуп — только материалы)
+    const counterpartyId = await ensureCounterpartyWithRole({
+      companyId: req.scopedCompanyId!,
+      role: "material_supplier",
+      fullName: name,
+      type: "company",
+      iin: inn,
+      phone,
+      email,
+      address,
+      existingId: req.body.counterpartyId ?? null,
+    });
+
     const [supplier] = await db.insert(warehouseSuppliersTable).values({
       companyId: req.scopedCompanyId!,
+      counterpartyId,
       name,
       contactPerson,
       phone,

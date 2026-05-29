@@ -146,6 +146,8 @@ import Users from "@/pages/users";
 import WarehouseCompanies from "@/pages/warehouse/companies";
 import WarehouseCosts from "@/pages/warehouse/costs";
 import WarehouseCounterparties from "@/pages/warehouse/counterparties";
+import RentalCounterparties from "@/pages/rental/counterparties";
+import CrmCounterparties from "@/pages/crm/counterparties";
 // Warehouse module
 import WarehouseDashboard from "@/pages/warehouse/dashboard";
 import WarehouseEmployees from "@/pages/warehouse/employees";
@@ -607,6 +609,12 @@ function Router() {
 			</Route>
 			<Route path="/warehouse/counterparties">
 				<ProtectedRoute component={WarehouseCounterparties} />
+			</Route>
+			<Route path="/rental/counterparties">
+				<ProtectedRoute component={RentalCounterparties} />
+			</Route>
+			<Route path="/crm/counterparties">
+				<ProtectedRoute component={CrmCounterparties} />
 			</Route>
 			<Route path="/warehouse/employees">
 				<ProtectedRoute component={WarehouseEmployees} />

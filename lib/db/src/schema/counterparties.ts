@@ -7,8 +7,10 @@ export const counterpartiesTable = pgTable("counterparties", {
   companyId: integer("company_id"),
   // type: юридическое лицо / физическое лицо
   type: text("type").notNull().default("individual"),
-  // category: роль контрагента в системе
+  // category: legacy одиночная роль (deprecated, оставлено для обратной совместимости)
   category: text("category").notNull().default("other"),
+  // categories: массив ролей контрагента (tenant, landlord, buyer, lead, material_supplier, service_provider, subcontractor, other)
+  categories: text("categories").array(),
   fullName: text("full_name").notNull(),
   iin: text("iin"),
   phone: text("phone"),
