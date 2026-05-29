@@ -136,7 +136,7 @@ export async function sendTaskAssignedEmail(opts: TaskAssignedOptions): Promise<
 </html>`;
 
   if (!resend) {
-    logger.warn({ email, taskTitle }, "RESEND_API_KEY not set — task email not sent");
+    logger.warn({ taskTitle }, "RESEND_API_KEY not set — task email not sent");
     return { sent: false, error: "Email-сервис не настроен" };
   }
   const { error } = await resend.emails.send({

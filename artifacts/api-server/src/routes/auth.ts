@@ -216,30 +216,33 @@ router.post("/auth/send-otp", async (req, res): Promise<void> => {
       return;
     }
     const normalized = normalizePhone(phone);
-    // Проверим что пользователь с таким телефоном существует
     const [user] = await db.select({ id: usersTable.id, isActive: usersTable.isActive })
       .from(usersTable)
       .where(eq(usersTable.phone, normalized));
-    if (!user) {
-      // Не палим существование пользователя — отвечаем нейтрально
-      res.json({ ok: true, message: "Если номер зарегистрирован, код отправлен" });
-      return;
+
+    // Anti-enumeration: всегда отвечаем одинаково (одинаковая структура,
+    // одинаковый expiresAt-окно). Реально OTP создаём только для существующих
+    // активных пользователей. Случайная задержка прячет таймингу.
+    const expiresAt = new Date(Date.now() + 5 * 60_000);
+    await new Promise((r) => setTimeout(r, 50 + Math.floor(Math.random() * 150)));
+
+    let smsSent = false;
+    let code: string | null = null;
+    if (user?.isActive) {
+      try {
+        const result = await issueOtp(normalized, "login");
+        smsSent = result.smsSent;
+        code = result.code;
+      } catch (e: any) {
+        // throttle и т.п. — не палим
+        if (e?.code !== "THROTTLED") throw e;
+      }
     }
-    if (!user.isActive) {
-      res.status(401).json({ error: "Аккаунт заблокирован" });
-      return;
-    }
-    const { code, expiresAt, smsSent } = await issueOtp(normalized, "login");
-    // На фронт отдаём smsSent. Если SMS не ушло (нет кредов / ошибка провайдера)
-    // и это не production — отдаём devCode для тестирования.
     const payload: Record<string, unknown> = { ok: true, expiresAt, smsSent };
-    if (process.env.NODE_ENV !== "production" && !smsSent) payload.devCode = code;
+    // devCode только если NODE_ENV != production И SMS реально не ушло И код был выдан
+    if (process.env.NODE_ENV !== "production" && !smsSent && code) payload.devCode = code;
     res.json(payload);
   } catch (e: any) {
-    if (e?.code === "THROTTLED") {
-      res.status(429).json({ error: e.message });
-      return;
-    }
     res.status(400).json({ error: e?.message || "Ошибка отправки кода" });
   }
 });

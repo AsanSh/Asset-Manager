@@ -8,13 +8,12 @@ const OTP_TTL_MINUTES = 5;
 const MAX_ATTEMPTS = 5;
 const RESEND_THROTTLE_SECONDS = 60;
 
-/** Нормализация номера телефона. Сохраняем только цифры с ведущим + если был. */
+/** Нормализация номера телефона. Всегда возвращаем с + впереди (E.164).
+ *  Это решает проблему мэтча "+996..." vs "996..." в БД. */
 export function normalizePhone(raw: string): string {
   if (!raw) return "";
-  const trimmed = String(raw).trim();
-  const hasPlus = trimmed.startsWith("+");
-  const digits = trimmed.replace(/\D/g, "");
-  return hasPlus ? `+${digits}` : digits;
+  const digits = String(raw).replace(/\D/g, "");
+  return digits ? `+${digits}` : "";
 }
 
 /** Сгенерировать N-значный код. Использует Math.random для скорости —

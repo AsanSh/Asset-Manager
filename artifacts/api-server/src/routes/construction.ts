@@ -1773,13 +1773,18 @@ router.post("/tasks/:id/comments", async (req: AuthenticatedRequest, res): Promi
       res.status(404).json({ error: "Задача не найдена" });
       return;
     }
-    if (type === "return" && task.createdBy !== req.userId) {
-      res.status(403).json({ error: "Только создатель задачи может вернуть на доработку" });
-      return;
+    if (type === "return") {
+      // Деректно отклоняем если автор null (legacy задачи) или не совпадает
+      if (task.createdBy == null || task.createdBy !== req.userId) {
+        res.status(403).json({ error: "Только создатель задачи может вернуть на доработку" });
+        return;
+      }
     }
-    if (type === "result" && task.assignedTo !== req.userId) {
-      res.status(403).json({ error: "Только исполнитель может отправить результат" });
-      return;
+    if (type === "result") {
+      if (task.assignedTo == null || task.assignedTo !== req.userId) {
+        res.status(403).json({ error: "Только исполнитель может отправить результат" });
+        return;
+      }
     }
   }
 
