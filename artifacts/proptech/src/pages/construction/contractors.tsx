@@ -176,10 +176,10 @@ function ContractorDialog({
 	const [newSpec, setNewSpec] = useState("");
 	const [addingSpec, setAddingSpec] = useState(false);
 	const [portalForm, setPortalForm] = useState({
+		phone: "",
 		email: "",
 		firstName: "",
 		lastName: "",
-		password: "",
 	});
 	const [portalLoading, setPortalLoading] = useState(false);
 	const set = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
@@ -227,18 +227,21 @@ function ContractorDialog({
 
 	const createPortalAccount = async () => {
 		if (!isEdit || !init?.id) return;
-		if (!portalForm.email || !portalForm.firstName || !portalForm.lastName || !portalForm.password) {
-			toast({ title: "Заполните все поля портала", variant: "destructive" });
+		if (!portalForm.phone || !portalForm.firstName || !portalForm.lastName) {
+			toast({ title: "Заполните телефон, имя и фамилию", variant: "destructive" });
 			return;
 		}
 		setPortalLoading(true);
 		try {
 			await api.post("/portal/create-contractor-account", {
 				contractorId: init.id,
-				...portalForm,
+				phone: portalForm.phone,
+				email: portalForm.email || undefined,
+				firstName: portalForm.firstName,
+				lastName: portalForm.lastName,
 			});
-			toast({ title: "Доступ в портал создан" });
-			setPortalForm({ email: "", firstName: "", lastName: "", password: "" });
+			toast({ title: "Доступ создан. Вход — по телефону и SMS-коду." });
+			setPortalForm({ phone: "", email: "", firstName: "", lastName: "" });
 		} catch (e: unknown) {
 			toast({
 				title: getApiErrorMessage(e, "Ошибка создания аккаунта"),
@@ -536,30 +539,21 @@ function ContractorDialog({
 								Доступ в портал подрядчика
 							</p>
 							<div className="grid grid-cols-2 gap-3">
-								<div>
-									<Label>Email</Label>
+								<div className="col-span-2">
+									<Label>Телефон *</Label>
 									<Input
 										className="mt-1"
-										type="email"
-										value={portalForm.email}
+										type="tel"
+										placeholder="+996 700 123 456"
+										value={portalForm.phone}
 										onChange={(e) =>
-											setPortalForm((p) => ({ ...p, email: e.target.value }))
+											setPortalForm((p) => ({ ...p, phone: e.target.value }))
 										}
 									/>
+									<p className="text-[10px] text-gray-400 mt-1">Подрядчик войдёт по номеру и SMS-коду</p>
 								</div>
 								<div>
-									<Label>Пароль</Label>
-									<Input
-										className="mt-1"
-										type="password"
-										value={portalForm.password}
-										onChange={(e) =>
-											setPortalForm((p) => ({ ...p, password: e.target.value }))
-										}
-									/>
-								</div>
-								<div>
-									<Label>Имя</Label>
+									<Label>Имя *</Label>
 									<Input
 										className="mt-1"
 										value={portalForm.firstName}
@@ -569,12 +563,23 @@ function ContractorDialog({
 									/>
 								</div>
 								<div>
-									<Label>Фамилия</Label>
+									<Label>Фамилия *</Label>
 									<Input
 										className="mt-1"
 										value={portalForm.lastName}
 										onChange={(e) =>
 											setPortalForm((p) => ({ ...p, lastName: e.target.value }))
+										}
+									/>
+								</div>
+								<div className="col-span-2">
+									<Label>Email (необязательно)</Label>
+									<Input
+										className="mt-1"
+										type="email"
+										value={portalForm.email}
+										onChange={(e) =>
+											setPortalForm((p) => ({ ...p, email: e.target.value }))
 										}
 									/>
 								</div>

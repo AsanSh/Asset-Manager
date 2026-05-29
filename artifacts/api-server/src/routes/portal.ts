@@ -14,6 +14,7 @@ import { requireAuth, requireRole, AuthenticatedRequest } from "../middleware/au
 import { requireTenantCompany } from "../middleware/tenant";
 import { hashPassword, validatePassword } from "../lib/security";
 import { sendPortalAccessEmail } from "../lib/email";
+import { createPortalUser } from "../lib/portal-account";
 import { parseContractDocumentMeta, summarizeContractDocument } from "../lib/contract-document";
 import { buildBuyerReconciliation, buildSupplierReconciliation } from "../lib/portal-reconciliation";
 
@@ -21,130 +22,88 @@ const router: ReturnType<typeof Router> = Router();
 
 router.use(requireAuth, requireTenantCompany);
 
-// POST /portal/create-investor-account
+// POST /portal/create-investor-account — phone-first
 router.post("/portal/create-investor-account", requireRole("admin", "company_admin"), async (req: AuthenticatedRequest, res): Promise<void> => {
-  const { investorId, email, firstName, lastName, password } = req.body;
-  if (!investorId || !email || !firstName || !lastName || !password) {
-    res.status(400).json({ error: "Все поля обязательны" }); return;
+  const { investorId, phone, email, firstName, lastName } = req.body;
+  if (!investorId || !phone || !firstName || !lastName) {
+    res.status(400).json({ error: "investorId, телефон, имя, фамилия обязательны" }); return;
   }
 
-  // Check investor belongs to company
   const [investor] = await db.select().from(investorsTable)
     .where(and(eq(investorsTable.id, investorId), eq(investorsTable.companyId, req.scopedCompanyId!)));
   if (!investor) { res.status(404).json({ error: "Инвестор не найден" }); return; }
 
-  // Check if user already exists
-  const [existingUser] = await db.select().from(usersTable).where(eq(usersTable.email, email));
-  if (existingUser) {
-    // Update if already linked
-    if (existingUser.linkedInvestorId === investorId) {
-      res.json({ message: "Аккаунт уже существует", userId: existingUser.id });
-      return;
-    }
-    res.status(409).json({ error: "Email уже зарегистрирован" }); return;
-  }
-
-  const passwordValidation = validatePassword(password);
-  if (!passwordValidation.valid) {
-    res.status(400).json({ error: passwordValidation.error });
+  let user: typeof usersTable.$inferSelect;
+  let created: boolean;
+  try {
+    const result = await createPortalUser({
+      companyId: req.scopedCompanyId!,
+      role: "investor",
+      firstName, lastName, phone, email: email || null,
+      linkedEntityKey: "linkedInvestorId",
+      linkedEntityId: investorId,
+    });
+    user = result.user;
+    created = result.created;
+  } catch (e: any) {
+    res.status(409).json({ error: e?.message || "Не удалось создать аккаунт" });
     return;
   }
 
-  const [user] = await db.insert(usersTable).values({
-    companyId: req.scopedCompanyId!,
-    email,
-    passwordHash: await hashPassword(password),
-    firstName,
-    lastName,
-    role: "investor",
-    linkedInvestorId: investorId,
-    isActive: true,
-  }).returning();
-
   const { passwordHash: _ph, ...safeUser } = user;
-  res.status(201).json({ user: safeUser });
+  res.status(created ? 201 : 200).json({ user: safeUser, created });
 });
 
-// POST /portal/create-tenant-account
+// POST /portal/create-tenant-account — phone-first
 router.post("/portal/create-tenant-account", requireRole("admin", "company_admin"), async (req: AuthenticatedRequest, res): Promise<void> => {
-  const { tenantId, email, firstName, lastName, password } = req.body;
-  if (!tenantId || !email || !firstName || !lastName || !password) {
-    res.status(400).json({ error: "Все поля обязательны" }); return;
+  const { tenantId, phone, email, firstName, lastName } = req.body;
+  if (!tenantId || !phone || !firstName || !lastName) {
+    res.status(400).json({ error: "tenantId, телефон, имя, фамилия обязательны" }); return;
   }
 
   const [tenant] = await db.select().from(tenantsTable)
     .where(and(eq(tenantsTable.id, tenantId), eq(tenantsTable.companyId, req.scopedCompanyId!)));
   if (!tenant) { res.status(404).json({ error: "Арендатор не найден" }); return; }
 
-  const [existingUser] = await db.select().from(usersTable).where(eq(usersTable.email, email));
-  if (existingUser) {
-    if (existingUser.linkedTenantId === tenantId) {
-      res.json({ message: "Аккаунт уже существует", userId: existingUser.id });
-      return;
-    }
-    res.status(409).json({ error: "Email уже зарегистрирован" }); return;
+  try {
+    const result = await createPortalUser({
+      companyId: req.scopedCompanyId!,
+      role: "tenant",
+      firstName, lastName, phone, email: email || null,
+      linkedEntityKey: "linkedTenantId",
+      linkedEntityId: tenantId,
+    });
+    const { passwordHash: _ph, ...safeUser } = result.user;
+    res.status(result.created ? 201 : 200).json({ user: safeUser, created: result.created });
+  } catch (e: any) {
+    res.status(409).json({ error: e?.message || "Не удалось создать аккаунт" });
   }
-
-  const passwordValidation = validatePassword(password);
-  if (!passwordValidation.valid) {
-    res.status(400).json({ error: passwordValidation.error });
-    return;
-  }
-
-  const [user] = await db.insert(usersTable).values({
-    companyId: req.scopedCompanyId!,
-    email,
-    passwordHash: await hashPassword(password),
-    firstName,
-    lastName,
-    role: "tenant",
-    linkedTenantId: tenantId,
-    isActive: true,
-  }).returning();
-
-  const { passwordHash: _ph, ...safeUser } = user;
-  res.status(201).json({ user: safeUser });
 });
 
-// POST /portal/create-contractor-account
+// POST /portal/create-contractor-account — phone-first
 router.post("/portal/create-contractor-account", requireRole("admin", "company_admin"), async (req: AuthenticatedRequest, res): Promise<void> => {
-  const { contractorId, email, firstName, lastName, password } = req.body;
-  if (!contractorId || !email || !firstName || !lastName || !password) {
-    res.status(400).json({ error: "Все поля обязательны" }); return;
+  const { contractorId, phone, email, firstName, lastName } = req.body;
+  if (!contractorId || !phone || !firstName || !lastName) {
+    res.status(400).json({ error: "contractorId, телефон, имя, фамилия обязательны" }); return;
   }
 
   const [contractor] = await db.select().from(constructionContractorsTable)
     .where(and(eq(constructionContractorsTable.id, contractorId), eq(constructionContractorsTable.companyId, req.scopedCompanyId!)));
   if (!contractor) { res.status(404).json({ error: "Подрядчик не найден" }); return; }
 
-  const [existingUser] = await db.select().from(usersTable).where(eq(usersTable.email, email));
-  if (existingUser) {
-    if (existingUser.linkedContractorId === contractorId) {
-      res.json({ message: "Аккаунт уже существует", userId: existingUser.id });
-      return;
-    }
-    res.status(409).json({ error: "Email уже зарегистрирован" }); return;
+  try {
+    const result = await createPortalUser({
+      companyId: req.scopedCompanyId!,
+      role: "contractor",
+      firstName, lastName, phone, email: email || null,
+      linkedEntityKey: "linkedContractorId",
+      linkedEntityId: contractorId,
+    });
+    const { passwordHash: _ph, ...safeUser } = result.user;
+    res.status(result.created ? 201 : 200).json({ user: safeUser, created: result.created });
+  } catch (e: any) {
+    res.status(409).json({ error: e?.message || "Не удалось создать аккаунт" });
   }
-
-  const passwordValidation = validatePassword(password);
-  if (!passwordValidation.valid) {
-    res.status(400).json({ error: passwordValidation.error });
-    return;
-  }
-
-  const [user] = await db.insert(usersTable).values({
-    companyId: req.scopedCompanyId!,
-    email,
-    passwordHash: await hashPassword(password),
-    firstName,
-    lastName,
-    role: "contractor",
-    linkedContractorId: contractorId,
-    isActive: true,
-  }).returning();
-
-  const { passwordHash: _ph2, ...safeUser } = user;
-  res.status(201).json({ user: safeUser });
 });
 
 // GET /portal/investor/me — данные для портала инвестора (только свои)
@@ -318,45 +277,30 @@ router.get("/portal/contractor/contract-document", async (req: AuthenticatedRequ
   res.json(doc);
 });
 
-// POST /portal/create-supplier-account
+// POST /portal/create-supplier-account — phone-first
 router.post("/portal/create-supplier-account", requireRole("admin", "company_admin"), async (req: AuthenticatedRequest, res): Promise<void> => {
-  const { supplierId, email, firstName, lastName, password } = req.body;
-  if (!supplierId || !email || !firstName || !lastName || !password) {
-    res.status(400).json({ error: "Все поля обязательны" }); return;
+  const { supplierId, phone, email, firstName, lastName } = req.body;
+  if (!supplierId || !phone || !firstName || !lastName) {
+    res.status(400).json({ error: "supplierId, телефон, имя, фамилия обязательны" }); return;
   }
 
   const [supplier] = await db.select().from(warehouseSuppliersTable)
     .where(and(eq(warehouseSuppliersTable.id, supplierId), eq(warehouseSuppliersTable.companyId, req.scopedCompanyId!)));
   if (!supplier) { res.status(404).json({ error: "Поставщик не найден" }); return; }
 
-  const [existingUser] = await db.select().from(usersTable).where(eq(usersTable.email, email));
-  if (existingUser) {
-    if (existingUser.linkedSupplierId === supplierId) {
-      res.json({ message: "Аккаунт уже существует", userId: existingUser.id });
-      return;
-    }
-    res.status(409).json({ error: "Email уже зарегистрирован" }); return;
+  try {
+    const result = await createPortalUser({
+      companyId: req.scopedCompanyId!,
+      role: "supplier",
+      firstName, lastName, phone, email: email || null,
+      linkedEntityKey: "linkedSupplierId",
+      linkedEntityId: supplierId,
+    });
+    const { passwordHash: _ph, ...safeUser } = result.user;
+    res.status(result.created ? 201 : 200).json({ user: safeUser, created: result.created });
+  } catch (e: any) {
+    res.status(409).json({ error: e?.message || "Не удалось создать аккаунт" });
   }
-
-  const passwordValidation = validatePassword(password);
-  if (!passwordValidation.valid) {
-    res.status(400).json({ error: passwordValidation.error });
-    return;
-  }
-
-  const [user] = await db.insert(usersTable).values({
-    companyId: req.scopedCompanyId!,
-    email,
-    passwordHash: await hashPassword(password),
-    firstName,
-    lastName,
-    role: "supplier",
-    linkedSupplierId: supplierId,
-    isActive: true,
-  }).returning();
-
-  const { passwordHash: _ph3, ...safeUser } = user;
-  res.status(201).json({ user: safeUser });
 });
 
 // GET /portal/supplier/me — портал поставщика
@@ -467,19 +411,21 @@ router.get("/portal/supplier/contract-document", async (req: AuthenticatedReques
   res.json(doc);
 });
 
-// POST /portal/create-buyer-account
+// POST /portal/create-buyer-account — phone-first (OTP логин)
 router.post("/portal/create-buyer-account", requireRole("admin", "company_admin"), async (req: AuthenticatedRequest, res): Promise<void> => {
-  const { buyerId: buyerIdRaw, contractId, buyerName, email, firstName, lastName, password, phone } = req.body;
-  if (!email || !firstName || !lastName || !password) {
-    res.status(400).json({ error: "Email, имя, фамилия и пароль обязательны" }); return;
+  const { buyerId: buyerIdRaw, contractId, buyerName, email, firstName, lastName, phone } = req.body;
+  if (!phone) {
+    res.status(400).json({ error: "Телефон обязателен" }); return;
+  }
+  if (!firstName || !lastName) {
+    res.status(400).json({ error: "Имя и фамилия обязательны" }); return;
   }
 
   const companyId = req.scopedCompanyId!;
   let buyerId: number | null = buyerIdRaw ? Number(buyerIdRaw) : null;
 
-  // Если buyerId не передан, попробуем найти/создать контрагента-покупателя
+  // Если buyerId не передан — найдём/создадим контрагента-покупателя
   if (!buyerId) {
-    // 1. Если есть contractId — посмотрим что в нём
     if (contractId) {
       const [contract] = await db.select().from(constructionSalesContractsTable)
         .where(and(
@@ -488,28 +434,27 @@ router.post("/portal/create-buyer-account", requireRole("admin", "company_admin"
         ));
       if (contract?.buyerId) buyerId = contract.buyerId;
 
-      // Если в договоре нет buyerId, создаём контрагента-покупателя из договора
       if (!buyerId && contract) {
         const name = buyerName || contract.buyerName || `${firstName} ${lastName}`;
         const [created] = await db.insert(counterpartiesTable).values({
           companyId,
           category: "buyer",
+          categories: ["buyer"],
           fullName: name,
           phone: phone || contract.buyerPhone || null,
         } as any).returning();
         buyerId = created.id;
-        // Привязать к договору
         await db.update(constructionSalesContractsTable)
           .set({ buyerId })
           .where(eq(constructionSalesContractsTable.id, contract.id));
       }
     }
 
-    // 2. Если buyerName есть, но contractId нет — просто создаём
     if (!buyerId && buyerName) {
       const [created] = await db.insert(counterpartiesTable).values({
         companyId,
         category: "buyer",
+        categories: ["buyer"],
         fullName: buyerName,
         phone: phone || null,
       } as any).returning();
@@ -529,61 +474,27 @@ router.post("/portal/create-buyer-account", requireRole("admin", "company_admin"
     ));
   if (!buyer) { res.status(404).json({ error: "Покупатель не найден" }); return; }
 
-  // Если контрагент есть, но категория не buyer — обновляем
-  if (buyer.category !== "buyer") {
-    await db.update(counterpartiesTable)
-      .set({ category: "buyer" })
-      .where(eq(counterpartiesTable.id, buyerId));
+  try {
+    const result = await createPortalUser({
+      companyId,
+      role: "buyer",
+      firstName,
+      lastName,
+      phone,
+      email: email || null,
+      linkedEntityKey: "linkedBuyerId",
+      linkedEntityId: buyerId,
+    });
+    const { passwordHash: _ph, ...safeUser } = result.user;
+    const origin = (req.headers.origin as string) || "https://proptech-sigma-eight.vercel.app";
+    res.status(result.created ? 201 : 200).json({
+      user: safeUser,
+      loginUrl: `${origin}/portal-login`,
+      created: result.created,
+    });
+  } catch (e: any) {
+    res.status(409).json({ error: e?.message || "Не удалось создать аккаунт" });
   }
-
-  const [existingUser] = await db.select().from(usersTable).where(eq(usersTable.email, email));
-  if (existingUser) {
-    if (existingUser.linkedBuyerId === buyerId) {
-      res.json({ message: "Аккаунт уже существует", userId: existingUser.id });
-      return;
-    }
-    res.status(409).json({ error: "Email уже зарегистрирован" }); return;
-  }
-
-  const passwordValidation = validatePassword(password);
-  if (!passwordValidation.valid) {
-    res.status(400).json({ error: passwordValidation.error });
-    return;
-  }
-
-  const [user] = await db.insert(usersTable).values({
-    companyId: req.scopedCompanyId!,
-    email,
-    passwordHash: await hashPassword(password),
-    firstName,
-    lastName,
-    role: "buyer",
-    linkedBuyerId: buyerId,
-    isActive: true,
-  }).returning();
-
-  // Отправляем письмо с доступом
-  const [company] = await db.select({ name: companiesTable.name })
-    .from(companiesTable)
-    .where(eq(companiesTable.id, companyId));
-  const origin = (req.headers.origin as string) || `https://${req.headers.host}` || "https://proptech-sigma-eight.vercel.app";
-  const loginUrl = `${origin}/login?role=buyer`;
-  const emailResult = await sendPortalAccessEmail({
-    email,
-    firstName,
-    password,
-    loginUrl,
-    portalLabel: "покупателя",
-    companyName: company?.name,
-  }).catch((e) => ({ sent: false, error: String((e as Error).message) }));
-
-  const { passwordHash: _ph4, ...safeUser } = user;
-  res.status(201).json({
-    user: safeUser,
-    emailSent: emailResult.sent,
-    emailError: emailResult.error,
-    loginUrl,
-  });
 });
 
 // GET /portal/buyer/me — портал покупателя

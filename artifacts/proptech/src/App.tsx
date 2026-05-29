@@ -94,6 +94,7 @@ import CrmSalesProperties from "@/pages/crm/sales-properties";
 import Dashboard from "@/pages/dashboard";
 import ImportCenter from "@/pages/import-center";
 import Login from "@/pages/login";
+import PortalLogin from "@/pages/portal-login";
 import ResetPassword from "@/pages/reset-password";
 import InvestorPortal from "@/pages/portal/investor";
 import TenantPortal from "@/pages/portal/tenant";
@@ -254,6 +255,7 @@ function Router() {
 	return (
 		<Switch>
 			<Route path="/login" component={Login} />
+			<Route path="/portal-login" component={PortalLogin} />
 			<Route path="/reset-password" component={ResetPassword} />
 			<Route path="/register" component={Register} />
 			<Route path="/investor-portal">

@@ -42,16 +42,13 @@ function splitName(fullName: string) {
 	};
 }
 
-function generatePassword() {
-	return `${Math.random().toString(36).slice(2, 8)}A1!`;
-}
-
 interface PortalAccountPromptProps {
 	open: boolean;
 	onClose: () => void;
 	entityType: PortalEntityType;
 	entityId: number;
 	entityName?: string;
+	defaultPhone?: string;
 	defaultEmail?: string;
 }
 
@@ -61,14 +58,15 @@ export function PortalAccountPrompt({
 	entityType,
 	entityId,
 	entityName,
+	defaultPhone,
 	defaultEmail,
 }: PortalAccountPromptProps) {
 	const { toast } = useToast();
 	const [form, setForm] = useState({
+		phone: defaultPhone || "",
 		email: defaultEmail || "",
 		firstName: "",
 		lastName: "",
-		password: generatePassword(),
 	});
 	const [loading, setLoading] = useState(false);
 
@@ -76,30 +74,30 @@ export function PortalAccountPrompt({
 		if (!open) return;
 		const parts = splitName(entityName || "");
 		setForm({
+			phone: defaultPhone || "",
 			email: defaultEmail || "",
 			firstName: parts.firstName,
 			lastName: parts.lastName,
-			password: generatePassword(),
 		});
-	}, [open, entityName, defaultEmail, entityId]);
+	}, [open, entityName, defaultPhone, defaultEmail, entityId]);
 
 	const createAccount = async () => {
-		if (!form.email || !form.firstName || !form.lastName || !form.password) {
-			toast({ title: "Заполните все поля", variant: "destructive" });
+		if (!form.phone || !form.firstName || !form.lastName) {
+			toast({ title: "Заполните телефон, имя и фамилию", variant: "destructive" });
 			return;
 		}
 		setLoading(true);
 		try {
 			await api.post(CREATE_ENDPOINTS[entityType], {
 				[ID_FIELDS[entityType]]: entityId,
-				email: form.email,
+				phone: form.phone,
+				email: form.email || undefined,
 				firstName: form.firstName,
 				lastName: form.lastName,
-				password: form.password,
 			});
 			toast({
-				title: "Доступ в портал создан",
-				description: `Пароль: ${form.password}`,
+				title: "Доступ создан",
+				description: "Пользователь сможет войти по номеру телефона и SMS-коду",
 			});
 			onClose();
 		} catch (e: unknown) {
@@ -121,50 +119,47 @@ export function PortalAccountPrompt({
 						Доступ в портал {LABELS[entityType]}
 					</DialogTitle>
 					<DialogDescription>
-						Договор загружен. Для {entityName || "контрагента"} рекомендуется
-						создать личный кабинет.
+						Для {entityName || "контрагента"} будет создан личный кабинет с входом по
+						номеру телефона и SMS-коду.
 					</DialogDescription>
 				</DialogHeader>
 				<div className="space-y-3">
 					<div>
-						<Label>Email</Label>
+						<Label>Телефон *</Label>
+						<Input
+							className="mt-1"
+							type="tel"
+							placeholder="+996 700 123 456"
+							value={form.phone}
+							onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
+						/>
+						<p className="text-[10px] text-gray-400 mt-1">На этот номер придёт SMS-код для входа</p>
+					</div>
+					<div className="grid grid-cols-2 gap-3">
+						<div>
+							<Label>Имя *</Label>
+							<Input
+								className="mt-1"
+								value={form.firstName}
+								onChange={(e) => setForm((p) => ({ ...p, firstName: e.target.value }))}
+							/>
+						</div>
+						<div>
+							<Label>Фамилия *</Label>
+							<Input
+								className="mt-1"
+								value={form.lastName}
+								onChange={(e) => setForm((p) => ({ ...p, lastName: e.target.value }))}
+							/>
+						</div>
+					</div>
+					<div>
+						<Label>Email (необязательно)</Label>
 						<Input
 							className="mt-1"
 							type="email"
 							value={form.email}
 							onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
-						/>
-					</div>
-					<div className="grid grid-cols-2 gap-3">
-						<div>
-							<Label>Имя</Label>
-							<Input
-								className="mt-1"
-								value={form.firstName}
-								onChange={(e) =>
-									setForm((p) => ({ ...p, firstName: e.target.value }))
-								}
-							/>
-						</div>
-						<div>
-							<Label>Фамилия</Label>
-							<Input
-								className="mt-1"
-								value={form.lastName}
-								onChange={(e) =>
-									setForm((p) => ({ ...p, lastName: e.target.value }))
-								}
-							/>
-						</div>
-					</div>
-					<div>
-						<Label>Пароль</Label>
-						<Input
-							className="mt-1"
-							value={form.password}
-							onChange={(e) =>
-								setForm((p) => ({ ...p, password: e.target.value }))
-							}
 						/>
 					</div>
 					<div className="flex gap-2 pt-1">

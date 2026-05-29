@@ -52,6 +52,7 @@ interface ContractFileUploadProps {
 		entityType: PortalEntityType;
 		entityId: number;
 		entityName?: string;
+		defaultPhone?: string;
 		defaultEmail?: string;
 	};
 }
@@ -213,6 +214,7 @@ export function ContractFileUpload({
 					entityType={portalPrompt.entityType}
 					entityId={portalPrompt.entityId}
 					entityName={portalPrompt.entityName}
+					defaultPhone={portalPrompt.defaultPhone}
 					defaultEmail={portalPrompt.defaultEmail}
 				/>
 			)}

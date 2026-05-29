@@ -120,10 +120,10 @@ export default function TenantDetail() {
 
 	const [showPortalDialog, setShowPortalDialog] = useState(false);
 	const [portalForm, setPortalForm] = useState({
+		phone: "",
 		email: "",
 		firstName: "",
 		lastName: "",
-		password: "",
 	});
 	const [portalStatus, setPortalStatus] = useState<{
 		type: "success" | "error";
@@ -132,13 +132,8 @@ export default function TenantDetail() {
 	const [portalLoading, setPortalLoading] = useState(false);
 
 	async function createPortalAccount() {
-		if (
-			!portalForm.email ||
-			!portalForm.firstName ||
-			!portalForm.lastName ||
-			!portalForm.password
-		) {
-			setPortalStatus({ type: "error", msg: "Заполните все поля" });
+		if (!portalForm.phone || !portalForm.firstName || !portalForm.lastName) {
+			setPortalStatus({ type: "error", msg: "Заполните телефон, имя и фамилию" });
 			return;
 		}
 		setPortalLoading(true);
@@ -146,13 +141,16 @@ export default function TenantDetail() {
 		try {
 			await api.post("/portal/create-tenant-account", {
 				tenantId: id,
-				...portalForm,
+				phone: portalForm.phone,
+				email: portalForm.email || undefined,
+				firstName: portalForm.firstName,
+				lastName: portalForm.lastName,
 			});
 			setPortalStatus({
 				type: "success",
-				msg: "Аккаунт успешно создан. Арендатор может войти через portal.",
+				msg: "Доступ создан. Арендатор войдёт по номеру и SMS-коду.",
 			});
-			setPortalForm({ email: "", firstName: "", lastName: "", password: "" });
+			setPortalForm({ phone: "", email: "", firstName: "", lastName: "" });
 		} catch (e: any) {
 			setPortalStatus({
 				type: "error",
@@ -298,7 +296,20 @@ export default function TenantDetail() {
 							</div>
 							<div>
 								<label className="text-xs font-medium text-gray-700 mb-1 block">
-									Email (логин)
+									Телефон (вход по SMS-коду) *
+								</label>
+								<Input
+									type="tel"
+									value={portalForm.phone}
+									onChange={(e) =>
+										setPortalForm((p) => ({ ...p, phone: e.target.value }))
+									}
+									placeholder="+996 700 123 456"
+								/>
+							</div>
+							<div>
+								<label className="text-xs font-medium text-gray-700 mb-1 block">
+									Email (необязательно)
 								</label>
 								<Input
 									type="email"
@@ -307,19 +318,6 @@ export default function TenantDetail() {
 										setPortalForm((p) => ({ ...p, email: e.target.value }))
 									}
 									placeholder="tenant@email.com"
-								/>
-							</div>
-							<div>
-								<label className="text-xs font-medium text-gray-700 mb-1 block">
-									Пароль
-								</label>
-								<Input
-									type="password"
-									value={portalForm.password}
-									onChange={(e) =>
-										setPortalForm((p) => ({ ...p, password: e.target.value }))
-									}
-									placeholder="Минимум 6 символов"
 								/>
 							</div>
 							{portalStatus && (

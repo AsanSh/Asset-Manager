@@ -17,7 +17,10 @@ import {
   taskCommentsTable,
   consolidatedLogsTable,
   constructionSupplementsTable,
+  notificationsTable,
+  usersTable,
 } from "../lib/db";
+import { sendTaskAssignedEmail } from "../lib/email";
 import { constructionSalesContractsTable } from "../lib/db";
 import { ensureCounterpartyWithRole } from "../lib/counterparty-sync";
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
@@ -483,14 +486,34 @@ router.get("/tasks", async (req: AuthenticatedRequest, res): Promise<void> => {
   res.json(rows);
 });
 
+// GET /tasks/:id — одиночная задача (для чата задачи)
+router.get("/tasks/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const id = parseInt(req.params.id as string, 10);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid task id" });
+    return;
+  }
+  const [row] = await db.select().from(constructionTasksTable)
+    .where(and(
+      eq(constructionTasksTable.id, id),
+      eq(constructionTasksTable.companyId, req.scopedCompanyId!),
+    ));
+  if (!row) {
+    res.status(404).json({ error: "Задача не найдена" });
+    return;
+  }
+  res.json(row);
+});
+
 router.post("/tasks", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { projectId, stageId, title, description, status, priority, dueDate, estimatedHours, assignedTo } = req.body;
+  const assignedToId = assignedTo ? parseInt(assignedTo) : null;
   const [row] = await db.insert(constructionTasksTable).values({
     companyId: req.scopedCompanyId!, projectId, stageId: stageId || null, title, description,
     status: status || "todo", priority: priority || "medium",
     dueDate: dueDate || null,
     estimatedHours: estimatedHours ? String(estimatedHours) : null,
-    assignedTo: assignedTo ? parseInt(assignedTo) : null,
+    assignedTo: assignedToId,
     createdBy: req.userId ?? null,
   }).returning();
 
@@ -503,6 +526,21 @@ router.post("/tasks", async (req: AuthenticatedRequest, res): Promise<void> => {
       content: `Задача создана: «${title}»`,
       commentType: "status_change",
     }).catch(() => {});
+
+    // Уведомление + email исполнителю (если назначен и это не сам автор)
+    if (assignedToId && assignedToId !== req.userId) {
+      void notifyTaskAssigned({
+        companyId: req.scopedCompanyId!,
+        taskId: row.id,
+        assignedToId,
+        assignerId: req.userId!,
+        title,
+        description,
+        priority: row.priority,
+        dueDate: row.dueDate,
+        origin: req.headers.origin as string | undefined,
+      });
+    }
   }
 
   res.status(201).json(row);
@@ -511,15 +549,94 @@ router.post("/tasks", async (req: AuthenticatedRequest, res): Promise<void> => {
 router.patch("/tasks/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
   const { title, description, status, priority, dueDate, estimatedHours, actualHours, completedAt, assignedTo } = req.body;
+
+  // Текущая задача (для сравнения assignedTo)
+  const [prev] = await db.select()
+    .from(constructionTasksTable)
+    .where(and(eq(constructionTasksTable.id, id), eq(constructionTasksTable.companyId, req.scopedCompanyId!)));
+
+  const newAssignedTo = assignedTo !== undefined ? (assignedTo ? parseInt(assignedTo) : null) : undefined;
+
   const [row] = await db.update(constructionTasksTable)
     .set({ title, description, status, priority, dueDate, completedAt,
       estimatedHours: estimatedHours ? String(estimatedHours) : null,
       actualHours: actualHours ? String(actualHours) : null,
-      assignedTo: assignedTo !== undefined ? (assignedTo ? parseInt(assignedTo) : null) : undefined })
+      assignedTo: newAssignedTo })
     .where(and(eq(constructionTasksTable.id, id), eq(constructionTasksTable.companyId, req.scopedCompanyId!)))
     .returning();
+
+  // Если назначение изменилось — уведомить нового исполнителя
+  if (
+    row && newAssignedTo !== undefined && newAssignedTo !== null &&
+    newAssignedTo !== prev?.assignedTo && newAssignedTo !== req.userId
+  ) {
+    void notifyTaskAssigned({
+      companyId: req.scopedCompanyId!,
+      taskId: row.id,
+      assignedToId: newAssignedTo,
+      assignerId: req.userId!,
+      title: row.title,
+      description: row.description,
+      priority: row.priority,
+      dueDate: row.dueDate,
+      origin: req.headers.origin as string | undefined,
+    });
+  }
+
   res.json(row);
 });
+
+// Уведомление + email исполнителю при назначении задачи
+async function notifyTaskAssigned(params: {
+  companyId: number;
+  taskId: number;
+  assignedToId: number;
+  assignerId: number;
+  title: string;
+  description?: string | null;
+  priority: string;
+  dueDate?: string | null;
+  origin?: string;
+}): Promise<void> {
+  const { companyId, taskId, assignedToId, assignerId, title, description, priority, dueDate, origin } = params;
+  try {
+    // 1) Push-уведомление в системе
+    await db.insert(notificationsTable).values({
+      companyId,
+      userId: assignedToId,
+      fromUserId: assignerId,
+      type: "task_assigned",
+      title: `Новая задача: ${title}`,
+      body: description || null,
+      message: description || null,
+      icon: "clipboard-list",
+      color: "amber",
+      link: `/construction/tasks/${taskId}`,
+      metadata: JSON.stringify({ taskId, priority }),
+    } as any);
+
+    // 2) Email — если у получателя есть email
+    const [recipient] = await db.select().from(usersTable).where(eq(usersTable.id, assignedToId));
+    const [assigner] = await db.select().from(usersTable).where(eq(usersTable.id, assignerId));
+    if (recipient?.email) {
+      const baseOrigin = origin || "https://proptech-sigma-eight.vercel.app";
+      const taskUrl = `${baseOrigin}/construction/tasks/${taskId}`;
+      const assignerName = assigner ? `${assigner.firstName} ${assigner.lastName}`.trim() : "Коллега";
+      await sendTaskAssignedEmail({
+        email: recipient.email,
+        recipientFirstName: recipient.firstName,
+        taskTitle: title,
+        taskDescription: description,
+        assignerName,
+        dueDate,
+        priority,
+        taskUrl,
+      });
+    }
+  } catch {
+    // не валим основной запрос, если уведомление не отправилось
+  }
+}
 
 router.delete("/tasks/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
@@ -1620,26 +1737,67 @@ router.get("/tasks/:id/comments", async (req: AuthenticatedRequest, res): Promis
   res.json(rows);
 });
 
+const ALLOWED_COMMENT_TYPES = ["message", "result", "return", "status_change"] as const;
+const MAX_COMMENT_LENGTH = 4000;
+
 router.post("/tasks/:id/comments", async (req: AuthenticatedRequest, res): Promise<void> => {
-  const taskId = parseInt(req.params.id as string);
+  const taskId = parseInt(req.params.id as string, 10);
+  if (!Number.isFinite(taskId)) {
+    res.status(400).json({ error: "Invalid task id" });
+    return;
+  }
   const { content, commentType } = req.body;
-  if (!content?.trim()) {
+  if (!content || typeof content !== "string" || !content.trim()) {
     res.status(400).json({ error: "Пустой комментарий" });
     return;
+  }
+  const trimmed = content.trim();
+  if (trimmed.length > MAX_COMMENT_LENGTH) {
+    res.status(400).json({ error: `Комментарий слишком длинный (максимум ${MAX_COMMENT_LENGTH} символов)` });
+    return;
+  }
+  const type = commentType || "message";
+  if (!ALLOWED_COMMENT_TYPES.includes(type)) {
+    res.status(400).json({ error: "Недопустимый тип комментария" });
+    return;
+  }
+  // Только создатель может вернуть, только исполнитель может отправить result
+  if (type === "return" || type === "result") {
+    const [task] = await db.select()
+      .from(constructionTasksTable)
+      .where(and(
+        eq(constructionTasksTable.id, taskId),
+        eq(constructionTasksTable.companyId, req.scopedCompanyId!),
+      ));
+    if (!task) {
+      res.status(404).json({ error: "Задача не найдена" });
+      return;
+    }
+    if (type === "return" && task.createdBy !== req.userId) {
+      res.status(403).json({ error: "Только создатель задачи может вернуть на доработку" });
+      return;
+    }
+    if (type === "result" && task.assignedTo !== req.userId) {
+      res.status(403).json({ error: "Только исполнитель может отправить результат" });
+      return;
+    }
   }
 
   const [comment] = await db.insert(taskCommentsTable).values({
     companyId: req.scopedCompanyId!,
     taskId,
     userId: req.userId!,
-    content: content.trim(),
-    commentType: commentType || "message",
+    content: trimmed,
+    commentType: type,
   }).returning();
 
-  // Если это возврат задачи — обновить статус задачи
-  if (commentType === "return") {
+  // Изменение статуса задачи в зависимости от типа
+  let nextStatus: string | null = null;
+  if (type === "return") nextStatus = "todo";
+  else if (type === "result") nextStatus = "review"; // на проверку создателю
+  if (nextStatus) {
     await db.update(constructionTasksTable)
-      .set({ status: "todo" })
+      .set({ status: nextStatus })
       .where(and(
         eq(constructionTasksTable.id, taskId),
         eq(constructionTasksTable.companyId, req.scopedCompanyId!),

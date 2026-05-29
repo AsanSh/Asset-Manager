@@ -15,6 +15,7 @@ import {
   findPasswordResetUser,
   maskEmail,
 } from "../lib/password-reset";
+import { issueOtp, verifyOtp, normalizePhone } from "../lib/otp";
 
 function generateCode(): string {
   return String(Math.floor(100000 + Math.random() * 900000));
@@ -201,6 +202,78 @@ router.post("/auth/login", validateBody(loginSchema), async (req, res): Promise<
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Login failed' });
+  }
+});
+
+// ── OTP логин по телефону (для порталов) ──
+
+// POST /auth/send-otp — выдать SMS-код для входа
+router.post("/auth/send-otp", async (req, res): Promise<void> => {
+  try {
+    const { phone } = req.body || {};
+    if (!phone) {
+      res.status(400).json({ error: "Введите номер телефона" });
+      return;
+    }
+    const normalized = normalizePhone(phone);
+    // Проверим что пользователь с таким телефоном существует
+    const [user] = await db.select({ id: usersTable.id, isActive: usersTable.isActive })
+      .from(usersTable)
+      .where(eq(usersTable.phone, normalized));
+    if (!user) {
+      // Не палим существование пользователя — отвечаем нейтрально
+      res.json({ ok: true, message: "Если номер зарегистрирован, код отправлен" });
+      return;
+    }
+    if (!user.isActive) {
+      res.status(401).json({ error: "Аккаунт заблокирован" });
+      return;
+    }
+    const { code, expiresAt } = await issueOtp(normalized, "login");
+    // Пока нет SMS-провайдера — возвращаем код в dev/staging логи (см. otp.ts).
+    // На фронт отдаём флаг devCode только если включен NODE_ENV=development.
+    const payload: Record<string, unknown> = { ok: true, expiresAt };
+    if (process.env.NODE_ENV !== "production") payload.devCode = code;
+    res.json(payload);
+  } catch (e: any) {
+    if (e?.code === "THROTTLED") {
+      res.status(429).json({ error: e.message });
+      return;
+    }
+    res.status(400).json({ error: e?.message || "Ошибка отправки кода" });
+  }
+});
+
+// POST /auth/verify-otp — проверить SMS-код и вернуть токен сессии
+router.post("/auth/verify-otp", async (req, res): Promise<void> => {
+  try {
+    const { phone, code } = req.body || {};
+    if (!phone || !code) {
+      res.status(400).json({ error: "Введите телефон и код" });
+      return;
+    }
+    const result = await verifyOtp(phone, code, "login");
+    if (!result.ok) {
+      res.status(401).json({ error: result.reason || "Неверный код" });
+      return;
+    }
+    const normalized = normalizePhone(phone);
+    const [user] = await db.select()
+      .from(usersTable)
+      .where(eq(usersTable.phone, normalized));
+    if (!user) {
+      res.status(404).json({ error: "Пользователь не найден" });
+      return;
+    }
+    if (!user.isActive) {
+      res.status(401).json({ error: "Аккаунт заблокирован" });
+      return;
+    }
+    const token = await createSession(user.id);
+    const { passwordHash: _ph, ...safeUser } = user;
+    res.json({ token, user: safeUser });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message || "Ошибка проверки кода" });
   }
 });
 

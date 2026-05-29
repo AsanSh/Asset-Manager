@@ -66,6 +66,92 @@ export async function sendVerificationEmail(email: string, code: string, firstNa
   }
 }
 
+interface TaskAssignedOptions {
+  email: string;
+  recipientFirstName: string;
+  taskTitle: string;
+  taskDescription?: string | null;
+  assignerName: string;
+  dueDate?: string | null;
+  priority?: string | null;
+  taskUrl: string;
+}
+
+export async function sendTaskAssignedEmail(opts: TaskAssignedOptions): Promise<{ sent: boolean; error?: string }> {
+  const { email, recipientFirstName, taskTitle, taskDescription, assignerName, dueDate, priority, taskUrl } = opts;
+  const priorityLabels: Record<string, string> = {
+    low: "Низкий", medium: "Средний", high: "Высокий", critical: "Критический",
+  };
+  const priorityLabel = priority ? priorityLabels[priority] ?? priority : null;
+
+  const html = `
+<!DOCTYPE html>
+<html lang="ru">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f9;padding:40px 0">
+    <tr><td align="center">
+      <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
+        <tr>
+          <td style="background:#f59e0b;padding:28px 32px;text-align:center">
+            <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700">📋 Новая задача · ${APP_NAME}</h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:32px">
+            <p style="margin:0 0 16px;font-size:16px;color:#1e293b">
+              Здравствуйте, <strong>${recipientFirstName}</strong>!
+            </p>
+            <p style="margin:0 0 20px;font-size:14px;color:#475569;line-height:1.6">
+              <strong>${assignerName}</strong> назначил(а) вам новую задачу:
+            </p>
+            <div style="background:#fefce8;border-left:4px solid #f59e0b;padding:16px;border-radius:6px;margin:0 0 20px">
+              <p style="margin:0 0 8px;font-size:16px;font-weight:600;color:#0f172a">${taskTitle}</p>
+              ${taskDescription ? `<p style="margin:0;font-size:13px;color:#475569">${taskDescription}</p>` : ""}
+            </div>
+            <table cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 24px">
+              ${dueDate ? `<tr>
+                <td style="padding:4px 0;font-size:13px;color:#64748b;width:40%">Срок выполнения:</td>
+                <td style="padding:4px 0;font-size:13px;color:#0f172a;font-weight:600">${new Date(dueDate).toLocaleDateString("ru-KG", { day: "numeric", month: "long", year: "numeric" })}</td>
+              </tr>` : ""}
+              ${priorityLabel ? `<tr>
+                <td style="padding:4px 0;font-size:13px;color:#64748b">Приоритет:</td>
+                <td style="padding:4px 0;font-size:13px;color:#0f172a;font-weight:600">${priorityLabel}</td>
+              </tr>` : ""}
+            </table>
+            <div style="text-align:center;margin:0 0 16px">
+              <a href="${taskUrl}" style="display:inline-block;background:#f59e0b;color:#fff;text-decoration:none;padding:12px 32px;border-radius:8px;font-size:14px;font-weight:600">
+                Открыть задачу
+              </a>
+            </div>
+            <p style="margin:0;font-size:11px;color:#94a3b8;text-align:center">
+              Вы получили это письмо, так как задача была назначена вашему аккаунту в ${APP_NAME}
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+  if (!resend) {
+    logger.warn({ email, taskTitle }, "RESEND_API_KEY not set — task email not sent");
+    return { sent: false, error: "Email-сервис не настроен" };
+  }
+  const { error } = await resend.emails.send({
+    from: FROM,
+    to: email,
+    subject: `📋 Новая задача: ${taskTitle}`,
+    html,
+  });
+  if (error) {
+    logger.error({ error, email, taskTitle }, "Failed to send task email");
+    return { sent: false, error: String((error as { message?: string }).message ?? error) };
+  }
+  return { sent: true };
+}
+
 interface PortalAccessOptions {
   email: string;
   firstName: string;
