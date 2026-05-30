@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { db, bankAccountsTable } from "./db";
 import {
   BANK_ACCOUNT_MODULE,
@@ -5,6 +6,25 @@ import {
 } from "./bank-account-module";
 
 const CONSTRUCTION_ACCOUNTS = BANK_ACCOUNT_MODULE.construction;
+
+/** Атомарное изменение баланса: balance = balance + delta (delta может быть отрицательной).
+ *  Защищает от гонок параллельных платежей. Не блокирует и не теряет промежуточные значения. */
+async function adjustAccountBalance(
+  companyId: number,
+  accountId: number,
+  delta: number,
+): Promise<void> {
+  await db
+    .update(bankAccountsTable)
+    .set({ currentBalance: sql`GREATEST(0, COALESCE(${bankAccountsTable.currentBalance}, 0) + ${delta})` })
+    .where(
+      companyModuleAccountByIdWhere(
+        companyId,
+        accountId,
+        CONSTRUCTION_ACCOUNTS,
+      ),
+    );
+}
 
 export type OpForBalance = {
   type: string;
@@ -93,60 +113,50 @@ export async function validateOpBalances(
   return null;
 }
 
-/** Применить проведённую операцию к остаткам счетов */
+/** Применить проведённую операцию к остаткам счетов (атомарно через SQL +=) */
 export async function applyOpBalances(
   companyId: number,
   op: OpForBalance,
 ): Promise<void> {
+  // Для approved — добавляем. Для cancelled — НЕ применяем (откат через reverseOpBalances).
   if (op.status !== "approved") return;
   const delta = parseFloat(String(op.amountKgs)) || 0;
   if (delta <= 0) return;
 
   if (op.type === "income" && op.toAccountId) {
-    const bal = (await getAccountBalance(companyId, op.toAccountId)) ?? 0;
-    await setAccountBalance(companyId, op.toAccountId, bal + delta);
+    await adjustAccountBalance(companyId, op.toAccountId, delta);
     return;
   }
-
   if (op.type === "expense" && op.fromAccountId) {
-    const bal = (await getAccountBalance(companyId, op.fromAccountId)) ?? 0;
-    await setAccountBalance(companyId, op.fromAccountId, bal - delta);
+    await adjustAccountBalance(companyId, op.fromAccountId, -delta);
     return;
   }
-
   if (op.type === "transfer" && op.fromAccountId && op.toAccountId) {
-    const fromBal = (await getAccountBalance(companyId, op.fromAccountId)) ?? 0;
-    const toBal = (await getAccountBalance(companyId, op.toAccountId)) ?? 0;
-    await setAccountBalance(companyId, op.fromAccountId, fromBal - delta);
-    await setAccountBalance(companyId, op.toAccountId, toBal + delta);
+    await adjustAccountBalance(companyId, op.fromAccountId, -delta);
+    await adjustAccountBalance(companyId, op.toAccountId, delta);
   }
 }
 
-/** Откатить проведённую операцию */
+/** Откатить проведённую операцию (для cancel платежа). Атомарно через SQL +=. */
 export async function reverseOpBalances(
   companyId: number,
   op: OpForBalance,
 ): Promise<void> {
-  if (op.status !== "approved") return;
+  // Принимаем op в исходном состоянии (status: "approved") — функция инвертирует движение.
+  // Если op уже в БД помечен cancelled — это всё равно нужно вычесть из баланса.
   const delta = parseFloat(String(op.amountKgs)) || 0;
   if (delta <= 0) return;
 
   if (op.type === "income" && op.toAccountId) {
-    const bal = (await getAccountBalance(companyId, op.toAccountId)) ?? 0;
-    await setAccountBalance(companyId, op.toAccountId, bal - delta);
+    await adjustAccountBalance(companyId, op.toAccountId, -delta);
     return;
   }
-
   if (op.type === "expense" && op.fromAccountId) {
-    const bal = (await getAccountBalance(companyId, op.fromAccountId)) ?? 0;
-    await setAccountBalance(companyId, op.fromAccountId, bal + delta);
+    await adjustAccountBalance(companyId, op.fromAccountId, delta);
     return;
   }
-
   if (op.type === "transfer" && op.fromAccountId && op.toAccountId) {
-    const fromBal = (await getAccountBalance(companyId, op.fromAccountId)) ?? 0;
-    const toBal = (await getAccountBalance(companyId, op.toAccountId)) ?? 0;
-    await setAccountBalance(companyId, op.fromAccountId, fromBal + delta);
-    await setAccountBalance(companyId, op.toAccountId, toBal - delta);
+    await adjustAccountBalance(companyId, op.fromAccountId, delta);
+    await adjustAccountBalance(companyId, op.toAccountId, -delta);
   }
 }

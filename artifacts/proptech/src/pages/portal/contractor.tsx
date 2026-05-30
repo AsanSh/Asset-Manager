@@ -8,12 +8,14 @@ import {
 	FileText,
 	LogOut,
 	Printer,
+	Share2,
 	Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { shareAct } from "@/lib/share-act";
 
 function fmt(n: unknown) {
 	const num = parseFloat(String(n ?? 0));
@@ -46,28 +48,38 @@ function KPI({
 	color: string;
 }) {
 	return (
-		<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-start gap-4">
+		<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-5 flex items-start gap-3 sm:gap-4">
 			<div
-				className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${color}`}
+				className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${color}`}
 			>
 				{icon}
 			</div>
-			<div>
+			<div className="min-w-0">
 				<p className="text-xs text-gray-500 font-medium">{label}</p>
-				<p className="text-xl font-bold text-gray-900 mt-0.5">{value}</p>
+				<p className="text-base sm:text-xl font-bold text-gray-900 mt-0.5 break-words">{value}</p>
 				{sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
 			</div>
 		</div>
 	);
 }
 
-export default function ContractorPortal() {
+export default function ContractorPortal({ previewContractorId }: { previewContractorId?: number } = {}) {
 	const { user, logout } = useAuth();
 	const { toast } = useToast();
+	const isPreview = !!previewContractorId;
 
 	const { data, isLoading } = useQuery({
-		queryKey: ["portal-contractor-me"],
-		queryFn: () => api.get("/portal/contractor/me").then((r) => r.data),
+		queryKey: isPreview
+			? ["portal-contractor-preview", previewContractorId]
+			: ["portal-contractor-me"],
+		queryFn: () =>
+			api
+				.get(
+					isPreview
+						? `/portal/contractor/preview/${previewContractorId}`
+						: "/portal/contractor/me",
+				)
+				.then((r) => r.data),
 	});
 
 	const handleDownloadContract = async () => {
@@ -86,6 +98,30 @@ export default function ContractorPortal() {
 		}
 	};
 
+	const handleShare = async () => {
+		const res = await shareAct({
+			title: "Акт сверки",
+			subjectLabel: "Подрядчик",
+			subjectName: contractor?.fullName || userName,
+			contractNumber: summary.contractNumber,
+			currency,
+			summaryRows: [
+				{ label: "Сумма договора", value: `${fmt(summary.contractAmount)} ${currency}` },
+				{ label: "Получено", value: `${fmt(summary.paidAmount)} ${currency}` },
+				{ label: "Остаток", value: `${fmt(outstanding)} ${currency}` },
+			],
+			lines: lines.map((l: any) => ({
+				date: fmtDate(l.date),
+				description: l.description,
+				amount: `${fmt(l.amount)} ${l.currency ?? currency}`,
+				balance: `${fmt(l.balanceAfter)} ${currency}`,
+			})),
+		});
+		if (res === "whatsapp") {
+			toast({ title: "Открываем WhatsApp с текстом акта" });
+		}
+	};
+
 	if (isLoading) {
 		return (
 			<div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -101,13 +137,14 @@ export default function ContractorPortal() {
 	const currency = summary.currency ?? "KGS";
 	const outstanding = parseFloat(String(summary.outstanding ?? 0));
 
-	const userName =
-		[user?.firstName, user?.lastName].filter(Boolean).join(" ") || "Подрядчик";
+	const userName = isPreview
+		? contractor?.fullName || "Подрядчик"
+		: [user?.firstName, user?.lastName].filter(Boolean).join(" ") || "Подрядчик";
 
 	return (
 		<div className="min-h-screen bg-gray-50">
 			<header className="bg-white border-b border-gray-200 sticky top-0 z-40">
-				<div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
+				<div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
 					<div className="flex items-center gap-3">
 						<div className="w-9 h-9 bg-amber-600 rounded-xl flex items-center justify-center">
 							<Briefcase className="w-5 h-5 text-white" />
@@ -119,22 +156,29 @@ export default function ContractorPortal() {
 							</p>
 						</div>
 					</div>
-					<div className="flex items-center gap-3">
-						<span className="text-sm text-gray-600 font-medium">{userName}</span>
-						<Button
-							variant="ghost"
-							size="sm"
-							onClick={logout}
-							className="text-gray-500 gap-1.5"
-						>
-							<LogOut className="w-4 h-4" /> Выйти
-						</Button>
+					<div className="flex items-center gap-2 sm:gap-3">
+						{isPreview && (
+							<span className="text-[10px] uppercase tracking-wide bg-amber-100 text-amber-800 px-2 py-1 rounded-full font-semibold">
+								👁 Предпросмотр
+							</span>
+						)}
+						<span className="hidden sm:inline text-sm text-gray-600 font-medium max-w-[40vw] truncate">{userName}</span>
+						{!isPreview && (
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={logout}
+								className="text-gray-500 gap-1.5"
+							>
+								<LogOut className="w-4 h-4" /> Выйти
+							</Button>
+						)}
 					</div>
 				</div>
 			</header>
 
-			<div className="max-w-5xl mx-auto px-6 py-8 space-y-6">
-				<div className="bg-gradient-to-r from-amber-600 to-orange-600 rounded-2xl p-6 text-white">
+			<div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+				<div className="bg-gradient-to-r from-amber-600 to-orange-600 rounded-2xl p-5 sm:p-6 text-white">
 					<p className="text-sm opacity-80 mb-1">Добро пожаловать,</p>
 					<h1 className="text-2xl font-bold">
 						{contractor?.fullName || userName}
@@ -180,7 +224,7 @@ export default function ContractorPortal() {
 				</div>
 
 				<div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-					<div className="flex items-center justify-between px-6 py-4 border-b bg-gray-50">
+					<div className="flex items-center justify-between gap-2 px-4 sm:px-6 py-4 border-b bg-gray-50">
 						<div className="flex items-center gap-3">
 							<FileText className="w-4 h-4 text-gray-500" />
 							<h2 className="font-semibold text-gray-900">Договор</h2>
@@ -196,7 +240,7 @@ export default function ContractorPortal() {
 							</Button>
 						)}
 					</div>
-					<div className="px-6 py-5">
+					<div className="px-4 sm:px-6 py-5">
 						{contractor?.contractDocument ? (
 							<div className="flex items-center gap-3">
 								<div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
@@ -221,21 +265,31 @@ export default function ContractorPortal() {
 				</div>
 
 				<div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden print:shadow-none">
-					<div className="flex items-center justify-between px-6 py-4 border-b bg-gray-50">
+					<div className="flex items-center justify-between gap-2 flex-wrap px-4 sm:px-6 py-4 border-b bg-gray-50">
 						<div className="flex items-center gap-3">
 							<CreditCard className="w-4 h-4 text-gray-500" />
 							<h2 className="font-semibold text-gray-900">Акт сверки</h2>
 						</div>
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={() => window.print()}
-							className="gap-1.5 text-xs print:hidden"
-						>
-							<Printer className="w-3.5 h-3.5" /> Распечатать
-						</Button>
+						<div className="flex items-center gap-2 print:hidden">
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={() => void handleShare()}
+								className="gap-1.5 text-xs bg-[#25D366]/10 border-[#25D366]/30 text-[#128C7E] hover:bg-[#25D366]/20"
+							>
+								<Share2 className="w-3.5 h-3.5" /> Поделиться
+							</Button>
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={() => window.print()}
+								className="gap-1.5 text-xs"
+							>
+								<Printer className="w-3.5 h-3.5" /> Распечатать
+							</Button>
+						</div>
 					</div>
-					<div className="px-6 py-4 border-b bg-gray-50/50 text-sm grid grid-cols-3 gap-4">
+					<div className="px-4 sm:px-6 py-4 border-b bg-gray-50/50 text-sm grid grid-cols-2 sm:grid-cols-3 gap-4">
 						<div>
 							<p className="text-gray-500 text-xs">Сумма договора</p>
 							<p className="font-semibold">{fmt(summary.contractAmount)} {currency}</p>
@@ -261,23 +315,23 @@ export default function ContractorPortal() {
 							<table className="w-full text-sm">
 								<thead>
 									<tr className="border-b bg-gray-50 text-left text-xs text-gray-500">
-										<th className="px-6 py-3 font-medium">Дата</th>
-										<th className="px-6 py-3 font-medium">Операция</th>
-										<th className="px-6 py-3 font-medium text-right">Оплачено</th>
-										<th className="px-6 py-3 font-medium text-right">Остаток</th>
+										<th className="px-3 sm:px-6 py-3 font-medium">Дата</th>
+										<th className="px-3 sm:px-6 py-3 font-medium">Операция</th>
+										<th className="px-3 sm:px-6 py-3 font-medium text-right">Оплачено</th>
+										<th className="px-3 sm:px-6 py-3 font-medium text-right">Остаток</th>
 									</tr>
 								</thead>
 								<tbody className="divide-y">
 									{lines.map((line: any, i: number) => (
 										<tr key={i} className="hover:bg-gray-50">
-											<td className="px-6 py-3 text-gray-600 whitespace-nowrap">
+											<td className="px-3 sm:px-6 py-3 text-gray-600 whitespace-nowrap">
 												{fmtDate(line.date)}
 											</td>
-											<td className="px-6 py-3 text-gray-800">{line.description}</td>
-											<td className="px-6 py-3 text-right font-medium text-emerald-700">
+											<td className="px-3 sm:px-6 py-3 text-gray-800">{line.description}</td>
+											<td className="px-3 sm:px-6 py-3 text-right font-medium text-emerald-700 whitespace-nowrap">
 												{fmt(line.amount)} {line.currency ?? currency}
 											</td>
-											<td className="px-6 py-3 text-right text-gray-600">
+											<td className="px-3 sm:px-6 py-3 text-right text-gray-600 whitespace-nowrap">
 												{fmt(line.balanceAfter)} {currency}
 											</td>
 										</tr>

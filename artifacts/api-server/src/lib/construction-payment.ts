@@ -6,7 +6,7 @@ import {
 } from "./db/schema";
 import { and, desc, eq, like, or } from "drizzle-orm";
 import { allocatePaymentAcrossAccruals } from "./payment-allocation";
-import { applyOpBalances } from "./construction-operation-balances";
+import { applyOpBalances, reverseOpBalances } from "./construction-operation-balances";
 
 export type ApplyContractPaymentInput = {
   companyId: number;
@@ -240,6 +240,16 @@ export async function cancelAccrualPayment(companyId: number, accrualId: number)
   let reversedFromOps = 0;
   for (const op of ops) {
     reversedFromOps += parseFloat(op.amount?.toString() || "0");
+    // 1) Откатываем баланс счёта (атомарно). Делаем ДО смены статуса —
+    //    reverseOpBalances использует исходное состояние операции.
+    await reverseOpBalances(companyId, {
+      type: op.type ?? "income",
+      status: "approved",
+      fromAccountId: op.fromAccountId ?? null,
+      toAccountId: op.toAccountId ?? null,
+      amountKgs: op.amountKgs ?? op.amount ?? "0",
+    });
+    // 2) Помечаем операцию cancelled
     await db
       .update(constructionOperationsTable)
       .set({

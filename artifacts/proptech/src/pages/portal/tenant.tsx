@@ -7,11 +7,14 @@ import {
 	FileText,
 	LogOut,
 	Printer,
+	Share2,
 	Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { shareAct } from "@/lib/share-act";
 
 function fmt(n: any) {
 	const num = parseFloat(n ?? 0);
@@ -43,27 +46,38 @@ function KPI({
 	color: string;
 }) {
 	return (
-		<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-start gap-4">
+		<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-5 flex items-start gap-3 sm:gap-4">
 			<div
-				className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${color}`}
+				className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${color}`}
 			>
 				{icon}
 			</div>
-			<div>
+			<div className="min-w-0">
 				<p className="text-xs text-gray-500 font-medium">{label}</p>
-				<p className="text-xl font-bold text-gray-900 mt-0.5">{value}</p>
+				<p className="text-base sm:text-xl font-bold text-gray-900 mt-0.5 break-words">{value}</p>
 				{sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
 			</div>
 		</div>
 	);
 }
 
-export default function TenantPortal() {
+export default function TenantPortal({ previewTenantId }: { previewTenantId?: number } = {}) {
 	const { user, logout } = useAuth();
+	const { toast } = useToast();
+	const isPreview = !!previewTenantId;
 
 	const { data, isLoading } = useQuery<any>({
-		queryKey: ["portal-tenant-me"],
-		queryFn: () => api.get("/portal/tenant/me").then((r) => r.data),
+		queryKey: isPreview
+			? ["portal-tenant-preview", previewTenantId]
+			: ["portal-tenant-me"],
+		queryFn: () =>
+			api
+				.get(
+					isPreview
+						? `/portal/tenant/preview/${previewTenantId}`
+						: "/portal/tenant/me",
+				)
+				.then((r) => r.data),
 	});
 
 	if (isLoading) {
@@ -94,14 +108,45 @@ export default function TenantPortal() {
 	const balance = totalCharged - totalPaid;
 	const activeContracts = contracts.filter((c: any) => c.status === "active");
 
-	const userName =
-		[user?.firstName, user?.lastName].filter(Boolean).join(" ") || "Арендатор";
+	const userName = isPreview
+		? tenant?.fullName || tenant?.name || "Арендатор"
+		: [user?.firstName, user?.lastName].filter(Boolean).join(" ") || "Арендатор";
+
+	const handleShare = async () => {
+		let running = 0;
+		const actLines = payments.map((p: any) => {
+			const paid = parseFloat(p.amount || 0) || 0;
+			running -= paid;
+			return {
+				date: fmtDate(p.paymentDate || p.createdAt),
+				description: p.notes || "Аренда",
+				amount: `+${fmt(paid)} KGS`,
+				balance:
+					running > 0 ? `-${fmt(running)} KGS` : `+${fmt(Math.abs(running))} KGS`,
+			};
+		});
+		const res = await shareAct({
+			title: "Акт сверки",
+			subjectLabel: "Арендатор",
+			subjectName: tenant?.fullName || tenant?.name || userName,
+			currency: "KGS",
+			summaryRows: [
+				{ label: "Начислено", value: `${fmt(totalCharged)} KGS` },
+				{ label: "Оплачено", value: `${fmt(totalPaid)} KGS` },
+				{ label: "Задолженность", value: `${fmt(balance)} KGS` },
+			],
+			lines: actLines,
+		});
+		if (res === "whatsapp") {
+			toast({ title: "Открываем WhatsApp с текстом акта" });
+		}
+	};
 
 	return (
 		<div className="min-h-screen bg-gray-50">
 			{/* Portal Header */}
 			<header className="bg-white border-b border-gray-200 sticky top-0 z-40">
-				<div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
+				<div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
 					<div className="flex items-center gap-3">
 						<div className="w-9 h-9 bg-teal-600 rounded-xl flex items-center justify-center">
 							<Building2 className="w-5 h-5 text-white" />
@@ -113,25 +158,32 @@ export default function TenantPortal() {
 							</p>
 						</div>
 					</div>
-					<div className="flex items-center gap-3">
-						<span className="text-sm text-gray-600 font-medium">
+					<div className="flex items-center gap-2 sm:gap-3">
+						{isPreview && (
+							<span className="text-[10px] uppercase tracking-wide bg-amber-100 text-amber-800 px-2 py-1 rounded-full font-semibold">
+								👁 Предпросмотр
+							</span>
+						)}
+						<span className="hidden sm:inline text-sm text-gray-600 font-medium max-w-[40vw] truncate">
 							{userName}
 						</span>
-						<Button
-							variant="ghost"
-							size="sm"
-							onClick={logout}
-							className="text-gray-500 gap-1.5"
-						>
-							<LogOut className="w-4 h-4" /> Выйти
-						</Button>
+						{!isPreview && (
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={logout}
+								className="text-gray-500 gap-1.5"
+							>
+								<LogOut className="w-4 h-4" /> Выйти
+							</Button>
+						)}
 					</div>
 				</div>
 			</header>
 
-			<div className="max-w-5xl mx-auto px-6 py-8 space-y-6">
+			<div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
 				{/* Welcome */}
-				<div className="bg-gradient-to-r from-teal-600 to-blue-600 rounded-2xl p-6 text-white">
+				<div className="bg-gradient-to-r from-teal-600 to-blue-600 rounded-2xl p-5 sm:p-6 text-white">
 					<p className="text-sm opacity-80 mb-1">Добро пожаловать,</p>
 					<h1 className="text-2xl font-bold">
 						{tenant?.fullName || tenant?.name || userName}
@@ -179,7 +231,7 @@ export default function TenantPortal() {
 
 				{/* Contracts */}
 				<div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-					<div className="flex items-center gap-3 px-6 py-4 border-b bg-gray-50">
+					<div className="flex items-center gap-3 px-4 sm:px-6 py-4 border-b bg-gray-50">
 						<FileText className="w-4 h-4 text-gray-500" />
 						<h2 className="font-semibold text-gray-900">Мои договоры аренды</h2>
 					</div>
@@ -191,7 +243,7 @@ export default function TenantPortal() {
 					) : (
 						<div className="divide-y">
 							{contracts.map((c: any) => (
-								<div key={c.id} className="px-6 py-4 flex items-center gap-4">
+								<div key={c.id} className="px-4 sm:px-6 py-4 flex items-center gap-3 sm:gap-4">
 									<div className="w-10 h-10 bg-teal-100 rounded-xl flex items-center justify-center flex-shrink-0">
 										<Building2 className="w-5 h-5 text-teal-600" />
 									</div>
@@ -226,22 +278,32 @@ export default function TenantPortal() {
 				</div>
 
 				{/* Payments reconciliation */}
-				<div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-					<div className="flex items-center justify-between px-6 py-4 border-b bg-gray-50">
+				<div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden print:shadow-none">
+					<div className="flex items-center justify-between gap-2 flex-wrap px-4 sm:px-6 py-4 border-b bg-gray-50">
 						<div className="flex items-center gap-3">
 							<CreditCard className="w-4 h-4 text-gray-500" />
 							<h2 className="font-semibold text-gray-900">
 								Акт сверки — История платежей
 							</h2>
 						</div>
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={() => window.print()}
-							className="gap-1.5 text-xs"
-						>
-							<Printer className="w-3.5 h-3.5" /> Распечатать
-						</Button>
+						<div className="flex items-center gap-2 print:hidden">
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={() => void handleShare()}
+								className="gap-1.5 text-xs bg-[#25D366]/10 border-[#25D366]/30 text-[#128C7E] hover:bg-[#25D366]/20"
+							>
+								<Share2 className="w-3.5 h-3.5" /> Поделиться
+							</Button>
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={() => window.print()}
+								className="gap-1.5 text-xs"
+							>
+								<Printer className="w-3.5 h-3.5" /> Распечатать
+							</Button>
+						</div>
 					</div>
 					{payments.length === 0 ? (
 						<div className="py-12 text-center text-gray-400">
@@ -249,15 +311,16 @@ export default function TenantPortal() {
 							<p className="text-sm">Нет платежей</p>
 						</div>
 					) : (
+						<div className="overflow-x-auto">
 						<table className="w-full text-sm">
 							<thead>
 								<tr className="text-xs text-gray-500 border-b bg-gray-50/50">
-									<th className="text-left px-6 py-3 font-medium">Дата</th>
-									<th className="text-left px-6 py-3 font-medium">
+									<th className="text-left px-3 sm:px-6 py-3 font-medium">Дата</th>
+									<th className="text-left px-3 sm:px-6 py-3 font-medium">
 										Назначение
 									</th>
-									<th className="text-right px-6 py-3 font-medium">Сумма</th>
-									<th className="text-right px-6 py-3 font-medium">Баланс</th>
+									<th className="text-right px-3 sm:px-6 py-3 font-medium">Сумма</th>
+									<th className="text-right px-3 sm:px-6 py-3 font-medium">Баланс</th>
 								</tr>
 							</thead>
 							<tbody>
@@ -271,17 +334,17 @@ export default function TenantPortal() {
 												key={p.id}
 												className="border-b last:border-0 hover:bg-gray-50"
 											>
-												<td className="px-6 py-3.5 text-gray-500 text-xs">
+												<td className="px-3 sm:px-6 py-3.5 text-gray-500 text-xs whitespace-nowrap">
 													{fmtDate(p.paymentDate || p.createdAt)}
 												</td>
-												<td className="px-6 py-3.5 text-gray-700">
+												<td className="px-3 sm:px-6 py-3.5 text-gray-700">
 													{p.notes || "Аренда"}
 												</td>
-												<td className="px-6 py-3.5 text-right font-medium text-emerald-700">
+												<td className="px-3 sm:px-6 py-3.5 text-right font-medium text-emerald-700 whitespace-nowrap">
 													+{fmt(paid)} KGS
 												</td>
 												<td
-													className={`px-6 py-3.5 text-right text-xs font-medium ${running > 0 ? "text-rose-600" : "text-emerald-700"}`}
+													className={`px-3 sm:px-6 py-3.5 text-right text-xs font-medium whitespace-nowrap ${running > 0 ? "text-rose-600" : "text-emerald-700"}`}
 												>
 													{running > 0
 														? `-${fmt(running)}`
@@ -294,14 +357,14 @@ export default function TenantPortal() {
 							</tbody>
 							<tfoot>
 								<tr className="bg-gray-50 border-t-2 font-bold">
-									<td colSpan={2} className="px-6 py-3 text-gray-700">
+									<td colSpan={2} className="px-3 sm:px-6 py-3 text-gray-700">
 										ИТОГО ОПЛАЧЕНО
 									</td>
-									<td className="px-6 py-3 text-right text-emerald-700">
+									<td className="px-3 sm:px-6 py-3 text-right text-emerald-700 whitespace-nowrap">
 										+{fmt(totalPaid)} KGS
 									</td>
 									<td
-										className={`px-6 py-3 text-right ${balance > 0 ? "text-rose-600" : "text-emerald-700"}`}
+										className={`px-3 sm:px-6 py-3 text-right whitespace-nowrap ${balance > 0 ? "text-rose-600" : "text-emerald-700"}`}
 									>
 										{balance > 0
 											? `-${fmt(balance)}`
@@ -310,6 +373,7 @@ export default function TenantPortal() {
 								</tr>
 							</tfoot>
 						</table>
+						</div>
 					)}
 				</div>
 

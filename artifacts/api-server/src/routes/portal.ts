@@ -14,13 +14,202 @@ import { requireAuth, requireRole, AuthenticatedRequest } from "../middleware/au
 import { requireTenantCompany } from "../middleware/tenant";
 import { hashPassword, validatePassword } from "../lib/security";
 import { sendPortalAccessEmail } from "../lib/email";
-import { createPortalUser } from "../lib/portal-account";
+import { createPortalUser, findUserByLinkedEntity } from "../lib/portal-account";
 import { parseContractDocumentMeta, summarizeContractDocument } from "../lib/contract-document";
 import { buildBuyerReconciliation, buildSupplierReconciliation } from "../lib/portal-reconciliation";
 
 const router: ReturnType<typeof Router> = Router();
 
 router.use(requireAuth, requireTenantCompany);
+
+const LINKED_KEY_BY_TYPE: Record<string, "linkedTenantId" | "linkedBuyerId" | "linkedContractorId" | "linkedSupplierId" | "linkedInvestorId"> = {
+  tenant: "linkedTenantId",
+  buyer: "linkedBuyerId",
+  contractor: "linkedContractorId",
+  supplier: "linkedSupplierId",
+  investor: "linkedInvestorId",
+};
+
+// ── Загрузчики данных порталов (используются и для /me, и для /preview) ──────────
+
+async function loadContractorPortal(companyId: number, contractorId: number) {
+  const [contractor] = await db.select().from(constructionContractorsTable)
+    .where(and(
+      eq(constructionContractorsTable.id, contractorId),
+      eq(constructionContractorsTable.companyId, companyId),
+    ));
+  if (!contractor) return null;
+
+  const payments = await db.select({
+    id: constructionExpensesTable.id,
+    date: constructionExpensesTable.date,
+    description: constructionExpensesTable.description,
+    amount: constructionExpensesTable.amount,
+    currency: constructionExpensesTable.currency,
+    status: constructionExpensesTable.status,
+    projectId: constructionExpensesTable.projectId,
+  })
+    .from(constructionExpensesTable)
+    .where(and(
+      eq(constructionExpensesTable.contractorId, contractorId),
+      eq(constructionExpensesTable.companyId, companyId),
+    ))
+    .orderBy(desc(constructionExpensesTable.date));
+
+  const contractAmount = parseFloat(String(contractor.contractAmount ?? 0));
+  const paidAmount = parseFloat(String(contractor.paidAmount ?? 0));
+  const outstanding = contractAmount - paidAmount;
+
+  const paidExpenses = payments
+    .filter((p) => p.status === "paid" || p.status === "approved")
+    .slice()
+    .reverse();
+
+  let balance = contractAmount;
+  const reconciliationLines = paidExpenses.map((p) => {
+    const amt = parseFloat(String(p.amount ?? 0));
+    balance -= amt;
+    return {
+      date: p.date,
+      description: p.description,
+      amount: amt,
+      currency: p.currency,
+      balanceAfter: balance,
+    };
+  });
+
+  const { contractDocumentMeta, ...contractorSafe } = contractor;
+
+  return {
+    contractor: {
+      ...contractorSafe,
+      contractDocument: summarizeContractDocument(contractDocumentMeta),
+    },
+    summary: {
+      contractNumber: contractor.contractNumber,
+      contractAmount,
+      paidAmount,
+      outstanding,
+      currency: contractor.currency ?? "KGS",
+      status: contractor.status,
+    },
+    payments,
+    reconciliation: {
+      contractAmount,
+      paidAmount,
+      outstanding,
+      lines: reconciliationLines,
+    },
+  };
+}
+
+async function loadSupplierPortal(companyId: number, supplierId: number) {
+  const [supplier] = await db.select().from(warehouseSuppliersTable)
+    .where(and(
+      eq(warehouseSuppliersTable.id, supplierId),
+      eq(warehouseSuppliersTable.companyId, companyId),
+    ));
+  if (!supplier) return null;
+
+  const deliveries = await db.select({
+    id: warehouseIncomingTable.id,
+    documentDate: warehouseIncomingTable.documentDate,
+    documentNumber: warehouseIncomingTable.documentNumber,
+    itemName: warehouseItemsTable.name,
+    quantity: warehouseIncomingTable.quantity,
+    totalAmount: warehouseIncomingTable.totalAmount,
+    currency: warehouseIncomingTable.currency,
+    notes: warehouseIncomingTable.notes,
+  })
+    .from(warehouseIncomingTable)
+    .leftJoin(warehouseItemsTable, eq(warehouseIncomingTable.itemId, warehouseItemsTable.id))
+    .where(and(
+      eq(warehouseIncomingTable.supplierId, supplierId),
+      eq(warehouseIncomingTable.companyId, companyId),
+    ))
+    .orderBy(desc(warehouseIncomingTable.documentDate));
+
+  const contractAmount = parseFloat(String(supplier.contractAmount ?? 0));
+  const paidAmount = parseFloat(String(supplier.paidAmount ?? 0));
+  const outstanding = contractAmount - paidAmount;
+  const totalSupplied = deliveries.reduce(
+    (sum, d) => sum + parseFloat(String(d.totalAmount ?? 0)),
+    0,
+  );
+
+  const supplierPayments = await db.select({
+    date: warehouseSupplierPaymentsTable.date,
+    amount: warehouseSupplierPaymentsTable.amount,
+    currency: warehouseSupplierPaymentsTable.currency,
+    description: warehouseSupplierPaymentsTable.description,
+  })
+    .from(warehouseSupplierPaymentsTable)
+    .where(and(
+      eq(warehouseSupplierPaymentsTable.supplierId, supplierId),
+      eq(warehouseSupplierPaymentsTable.companyId, companyId),
+    ))
+    .orderBy(desc(warehouseSupplierPaymentsTable.date));
+
+  const reconciliation = buildSupplierReconciliation({
+    deliveries,
+    payments: supplierPayments,
+    contractAmount,
+    paidAmount,
+    currency: supplier.currency ?? "KGS",
+  });
+
+  const { contractDocumentMeta, ...supplierSafe } = supplier;
+
+  return {
+    supplier: {
+      ...supplierSafe,
+      contractDocument: summarizeContractDocument(contractDocumentMeta),
+    },
+    summary: {
+      contractNumber: supplier.contractNumber,
+      contractAmount,
+      paidAmount,
+      outstanding,
+      totalSupplied,
+      currency: supplier.currency ?? "KGS",
+      isActive: supplier.isActive,
+    },
+    deliveries,
+    payments: supplierPayments,
+    reconciliation,
+  };
+}
+
+async function loadTenantPortal(companyId: number, tenantId: number) {
+  const [tenant] = await db.select().from(tenantsTable)
+    .where(and(eq(tenantsTable.id, tenantId), eq(tenantsTable.companyId, companyId)));
+  if (!tenant) return null;
+
+  const contracts = await db.select({
+    id: leaseContractsTable.id,
+    propertyId: leaseContractsTable.propertyId,
+    startDate: leaseContractsTable.startDate,
+    endDate: leaseContractsTable.endDate,
+    rentAmount: leaseContractsTable.rentAmount,
+    status: leaseContractsTable.status,
+    contractNumber: leaseContractsTable.contractNumber,
+    propertyName: propertiesTable.projectName,
+    propertyUnit: propertiesTable.unitNumber,
+  })
+    .from(leaseContractsTable)
+    .leftJoin(propertiesTable, eq(leaseContractsTable.propertyId, propertiesTable.id))
+    .where(eq(leaseContractsTable.tenantId, tenantId));
+
+  const contractIds = contracts.map((c) => c.id);
+  const payments: any[] = contractIds.length > 0
+    ? await db.select().from(paymentsTable).where(eq(paymentsTable.leaseContractId, contractIds[0]))
+    : [];
+  const accruals: any[] = contractIds.length > 0
+    ? await db.select().from(accrualsTable).where(eq(accrualsTable.leaseContractId, contractIds[0]))
+    : [];
+
+  return { tenant, contracts, payments, accruals };
+}
 
 // POST /portal/create-investor-account — phone-first
 router.post("/portal/create-investor-account", requireRole("admin", "company_admin"), async (req: AuthenticatedRequest, res): Promise<void> => {
@@ -145,34 +334,18 @@ router.get("/portal/tenant/me", async (req: AuthenticatedRequest, res): Promise<
   if (!me || me.role !== "tenant" || !me.linkedTenantId) {
     res.status(403).json({ error: "Нет доступа" }); return;
   }
+  const data = await loadTenantPortal(req.scopedCompanyId!, me.linkedTenantId);
+  if (!data) { res.status(404).json({ error: "Арендатор не найден" }); return; }
+  res.json(data);
+});
 
-  const [tenant] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, me.linkedTenantId));
-
-  const contracts = await db.select({
-    id: leaseContractsTable.id,
-    propertyId: leaseContractsTable.propertyId,
-    startDate: leaseContractsTable.startDate,
-    endDate: leaseContractsTable.endDate,
-    rentAmount: leaseContractsTable.rentAmount,
-    status: leaseContractsTable.status,
-    contractNumber: leaseContractsTable.contractNumber,
-    propertyName: propertiesTable.projectName,
-    propertyUnit: propertiesTable.unitNumber,
-  })
-    .from(leaseContractsTable)
-    .leftJoin(propertiesTable, eq(leaseContractsTable.propertyId, propertiesTable.id))
-    .where(eq(leaseContractsTable.tenantId, me.linkedTenantId!));
-
-  const contractIds = contracts.map(c => c.id);
-  const payments: any[] = contractIds.length > 0
-    ? await db.select().from(paymentsTable).where(eq(paymentsTable.leaseContractId, contractIds[0]))
-    : [];
-
-  const accruals: any[] = contractIds.length > 0
-    ? await db.select().from(accrualsTable).where(eq(accrualsTable.leaseContractId, contractIds[0]))
-    : [];
-
-  res.json({ tenant, contracts, payments, accruals });
+// GET /portal/tenant/preview/:tenantId — предпросмотр для админа
+router.get("/portal/tenant/preview/:tenantId", requireRole("admin", "company_admin"), async (req: AuthenticatedRequest, res): Promise<void> => {
+  const tenantId = parseInt(req.params.tenantId as string, 10);
+  if (!tenantId) { res.status(400).json({ error: "tenantId обязателен" }); return; }
+  const data = await loadTenantPortal(req.scopedCompanyId!, tenantId);
+  if (!data) { res.status(404).json({ error: "Арендатор не найден" }); return; }
+  res.json({ ...data, preview: true });
 });
 
 // GET /portal/contractor/me — портал подрядчика
@@ -181,77 +354,18 @@ router.get("/portal/contractor/me", async (req: AuthenticatedRequest, res): Prom
   if (!me || me.role !== "contractor" || !me.linkedContractorId) {
     res.status(403).json({ error: "Нет доступа" }); return;
   }
+  const data = await loadContractorPortal(req.scopedCompanyId!, me.linkedContractorId);
+  if (!data) { res.status(404).json({ error: "Подрядчик не найден" }); return; }
+  res.json(data);
+});
 
-  const [contractor] = await db.select().from(constructionContractorsTable)
-    .where(and(
-      eq(constructionContractorsTable.id, me.linkedContractorId),
-      eq(constructionContractorsTable.companyId, req.scopedCompanyId!),
-    ));
-  if (!contractor) {
-    res.status(404).json({ error: "Подрядчик не найден" }); return;
-  }
-
-  const payments = await db.select({
-    id: constructionExpensesTable.id,
-    date: constructionExpensesTable.date,
-    description: constructionExpensesTable.description,
-    amount: constructionExpensesTable.amount,
-    currency: constructionExpensesTable.currency,
-    status: constructionExpensesTable.status,
-    projectId: constructionExpensesTable.projectId,
-  })
-    .from(constructionExpensesTable)
-    .where(and(
-      eq(constructionExpensesTable.contractorId, me.linkedContractorId),
-      eq(constructionExpensesTable.companyId, req.scopedCompanyId!),
-    ))
-    .orderBy(desc(constructionExpensesTable.date));
-
-  const contractAmount = parseFloat(String(contractor.contractAmount ?? 0));
-  const paidAmount = parseFloat(String(contractor.paidAmount ?? 0));
-  const outstanding = contractAmount - paidAmount;
-
-  const paidExpenses = payments
-    .filter((p) => p.status === "paid" || p.status === "approved")
-    .slice()
-    .reverse();
-
-  let balance = contractAmount;
-  const reconciliationLines = paidExpenses.map((p) => {
-    const amt = parseFloat(String(p.amount ?? 0));
-    balance -= amt;
-    return {
-      date: p.date,
-      description: p.description,
-      amount: amt,
-      currency: p.currency,
-      balanceAfter: balance,
-    };
-  });
-
-  const { contractDocumentMeta, ...contractorSafe } = contractor;
-
-  res.json({
-    contractor: {
-      ...contractorSafe,
-      contractDocument: summarizeContractDocument(contractDocumentMeta),
-    },
-    summary: {
-      contractNumber: contractor.contractNumber,
-      contractAmount,
-      paidAmount,
-      outstanding,
-      currency: contractor.currency ?? "KGS",
-      status: contractor.status,
-    },
-    payments,
-    reconciliation: {
-      contractAmount,
-      paidAmount,
-      outstanding,
-      lines: reconciliationLines,
-    },
-  });
+// GET /portal/contractor/preview/:contractorId — предпросмотр для админа
+router.get("/portal/contractor/preview/:contractorId", requireRole("admin", "company_admin"), async (req: AuthenticatedRequest, res): Promise<void> => {
+  const contractorId = parseInt(req.params.contractorId as string, 10);
+  if (!contractorId) { res.status(400).json({ error: "contractorId обязателен" }); return; }
+  const data = await loadContractorPortal(req.scopedCompanyId!, contractorId);
+  if (!data) { res.status(404).json({ error: "Подрядчик не найден" }); return; }
+  res.json({ ...data, preview: true });
 });
 
 // GET /portal/contractor/contract-document — скачать договор
@@ -309,83 +423,18 @@ router.get("/portal/supplier/me", async (req: AuthenticatedRequest, res): Promis
   if (!me || me.role !== "supplier" || !me.linkedSupplierId) {
     res.status(403).json({ error: "Нет доступа" }); return;
   }
+  const data = await loadSupplierPortal(req.scopedCompanyId!, me.linkedSupplierId);
+  if (!data) { res.status(404).json({ error: "Поставщик не найден" }); return; }
+  res.json(data);
+});
 
-  const [supplier] = await db.select().from(warehouseSuppliersTable)
-    .where(and(
-      eq(warehouseSuppliersTable.id, me.linkedSupplierId),
-      eq(warehouseSuppliersTable.companyId, req.scopedCompanyId!),
-    ));
-  if (!supplier) {
-    res.status(404).json({ error: "Поставщик не найден" }); return;
-  }
-
-  const deliveries = await db.select({
-    id: warehouseIncomingTable.id,
-    documentDate: warehouseIncomingTable.documentDate,
-    documentNumber: warehouseIncomingTable.documentNumber,
-    itemName: warehouseItemsTable.name,
-    quantity: warehouseIncomingTable.quantity,
-    totalAmount: warehouseIncomingTable.totalAmount,
-    currency: warehouseIncomingTable.currency,
-    notes: warehouseIncomingTable.notes,
-  })
-    .from(warehouseIncomingTable)
-    .leftJoin(warehouseItemsTable, eq(warehouseIncomingTable.itemId, warehouseItemsTable.id))
-    .where(and(
-      eq(warehouseIncomingTable.supplierId, me.linkedSupplierId),
-      eq(warehouseIncomingTable.companyId, req.scopedCompanyId!),
-    ))
-    .orderBy(desc(warehouseIncomingTable.documentDate));
-
-  const contractAmount = parseFloat(String(supplier.contractAmount ?? 0));
-  const paidAmount = parseFloat(String(supplier.paidAmount ?? 0));
-  const outstanding = contractAmount - paidAmount;
-  const totalSupplied = deliveries.reduce(
-    (sum, d) => sum + parseFloat(String(d.totalAmount ?? 0)),
-    0,
-  );
-
-  const supplierPayments = await db.select({
-    date: warehouseSupplierPaymentsTable.date,
-    amount: warehouseSupplierPaymentsTable.amount,
-    currency: warehouseSupplierPaymentsTable.currency,
-    description: warehouseSupplierPaymentsTable.description,
-  })
-    .from(warehouseSupplierPaymentsTable)
-    .where(and(
-      eq(warehouseSupplierPaymentsTable.supplierId, me.linkedSupplierId),
-      eq(warehouseSupplierPaymentsTable.companyId, req.scopedCompanyId!),
-    ))
-    .orderBy(desc(warehouseSupplierPaymentsTable.date));
-
-  const reconciliation = buildSupplierReconciliation({
-    deliveries,
-    payments: supplierPayments,
-    contractAmount,
-    paidAmount,
-    currency: supplier.currency ?? "KGS",
-  });
-
-  const { contractDocumentMeta, ...supplierSafe } = supplier;
-
-  res.json({
-    supplier: {
-      ...supplierSafe,
-      contractDocument: summarizeContractDocument(contractDocumentMeta),
-    },
-    summary: {
-      contractNumber: supplier.contractNumber,
-      contractAmount,
-      paidAmount,
-      outstanding,
-      totalSupplied,
-      currency: supplier.currency ?? "KGS",
-      isActive: supplier.isActive,
-    },
-    deliveries,
-    payments: supplierPayments,
-    reconciliation,
-  });
+// GET /portal/supplier/preview/:supplierId — предпросмотр для админа
+router.get("/portal/supplier/preview/:supplierId", requireRole("admin", "company_admin"), async (req: AuthenticatedRequest, res): Promise<void> => {
+  const supplierId = parseInt(req.params.supplierId as string, 10);
+  if (!supplierId) { res.status(400).json({ error: "supplierId обязателен" }); return; }
+  const data = await loadSupplierPortal(req.scopedCompanyId!, supplierId);
+  if (!data) { res.status(404).json({ error: "Поставщик не найден" }); return; }
+  res.json({ ...data, preview: true });
 });
 
 // GET /portal/supplier/contract-document
@@ -733,6 +782,27 @@ router.get("/portal/buyer/contract-document", async (req: AuthenticatedRequest, 
     res.status(404).json({ error: "Договор не загружен" }); return;
   }
   res.json(doc);
+});
+
+// GET /portal/account-status/:type/:id — есть ли уже доступ в портал у контрагента
+router.get("/portal/account-status/:type/:id", requireRole("admin", "company_admin"), async (req: AuthenticatedRequest, res): Promise<void> => {
+  const type = String(req.params.type);
+  const id = parseInt(req.params.id as string, 10);
+  const linkedKey = LINKED_KEY_BY_TYPE[type];
+  if (!linkedKey || !id) {
+    res.status(400).json({ error: "Некорректный type или id" }); return;
+  }
+  const user = await findUserByLinkedEntity(req.scopedCompanyId!, linkedKey, id);
+  if (!user) { res.json({ exists: false }); return; }
+  res.json({
+    exists: true,
+    userId: user.id,
+    phone: user.phone ?? null,
+    email: user.email ?? null,
+    firstName: user.firstName ?? null,
+    lastName: user.lastName ?? null,
+    isActive: user.isActive,
+  });
 });
 
 export default router;

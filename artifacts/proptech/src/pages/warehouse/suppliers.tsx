@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Plus, Search, Star, Trash2, FileText, UserPlus } from "lucide-react";
+import { Pencil, Plus, Search, Star, Trash2, UserPlus, Eye, CheckCircle2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
 	AlertDialog,
@@ -40,6 +40,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { ContractFileUpload } from "@/components/contract-file-upload";
+import { PortalPreviewDialog } from "@/components/portal-preview-dialog";
 import {
 	AdminReconciliationAct,
 	reconciliationFmtMoney,
@@ -92,6 +93,19 @@ function SupplierDialog({ open, onClose, supplier }: SupplierDialogProps) {
 		lastName: "",
 	});
 	const [portalLoading, setPortalLoading] = useState(false);
+	const [previewOpen, setPreviewOpen] = useState(false);
+
+	const { data: portalStatus } = useQuery<{
+		exists: boolean;
+		phone?: string | null;
+		firstName?: string | null;
+		lastName?: string | null;
+	}>({
+		queryKey: ["portal-account-status", "supplier", supplier?.id],
+		queryFn: () =>
+			api.get(`/portal/account-status/supplier/${supplier!.id}`).then((r) => r.data),
+		enabled: !!supplier?.id && open,
+	});
 
 	const [formData, setFormData] = useState({
 		name: supplier?.name || "",
@@ -141,10 +155,10 @@ function SupplierDialog({ open, onClose, supplier }: SupplierDialogProps) {
 		});
 		const parts = (supplier?.name || "").trim().split(/\s+/);
 		setPortalForm({
+			phone: supplier?.phone || "",
 			email: supplier?.email || "",
 			firstName: parts[0] || "",
 			lastName: parts.slice(1).join(" ") || "",
-			password: "",
 		});
 	}, [open, supplier]);
 
@@ -152,21 +166,26 @@ function SupplierDialog({ open, onClose, supplier }: SupplierDialogProps) {
 
 	const createPortalAccount = async () => {
 		if (!supplier?.id) return;
-		if (!portalForm.phone || !portalForm.firstName || !portalForm.lastName) {
-			toast({ title: "Заполните телефон, имя и фамилию", variant: "destructive" });
+		if (!formData.phone || !portalForm.firstName || !portalForm.lastName) {
+			toast({
+				title: "Укажите телефон (в контактах), имя и фамилию",
+				variant: "destructive",
+			});
 			return;
 		}
 		setPortalLoading(true);
 		try {
 			await api.post("/portal/create-supplier-account", {
 				supplierId: supplier.id,
-				phone: portalForm.phone,
+				phone: formData.phone,
 				email: portalForm.email || undefined,
 				firstName: portalForm.firstName,
 				lastName: portalForm.lastName,
 			});
 			toast({ title: "Доступ создан. Вход — по телефону и SMS-коду." });
-			setPortalForm({ phone: "", email: "", firstName: "", lastName: "" });
+			void queryClient.invalidateQueries({
+				queryKey: ["portal-account-status", "supplier", supplier.id],
+			});
 		} catch (e: unknown) {
 			toast({
 				title: getApiErrorMessage(e, "Ошибка создания аккаунта"),
@@ -470,62 +489,86 @@ function SupplierDialog({ open, onClose, supplier }: SupplierDialogProps) {
 
 					{supplier?.id && (
 						<div className="border-t pt-4 space-y-3">
-							<p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-								Доступ в портал поставщика
-							</p>
-							<div className="grid grid-cols-2 gap-3">
-								<div className="col-span-2">
-									<Label>Телефон *</Label>
-									<Input
-										type="tel"
-										placeholder="+996 700 123 456"
-										value={portalForm.phone}
-										onChange={(e) =>
-											setPortalForm((p) => ({ ...p, phone: e.target.value }))
-										}
-									/>
-									<p className="text-[10px] text-gray-400 mt-1">Поставщик войдёт по номеру и SMS-коду</p>
-								</div>
-								<div>
-									<Label>Имя *</Label>
-									<Input
-										value={portalForm.firstName}
-										onChange={(e) =>
-											setPortalForm((p) => ({ ...p, firstName: e.target.value }))
-										}
-									/>
-								</div>
-								<div>
-									<Label>Фамилия *</Label>
-									<Input
-										value={portalForm.lastName}
-										onChange={(e) =>
-											setPortalForm((p) => ({ ...p, lastName: e.target.value }))
-										}
-									/>
-								</div>
-								<div className="col-span-2">
-									<Label>Email (необязательно)</Label>
-									<Input
-										type="email"
-										value={portalForm.email}
-										onChange={(e) =>
-											setPortalForm((p) => ({ ...p, email: e.target.value }))
-										}
-									/>
-								</div>
+							<div className="flex items-center justify-between gap-2 flex-wrap">
+								<p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+									Доступ в портал поставщика
+								</p>
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									className="gap-1.5"
+									onClick={() => setPreviewOpen(true)}
+								>
+									<Eye className="w-4 h-4" /> Предпросмотр портала
+								</Button>
 							</div>
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								className="gap-1.5"
-								onClick={() => void createPortalAccount()}
-								disabled={portalLoading}
-							>
-								<UserPlus className="w-4 h-4" />
-								{portalLoading ? "..." : "Создать доступ в портал"}
-							</Button>
+
+							{portalStatus?.exists ? (
+								<div className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5">
+									<CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+									<div className="text-sm">
+										<p className="font-medium text-emerald-800">Доступ создан</p>
+										<p className="text-xs text-emerald-700">
+											Вход по телефону {portalStatus.phone || formData.phone || "—"} и SMS-коду
+										</p>
+									</div>
+								</div>
+							) : (
+								<>
+									<p className="text-[11px] text-gray-400">
+										Войдёт по телефону из контактов выше ({formData.phone || "укажите телефон"}) и SMS-коду
+									</p>
+									<div className="grid grid-cols-2 gap-3">
+										<div>
+											<Label>Имя *</Label>
+											<Input
+												value={portalForm.firstName}
+												onChange={(e) =>
+													setPortalForm((p) => ({ ...p, firstName: e.target.value }))
+												}
+											/>
+										</div>
+										<div>
+											<Label>Фамилия *</Label>
+											<Input
+												value={portalForm.lastName}
+												onChange={(e) =>
+													setPortalForm((p) => ({ ...p, lastName: e.target.value }))
+												}
+											/>
+										</div>
+										<div className="col-span-2">
+											<Label>Email (необязательно)</Label>
+											<Input
+												type="email"
+												value={portalForm.email}
+												onChange={(e) =>
+													setPortalForm((p) => ({ ...p, email: e.target.value }))
+												}
+											/>
+										</div>
+									</div>
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										className="gap-1.5"
+										onClick={() => void createPortalAccount()}
+										disabled={portalLoading}
+									>
+										<UserPlus className="w-4 h-4" />
+										{portalLoading ? "..." : "Создать доступ в портал"}
+									</Button>
+								</>
+							)}
+
+							<PortalPreviewDialog
+								type="supplier"
+								id={supplier.id}
+								open={previewOpen}
+								onClose={() => setPreviewOpen(false)}
+							/>
 						</div>
 					)}
 

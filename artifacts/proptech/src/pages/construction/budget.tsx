@@ -35,6 +35,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { getApiBase } from "@/lib/api-base";
+import { unwrapList } from "@/lib/unwrap-list";
 
 const BASE = getApiBase();
 const ah = () => {
@@ -152,8 +153,8 @@ function BudgetDialog({
 		setLoading(true);
 		try {
 			const url = isEdit
-				? `${BASE}/construction/projects/${form.projectId}/budget/${init?.id}`
-				: `${BASE}/construction/projects/${form.projectId}/budget`;
+				? `${BASE}/construction/budget/${init?.id}`
+				: `${BASE}/construction/budget`;
 			await fetch(url, {
 				method: isEdit ? "PATCH" : "POST",
 				headers: ah(),
@@ -360,21 +361,14 @@ export default function ConstructionBudget() {
 	});
 	const { data: items = [], isLoading } = useQuery<BudgetItem[]>({
 		queryKey: ["construction-budget", projectFilter],
-		queryFn: async () => {
-			if (projectFilter === "all") {
-				const allItems: BudgetItem[] = [];
-				for (const project of projects) {
-					const result = await api
-						.get(`/construction/projects/${project.id}/budget`)
-						.then((r) => r.data);
-					allItems.push(...result);
-				}
-				return allItems;
-			}
-			return api
-				.get(`/construction/projects/${projectFilter}/budget`)
-				.then((r) => r.data);
-		},
+		queryFn: () =>
+			api
+				.get(
+					projectFilter === "all"
+						? "/construction/budget"
+						: `/construction/budget?projectId=${projectFilter}`,
+				)
+				.then((r) => unwrapList<BudgetItem>(r.data)),
 	});
 
 	const totalPlanned = items.reduce(
@@ -387,9 +381,9 @@ export default function ConstructionBudget() {
 	);
 	const diff = totalPlanned - totalActual;
 
-	const handleDelete = async (id: number, projectId: number) => {
+	const handleDelete = async (id: number) => {
 		if (!confirm("Удалить статью?")) return;
-		await fetch(`${BASE}/construction/projects/${projectId}/budget/${id}`, {
+		await fetch(`${BASE}/construction/budget/${id}`, {
 			method: "DELETE",
 			headers: ah(),
 		});
@@ -583,7 +577,7 @@ export default function ConstructionBudget() {
 																variant="ghost"
 																className="h-7 w-7 p-0"
 																onClick={() =>
-																	handleDelete(item.id, item.projectId)
+																	handleDelete(item.id)
 																}
 															>
 																<Trash2 className="w-3.5 h-3.5 text-gray-400 hover:text-rose-600" />

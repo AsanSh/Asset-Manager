@@ -16,6 +16,7 @@ import {
   summarizeContractDocument,
 } from "../lib/contract-document";
 import { buildBuyerReconciliation } from "../lib/portal-reconciliation";
+import { checkIdempotencyKey, saveIdempotencyResult } from "../lib/idempotency";
 import {
   buildPaymentSchedule,
   scheduleTotal,
@@ -435,8 +436,9 @@ async function insertAccrualsFromSchedule(
   companyId: number,
   contract: { id: number; projectId: number; currency: string | null },
   schedule: ScheduleRow[],
+  txOrDb: any = db,
 ) {
-  await db.delete(constructionAccrualsTable).where(
+  await txOrDb.delete(constructionAccrualsTable).where(
     and(
       eq(constructionAccrualsTable.contractId, contract.id),
       eq(constructionAccrualsTable.companyId, companyId),
@@ -459,7 +461,7 @@ async function insertAccrualsFromSchedule(
     notes: row.label || null,
   }));
 
-  return db.insert(constructionAccrualsTable).values(values).returning();
+  return txOrDb.insert(constructionAccrualsTable).values(values).returning();
 }
 
 router.post("/contracts-sales", async (req: AuthenticatedRequest, res): Promise<void> => {
@@ -631,40 +633,55 @@ router.post("/contracts-sales/from-unit", async (req: AuthenticatedRequest, res)
     }
   }
 
-  const [contract] = await db.insert(constructionSalesContractsTable)
-    .values({
-      companyId,
-      projectId,
-      unitId,
-      buyerId,
-      buyerName,
-      buyerPhone: body.buyerPhone || null,
-      totalAmount: String(totalAmount),
-      downPayment: String(downPayment),
-      remainingAmount,
-      paidAmount: "0",
-      installmentMonths: installmentMonths || schedule.filter((s) => s.installmentNumber > 0).length,
-      currency: body.currency || unit.currency || "KGS",
-      exchangeRate: body.exchangeRate ? String(body.exchangeRate) : "1",
-      contractDate,
-      status: "review",
-      notes: body.notes || null,
-      contractNumber,
-    })
-    .returning();
+  // Транзакция: договор + статус юнита + график начислений в одной операции.
+  // Если упадёт на любом шаге — всё откатывается, частичных продаж не возникает.
+  // Partial unique index в БД (миграция 0013) защищает от гонки двух параллельных продаж одной квартиры.
+  try {
+    const { contract, accruals } = await db.transaction(async (tx) => {
+      const [contractInserted] = await tx.insert(constructionSalesContractsTable)
+        .values({
+          companyId,
+          projectId,
+          unitId,
+          buyerId,
+          buyerName,
+          buyerPhone: body.buyerPhone || null,
+          totalAmount: String(totalAmount),
+          downPayment: String(downPayment),
+          remainingAmount,
+          paidAmount: "0",
+          installmentMonths: installmentMonths || schedule.filter((s) => s.installmentNumber > 0).length,
+          currency: body.currency || unit.currency || "KGS",
+          exchangeRate: body.exchangeRate ? String(body.exchangeRate) : "1",
+          contractDate,
+          status: "review",
+          notes: body.notes || null,
+          contractNumber,
+        })
+        .returning();
 
-  await db.update(constructionUnitsTable)
-    .set({
-      status: unitStatus,
-      totalPrice: String(totalAmount),
-      buyerId: buyerId || body.buyerId || null,
-      contractDate,
-    })
-    .where(and(eq(constructionUnitsTable.id, unitId), eq(constructionUnitsTable.companyId, companyId)));
+      await tx.update(constructionUnitsTable)
+        .set({
+          status: unitStatus,
+          totalPrice: String(totalAmount),
+          buyerId: buyerId || body.buyerId || null,
+          contractDate,
+        })
+        .where(and(eq(constructionUnitsTable.id, unitId), eq(constructionUnitsTable.companyId, companyId)));
 
-  const accruals = await insertAccrualsFromSchedule(companyId, contract, schedule);
+      const accrualsInserted = await insertAccrualsFromSchedule(companyId, contractInserted, schedule, tx);
+      return { contract: contractInserted, accruals: accrualsInserted };
+    });
 
-  res.status(201).json({ contract, accruals, schedule });
+    res.status(201).json({ contract, accruals, schedule });
+  } catch (e: any) {
+    // Partial unique index срабатывает → понятная ошибка
+    if (e?.code === "23505" && e?.constraint_name === "one_active_sales_contract_per_unit") {
+      res.status(409).json({ error: "По этой квартире уже есть активный договор (защита БД)" });
+      return;
+    }
+    res.status(500).json({ error: e?.message || "Ошибка оформления продажи" });
+  }
 });
 
 router.patch("/contracts-sales/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
@@ -965,6 +982,15 @@ router.post("/cashier/payment", async (req: AuthenticatedRequest, res): Promise<
     projectId,
   } = req.body;
 
+  // Idempotency: защита от двойного клика
+  const idemKey = (req.headers["idempotency-key"] || req.headers["x-idempotency-key"]) as string | undefined;
+  if (idemKey) {
+    const cached = await checkIdempotencyKey(idemKey, companyId, "/cashier/payment");
+    if (cached) {
+      try { res.status(cached.status).json(JSON.parse(cached.body)); return; } catch { /* fallthrough */ }
+    }
+  }
+
   try {
     const result = await applyContractPayment({
       companyId,
@@ -980,11 +1006,15 @@ router.post("/cashier/payment", async (req: AuthenticatedRequest, res): Promise<
       notes,
       source: "cashier",
     });
-    res.json({
+    const payload = {
       ok: true,
       operation: result.operation,
       allocations: result.allocations,
-    });
+    };
+    if (idemKey) {
+      await saveIdempotencyResult(idemKey, companyId, req.userId ?? null, "/cashier/payment", 200, payload);
+    }
+    res.json(payload);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Ошибка проведения платежа";
     res.status(400).json({ error: message });

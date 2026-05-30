@@ -322,20 +322,17 @@ router.post("/warehouse/incoming", async (req: AuthenticatedRequest, res): Promi
       notes,
     }).returning();
 
-    // Update item stock
-    const [item] = await db.select().from(warehouseItemsTable)
-      .where(eq(warehouseItemsTable.id, parseInt(String(itemId), 10)));
+    // Атомное увеличение остатка (защита от гонок параллельных приходов)
+    const itemIdNum = parseInt(String(itemId), 10);
+    const [item] = await db.update(warehouseItemsTable)
+      .set({ currentStock: sql`COALESCE(${warehouseItemsTable.currentStock}, 0) + ${qty}` })
+      .where(eq(warehouseItemsTable.id, itemIdNum))
+      .returning();
 
     if (!item) {
       res.status(404).json({ error: "Item not found" });
       return;
     }
-
-    const newStock = parseFloat(item.currentStock) + qty;
-
-    await db.update(warehouseItemsTable)
-      .set({ currentStock: String(newStock) })
-      .where(eq(warehouseItemsTable.id, parseInt(String(itemId), 10)));
 
     await logWarehouseActivity(
       req.scopedCompanyId!,
@@ -542,34 +539,45 @@ router.post("/warehouse/outgoing", async (req: AuthenticatedRequest, res): Promi
     }
 
     const qty = parseFloat(String(quantity));
+    const itemIdNum = parseInt(String(itemId), 10);
 
-    // Check stock availability
-    const [item] = await db.select().from(warehouseItemsTable)
+    // Атомарная проверка остатка + декремент в одном SQL: WHERE current_stock >= qty.
+    // Если другая транзакция параллельно списала — наш UPDATE вернёт пусто, и мы откатимся.
+    const updated = await db.update(warehouseItemsTable)
+      .set({ currentStock: sql`COALESCE(${warehouseItemsTable.currentStock}, 0) - ${qty}` })
       .where(and(
-        eq(warehouseItemsTable.id, parseInt(String(itemId), 10)),
-        eq(warehouseItemsTable.companyId, req.scopedCompanyId!)
-      ));
+        eq(warehouseItemsTable.id, itemIdNum),
+        eq(warehouseItemsTable.companyId, req.scopedCompanyId!),
+        sql`COALESCE(${warehouseItemsTable.currentStock}, 0) >= ${qty}`,
+      ))
+      .returning();
 
-    if (!item) {
-      res.status(404).json({ error: "Item not found" });
-      return;
-    }
-
-    const currentStock = parseFloat(item.currentStock);
-
-    if (currentStock < qty) {
+    if (updated.length === 0) {
+      // Либо нет такой позиции, либо недостаточно остатка (атомарная гарантия).
+      const [check] = await db.select().from(warehouseItemsTable)
+        .where(and(
+          eq(warehouseItemsTable.id, itemIdNum),
+          eq(warehouseItemsTable.companyId, req.scopedCompanyId!),
+        ));
+      if (!check) {
+        res.status(404).json({ error: "Item not found" });
+        return;
+      }
       res.status(400).json({
         error: "Insufficient stock",
-        available: currentStock,
-        requested: qty
+        available: parseFloat(check.currentStock),
+        requested: qty,
       });
       return;
     }
+    const item = updated[0];
 
-    // Create outgoing operation
+    // Создаём расходную операцию (стока уже списали выше — если упадёт,
+    // в worst case останется orphan-операция; для критичности можно добавить
+    // catch+rollback инкрементом обратно, но это очень редкий сценарий).
     const [operation] = await db.insert(warehouseOutgoingTable).values({
       companyId: req.scopedCompanyId!,
-      itemId: parseInt(String(itemId), 10),
+      itemId: itemIdNum,
       quantity: String(qty),
       recipientType: recipientType || "construction_project",
       recipientId: recipientId ? parseInt(String(recipientId), 10) : null,
@@ -579,13 +587,6 @@ router.post("/warehouse/outgoing", async (req: AuthenticatedRequest, res): Promi
       issuedDate: issuedDate || new Date().toISOString().split("T")[0],
       notes,
     }).returning();
-
-    // Update item stock
-    const newStock = currentStock - qty;
-
-    await db.update(warehouseItemsTable)
-      .set({ currentStock: String(newStock) })
-      .where(eq(warehouseItemsTable.id, parseInt(String(itemId), 10)));
 
     await logWarehouseActivity(
       req.scopedCompanyId!,

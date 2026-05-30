@@ -1,7 +1,9 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	Briefcase,
+	CheckCircle2,
 	Edit2,
+	Eye,
 	FileText,
 	Plus,
 	Star,
@@ -37,6 +39,7 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { ContractFileUpload } from "@/components/contract-file-upload";
+import { PortalPreviewDialog } from "@/components/portal-preview-dialog";
 import {
 	AdminReconciliationAct,
 	reconciliationFmtMoney,
@@ -182,7 +185,21 @@ function ContractorDialog({
 		lastName: "",
 	});
 	const [portalLoading, setPortalLoading] = useState(false);
+	const [previewOpen, setPreviewOpen] = useState(false);
+	const qc = useQueryClient();
 	const set = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
+
+	const { data: portalStatus } = useQuery<{
+		exists: boolean;
+		phone?: string | null;
+		firstName?: string | null;
+		lastName?: string | null;
+	}>({
+		queryKey: ["portal-account-status", "contractor", init?.id],
+		queryFn: () =>
+			api.get(`/portal/account-status/contractor/${init!.id}`).then((r) => r.data),
+		enabled: !!init?.id,
+	});
 
 	const { data: reconciliationData } = useQuery<{
 		reconciliation: {
@@ -204,7 +221,7 @@ function ContractorDialog({
 	useEffect(() => {
 		if (!contractor || contractor === "new") {
 			setForm(emptyForm());
-			setPortalForm({ email: "", firstName: "", lastName: "", password: "" });
+			setPortalForm({ phone: "", email: "", firstName: "", lastName: "" });
 			setNewSpec("");
 			return;
 		}
@@ -212,10 +229,10 @@ function ContractorDialog({
 		setForm(formFromContractor(c));
 		const nameParts = (c.fullName || "").trim().split(/\s+/);
 		setPortalForm({
+			phone: c.phone || "",
 			email: c.email || "",
 			firstName: nameParts[0] || "",
 			lastName: nameParts.slice(1).join(" ") || "",
-			password: "",
 		});
 		setNewSpec("");
 	}, [contractor]);
@@ -227,21 +244,26 @@ function ContractorDialog({
 
 	const createPortalAccount = async () => {
 		if (!isEdit || !init?.id) return;
-		if (!portalForm.phone || !portalForm.firstName || !portalForm.lastName) {
-			toast({ title: "Заполните телефон, имя и фамилию", variant: "destructive" });
+		if (!form.phone || !portalForm.firstName || !portalForm.lastName) {
+			toast({
+				title: "Укажите телефон (в контактах), имя и фамилию",
+				variant: "destructive",
+			});
 			return;
 		}
 		setPortalLoading(true);
 		try {
 			await api.post("/portal/create-contractor-account", {
 				contractorId: init.id,
-				phone: portalForm.phone,
+				phone: form.phone,
 				email: portalForm.email || undefined,
 				firstName: portalForm.firstName,
 				lastName: portalForm.lastName,
 			});
 			toast({ title: "Доступ создан. Вход — по телефону и SMS-коду." });
-			setPortalForm({ phone: "", email: "", firstName: "", lastName: "" });
+			void qc.invalidateQueries({
+				queryKey: ["portal-account-status", "contractor", init.id],
+			});
 		} catch (e: unknown) {
 			toast({
 				title: getApiErrorMessage(e, "Ошибка создания аккаунта"),
@@ -535,66 +557,91 @@ function ContractorDialog({
 
 					{isEdit && init?.id && (
 						<div className="border-t pt-3 space-y-3">
-							<p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-								Доступ в портал подрядчика
-							</p>
-							<div className="grid grid-cols-2 gap-3">
-								<div className="col-span-2">
-									<Label>Телефон *</Label>
-									<Input
-										className="mt-1"
-										type="tel"
-										placeholder="+996 700 123 456"
-										value={portalForm.phone}
-										onChange={(e) =>
-											setPortalForm((p) => ({ ...p, phone: e.target.value }))
-										}
-									/>
-									<p className="text-[10px] text-gray-400 mt-1">Подрядчик войдёт по номеру и SMS-коду</p>
-								</div>
-								<div>
-									<Label>Имя *</Label>
-									<Input
-										className="mt-1"
-										value={portalForm.firstName}
-										onChange={(e) =>
-											setPortalForm((p) => ({ ...p, firstName: e.target.value }))
-										}
-									/>
-								</div>
-								<div>
-									<Label>Фамилия *</Label>
-									<Input
-										className="mt-1"
-										value={portalForm.lastName}
-										onChange={(e) =>
-											setPortalForm((p) => ({ ...p, lastName: e.target.value }))
-										}
-									/>
-								</div>
-								<div className="col-span-2">
-									<Label>Email (необязательно)</Label>
-									<Input
-										className="mt-1"
-										type="email"
-										value={portalForm.email}
-										onChange={(e) =>
-											setPortalForm((p) => ({ ...p, email: e.target.value }))
-										}
-									/>
-								</div>
+							<div className="flex items-center justify-between gap-2 flex-wrap">
+								<p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+									Доступ в портал подрядчика
+								</p>
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									className="gap-1.5"
+									onClick={() => setPreviewOpen(true)}
+								>
+									<Eye className="w-4 h-4" /> Предпросмотр портала
+								</Button>
 							</div>
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								className="gap-1.5"
-								onClick={() => void createPortalAccount()}
-								disabled={portalLoading}
-							>
-								<UserPlus className="w-4 h-4" />
-								{portalLoading ? "..." : "Создать доступ в портал"}
-							</Button>
+
+							{portalStatus?.exists ? (
+								<div className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5">
+									<CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+									<div className="text-sm">
+										<p className="font-medium text-emerald-800">
+											Доступ создан
+										</p>
+										<p className="text-xs text-emerald-700">
+											Вход по телефону {portalStatus.phone || form.phone || "—"} и SMS-коду
+										</p>
+									</div>
+								</div>
+							) : (
+								<>
+									<p className="text-[11px] text-gray-400">
+										Войдёт по телефону из контактов выше ({form.phone || "укажите телефон"}) и SMS-коду
+									</p>
+									<div className="grid grid-cols-2 gap-3">
+										<div>
+											<Label>Имя *</Label>
+											<Input
+												className="mt-1"
+												value={portalForm.firstName}
+												onChange={(e) =>
+													setPortalForm((p) => ({ ...p, firstName: e.target.value }))
+												}
+											/>
+										</div>
+										<div>
+											<Label>Фамилия *</Label>
+											<Input
+												className="mt-1"
+												value={portalForm.lastName}
+												onChange={(e) =>
+													setPortalForm((p) => ({ ...p, lastName: e.target.value }))
+												}
+											/>
+										</div>
+										<div className="col-span-2">
+											<Label>Email (необязательно)</Label>
+											<Input
+												className="mt-1"
+												type="email"
+												value={portalForm.email}
+												onChange={(e) =>
+													setPortalForm((p) => ({ ...p, email: e.target.value }))
+												}
+											/>
+										</div>
+									</div>
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										className="gap-1.5"
+										onClick={() => void createPortalAccount()}
+										disabled={portalLoading}
+									>
+										<UserPlus className="w-4 h-4" />
+										{portalLoading ? "..." : "Создать доступ в портал"}
+									</Button>
+								</>
+							)}
+
+							<PortalPreviewDialog
+								type="contractor"
+								id={init.id}
+								open={previewOpen}
+								onClose={() => setPreviewOpen(false)}
+							/>
 						</div>
 					)}
 
