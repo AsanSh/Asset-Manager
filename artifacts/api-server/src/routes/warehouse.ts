@@ -9,6 +9,7 @@ import {
   warehouseInventoryTable,
   warehouseSupplierPaymentsTable,
   activityLogTable,
+  constructionProjectsTable,
 } from "../lib/db";
 import { requireAuth, requireRole, AuthenticatedRequest } from "../middleware/auth";
 import { requireTenantCompany } from "../middleware/tenant";
@@ -19,6 +20,7 @@ import {
 } from "../lib/contract-document";
 import { buildSupplierReconciliation } from "../lib/portal-reconciliation";
 import { ensureCounterpartyWithRole } from "../lib/counterparty-sync";
+import { createConstructionExpenseFromOutgoing } from "../lib/warehouse-construction-expense";
 
 function mapSupplierResponse(row: typeof warehouseSuppliersTable.$inferSelect) {
   const { contractDocumentMeta, ...rest } = row;
@@ -540,66 +542,111 @@ router.post("/warehouse/outgoing", async (req: AuthenticatedRequest, res): Promi
 
     const qty = parseFloat(String(quantity));
     const itemIdNum = parseInt(String(itemId), 10);
+    const companyId = req.scopedCompanyId!;
+    const payDate = issuedDate || new Date().toISOString().split("T")[0];
+    const rType = recipientType || "construction_project";
+    const rId = recipientId ? parseInt(String(recipientId), 10) : null;
 
-    // Атомарная проверка остатка + декремент в одном SQL: WHERE current_stock >= qty.
-    // Если другая транзакция параллельно списала — наш UPDATE вернёт пусто, и мы откатимся.
-    const updated = await db.update(warehouseItemsTable)
-      .set({ currentStock: sql`COALESCE(${warehouseItemsTable.currentStock}, 0) - ${qty}` })
-      .where(and(
-        eq(warehouseItemsTable.id, itemIdNum),
-        eq(warehouseItemsTable.companyId, req.scopedCompanyId!),
-        sql`COALESCE(${warehouseItemsTable.currentStock}, 0) >= ${qty}`,
-      ))
-      .returning();
-
-    if (updated.length === 0) {
-      // Либо нет такой позиции, либо недостаточно остатка (атомарная гарантия).
-      const [check] = await db.select().from(warehouseItemsTable)
+    const { operation, constructionExpenseId, itemName } = await db.transaction(async (tx) => {
+      const updated = await tx.update(warehouseItemsTable)
+        .set({ currentStock: sql`COALESCE(${warehouseItemsTable.currentStock}, 0) - ${qty}` })
         .where(and(
           eq(warehouseItemsTable.id, itemIdNum),
-          eq(warehouseItemsTable.companyId, req.scopedCompanyId!),
-        ));
-      if (!check) {
-        res.status(404).json({ error: "Item not found" });
-        return;
-      }
-      res.status(400).json({
-        error: "Insufficient stock",
-        available: parseFloat(check.currentStock),
-        requested: qty,
-      });
-      return;
-    }
-    const item = updated[0];
+          eq(warehouseItemsTable.companyId, companyId),
+          sql`COALESCE(${warehouseItemsTable.currentStock}, 0) >= ${qty}`,
+        ))
+        .returning();
 
-    // Создаём расходную операцию (стока уже списали выше — если упадёт,
-    // в worst case останется orphan-операция; для критичности можно добавить
-    // catch+rollback инкрементом обратно, но это очень редкий сценарий).
-    const [operation] = await db.insert(warehouseOutgoingTable).values({
-      companyId: req.scopedCompanyId!,
-      itemId: itemIdNum,
-      quantity: String(qty),
-      recipientType: recipientType || "construction_project",
-      recipientId: recipientId ? parseInt(String(recipientId), 10) : null,
-      purpose,
-      documentNumber,
-      issuedBy,
-      issuedDate: issuedDate || new Date().toISOString().split("T")[0],
-      notes,
-    }).returning();
+      if (updated.length === 0) {
+        const [check] = await tx.select().from(warehouseItemsTable)
+          .where(and(
+            eq(warehouseItemsTable.id, itemIdNum),
+            eq(warehouseItemsTable.companyId, companyId),
+          ));
+        if (!check) {
+          throw Object.assign(new Error("Item not found"), { status: 404 });
+        }
+        throw Object.assign(new Error("Insufficient stock"), {
+          status: 400,
+          available: parseFloat(check.currentStock?.toString() || "0"),
+          requested: qty,
+        });
+      }
+      const item = updated[0];
+
+      const [operationRow] = await tx.insert(warehouseOutgoingTable).values({
+        companyId,
+        itemId: itemIdNum,
+        quantity: String(qty),
+        recipientType: rType,
+        recipientId: rId,
+        purpose,
+        documentNumber,
+        issuedBy,
+        issuedDate: payDate,
+        notes,
+      }).returning();
+
+      let expenseId: number | null = null;
+      if (rType === "construction_project" && rId) {
+        const [project] = await tx
+          .select({ id: constructionProjectsTable.id })
+          .from(constructionProjectsTable)
+          .where(and(
+            eq(constructionProjectsTable.id, rId),
+            eq(constructionProjectsTable.companyId, companyId),
+          ));
+        if (project) {
+          expenseId = await createConstructionExpenseFromOutgoing(tx, {
+            companyId,
+            projectId: rId,
+            itemName: item.name,
+            quantity: qty,
+            unit: item.unit || "шт",
+            unitPrice: parseFloat(item.unitPrice?.toString() || "0"),
+            currency: item.currency || "KGS",
+            issuedDate: payDate,
+            outgoingId: operationRow.id,
+            purpose,
+          });
+          await tx
+            .update(warehouseOutgoingTable)
+            .set({ constructionExpenseId: expenseId })
+            .where(eq(warehouseOutgoingTable.id, operationRow.id));
+        }
+      }
+
+      return {
+        operation: { ...operationRow, constructionExpenseId: expenseId },
+        constructionExpenseId: expenseId,
+        itemName: item.name,
+      };
+    });
 
     await logWarehouseActivity(
-      req.scopedCompanyId!,
+      companyId,
       req.userId,
       "warehouse_outgoing",
       operation.id,
       "create",
-      `Списание: ${item.name}, количество: ${qty} ${item.unit}`,
-      operation
+      `Списание: ${itemName}, количество: ${qty}${constructionExpenseId ? ` → расход #${constructionExpenseId}` : ""}`,
+      operation,
     );
 
     res.status(201).json(operation);
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.status === 404) {
+      res.status(404).json({ error: "Item not found" });
+      return;
+    }
+    if (error?.status === 400) {
+      res.status(400).json({
+        error: error.message || "Insufficient stock",
+        available: error.available,
+        requested: error.requested,
+      });
+      return;
+    }
     console.error("Error creating outgoing operation:", error);
     res.status(500).json({ error: "Internal server error" });
   }

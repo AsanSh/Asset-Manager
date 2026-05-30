@@ -18,6 +18,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SystemSettingsBar } from "@/components/system-settings-nav";
 
 interface ActivityLog {
 	id: number;
@@ -102,6 +103,7 @@ export default function ActivityLogPage() {
 
 	return (
 		<div className="space-y-5">
+			<SystemSettingsBar />
 			<div className="flex items-start justify-between">
 				<div>
 					<h1 className="text-2xl font-bold text-gray-900">Лог активности</h1>

@@ -32,6 +32,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { SystemSettingsBar } from "@/components/system-settings-nav";
 import { api } from "@/lib/api";
 
 interface Category {
@@ -356,21 +357,23 @@ export default function SettingsCategories() {
 	// Build tree
 	const roots = filtered.filter((c) => !c.parentId);
 	const childrenOf = (parentId: number) =>
-		filtered.filter((c) => c.parentId === parentId);
+		filtered.filter((c) => Number(c.parentId) === Number(parentId));
 
 	const incomeRoots = roots.filter((c) => c.type === "income");
 	const expenseRoots = roots.filter((c) => c.type === "expense");
 
 	return (
-		<div className="p-6 max-w-5xl mx-auto">
+		<div className="p-6 max-w-5xl mx-auto space-y-6">
+			<SystemSettingsBar />
 			{/* Header */}
-			<div className="flex items-center justify-between mb-6">
+			<div className="flex items-center justify-between">
 				<div>
 					<h1 className="text-xl font-bold text-gray-900">
 						Статьи доходов и расходов
 					</h1>
 					<p className="text-sm text-gray-500 mt-0.5">
-						Категории используются в ОПУ и ОДДС для группировки операций
+						Справочник синхронизируется со статьями из ОПУ, операций и расходов.
+						При первом открытии подтягиваются стандартные статьи модулей.
 					</p>
 				</div>
 				<div className="flex gap-2">

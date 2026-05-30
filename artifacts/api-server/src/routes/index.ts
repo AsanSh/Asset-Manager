@@ -30,6 +30,7 @@ import rolesRouter from "./roles";
 import warehouseRouter from "./warehouse";
 import crmRouter from "./crm";
 import platformAdminRouter from "./platform-admin";
+import marketplaceRouter from "./marketplace";
 import contractDocxRouter from "./contract-docx";
 
 const router: IRouter = Router();
@@ -65,6 +66,7 @@ router.use(rolesRouter);
 router.use(warehouseRouter);
 router.use(crmRouter);
 router.use(platformAdminRouter);
+router.use(marketplaceRouter);
 router.use(aiRouter);
 
 // NBKR exchange rates proxy

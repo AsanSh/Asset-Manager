@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { and, count, desc, eq, ne, sql } from "drizzle-orm";
-import { db, companiesTable, usersTable } from "../lib/db";
+import { db, companiesTable, usersTable, marketplaceProductsTable, marketplaceOrdersTable } from "../lib/db";
 import {
   requireAuth,
   requireSuperAdmin,
@@ -307,6 +307,142 @@ router.post(
       }
       res.status(500).json({ error: "Не удалось создать ссылку для сброса" });
     }
+  },
+);
+
+// ── Маркетплейс материалов (каталог платформы) ───────────────────────────────
+
+router.get(
+  "/platform-admin/marketplace/products",
+  requireAuth,
+  requireSuperAdmin,
+  async (_req: AuthenticatedRequest, res): Promise<void> => {
+    const products = await db
+      .select()
+      .from(marketplaceProductsTable)
+      .orderBy(marketplaceProductsTable.sortOrder, marketplaceProductsTable.name);
+    res.json(products);
+  },
+);
+
+router.post(
+  "/platform-admin/marketplace/products",
+  requireAuth,
+  requireSuperAdmin,
+  async (req: AuthenticatedRequest, res): Promise<void> => {
+    const body = req.body;
+    if (!body.name?.trim()) {
+      res.status(400).json({ error: "Укажите название" });
+      return;
+    }
+    const [row] = await db
+      .insert(marketplaceProductsTable)
+      .values({
+        name: String(body.name).trim(),
+        category: body.category || "materials",
+        unit: body.unit || "шт",
+        unitPrice: String(body.unitPrice ?? "0"),
+        currency: body.currency || "KGS",
+        description: body.description || null,
+        imageUrl: body.imageUrl || null,
+        minOrderQty: body.minOrderQty != null ? String(body.minOrderQty) : "1",
+        stockAvailable: body.stockAvailable != null ? String(body.stockAvailable) : null,
+        isActive: body.isActive !== false,
+        sortOrder: body.sortOrder != null ? parseInt(String(body.sortOrder), 10) : 0,
+      })
+      .returning();
+    res.status(201).json(row);
+  },
+);
+
+router.patch(
+  "/platform-admin/marketplace/products/:id",
+  requireAuth,
+  requireSuperAdmin,
+  async (req: AuthenticatedRequest, res): Promise<void> => {
+    const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
+    const body = req.body;
+    const patch: Record<string, unknown> = { updatedAt: new Date() };
+    if (body.name != null) patch.name = String(body.name).trim();
+    if (body.category != null) patch.category = body.category;
+    if (body.unit != null) patch.unit = body.unit;
+    if (body.unitPrice != null) patch.unitPrice = String(body.unitPrice);
+    if (body.currency != null) patch.currency = body.currency;
+    if (body.description !== undefined) patch.description = body.description;
+    if (body.imageUrl !== undefined) patch.imageUrl = body.imageUrl;
+    if (body.minOrderQty != null) patch.minOrderQty = String(body.minOrderQty);
+    if (body.stockAvailable !== undefined) {
+      patch.stockAvailable = body.stockAvailable != null ? String(body.stockAvailable) : null;
+    }
+    if (body.isActive !== undefined) patch.isActive = !!body.isActive;
+    if (body.sortOrder != null) patch.sortOrder = parseInt(String(body.sortOrder), 10);
+
+    const [row] = await db
+      .update(marketplaceProductsTable)
+      .set(patch)
+      .where(eq(marketplaceProductsTable.id, id))
+      .returning();
+    if (!row) {
+      res.status(404).json({ error: "Товар не найден" });
+      return;
+    }
+    res.json(row);
+  },
+);
+
+router.get(
+  "/platform-admin/marketplace/orders",
+  requireAuth,
+  requireSuperAdmin,
+  async (_req: AuthenticatedRequest, res): Promise<void> => {
+    const orders = await db
+      .select({
+        id: marketplaceOrdersTable.id,
+        companyId: marketplaceOrdersTable.companyId,
+        companyName: companiesTable.name,
+        productId: marketplaceOrdersTable.productId,
+        productName: marketplaceProductsTable.name,
+        quantity: marketplaceOrdersTable.quantity,
+        totalAmount: marketplaceOrdersTable.totalAmount,
+        currency: marketplaceOrdersTable.currency,
+        projectId: marketplaceOrdersTable.projectId,
+        status: marketplaceOrdersTable.status,
+        notes: marketplaceOrdersTable.notes,
+        createdAt: marketplaceOrdersTable.createdAt,
+      })
+      .from(marketplaceOrdersTable)
+      .leftJoin(companiesTable, eq(marketplaceOrdersTable.companyId, companiesTable.id))
+      .leftJoin(
+        marketplaceProductsTable,
+        eq(marketplaceOrdersTable.productId, marketplaceProductsTable.id),
+      )
+      .orderBy(desc(marketplaceOrdersTable.createdAt));
+    res.json(orders);
+  },
+);
+
+router.patch(
+  "/platform-admin/marketplace/orders/:id",
+  requireAuth,
+  requireSuperAdmin,
+  async (req: AuthenticatedRequest, res): Promise<void> => {
+    const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
+    const { status } = req.body;
+    const allowed = ["pending", "confirmed", "shipped", "fulfilled", "cancelled"];
+    if (!status || !allowed.includes(status)) {
+      res.status(400).json({ error: "Недопустимый статус" });
+      return;
+    }
+    const [row] = await db
+      .update(marketplaceOrdersTable)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(marketplaceOrdersTable.id, id))
+      .returning();
+    if (!row) {
+      res.status(404).json({ error: "Заявка не найдена" });
+      return;
+    }
+    res.json(row);
   },
 );
 

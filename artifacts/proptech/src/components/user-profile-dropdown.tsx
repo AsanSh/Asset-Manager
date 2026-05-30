@@ -2,10 +2,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
 	Check,
 	ChevronDown,
+	Coins,
 	Eye,
 	EyeOff,
 	Key,
 	LogOut,
+	Settings,
 	User,
 	X,
 } from "lucide-react";
@@ -14,6 +16,7 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useModuleAccess } from "@/hooks/use-module-access";
 import { api } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-error";
 import { useAuth } from "@/lib/auth";
@@ -40,6 +43,8 @@ type Modal = "profile" | "password" | null;
 
 export default function UserProfileDropdown() {
 	const { user, logout } = useAuth();
+	const { canAccess } = useModuleAccess();
+	const showSystemSettings = canAccess("/settings");
 	const [open, setOpen] = useState(false);
 	const [modal, setModal] = useState<Modal>(null);
 	const [profileForm, setProfileForm] = useState({
@@ -94,6 +99,10 @@ export default function UserProfileDropdown() {
 		setSuccess("");
 		setModal("password");
 		setOpen(false);
+	}
+	function openSystemSettings() {
+		setOpen(false);
+		navigate("/settings");
 	}
 	function closeModal() {
 		setModal(null);
@@ -202,6 +211,27 @@ export default function UserProfileDropdown() {
 
 						{/* Actions */}
 						<div className="py-1">
+							{showSystemSettings && (
+								<>
+									<button
+										onClick={openSystemSettings}
+										className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 text-sm text-gray-700 transition-colors"
+									>
+										<Settings className="w-4 h-4 text-gray-400" />
+										Настройки системы
+									</button>
+									<button
+										onClick={() => {
+											setOpen(false);
+											navigate("/settings/categories");
+										}}
+										className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 text-sm text-gray-700 transition-colors"
+									>
+										<Coins className="w-4 h-4 text-gray-400" />
+										Статьи операций
+									</button>
+								</>
+							)}
 							<button
 								onClick={openProfile}
 								className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 text-sm text-gray-700 transition-colors"

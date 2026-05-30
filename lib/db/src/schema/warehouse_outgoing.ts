@@ -14,6 +14,8 @@ export const warehouseOutgoingTable = pgTable("warehouse_outgoing", {
   issuedBy: text("issued_by"),
   issuedDate: text("issued_date"),
   notes: text("notes"),
+  /** Связанный расход в модуле «Строительство» (Track B) */
+  constructionExpenseId: integer("construction_expense_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

@@ -159,11 +159,13 @@ import WarehouseOrders from "@/pages/warehouse/orders";
 import WarehouseOutgoing from "@/pages/warehouse/outgoing";
 import WarehouseReports from "@/pages/warehouse/reports";
 import WarehouseRequests from "@/pages/warehouse/requests";
+import WarehouseMarketplace from "@/pages/warehouse/marketplace";
 import WarehouseSettings from "@/pages/warehouse/settings";
 import WarehouseSuppliers from "@/pages/warehouse/suppliers";
 import PlatformAdminDashboard from "@/pages/platform-admin/dashboard";
 import PlatformAdminCompanies from "@/pages/platform-admin/companies";
 import PlatformAdminCompanyDetail from "@/pages/platform-admin/company-detail";
+import PlatformAdminMarketplace from "@/pages/platform-admin/marketplace";
 
 const queryClient = new QueryClient();
 
@@ -282,6 +284,9 @@ function Router() {
 			</Route>
 
 			{/* ── Админ-панель платформы (super_admin) ── */}
+			<Route path="/platform-admin/marketplace">
+				<PlatformAdminRoute component={PlatformAdminMarketplace} />
+			</Route>
 			<Route path="/platform-admin/companies/:id">
 				<PlatformAdminRoute component={PlatformAdminCompanyDetail} />
 			</Route>
@@ -590,6 +595,9 @@ function Router() {
 			</Route>
 			<Route path="/warehouse/companies">
 				<ProtectedRoute component={WarehouseCompanies} />
+			</Route>
+			<Route path="/warehouse/marketplace">
+				<ProtectedRoute component={WarehouseMarketplace} />
 			</Route>
 			<Route path="/warehouse/requests">
 				<ProtectedRoute component={WarehouseRequests} />

@@ -31,6 +31,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { SystemSettingsBar } from "@/components/system-settings-nav";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -326,9 +327,10 @@ export default function SettingsPeriods() {
 	const draftCount = periods.filter((p) => p.status === "draft").length;
 
 	return (
-		<div className="p-6 max-w-5xl mx-auto">
+		<div className="p-6 max-w-5xl mx-auto space-y-6">
+			<SystemSettingsBar />
 			{/* Header */}
-			<div className="flex items-center justify-between mb-6">
+			<div className="flex items-center justify-between">
 				<div>
 					<h1 className="text-xl font-bold text-gray-900">Периоды учёта</h1>
 					<p className="text-sm text-gray-500 mt-0.5">

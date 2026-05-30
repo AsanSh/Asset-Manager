@@ -32,6 +32,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+import { SystemSettingsBar } from "@/components/system-settings-nav";
 import { api } from "@/lib/api";
 
 interface LegalEntity {
@@ -347,6 +348,7 @@ export default function LegalEntities() {
 
 	return (
 		<div className="space-y-5">
+			<SystemSettingsBar />
 			<div className="flex justify-between items-start">
 				<div>
 					<h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">

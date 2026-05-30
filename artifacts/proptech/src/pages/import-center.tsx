@@ -26,6 +26,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+import { SystemSettingsBar } from "@/components/system-settings-nav";
 
 type ImportType = "counterparties" | "properties" | "contracts";
 type Step = "upload" | "preview" | "confirm" | "result";
@@ -225,6 +226,7 @@ export default function ImportCenter() {
 
 	return (
 		<div className="space-y-4">
+			<SystemSettingsBar />
 			<div>
 				<h1 className="text-2xl font-bold text-gray-900">Центр импорта</h1>
 				<p className="text-sm text-gray-500 mt-1">

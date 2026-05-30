@@ -24,16 +24,19 @@ function accrualBalance(accrual: {
 }
 
 /** Распределяет платёж по начислениям договора начиная с выбранного */
-export async function allocatePaymentAcrossAccruals(params: {
-  companyId: number;
-  contractId: number;
-  startAccrualId?: number | null;
-  amount: number;
-  payDate: string;
-}): Promise<{ allocations: PaymentAllocationResult[]; unallocated: number }> {
+export async function allocatePaymentAcrossAccruals(
+  params: {
+    companyId: number;
+    contractId: number;
+    startAccrualId?: number | null;
+    amount: number;
+    payDate: string;
+  },
+  txOrDb: any = db,
+): Promise<{ allocations: PaymentAllocationResult[]; unallocated: number }> {
   const { companyId, contractId, startAccrualId, amount, payDate } = params;
 
-  const accruals = await db
+  const accruals = await txOrDb
     .select()
     .from(constructionAccrualsTable)
     .where(
@@ -70,7 +73,7 @@ export async function allocatePaymentAcrossAccruals(params: {
     const newRemaining = Math.max(0, total - newPaid);
     const status = newRemaining <= 0.01 ? "paid" : "partial";
 
-    await db
+    await txOrDb
       .update(constructionAccrualsTable)
       .set({
         paidAmount: String(newPaid),

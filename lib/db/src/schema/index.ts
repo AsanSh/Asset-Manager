@@ -62,4 +62,6 @@ export * from "./consolidated_logs";
 export * from "./construction_supplements";
 export * from "./otp_codes";
 export * from "./idempotency_keys";
+export * from "./marketplace_products";
+export * from "./marketplace_orders";
 

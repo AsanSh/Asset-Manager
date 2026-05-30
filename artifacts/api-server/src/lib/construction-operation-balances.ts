@@ -13,8 +13,9 @@ async function adjustAccountBalance(
   companyId: number,
   accountId: number,
   delta: number,
+  txOrDb: any = db,
 ): Promise<void> {
-  await db
+  await txOrDb
     .update(bankAccountsTable)
     .set({ currentBalance: sql`GREATEST(0, COALESCE(${bankAccountsTable.currentBalance}, 0) + ${delta})` })
     .where(
@@ -37,8 +38,9 @@ export type OpForBalance = {
 export async function getAccountBalance(
   companyId: number,
   accountId: number,
+  txOrDb: any = db,
 ): Promise<number | null> {
-  const [acc] = await db
+  const [acc] = await txOrDb
     .select({ bal: bankAccountsTable.currentBalance })
     .from(bankAccountsTable)
     .where(
@@ -56,8 +58,9 @@ export async function setAccountBalance(
   companyId: number,
   accountId: number,
   balance: number,
+  txOrDb: any = db,
 ): Promise<void> {
-  await db
+  await txOrDb
     .update(bankAccountsTable)
     .set({ currentBalance: String(Math.max(0, balance)) })
     .where(
@@ -73,6 +76,7 @@ export async function setAccountBalance(
 export async function validateOpBalances(
   companyId: number,
   op: OpForBalance,
+  txOrDb: any = db,
 ): Promise<string | null> {
   if (op.status !== "approved") return null;
   const delta = parseFloat(String(op.amountKgs)) || 0;
@@ -80,7 +84,7 @@ export async function validateOpBalances(
 
   if (op.type === "expense") {
     if (!op.fromAccountId) return "Укажите счёт списания";
-    const bal = await getAccountBalance(companyId, op.fromAccountId);
+    const bal = await getAccountBalance(companyId, op.fromAccountId, txOrDb);
     if (bal === null) return "Счёт не найден или не относится к модулю «Строительство»";
     if (bal + 0.001 < delta) {
       return `Недостаточно средств на счёте. Доступно: ${Math.round(bal).toLocaleString("ru-RU")} KGS, нужно: ${Math.round(delta).toLocaleString("ru-RU")} KGS. Сначала сделайте перевод или приход на этот счёт.`;
@@ -95,7 +99,7 @@ export async function validateOpBalances(
     if (op.fromAccountId === op.toAccountId) {
       return "Счета списания и зачисления должны различаться";
     }
-    const bal = await getAccountBalance(companyId, op.fromAccountId);
+    const bal = await getAccountBalance(companyId, op.fromAccountId, txOrDb);
     if (bal === null) return "Счёт списания не найден или не относится к модулю «Строительство»";
     if (bal + 0.001 < delta) {
       return `Недостаточно средств для перевода. На счёте: ${Math.round(bal).toLocaleString("ru-RU")} KGS, нужно: ${Math.round(delta).toLocaleString("ru-RU")} KGS.`;
@@ -105,7 +109,7 @@ export async function validateOpBalances(
 
   if (op.type === "income") {
     if (!op.toAccountId) return "Укажите счёт зачисления";
-    const bal = await getAccountBalance(companyId, op.toAccountId);
+    const bal = await getAccountBalance(companyId, op.toAccountId, txOrDb);
     if (bal === null) return "Счёт зачисления не найден или не относится к модулю «Строительство»";
     return null;
   }
@@ -117,6 +121,7 @@ export async function validateOpBalances(
 export async function applyOpBalances(
   companyId: number,
   op: OpForBalance,
+  txOrDb: any = db,
 ): Promise<void> {
   // Для approved — добавляем. Для cancelled — НЕ применяем (откат через reverseOpBalances).
   if (op.status !== "approved") return;
@@ -124,16 +129,16 @@ export async function applyOpBalances(
   if (delta <= 0) return;
 
   if (op.type === "income" && op.toAccountId) {
-    await adjustAccountBalance(companyId, op.toAccountId, delta);
+    await adjustAccountBalance(companyId, op.toAccountId, delta, txOrDb);
     return;
   }
   if (op.type === "expense" && op.fromAccountId) {
-    await adjustAccountBalance(companyId, op.fromAccountId, -delta);
+    await adjustAccountBalance(companyId, op.fromAccountId, -delta, txOrDb);
     return;
   }
   if (op.type === "transfer" && op.fromAccountId && op.toAccountId) {
-    await adjustAccountBalance(companyId, op.fromAccountId, -delta);
-    await adjustAccountBalance(companyId, op.toAccountId, delta);
+    await adjustAccountBalance(companyId, op.fromAccountId, -delta, txOrDb);
+    await adjustAccountBalance(companyId, op.toAccountId, delta, txOrDb);
   }
 }
 
@@ -141,6 +146,7 @@ export async function applyOpBalances(
 export async function reverseOpBalances(
   companyId: number,
   op: OpForBalance,
+  txOrDb: any = db,
 ): Promise<void> {
   // Принимаем op в исходном состоянии (status: "approved") — функция инвертирует движение.
   // Если op уже в БД помечен cancelled — это всё равно нужно вычесть из баланса.
@@ -148,15 +154,15 @@ export async function reverseOpBalances(
   if (delta <= 0) return;
 
   if (op.type === "income" && op.toAccountId) {
-    await adjustAccountBalance(companyId, op.toAccountId, -delta);
+    await adjustAccountBalance(companyId, op.toAccountId, -delta, txOrDb);
     return;
   }
   if (op.type === "expense" && op.fromAccountId) {
-    await adjustAccountBalance(companyId, op.fromAccountId, delta);
+    await adjustAccountBalance(companyId, op.fromAccountId, delta, txOrDb);
     return;
   }
   if (op.type === "transfer" && op.fromAccountId && op.toAccountId) {
-    await adjustAccountBalance(companyId, op.fromAccountId, delta);
-    await adjustAccountBalance(companyId, op.toAccountId, -delta);
+    await adjustAccountBalance(companyId, op.fromAccountId, delta, txOrDb);
+    await adjustAccountBalance(companyId, op.toAccountId, -delta, txOrDb);
   }
 }

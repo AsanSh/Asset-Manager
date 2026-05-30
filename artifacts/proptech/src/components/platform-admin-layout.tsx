@@ -1,4 +1,4 @@
-import { Building, Building2, LayoutDashboard, LogOut } from "lucide-react";
+import { Building, Building2, LayoutDashboard, LogOut, Package } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import type { ReactNode } from "react";
 import { useAuth } from "@/lib/auth";
@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 const NAV = [
 	{ href: "/platform-admin", label: "Обзор", icon: LayoutDashboard },
 	{ href: "/platform-admin/companies", label: "Компании", icon: Building },
+	{ href: "/platform-admin/marketplace", label: "Маркетплейс", icon: Package },
 ];
 
 export function PlatformAdminLayout({ children }: { children: ReactNode }) {

@@ -8,9 +8,7 @@ import {
 	Briefcase,
 	Building,
 	Building2,
-	Calculator,
 	Calendar,
-	CalendarDays,
 	CheckSquare,
 	ChevronDown,
 	ChevronRight,
@@ -407,6 +405,11 @@ const MODULES: Module[] = [
 					},
 					{ href: "/warehouse/suppliers", label: "Поставщики", icon: Factory },
 					{ href: "/warehouse/items", label: "Товары", icon: ShoppingBag },
+					{
+						href: "/warehouse/marketplace",
+						label: "Маркетплейс",
+						icon: Package,
+					},
 					{ href: "/warehouse/orders", label: "Заказы", icon: ClipboardList },
 					{ href: "/warehouse/companies", label: "Компании", icon: Building },
 					{
@@ -515,27 +518,6 @@ const MODULES: Module[] = [
 					},
 				],
 			},
-			{
-				title: "Система",
-				items: [
-					{ href: "/settings", label: "Настройки", icon: Settings },
-					{ href: "/settings/legal", label: "Юр. лица", icon: Building },
-					{ href: "/settings/accounts", label: "Счета", icon: Landmark },
-					{ href: "/settings/roles", label: "Роли", icon: CheckSquare },
-					{
-						href: "/settings/categories",
-						label: "Статьи операций",
-						icon: Coins,
-					},
-					{
-						href: "/settings/periods",
-						label: "Периоды учёта",
-						icon: CalendarDays,
-					},
-					{ href: "/import", label: "Импорт данных", icon: Calculator },
-					{ href: "/activity", label: "Лог действий", icon: Activity },
-				],
-			},
 		],
 	},
 ];
@@ -570,7 +552,6 @@ const MODULE_QUICK_ACTIONS: Record<
 	consolidated: [
 		{ label: "Новый объект", href: "/properties" },
 		{ label: "Новый контрагент", href: "/counterparties" },
-		{ label: "Импорт данных", href: "/import" },
 	],
 };
 

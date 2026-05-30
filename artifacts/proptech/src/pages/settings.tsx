@@ -31,6 +31,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { SystemSettingsHub } from "@/components/system-settings-nav";
 import { getApiBase } from "@/lib/api-base";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
@@ -355,10 +356,15 @@ export default function Settings() {
 	return (
 		<div className="max-w-3xl mx-auto space-y-6">
 			<div>
-				<h1 className="text-2xl font-bold text-gray-900">Настройки</h1>
+				<h1 className="text-2xl font-bold text-gray-900">Настройки системы</h1>
 				<p className="text-gray-500 text-sm mt-1">
-					Управление организацией, аккаунтом и модулями системы
+					Управление организацией, аккаунтом, модулями и справочниками
 				</p>
+			</div>
+
+			<div className="space-y-3">
+				<h2 className="text-sm font-semibold text-gray-700">Справочники и сервисы</h2>
+				<SystemSettingsHub />
 			</div>
 
 			{/* Tabs */}

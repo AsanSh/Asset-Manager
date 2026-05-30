@@ -1,17 +1,29 @@
 import { Router } from "express";
-import { eq, and, desc, asc } from "drizzle-orm";
+import { eq, and, asc } from "drizzle-orm";
 import { db, financialCategoriesTable } from "../lib/db";
+import { ensureCompanyFinancialCategories } from "../lib/financial-category-catalog";
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
 
 const router: ReturnType<typeof Router> = Router();
 
-router.get("/categories", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const rows = await db
+async function listCategories(companyId: number) {
+  await ensureCompanyFinancialCategories(companyId);
+  return db
     .select()
     .from(financialCategoriesTable)
-    .where(eq(financialCategoriesTable.companyId, req.companyId!))
+    .where(eq(financialCategoriesTable.companyId, companyId))
     .orderBy(asc(financialCategoriesTable.sortOrder), asc(financialCategoriesTable.name));
+}
+
+router.get("/categories", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+  const rows = await listCategories(req.companyId!);
   res.json(rows);
+});
+
+/** Ручная синхронизация пресетов и статей из операций (идемпотентно). */
+router.post("/categories/sync", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+  const rows = await listCategories(req.companyId!);
+  res.json({ ok: true, count: rows.length, categories: rows });
 });
 
 router.post("/categories", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
