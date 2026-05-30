@@ -16,6 +16,9 @@ export const activityLogTable = pgTable("activity_log", {
   actionType: text("action_type"),
   snapshot: text("snapshot"),
   restoredAt: timestamp("restored_at", { withTimezone: true }),
+  beforeData: text("before_data"),
+  afterData: text("after_data"),
+  changedFields: text("changed_fields"),
 });
 
 export const insertActivityLogSchema = createInsertSchema(activityLogTable).omit({ id: true, createdAt: true });
