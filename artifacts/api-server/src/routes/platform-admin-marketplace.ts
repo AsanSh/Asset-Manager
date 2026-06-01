@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { and, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq } from "drizzle-orm";
 import {
   db,
   marketplaceProductsTable,
@@ -26,6 +26,53 @@ const SUPPLIER_TYPES = new Set(["seller", "distributor"]);
 
 function supplierTypeLabel(type: string) {
   return type === "distributor" ? "distributor" : "seller";
+}
+
+async function loadMarketplaceSupplierPortalPreview(supplierId: number) {
+  const [supplier] = await db
+    .select()
+    .from(marketplaceSuppliersTable)
+    .where(eq(marketplaceSuppliersTable.id, supplierId));
+  if (!supplier) return null;
+
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(marketplaceProductsTable)
+    .where(eq(marketplaceProductsTable.supplierId, supplierId));
+  const [{ active }] = await db
+    .select({ active: count() })
+    .from(marketplaceProductsTable)
+    .where(
+      and(
+        eq(marketplaceProductsTable.supplierId, supplierId),
+        eq(marketplaceProductsTable.isActive, true),
+      ),
+    );
+  const [portalUser] = await db
+    .select({
+      id: usersTable.id,
+      firstName: usersTable.firstName,
+      lastName: usersTable.lastName,
+      phone: usersTable.phone,
+      email: usersTable.email,
+    })
+    .from(usersTable)
+    .where(
+      and(
+        eq(usersTable.role, "marketplace_supplier"),
+        eq(usersTable.linkedMarketplaceSupplierId, supplierId),
+      ),
+    );
+
+  return {
+    supplier,
+    stats: {
+      productsTotal: Number(total),
+      productsActive: Number(active),
+    },
+    portalUser: portalUser ?? null,
+    preview: true as const,
+  };
 }
 
 // ── Поставщики ───────────────────────────────────────────────────────────────
@@ -198,6 +245,50 @@ router.post(
         error: e instanceof Error ? e.message : "Не удалось создать аккаунт",
       });
     }
+  },
+);
+
+router.get(
+  "/platform-admin/marketplace/suppliers/:id/portal-preview",
+  requireAuth,
+  requireSuperAdmin,
+  async (req: AuthenticatedRequest, res): Promise<void> => {
+    const supplierId = parseInt(
+      Array.isArray(req.params.id) ? req.params.id[0] : req.params.id,
+      10,
+    );
+    const data = await loadMarketplaceSupplierPortalPreview(supplierId);
+    if (!data) {
+      res.status(404).json({ error: "Поставщик не найден" });
+      return;
+    }
+    res.json(data);
+  },
+);
+
+router.get(
+  "/platform-admin/marketplace/suppliers/:id/portal-preview/products",
+  requireAuth,
+  requireSuperAdmin,
+  async (req: AuthenticatedRequest, res): Promise<void> => {
+    const supplierId = parseInt(
+      Array.isArray(req.params.id) ? req.params.id[0] : req.params.id,
+      10,
+    );
+    const [supplier] = await db
+      .select({ id: marketplaceSuppliersTable.id })
+      .from(marketplaceSuppliersTable)
+      .where(eq(marketplaceSuppliersTable.id, supplierId));
+    if (!supplier) {
+      res.status(404).json({ error: "Поставщик не найден" });
+      return;
+    }
+    const rows = await db
+      .select()
+      .from(marketplaceProductsTable)
+      .where(eq(marketplaceProductsTable.supplierId, supplierId))
+      .orderBy(marketplaceProductsTable.name);
+    res.json(rows);
   },
 );
 

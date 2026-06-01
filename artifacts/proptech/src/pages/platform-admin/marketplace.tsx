@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, FileSpreadsheet, Package, Plus, Upload, UserPlus } from "lucide-react";
+import { Download, Eye, FileSpreadsheet, Package, Plus, Upload, UserPlus } from "lucide-react";
 import { useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/lib/api-error";
 import { api } from "@/lib/api";
 import { downloadMarketplacePriceTemplate } from "@/lib/marketplace-price-template";
+import { PortalPreviewDialog } from "@/components/portal-preview-dialog";
 
 type Supplier = {
 	id: number;
@@ -144,6 +145,8 @@ export default function PlatformAdminMarketplace() {
 	const [portalForm, setPortalForm] = useState(emptyPortalAccount);
 	const [productDialog, setProductDialog] = useState(false);
 	const [productForm, setProductForm] = useState(emptyProduct);
+	const [previewOpen, setPreviewOpen] = useState(false);
+	const [previewSupplierId, setPreviewSupplierId] = useState<number | null>(null);
 
 	const { data: suppliers = [], isLoading: loadingSuppliers } = useQuery({
 		queryKey: ["platform-marketplace-suppliers"],
@@ -605,26 +608,42 @@ export default function PlatformAdminMarketplace() {
 												</Badge>
 											</TableCell>
 											<TableCell>
-												{!s.portalUser && (
-													<Button
-														size="sm"
-														variant="outline"
-														onClick={() => {
-															setPortalSupplier(s);
-															setPortalForm({
-																...emptyPortalAccount,
-																firstName: s.name.split(" ")[0] || "",
-																lastName: s.name.split(" ").slice(1).join(" ") || "Поставщик",
-																phone: s.phone || "",
-																email: s.email || "",
-															});
-															setPortalDialog(true);
-														}}
-													>
-														<UserPlus className="w-3.5 h-3.5 mr-1" />
-														Портал
-													</Button>
-												)}
+												<div className="flex flex-wrap gap-1">
+													{!s.portalUser ? (
+														<Button
+															size="sm"
+															variant="outline"
+															onClick={() => {
+																setPortalSupplier(s);
+																setPortalForm({
+																	...emptyPortalAccount,
+																	firstName: s.name.split(" ")[0] || "",
+																	lastName:
+																		s.name.split(" ").slice(1).join(" ") ||
+																		"Поставщик",
+																	phone: s.phone || "",
+																	email: s.email || "",
+																});
+																setPortalDialog(true);
+															}}
+														>
+															<UserPlus className="w-3.5 h-3.5 mr-1" />
+															Портал
+														</Button>
+													) : (
+														<Button
+															size="sm"
+															variant="outline"
+															onClick={() => {
+																setPreviewSupplierId(s.id);
+																setPreviewOpen(true);
+															}}
+														>
+															<Eye className="w-3.5 h-3.5 mr-1" />
+															Просмотр
+														</Button>
+													)}
+												</div>
 											</TableCell>
 										</TableRow>
 									))}
@@ -887,6 +906,18 @@ export default function PlatformAdminMarketplace() {
 					</div>
 				</DialogContent>
 			</Dialog>
+
+			{previewSupplierId != null && (
+				<PortalPreviewDialog
+					type="marketplace_supplier"
+					id={previewSupplierId}
+					open={previewOpen}
+					onClose={() => {
+						setPreviewOpen(false);
+						setPreviewSupplierId(null);
+					}}
+				/>
+			)}
 		</div>
 	);
 }

@@ -3,8 +3,14 @@ import ContractorPortal from "@/pages/portal/contractor";
 import SupplierPortal from "@/pages/portal/supplier";
 import TenantPortal from "@/pages/portal/tenant";
 import BuyerPortal from "@/pages/portal/buyer";
+import MarketplaceSupplierPortal from "@/pages/portal/marketplace-supplier";
 
-export type PortalPreviewType = "contractor" | "supplier" | "tenant" | "buyer";
+export type PortalPreviewType =
+	| "contractor"
+	| "supplier"
+	| "tenant"
+	| "buyer"
+	| "marketplace_supplier";
 
 export function PortalPreviewDialog({
 	type,
@@ -29,6 +35,9 @@ export function PortalPreviewDialog({
 				)}
 				{open && type === "tenant" && <TenantPortal previewTenantId={id} />}
 				{open && type === "buyer" && <BuyerPortal previewBuyerId={id} />}
+				{open && type === "marketplace_supplier" && (
+					<MarketplaceSupplierPortal previewSupplierId={id} />
+				)}
 			</DialogContent>
 		</Dialog>
 	);

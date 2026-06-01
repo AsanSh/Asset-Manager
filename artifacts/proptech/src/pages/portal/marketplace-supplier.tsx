@@ -12,8 +12,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
 	Table,
@@ -47,7 +45,9 @@ function formatSom(v: number) {
 	return `${new Intl.NumberFormat("ru-KG", { maximumFractionDigits: 0 }).format(v)} сом`;
 }
 
-export default function MarketplaceSupplierPortal() {
+export default function MarketplaceSupplierPortal({
+	previewSupplierId,
+}: { previewSupplierId?: number } = {}) {
 	const { user, logout } = useAuth();
 	const { toast } = useToast();
 	const qc = useQueryClient();
@@ -55,9 +55,12 @@ export default function MarketplaceSupplierPortal() {
 	const [pendingImportId, setPendingImportId] = useState<number | null>(null);
 	const [preview, setPreview] = useState<PreviewRow[]>([]);
 	const [deactivateMissing, setDeactivateMissing] = useState(true);
+	const isPreview = previewSupplierId != null;
 
 	const { data, isLoading } = useQuery({
-		queryKey: ["portal-marketplace-supplier-me"],
+		queryKey: isPreview
+			? ["platform-marketplace-supplier-preview", previewSupplierId]
+			: ["portal-marketplace-supplier-me"],
 		queryFn: () =>
 			api
 				.get<{
@@ -68,12 +71,22 @@ export default function MarketplaceSupplierPortal() {
 						code?: string | null;
 					};
 					stats: { productsTotal: number; productsActive: number };
-				}>("/portal/marketplace-supplier/me")
+					portalUser?: {
+						firstName: string;
+						lastName: string;
+					} | null;
+				}>(
+					isPreview
+						? `/platform-admin/marketplace/suppliers/${previewSupplierId}/portal-preview`
+						: "/portal/marketplace-supplier/me",
+				)
 				.then((r) => r.data),
 	});
 
 	const { data: products = [] } = useQuery({
-		queryKey: ["portal-marketplace-supplier-products"],
+		queryKey: isPreview
+			? ["platform-marketplace-supplier-preview-products", previewSupplierId]
+			: ["portal-marketplace-supplier-products"],
 		queryFn: () =>
 			api
 				.get<
@@ -85,7 +98,11 @@ export default function MarketplaceSupplierPortal() {
 						unit: string;
 						isActive: boolean;
 					}[]
-				>("/portal/marketplace-supplier/products")
+				>(
+					isPreview
+						? `/platform-admin/marketplace/suppliers/${previewSupplierId}/portal-preview/products`
+						: "/portal/marketplace-supplier/products",
+				)
 				.then((r) => r.data),
 	});
 
@@ -158,8 +175,13 @@ export default function MarketplaceSupplierPortal() {
 	}
 
 	const supplier = data?.supplier;
-	const userName =
-		[user?.firstName, user?.lastName].filter(Boolean).join(" ") || supplier?.name || "Поставщик";
+	const userName = isPreview
+		? data?.portalUser
+			? `${data.portalUser.firstName} ${data.portalUser.lastName}`.trim()
+			: supplier?.name || "Поставщик"
+		: [user?.firstName, user?.lastName].filter(Boolean).join(" ") ||
+			supplier?.name ||
+			"Поставщик";
 
 	return (
 		<div className="min-h-screen bg-gray-50">
@@ -175,12 +197,19 @@ export default function MarketplaceSupplierPortal() {
 						</div>
 					</div>
 					<div className="flex items-center gap-2">
+						{isPreview && (
+							<span className="text-[10px] uppercase tracking-wide bg-amber-100 text-amber-800 px-2 py-1 rounded-full font-semibold">
+								👁 Предпросмотр
+							</span>
+						)}
 						<span className="hidden sm:inline text-sm text-gray-600 truncate max-w-[40vw]">
 							{userName}
 						</span>
-						<Button variant="ghost" size="sm" onClick={logout} className="gap-1.5">
-							<LogOut className="w-4 h-4" /> Выйти
-						</Button>
+						{!isPreview && (
+							<Button variant="ghost" size="sm" onClick={logout} className="gap-1.5">
+								<LogOut className="w-4 h-4" /> Выйти
+							</Button>
+						)}
 					</div>
 				</div>
 			</header>
@@ -206,50 +235,52 @@ export default function MarketplaceSupplierPortal() {
 					</p>
 				</div>
 
-				<Card className="p-4 space-y-4">
-					<h2 className="font-semibold flex items-center gap-2">
-						<Upload className="w-4 h-4" /> Загрузка прайс-листа
-					</h2>
-					<div className="flex flex-wrap gap-2">
-						<Button variant="outline" onClick={() => downloadMarketplacePriceTemplate()}>
-							<Download className="w-4 h-4 mr-2" /> Шаблон Excel
-						</Button>
-						<input
-							ref={fileRef}
-							type="file"
-							accept=".xlsx,.xls"
-							className="hidden"
-							onChange={(e) => {
-								const f = e.target.files?.[0];
-								if (f) handleFile(f);
-								e.target.value = "";
-							}}
-						/>
-						<Button disabled={parseMut.isPending} onClick={() => fileRef.current?.click()}>
-							<FileSpreadsheet className="w-4 h-4 mr-2" />
-							{parseMut.isPending ? "Разбор…" : "Выбрать Excel"}
-						</Button>
-					</div>
-					{pendingImportId && preview.length > 0 && (
-						<div className="border-t pt-4 space-y-3">
-							<div className="flex items-center gap-2">
-								<Checkbox
-									id="deact"
-									checked={deactivateMissing}
-									onCheckedChange={(v) => setDeactivateMissing(!!v)}
-								/>
-								<label htmlFor="deact" className="text-sm">
-									Скрыть позиции, которых нет в этом файле
-								</label>
-							</div>
-							<Button onClick={() => commitMut.mutate()} disabled={commitMut.isPending}>
-								{commitMut.isPending ? "Публикация…" : "Опубликовать в маркетплейс"}
+				{!isPreview && (
+					<Card className="p-4 space-y-4">
+						<h2 className="font-semibold flex items-center gap-2">
+							<Upload className="w-4 h-4" /> Загрузка прайс-листа
+						</h2>
+						<div className="flex flex-wrap gap-2">
+							<Button variant="outline" onClick={() => downloadMarketplacePriceTemplate()}>
+								<Download className="w-4 h-4 mr-2" /> Шаблон Excel
+							</Button>
+							<input
+								ref={fileRef}
+								type="file"
+								accept=".xlsx,.xls"
+								className="hidden"
+								onChange={(e) => {
+									const f = e.target.files?.[0];
+									if (f) handleFile(f);
+									e.target.value = "";
+								}}
+							/>
+							<Button disabled={parseMut.isPending} onClick={() => fileRef.current?.click()}>
+								<FileSpreadsheet className="w-4 h-4 mr-2" />
+								{parseMut.isPending ? "Разбор…" : "Выбрать Excel"}
 							</Button>
 						</div>
-					)}
-				</Card>
+						{pendingImportId && preview.length > 0 && (
+							<div className="border-t pt-4 space-y-3">
+								<div className="flex items-center gap-2">
+									<Checkbox
+										id="deact"
+										checked={deactivateMissing}
+										onCheckedChange={(v) => setDeactivateMissing(!!v)}
+									/>
+									<label htmlFor="deact" className="text-sm">
+										Скрыть позиции, которых нет в этом файле
+									</label>
+								</div>
+								<Button onClick={() => commitMut.mutate()} disabled={commitMut.isPending}>
+									{commitMut.isPending ? "Публикация…" : "Опубликовать в маркетплейс"}
+								</Button>
+							</div>
+						)}
+					</Card>
+				)}
 
-				{preview.length > 0 && (
+				{!isPreview && preview.length > 0 && (
 					<Card className="overflow-hidden max-h-80 overflow-y-auto">
 						<Table>
 							<TableHeader>
