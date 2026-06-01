@@ -8,6 +8,8 @@ import {
 	Edit2,
 	Flag,
 	Inbox,
+	LayoutGrid,
+	List,
 	MessageSquare,
 	Plus,
 	Send,
@@ -15,7 +17,9 @@ import {
 	User,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
 import { useAuth } from "@/lib/auth";
+import { DataTable } from "@/components/data-table";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -119,7 +123,7 @@ function isPersonalTask(t: Task, me: number): boolean {
 
 function normalizeTask(raw: Record<string, unknown>): Task {
 	return {
-		...(raw as Task),
+		...(raw as unknown as Task),
 		assignedTo: raw.assignedTo ?? raw.assigned_to ?? null,
 		createdBy: raw.createdBy ?? raw.created_by ?? null,
 	} as unknown as Task;
@@ -322,13 +326,30 @@ function TaskCard({
 		: task.status === "in_progress" ? "review"
 		: task.status === "review" ? "done" : null;
 
+	const openChat = () => navigate(`/construction/tasks/${task.id}`);
+
 	return (
-		<div className="bg-white border border-gray-200 rounded-lg p-3 hover:border-amber-300 hover:shadow-sm transition-all group">
+		<div
+			role="button"
+			tabIndex={0}
+			onClick={openChat}
+			onKeyDown={(e) => {
+				if (e.key === "Enter" || e.key === " ") {
+					e.preventDefault();
+					openChat();
+				}
+			}}
+			className="bg-white border border-gray-200 rounded-lg p-3 hover:border-amber-300 hover:shadow-sm transition-all group cursor-pointer"
+		>
 			<div className="flex items-start justify-between gap-2 mb-2">
 				<div className="flex items-start gap-2 flex-1 min-w-0">
 					<button
+						type="button"
 						className={`mt-0.5 flex-shrink-0 ${statusOpt?.color}`}
-						onClick={() => nextStatus && onStatusChange(task, nextStatus)}
+						onClick={(e) => {
+							e.stopPropagation();
+							if (nextStatus) onStatusChange(task, nextStatus);
+						}}
 						title={nextStatus ? `→ ${STATUS_OPTS.find(s => s.value === nextStatus)?.label}` : "Завершено"}
 					>
 						<StatusIcon className="w-4 h-4" />
@@ -344,16 +365,34 @@ function TaskCard({
 				</div>
 				<div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
 					<button
-						onClick={() => navigate(`/construction/tasks/${task.id}`)}
+						type="button"
+						onClick={(e) => {
+							e.stopPropagation();
+							openChat();
+						}}
 						className="text-gray-300 hover:text-amber-500"
 						title="Открыть чат задачи"
 					>
 						<MessageSquare className="w-3.5 h-3.5" />
 					</button>
-					<button onClick={() => onEdit(task)} className="text-gray-300 hover:text-gray-600">
+					<button
+						type="button"
+						onClick={(e) => {
+							e.stopPropagation();
+							onEdit(task);
+						}}
+						className="text-gray-300 hover:text-gray-600"
+					>
 						<Edit2 className="w-3.5 h-3.5" />
 					</button>
-					<button onClick={() => onDelete(task.id)} className="text-gray-300 hover:text-rose-500">
+					<button
+						type="button"
+						onClick={(e) => {
+							e.stopPropagation();
+							onDelete(task.id);
+						}}
+						className="text-gray-300 hover:text-rose-500"
+					>
 						<Trash2 className="w-3 h-3" />
 					</button>
 				</div>
@@ -403,6 +442,135 @@ function EmptyState({ tab }: { tab: TabId }) {
 	);
 }
 
+function TasksTable({
+	tasks,
+	userMap,
+	projectMap,
+	onRowClick,
+}: {
+	tasks: Task[];
+	userMap: Record<number, ApiUser>;
+	projectMap: Record<number, string>;
+	onRowClick: (task: Task) => void;
+}) {
+	const columns = useMemo<ColumnDef<Task, unknown>[]>(
+		() => [
+			{
+				id: "title",
+				accessorKey: "title",
+				header: "Название",
+				meta: { exportLabel: "Название" },
+				cell: ({ getValue }) => (
+					<div className="font-medium text-gray-900">{getValue() as string}</div>
+				),
+			},
+			{
+				id: "projectId",
+				accessorKey: "projectId",
+				header: "Проект",
+				meta: { exportLabel: "Проект" },
+				cell: ({ getValue }) => (
+					<div className="text-sm text-gray-600">
+						{projectMap[Number(getValue())] || "—"}
+					</div>
+				),
+			},
+			{
+				id: "status",
+				accessorKey: "status",
+				header: "Статус",
+				meta: { exportLabel: "Статус" },
+				cell: ({ getValue }) => {
+					const status = STATUS_OPTS.find((s) => s.value === getValue());
+					if (!status) return <span className="text-gray-400">—</span>;
+					const Icon = status.icon;
+					return (
+						<div
+							className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md border text-xs font-medium ${status.bg} ${status.color}`}
+						>
+							<Icon className="w-3.5 h-3.5" />
+							{status.label}
+						</div>
+					);
+				},
+			},
+			{
+				id: "priority",
+				accessorKey: "priority",
+				header: "Приоритет",
+				meta: { exportLabel: "Приоритет" },
+				cell: ({ getValue }) => {
+					const priority = PRIORITY_OPTS.find((p) => p.value === getValue());
+					if (!priority) return <span className="text-gray-400">—</span>;
+					return (
+						<div
+							className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${priority.color}`}
+						>
+							{priority.label}
+						</div>
+					);
+				},
+			},
+			{
+				id: "assignedTo",
+				header: "Ответственный",
+				meta: { exportLabel: "Ответственный" },
+				cell: ({ row }) => {
+					const assigneeId = taskAssignedTo(row.original);
+					if (!assigneeId) {
+						return <span className="text-gray-400 text-sm">Не назначен</span>;
+					}
+					const user = userMap[assigneeId];
+					return (
+						<div className="text-sm text-gray-700">
+							{user ? userName(user) : "—"}
+						</div>
+					);
+				},
+			},
+			{
+				id: "dueDate",
+				accessorKey: "dueDate",
+				header: "Срок",
+				meta: { exportLabel: "Срок" },
+				cell: ({ getValue, row }) => {
+					const date = getValue() as string | null;
+					if (!date) return <span className="text-gray-400 text-sm">—</span>;
+					const d = new Date(date);
+					const isOverdue =
+						d < new Date() && row.original.status !== "done";
+					return (
+						<div
+							className={`text-sm ${isOverdue ? "text-rose-600 font-medium" : "text-gray-600"}`}
+						>
+							{d.toLocaleDateString("ru-RU", {
+								day: "2-digit",
+								month: "short",
+							})}
+						</div>
+					);
+				},
+			},
+		],
+		[userMap, projectMap],
+	);
+
+	return (
+		<DataTable
+			tableId="construction-tasks"
+			columns={columns}
+			data={tasks}
+			onRowClick={onRowClick}
+			initialSorting={[{ id: "dueDate", desc: false }]}
+			emptyState={
+				<div className="text-center py-8 text-gray-400 text-sm">
+					Нет задач по выбранным фильтрам
+				</div>
+			}
+		/>
+	);
+}
+
 export default function ConstructionTasks() {
 	const qc = useQueryClient();
 	const { toast } = useToast();
@@ -415,6 +583,8 @@ export default function ConstructionTasks() {
 	const [priorityFilter, setPriorityFilter] = useState("all");
 	const [statusFilter, setStatusFilter] = useState("all");
 	const [search, setSearch] = useState("");
+	const [viewMode, setViewMode] = useState<"kanban" | "table">("kanban");
+	const [, navigate] = useLocation();
 
 	const { data: projects = [] } = useQuery<Project[]>({
 		queryKey: ["construction-projects"],
@@ -607,14 +777,30 @@ export default function ConstructionTasks() {
 						✕ сбросить
 					</button>
 				)}
+				<div className="ml-auto flex gap-1 bg-gray-100 rounded-lg p-0.5">
+					<button
+						onClick={() => setViewMode("kanban")}
+						className={`p-1.5 rounded transition-all ${viewMode === "kanban" ? "bg-white shadow-sm text-gray-900" : "text-gray-400 hover:text-gray-600"}`}
+						title="Канбан"
+					>
+						<LayoutGrid className="w-4 h-4" />
+					</button>
+					<button
+						onClick={() => setViewMode("table")}
+						className={`p-1.5 rounded transition-all ${viewMode === "table" ? "bg-white shadow-sm text-gray-900" : "text-gray-400 hover:text-gray-600"}`}
+						title="Таблица"
+					>
+						<List className="w-4 h-4" />
+					</button>
+				</div>
 			</div>
 
-			{/* Kanban */}
+			{/* Content */}
 			{isLoading ? (
 				<Skeleton className="h-64 rounded-xl" />
 			) : filteredTasks.length === 0 ? (
 				<EmptyState tab={activeTab} />
-			) : (
+			) : viewMode === "kanban" ? (
 				<div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
 					{columns.map((col) => {
 						const Icon = col.icon;
@@ -647,6 +833,13 @@ export default function ConstructionTasks() {
 						);
 					})}
 				</div>
+			) : (
+				<TasksTable
+					tasks={filteredTasks}
+					userMap={userMap}
+					projectMap={projectMap}
+					onRowClick={(task) => navigate(`/construction/tasks/${task.id}`)}
+				/>
 			)}
 
 			<TaskDialog

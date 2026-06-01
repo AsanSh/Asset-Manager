@@ -147,18 +147,20 @@ export default function ConstructionDashboard() {
 		1,
 	);
 
-	// Top income clients (by contract payments)
-	const clientIncome: Record<string, number> = {};
+	// Top income clients (by contract total amount)
+	const clientData: Record<string, { total: number; paid: number }> = {};
 	contractsArray.forEach((c: any) => {
+		const total = parseFloat(c.totalAmount || "0");
 		const paid = parseFloat(c.paidAmount || "0");
-		if (paid > 0)
-			clientIncome[c.buyerName || "—"] =
-				(clientIncome[c.buyerName] || 0) + paid;
+		const name = c.buyerName || "—";
+		if (!clientData[name]) clientData[name] = { total: 0, paid: 0 };
+		clientData[name].total += total;
+		clientData[name].paid += paid;
 	});
-	const topClients = Object.entries(clientIncome)
-		.sort((a, b) => b[1] - a[1])
+	const topClients = Object.entries(clientData)
+		.filter(([_, d]) => d.total > 0)
+		.sort((a, b) => b[1].total - a[1].total)
 		.slice(0, 5);
-	const maxClientAmt = topClients[0]?.[1] || 1;
 
 	// Top expense counterparties
 	const contExp: Record<string, number> = {};
@@ -520,27 +522,38 @@ export default function ConstructionDashboard() {
 							Нет данных
 						</div>
 					) : (
-						<div className="space-y-2">
-							{topClients.map(([name, amount]) => (
-								<div key={name}>
-									<div className="flex items-center justify-between text-sm mb-0.5">
-										<span className="text-gray-700 truncate max-w-[200px]">
-											{name}
-										</span>
-										<span className="font-mono font-medium text-emerald-600">
-											{fmt(amount)}
-										</span>
+						<div className="space-y-3">
+							{topClients.map(([name, data]) => {
+								const paidPct = (data.paid / data.total) * 100;
+								const remaining = data.total - data.paid;
+								return (
+									<div key={name}>
+										<div className="flex items-center justify-between text-sm mb-1">
+											<span className="text-gray-700 truncate max-w-[180px]">
+												{name}
+											</span>
+											<span className="font-mono text-xs text-gray-500">
+												{fmt(data.total)}
+											</span>
+										</div>
+										<div className="flex items-center gap-2 text-xs font-mono mb-1">
+											<span className="text-emerald-600">✓ {fmt(data.paid)}</span>
+											<span className="text-gray-400">•</span>
+											<span className="text-red-500">{fmt(remaining)} осталось</span>
+										</div>
+										<div className="h-1.5 bg-gray-100 rounded-full overflow-hidden flex">
+											<div
+												className="h-full bg-emerald-400"
+												style={{ width: `${paidPct.toFixed(1)}%` }}
+											/>
+											<div
+												className="h-full bg-red-400"
+												style={{ width: `${(100 - paidPct).toFixed(1)}%` }}
+											/>
+										</div>
 									</div>
-									<div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-										<div
-											className="h-full bg-emerald-400 rounded-full"
-											style={{
-												width: `${Math.round((amount / maxClientAmt) * 100)}%`,
-											}}
-										/>
-									</div>
-								</div>
-							))}
+								);
+							})}
 						</div>
 					)}
 				</div>

@@ -98,6 +98,8 @@ export interface DataTableProps<T> {
 	rowClassName?: (row: T) => string;
 	/** Доп. контролы слева в тулбаре (фильтры, период) */
 	toolbar?: React.ReactNode;
+	/** Контролы справа перед «Столбцы» (компактный период и т.п.) */
+	toolbarEnd?: React.ReactNode;
 	enableSearch?: boolean;
 	searchPlaceholder?: string;
 	initialSorting?: SortingState;
@@ -122,6 +124,7 @@ export function DataTable<T>({
 	onRowClick,
 	rowClassName,
 	toolbar,
+	toolbarEnd,
 	enableSearch,
 	searchPlaceholder = "Поиск…",
 	initialSorting = [],
@@ -312,6 +315,7 @@ export function DataTable<T>({
 					</div>
 				)}
 				<div className="flex-1" />
+				{toolbarEnd}
 				<div className="flex items-center gap-0.5 border border-gray-200 rounded-lg p-0.5">
 					{densityBtn("compact", Rows4, "Компактно")}
 					{densityBtn("normal", Rows3, "Средне")}

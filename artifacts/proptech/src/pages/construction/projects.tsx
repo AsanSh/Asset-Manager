@@ -748,7 +748,19 @@ export default function ConstructionProjects() {
 			api.get("/construction/projects/all").then((r) => r.data),
 	});
 
+	const { data: expensesRaw } = useQuery({
+		queryKey: ["construction-project-expenses"],
+		queryFn: () =>
+			api.get("/construction/analytics/project-expenses").then((r) => r.data),
+	});
+
 	const projectsArray = unwrapList<Project>(projectsRaw);
+	const expensesArray = unwrapList<{ projectId: number; totalExpenses: string }>(
+		expensesRaw,
+	);
+	const expensesMap = new Map(
+		expensesArray.map((e) => [e.projectId, parseFloat(e.totalExpenses || "0")]),
+	);
 	const filtered = projectsArray.filter(
 		(p) =>
 			!search ||
@@ -840,6 +852,12 @@ export default function ConstructionProjects() {
 						const sym = currencySymbol(p.currency || "KGS");
 						const meta = parseDocumentMeta(p.documentMeta);
 						const templateMeta = parseContractTemplateMeta(p.contractTemplateMeta);
+
+						const totalExpenses = expensesMap.get(p.id) || 0;
+						const area = parseFloat(p.totalArea || "0");
+						const currentCostPerSqm = area > 0 ? totalExpenses / area : 0;
+						const plannedCostPerSqm = parseFloat(p.costPerSqm || "0");
+
 						return (
 							<div
 								key={p.id}
@@ -949,6 +967,33 @@ export default function ConstructionProjects() {
 														` · курс ${p.exchangeRate}`}
 												</p>
 											)}
+										</div>
+									)}
+
+									{/* Cost per sqm */}
+									{area > 0 && (plannedCostPerSqm > 0 || currentCostPerSqm > 0) && (
+										<div className="bg-gradient-to-r from-slate-50 to-gray-50 border border-gray-200 rounded-lg p-3 mb-3">
+											<p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider mb-1.5">
+												Стоимость за кв.м
+											</p>
+											<div className="space-y-1">
+												{plannedCostPerSqm > 0 && (
+													<div className="flex items-center justify-between">
+														<span className="text-xs text-gray-600">Плановая:</span>
+														<span className="text-sm font-bold text-gray-800">
+															{fmtProjectAmount(plannedCostPerSqm)} {sym}/м²
+														</span>
+													</div>
+												)}
+												{currentCostPerSqm > 0 && (
+													<div className="flex items-center justify-between">
+														<span className="text-xs text-gray-600">Текущая:</span>
+														<span className="text-sm font-bold text-orange-600">
+															{fmtProjectAmount(currentCostPerSqm)} {sym}/м²
+														</span>
+													</div>
+												)}
+											</div>
 										</div>
 									)}
 

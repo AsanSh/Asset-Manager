@@ -435,8 +435,6 @@ export default function ConstructionOperations() {
 					</Button>
 				</div>
 
-				<PeriodPicker value={period} onChange={setPeriod} className="mb-3" />
-
 				{/* Filter tabs */}
 				<div className="flex items-center gap-1 mb-3 flex-wrap">
 					{[
@@ -507,6 +505,14 @@ export default function ConstructionOperations() {
 						isLoading={isLoading}
 						onRowClick={(op) => openEdit(op)}
 						initialSorting={[{ id: "date", desc: true }]}
+						toolbarEnd={
+							<PeriodPicker
+								value={period}
+								onChange={setPeriod}
+								hideShift
+								className="[&_button]:!min-w-[130px] [&_button]:!h-8 [&_button]:!text-xs [&_button]:!px-2"
+							/>
+						}
 						emptyState={
 							<div className="flex flex-col items-center gap-2">
 								<ArrowLeftRight className="w-10 h-10 text-gray-200" />

@@ -1070,4 +1070,19 @@ router.get("/analytics/summary", async (req: AuthenticatedRequest, res): Promise
   res.json({ opStats, contractStats });
 });
 
+router.get("/analytics/project-expenses", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
+  const rows = await db.select({
+    projectId: constructionOperationsTable.projectId,
+    totalExpenses: sql<number>`sum(amount_kgs::numeric)`,
+  }).from(constructionOperationsTable)
+    .where(and(
+      eq(constructionOperationsTable.companyId, companyId),
+      eq(constructionOperationsTable.type, "expense"),
+      sql`project_id is not null`
+    ))
+    .groupBy(constructionOperationsTable.projectId);
+  res.json(rows);
+});
+
 export default router;

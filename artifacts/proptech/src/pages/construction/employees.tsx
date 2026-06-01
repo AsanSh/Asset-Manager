@@ -1,16 +1,17 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
 import {
 	Eye,
 	EyeOff,
 	HardHat,
-	Mail,
 	Pencil,
 	Plus,
 	Shield,
 	UserCircle,
 	X,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { DataTable } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,19 +31,6 @@ interface Employee {
 	email: string;
 	role: string;
 	isActive: boolean;
-}
-
-const AVATAR_COLORS = [
-	"#EA580C",
-	"#F97316",
-	"#FB923C",
-	"#F59E0B",
-	"#EF4444",
-	"#8B5CF6",
-];
-
-function avatarColor(id: number) {
-	return AVATAR_COLORS[id % AVATAR_COLORS.length];
 }
 
 const EMPTY_FORM = {
@@ -132,6 +120,79 @@ export default function ConstructionEmployees() {
 		}
 	}
 
+	const columns = useMemo<ColumnDef<Employee, unknown>[]>(
+		() => [
+			{
+				id: "name",
+				header: "ФИО",
+				meta: { exportLabel: "ФИО" },
+				cell: ({ row }) => (
+					<div className="font-medium text-gray-900">
+						{row.original.firstName} {row.original.lastName}
+					</div>
+				),
+			},
+			{
+				id: "email",
+				accessorKey: "email",
+				header: "Email",
+				meta: { exportLabel: "Email" },
+				cell: ({ getValue }) => (
+					<span className="text-sm text-gray-600">{getValue() as string}</span>
+				),
+			},
+			{
+				id: "role",
+				accessorKey: "role",
+				header: "Роль",
+				meta: { exportLabel: "Роль" },
+				cell: ({ getValue }) => (
+					<Badge className="bg-orange-100 text-orange-800 border-orange-200 text-xs">
+						{resolveRoleLabel(getValue() as string, customRoles)}
+					</Badge>
+				),
+			},
+			{
+				id: "isActive",
+				accessorKey: "isActive",
+				header: "Статус",
+				meta: { exportLabel: "Статус" },
+				cell: ({ getValue }) =>
+					getValue() !== false ? (
+						<Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">
+							Активен
+						</Badge>
+					) : (
+						<Badge className="bg-rose-100 text-rose-700 border-rose-200">
+							Неактивен
+						</Badge>
+					),
+			},
+			{
+				id: "__actions",
+				header: "",
+				enableSorting: false,
+				cell: ({ row }) => (
+					<div
+						className="flex justify-end"
+						onClick={(e) => e.stopPropagation()}
+					>
+						<Button
+							variant="ghost"
+							size="icon"
+							className="h-8 w-8"
+							onClick={() => openEdit(row.original)}
+							title="Редактировать"
+						>
+							<Pencil className="w-4 h-4" />
+						</Button>
+					</div>
+				),
+			},
+		],
+		[customRoles],
+	);
+
 	return (
 		<div className="p-6 space-y-6">
 			<div className="flex items-center justify-between">
@@ -170,70 +231,25 @@ export default function ConstructionEmployees() {
 				</div>
 			</div>
 
-			<div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-				{isLoading ? (
-					Array.from({ length: 3 }).map((_, i) => (
-						<div
-							key={i}
-							className="bg-white border rounded-lg p-4 animate-pulse"
-						>
-							<div className="w-12 h-12 rounded-full bg-gray-200 mb-3" />
-							<div className="h-4 bg-gray-200 rounded w-3/4 mb-2" />
-							<div className="h-3 bg-gray-100 rounded w-1/2" />
-						</div>
-					))
-				) : users.length === 0 ? (
-					<div className="col-span-3 p-12 text-center text-gray-400">
+			<DataTable
+				tableId="construction-employees"
+				columns={columns}
+				data={users}
+				isLoading={isLoading}
+				onRowClick={(u) => openEdit(u)}
+				enableSearch
+				searchPlaceholder="Поиск по имени, email…"
+				initialSorting={[{ id: "name", desc: false }]}
+				emptyState={
+					<div className="text-center py-8 text-gray-400">
 						<UserCircle className="w-10 h-10 mx-auto mb-3 opacity-30" />
 						<p className="text-sm mb-3">Нет сотрудников</p>
 						<Button size="sm" variant="outline" onClick={openCreate} className="gap-1">
 							<Plus className="w-3.5 h-3.5" /> Добавить первого
 						</Button>
 					</div>
-				) : (
-					users.map((u) => (
-						<div
-							key={u.id}
-							className="bg-white border rounded-lg p-4 hover:shadow-sm transition-shadow group relative"
-						>
-							<button
-								type="button"
-								onClick={() => openEdit(u)}
-								className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 p-1.5 hover:bg-gray-100 rounded-lg"
-							>
-								<Pencil className="w-3.5 h-3.5 text-gray-400" />
-							</button>
-							<div className="flex items-start gap-3">
-								<div
-									className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
-									style={{ background: avatarColor(u.id) }}
-								>
-									{(u.firstName || u.email || "?").charAt(0).toUpperCase()}
-								</div>
-								<div className="flex-1 min-w-0 pr-4">
-									<p className="font-semibold text-gray-900 truncate">
-										{u.firstName} {u.lastName}
-									</p>
-									<Badge className="mt-1 text-[10px] px-1.5 py-0 bg-orange-100 text-orange-800">
-										{resolveRoleLabel(u.role, customRoles)}
-									</Badge>
-								</div>
-							</div>
-							<div className="mt-3">
-								<div className="flex items-center gap-1.5 text-xs text-gray-500">
-									<Mail className="w-3 h-3 flex-shrink-0" />
-									<span className="truncate">{u.email}</span>
-								</div>
-								{!u.isActive && (
-									<Badge className="mt-2 bg-rose-100 text-rose-700 text-[10px]">
-										Неактивный
-									</Badge>
-								)}
-							</div>
-						</div>
-					))
-				)}
-			</div>
+				}
+			/>
 
 			{modalOpen && (
 				<div className="fixed inset-0 bg-slate-950/40 flex items-center justify-center z-50 p-4">
@@ -257,7 +273,9 @@ export default function ConstructionEmployees() {
 						<div className="p-5 space-y-4">
 							<div className="grid grid-cols-2 gap-3">
 								<div className="flex flex-col">
-									<Label className="text-xs font-medium text-gray-600 leading-tight mb-1.5">Имя *</Label>
+									<Label className="text-xs font-medium text-gray-600 leading-tight mb-1.5">
+										Имя *
+									</Label>
 									<Input
 										className="mt-auto h-9"
 										value={form.firstName}
