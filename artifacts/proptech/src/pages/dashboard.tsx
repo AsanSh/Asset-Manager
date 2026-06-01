@@ -1,1 +1,1 @@
-export { default } from "./consolidated-dashboard";
+export { default } from "./dashboard/index";

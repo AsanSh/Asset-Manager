@@ -69,7 +69,6 @@ import ConstructionContractsSales from "@/pages/construction/contracts-sales";
 import ConstructionReconciliation from "@/pages/construction/reconciliation";
 import ConstructionPayroll from "@/pages/construction/payroll";
 import ConstructionCounterparties from "@/pages/construction/counterparties";
-import ConstructionDashboard from "@/pages/construction/dashboard";
 import ConstructionEmployees from "@/pages/construction/employees";
 import ConstructionExpenses from "@/pages/construction/expenses";
 import ConstructionMaterials from "@/pages/construction/materials";
@@ -89,7 +88,6 @@ import ConstructionWorkers from "@/pages/construction/workers";
 import Counterparties from "@/pages/counterparties";
 import CrmClients from "@/pages/crm/clients";
 // CRM/PropTech module
-import CrmDashboard from "@/pages/crm/dashboard";
 import CrmDeals from "@/pages/crm/deals";
 import CrmEmployees from "@/pages/crm/employees";
 import CrmLeadIntake from "@/pages/crm/lead-intake";
@@ -132,7 +130,6 @@ import Payments from "@/pages/rental/payments";
 import RentalPlanningBroadcast from "@/pages/rental/planning/broadcast";
 import RentalPlanningForecast from "@/pages/rental/planning/forecast";
 import RentalPlanningOverdue from "@/pages/rental/planning/overdue";
-import RentalDashboard from "@/pages/rental/rental-dashboard";
 import RentalOverview from "@/pages/rental/overview";
 import RentalProperties from "@/pages/rental/rental-properties";
 import RentalSettings from "@/pages/rental/settings";
@@ -158,7 +155,6 @@ import WarehouseCounterparties from "@/pages/warehouse/counterparties";
 import RentalCounterparties from "@/pages/rental/counterparties";
 import CrmCounterparties from "@/pages/crm/counterparties";
 // Warehouse module
-import WarehouseDashboard from "@/pages/warehouse/dashboard";
 import WarehouseEmployees from "@/pages/warehouse/employees";
 import WarehouseIncoming from "@/pages/warehouse/incoming";
 import WarehouseInventory from "@/pages/warehouse/inventory";
@@ -187,6 +183,10 @@ function Spinner() {
 			</div>
 		</div>
 	);
+}
+
+function DashboardLegacyRedirect({ tab }: { tab: string }) {
+	return <Redirect to={`/dashboard?tab=${tab}`} />;
 }
 
 function ProtectedRoute({ component: Component, ...rest }: any) {
@@ -367,7 +367,7 @@ function Router() {
 
 			{/* ── Аренда ── */}
 			<Route path="/rental/dashboard">
-				<ProtectedRoute component={RentalDashboard} />
+				<ProtectedRoute component={() => <DashboardLegacyRedirect tab="rental" />} />
 			</Route>
 			<Route path="/rental/overview">
 				<ProtectedRoute component={RentalOverview} />
@@ -420,7 +420,7 @@ function Router() {
 
 			{/* ── Контроль строительства ── */}
 			<Route path="/construction/dashboard">
-				<ProtectedRoute component={ConstructionDashboard} />
+				<ProtectedRoute component={() => <DashboardLegacyRedirect tab="finance" />} />
 			</Route>
 			<Route path="/construction/projects">
 				<ProtectedRoute component={ConstructionProjects} />
@@ -539,7 +539,7 @@ function Router() {
 				<ProtectedRoute component={ConstructionChess} />
 			</Route>
 			<Route path="/crm/dashboard">
-				<ProtectedRoute component={CrmDashboard} />
+				<ProtectedRoute component={() => <DashboardLegacyRedirect tab="sales" />} />
 			</Route>
 			<Route path="/crm/leads/intake">
 				<ProtectedRoute component={CrmLeadIntake} />
@@ -568,13 +568,13 @@ function Router() {
 
 			{/* Редиректы с proptech на crm */}
 			<Route path="/proptech/dashboard">
-				<Redirect to="/crm/dashboard" />
+				<Redirect to="/dashboard?tab=sales" />
 			</Route>
 			<Route path="/proptech/:rest*">
-				<Redirect to="/crm/dashboard" />
+				<Redirect to="/dashboard?tab=sales" />
 			</Route>
 			<Route path="/sales/:rest*">
-				<Redirect to="/crm/dashboard" />
+				<Redirect to="/dashboard?tab=sales" />
 			</Route>
 
 			{/* ── Аренда (дополнительно) ── */}
@@ -620,7 +620,7 @@ function Router() {
 
 			{/* ── Закуп / Снабжение ── */}
 			<Route path="/warehouse/dashboard">
-				<ProtectedRoute component={WarehouseDashboard} />
+				<ProtectedRoute component={() => <DashboardLegacyRedirect tab="supply" />} />
 			</Route>
 			<Route path="/warehouse/items">
 				<ProtectedRoute component={WarehouseItems} />

@@ -1,3 +1,10 @@
+import {
+	canAccessDashboardTab,
+	getDefaultDashboardTab,
+	parseDashboardTabFromSearch,
+	resolveDashboardTabs,
+	type DashboardTabId,
+} from "./dashboard-access";
 import { parseCustomRoleId } from "./user-roles";
 
 export type ModuleId =
@@ -56,13 +63,7 @@ const PERMISSION_PREFIX_TO_MODULE: Record<string, ModuleId> = {
 	admin: "consolidated",
 };
 
-const DEFAULT_HOME: Record<string, string> = {
-	rental_manager: "/rental/dashboard",
-	sales_manager: "/crm/dashboard",
-	finance: "/dashboard",
-	staff: "/dashboard",
-	company_admin: "/dashboard",
-	admin: "/dashboard",
+const DEFAULT_HOME_LEGACY: Record<string, string> = {
 	pto: "/construction/chess",
 	engineer: "/construction/chess",
 };
@@ -103,14 +104,13 @@ export function resolveAllowedModules(
 export function getDefaultHomePath(
 	role: string,
 	allowedModules: ModuleId[],
+	permissions: string[] = [],
 ): string {
-	if (DEFAULT_HOME[role]) return DEFAULT_HOME[role];
-	if (allowedModules.length === 1) {
-		const mod = allowedModules[0];
-		if (mod === "rental") return "/rental/dashboard";
-		if (mod === "construction") return "/construction/dashboard";
-		if (mod === "proptech") return "/crm/dashboard";
-		if (mod === "warehouse") return "/warehouse/dashboard";
+	if (DEFAULT_HOME_LEGACY[role]) return DEFAULT_HOME_LEGACY[role];
+	const tabs = resolveDashboardTabs(role, permissions, allowedModules);
+	if (tabs.length > 0) {
+		const tab = getDefaultDashboardTab(role, tabs, allowedModules);
+		return `/dashboard?tab=${tab}`;
 	}
 	return "/dashboard";
 }
@@ -118,9 +118,40 @@ export function getDefaultHomePath(
 export function canAccessPath(
 	path: string,
 	allowedModules: ModuleId[],
+	role = "",
+	permissions: string[] = [],
 ): boolean {
-	if (path === "/" || path === "/login") return true;
-	const moduleId = detectModuleFromPath(path);
+	if (path === "/" || path === "/login" || path === "/register") return true;
+
+	const pathOnly = path.split("?")[0] ?? path;
+
+	if (pathOnly === "/dashboard" || path.startsWith("/dashboard?")) {
+		const tabs = resolveDashboardTabs(role, permissions, allowedModules);
+		if (tabs.length === 0) return false;
+		const tab = parseDashboardTabFromSearch(
+			path.includes("?") ? path.slice(path.indexOf("?")) : "",
+		);
+		if (!tab) return true;
+		return canAccessDashboardTab(tab, role, permissions, allowedModules);
+	}
+
+	// Legacy dashboard URLs — доступны всем с соответствующей вкладкой (редирект в App)
+	const legacyTabMap: Record<string, DashboardTabId> = {
+			"/rental/dashboard": "rental",
+			"/construction/dashboard": "finance",
+			"/crm/dashboard": "sales",
+			"/warehouse/dashboard": "supply",
+		};
+	if (legacyTabMap[pathOnly]) {
+		return canAccessDashboardTab(
+			legacyTabMap[pathOnly],
+			role,
+			permissions,
+			allowedModules,
+		);
+	}
+
+	const moduleId = detectModuleFromPath(pathOnly);
 	return allowedModules.includes(moduleId);
 }
 

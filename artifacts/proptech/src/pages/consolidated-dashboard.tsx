@@ -536,11 +536,11 @@ export default function ConsolidatedDashboard() {
 			<div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-2">
 				<p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Быстрый переход</p>
 				{[
-					{ href: "/construction/dashboard", label: "Стройка — дашборд" },
+					{ href: "/dashboard?tab=construction", label: "Стройка — dashboard" },
 					{ href: "/construction/operations", label: "Операции" },
 					{ href: "/construction/tasks", label: "Задачи" },
 					{ href: "/construction/chess", label: "Шахматка" },
-					{ href: "/rental/rental-dashboard", label: "Аренда — дашборд" },
+					{ href: "/dashboard?tab=rental", label: "Аренда — dashboard" },
 				].map((l) => (
 					<Link key={l.href} href={l.href}>
 						<div className="flex items-center gap-2 text-xs text-gray-600 hover:text-amber-600 py-1 cursor-pointer">

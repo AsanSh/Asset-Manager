@@ -96,8 +96,8 @@ const MODULES: Module[] = [
 				title: "Управление",
 				items: [
 					{
-						href: "/construction/dashboard",
-						label: "Дашборд",
+						href: "/dashboard?tab=construction",
+						label: "Dashboard",
 						icon: LayoutDashboard,
 					},
 					{
@@ -278,7 +278,7 @@ const MODULES: Module[] = [
 			{
 				title: "Управление",
 				items: [
-					{ href: "/rental/dashboard", label: "Дашборд", icon: BarChart3 },
+					{ href: "/dashboard?tab=rental", label: "Dashboard", icon: BarChart3 },
 					{ href: "/rental/properties", label: "Объекты", icon: Building2 },
 					{ href: "/rental/tenants", label: "Арендаторы", icon: UserCircle },
 					{ href: "/rental/counterparties", label: "Контрагенты", icon: Users },
@@ -381,8 +381,8 @@ const MODULES: Module[] = [
 				title: "CRM",
 				items: [
 					{
-						href: "/crm/dashboard",
-						label: "Дашборд CRM",
+						href: "/dashboard?tab=sales",
+						label: "Dashboard",
 						icon: LayoutDashboard,
 					},
 					{ href: "/crm/leads", label: "Лиды", icon: Target },
@@ -413,8 +413,8 @@ const MODULES: Module[] = [
 				title: "Управление",
 				items: [
 					{
-						href: "/warehouse/dashboard",
-						label: "Дашборд",
+						href: "/dashboard?tab=supply",
+						label: "Dashboard",
 						icon: LayoutDashboard,
 					},
 					{ href: "/warehouse/suppliers", label: "Поставщики", icon: Factory },
@@ -501,8 +501,8 @@ const MODULES: Module[] = [
 				title: "Главная",
 				items: [
 					{
-						href: "/dashboard",
-						label: "Главный дашборд",
+						href: "/dashboard?tab=control",
+						label: "Dashboard",
 						icon: LayoutDashboard,
 					},
 					{ href: "/properties", label: "Объекты", icon: Building2 },

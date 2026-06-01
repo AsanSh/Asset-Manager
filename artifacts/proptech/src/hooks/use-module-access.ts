@@ -41,8 +41,8 @@ export function useModuleAccess() {
 	);
 
 	const homePath = useMemo(
-		() => getDefaultHomePath(role, allowedModules),
-		[role, allowedModules],
+		() => getDefaultHomePath(role, allowedModules, permissions),
+		[role, allowedModules, permissions],
 	);
 
 	return {
@@ -51,7 +51,8 @@ export function useModuleAccess() {
 		permissions,
 		allowedModules,
 		homePath,
-		canAccess: (path: string) => canAccessPath(path, allowedModules),
+		canAccess: (path: string) =>
+			canAccessPath(path, allowedModules, role, permissions),
 		hasModule: (moduleId: ModuleId) => allowedModules.includes(moduleId),
 	};
 }
