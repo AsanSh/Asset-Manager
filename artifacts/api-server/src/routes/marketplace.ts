@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 import {
   db,
   marketplaceProductsTable,
@@ -14,43 +14,86 @@ const router: ReturnType<typeof Router> = Router();
 
 router.use(requireAuth, requireTenantCompany);
 
-/** Каталог материалов платформы (активные позиции) */
+const productListSelect = {
+  id: marketplaceProductsTable.id,
+  supplierId: marketplaceProductsTable.supplierId,
+  supplierName: marketplaceSuppliersTable.name,
+  sku: marketplaceProductsTable.sku,
+  name: marketplaceProductsTable.name,
+  category: marketplaceProductsTable.category,
+  unit: marketplaceProductsTable.unit,
+  unitPrice: marketplaceProductsTable.unitPrice,
+  currency: marketplaceProductsTable.currency,
+  description: marketplaceProductsTable.description,
+  minOrderQty: marketplaceProductsTable.minOrderQty,
+  stockAvailable: marketplaceProductsTable.stockAvailable,
+  isActive: marketplaceProductsTable.isActive,
+  sortOrder: marketplaceProductsTable.sortOrder,
+};
+
+function buildProductSearchConditions(searchQ: string, supplierId: number | null) {
+  const conditions = [eq(marketplaceProductsTable.isActive, true)];
+  if (supplierId) {
+    conditions.push(eq(marketplaceProductsTable.supplierId, supplierId));
+  }
+  if (searchQ) {
+    const pattern = `%${searchQ}%`;
+    conditions.push(
+      or(
+        ilike(marketplaceProductsTable.name, pattern),
+        ilike(marketplaceProductsTable.sku, pattern),
+        ilike(marketplaceProductsTable.category, pattern),
+        ilike(marketplaceProductsTable.description, pattern),
+        ilike(marketplaceSuppliersTable.name, pattern),
+      )!,
+    );
+  }
+  return conditions;
+}
+
+/** Каталог материалов платформы (активные позиции) + live-поиск ?q= */
 router.get("/marketplace/products", async (req: AuthenticatedRequest, res): Promise<void> => {
   const supplierId = req.query.supplierId
     ? parseInt(String(req.query.supplierId), 10)
     : null;
-  const q = db
-    .select({
-      id: marketplaceProductsTable.id,
-      supplierId: marketplaceProductsTable.supplierId,
-      supplierName: marketplaceSuppliersTable.name,
-      sku: marketplaceProductsTable.sku,
-      name: marketplaceProductsTable.name,
-      category: marketplaceProductsTable.category,
-      unit: marketplaceProductsTable.unit,
-      unitPrice: marketplaceProductsTable.unitPrice,
-      currency: marketplaceProductsTable.currency,
-      description: marketplaceProductsTable.description,
-      minOrderQty: marketplaceProductsTable.minOrderQty,
-      stockAvailable: marketplaceProductsTable.stockAvailable,
-      isActive: marketplaceProductsTable.isActive,
-      sortOrder: marketplaceProductsTable.sortOrder,
-    })
+  const searchQ = req.query.q ? String(req.query.q).trim().slice(0, 120) : "";
+  const limitRaw = parseInt(String(req.query.limit ?? "150"), 10);
+  const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 200) : 150;
+
+  const conditions = buildProductSearchConditions(searchQ, supplierId);
+
+  const baseQuery = db
+    .select(productListSelect)
     .from(marketplaceProductsTable)
     .leftJoin(
       marketplaceSuppliersTable,
       eq(marketplaceProductsTable.supplierId, marketplaceSuppliersTable.id),
     )
-    .where(
-      supplierId
-        ? and(
-            eq(marketplaceProductsTable.isActive, true),
-            eq(marketplaceProductsTable.supplierId, supplierId),
-          )
-        : eq(marketplaceProductsTable.isActive, true),
-    )
-    .orderBy(marketplaceProductsTable.sortOrder, marketplaceProductsTable.name);
-  res.json(await q);
+    .where(and(...conditions))
+    .limit(limit);
+
+  if (searchQ) {
+    const qLower = searchQ.toLowerCase();
+    const rows = await baseQuery.orderBy(
+      sql`CASE
+        WHEN lower(${marketplaceProductsTable.name}) = ${qLower} THEN 0
+        WHEN lower(${marketplaceProductsTable.sku}) = ${qLower} THEN 1
+        WHEN lower(${marketplaceProductsTable.name}) LIKE ${`${qLower}%`} THEN 2
+        WHEN lower(${marketplaceProductsTable.sku}) LIKE ${`${qLower}%`} THEN 3
+        ELSE 4
+      END`,
+      marketplaceProductsTable.sortOrder,
+      marketplaceProductsTable.name,
+    );
+    res.json(rows);
+    return;
+  }
+
+  const rows = await baseQuery.orderBy(
+    marketplaceProductsTable.sortOrder,
+    marketplaceProductsTable.name,
+  );
+  res.json(rows);
 });
 
 /** Список поставщиков для фильтра витрины */

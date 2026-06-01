@@ -1,17 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Package, ShoppingCart } from "lucide-react";
-import { useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { Loader2, Package, Plus, Search, ShoppingCart } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import {
-	Dialog,
-	DialogContent,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/ui/dialog";
+import { DataTable } from "@/components/data-table";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
 	Select,
 	SelectContent,
@@ -20,7 +15,6 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/lib/api-error";
 import { api } from "@/lib/api";
@@ -66,17 +60,28 @@ const statusLabel: Record<string, string> = {
 
 function formatMoney(amount: string | number, currency = "KGS") {
 	const n = typeof amount === "string" ? parseFloat(amount) : amount;
-	return `${new Intl.NumberFormat("ru-KG").format(n)} ${currency === "KGS" ? "сом" : currency}`;
+	return `${new Intl.NumberFormat("ru-KG", { maximumFractionDigits: 0 }).format(n)} ${currency === "KGS" ? "сом" : currency}`;
+}
+
+function defaultQty(p: MarketplaceProduct) {
+	const min = parseFloat(p.minOrderQty || "1");
+	return Number.isFinite(min) && min > 0 ? String(min) : "1";
 }
 
 export default function WarehouseMarketplace() {
 	const { toast } = useToast();
 	const qc = useQueryClient();
-	const [orderProduct, setOrderProduct] = useState<MarketplaceProduct | null>(null);
-	const [qty, setQty] = useState("");
-	const [projectId, setProjectId] = useState("");
-	const [notes, setNotes] = useState("");
+	const [searchInput, setSearchInput] = useState("");
+	const [debouncedSearch, setDebouncedSearch] = useState("");
 	const [supplierFilter, setSupplierFilter] = useState<string>("all");
+	const [projectId, setProjectId] = useState("none");
+	const [rowQty, setRowQty] = useState<Record<number, string>>({});
+	const [addingId, setAddingId] = useState<number | null>(null);
+
+	useEffect(() => {
+		const t = window.setTimeout(() => setDebouncedSearch(searchInput.trim()), 280);
+		return () => window.clearTimeout(t);
+	}, [searchInput]);
 
 	const { data: suppliers = [] } = useQuery({
 		queryKey: ["marketplace-suppliers"],
@@ -84,11 +89,12 @@ export default function WarehouseMarketplace() {
 			api.get<MarketplaceSupplier[]>("/marketplace/suppliers").then((r) => r.data),
 	});
 
-	const { data: products, isLoading: loadingProducts } = useQuery({
-		queryKey: ["marketplace-products", supplierFilter],
+	const { data: products = [], isLoading: loadingProducts, isFetching } = useQuery({
+		queryKey: ["marketplace-products", supplierFilter, debouncedSearch],
 		queryFn: () => {
-			const params =
-				supplierFilter !== "all" ? { supplierId: supplierFilter } : undefined;
+			const params: Record<string, string> = { limit: "150" };
+			if (supplierFilter !== "all") params.supplierId = supplierFilter;
+			if (debouncedSearch) params.q = debouncedSearch;
 			return api
 				.get<MarketplaceProduct[]>("/marketplace/products", { params })
 				.then((r) => r.data);
@@ -109,48 +115,175 @@ export default function WarehouseMarketplace() {
 				.then((r) => unwrapList(r.data)),
 	});
 
-	const orderMut = useMutation({
-		mutationFn: () =>
+	const addOrderMut = useMutation({
+		mutationFn: (payload: { productId: number; quantity: number }) =>
 			api.post("/marketplace/orders", {
-				productId: orderProduct!.id,
-				quantity: parseFloat(qty),
-				projectId: projectId ? parseInt(projectId, 10) : undefined,
-				notes: notes || undefined,
+				productId: payload.productId,
+				quantity: payload.quantity,
+				projectId: projectId && projectId !== "none" ? parseInt(projectId, 10) : undefined,
 			}),
 		onSuccess: () => {
-			toast({ title: "Заявка отправлена" });
-			setOrderProduct(null);
-			setQty("");
-			setProjectId("");
-			setNotes("");
+			toast({ title: "Добавлено в заявки" });
 			qc.invalidateQueries({ queryKey: ["marketplace-orders"] });
 		},
 		onError: (e) =>
 			toast({
-				title: "Ошибка",
+				title: "Не удалось добавить",
 				description: getApiErrorMessage(e),
 				variant: "destructive",
 			}),
+		onSettled: () => setAddingId(null),
 	});
+
+	const handleAdd = useCallback(
+		(product: MarketplaceProduct) => {
+			const raw = rowQty[product.id] ?? defaultQty(product);
+			const quantity = parseFloat(raw);
+			if (!quantity || quantity <= 0) {
+				toast({
+					title: "Укажите количество",
+					variant: "destructive",
+				});
+				return;
+			}
+			setAddingId(product.id);
+			addOrderMut.mutate({ productId: product.id, quantity });
+		},
+		[rowQty, addOrderMut, toast],
+	);
+
+	const columns = useMemo<ColumnDef<MarketplaceProduct>[]>(
+		() => [
+			{
+				accessorKey: "name",
+				header: "Наименование",
+				meta: { pinned: "left", grow: true },
+				cell: ({ row }) => (
+					<div className="min-w-[180px]">
+						<p className="font-medium text-gray-900">{row.original.name}</p>
+						{row.original.description && (
+							<p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
+								{row.original.description}
+							</p>
+						)}
+					</div>
+				),
+			},
+			{
+				accessorKey: "supplierName",
+				header: "Поставщик",
+				cell: ({ row }) => row.original.supplierName || "—",
+			},
+			{
+				accessorKey: "sku",
+				header: "Артикул",
+				cell: ({ row }) => row.original.sku || "—",
+			},
+			{
+				accessorKey: "category",
+				header: "Категория",
+				cell: ({ row }) => (
+					<Badge variant="secondary" className="font-normal">
+						{row.original.category || "—"}
+					</Badge>
+				),
+			},
+			{
+				accessorKey: "unitPrice",
+				header: "Цена",
+				meta: { align: "right", financeAmount: true },
+				cell: ({ row }) => (
+					<span className="font-mono tabular-nums text-emerald-700">
+						{formatMoney(row.original.unitPrice, row.original.currency)}
+					</span>
+				),
+			},
+			{
+				accessorKey: "unit",
+				header: "Ед.",
+				cell: ({ row }) => row.original.unit,
+			},
+			{
+				id: "qty",
+				header: "Кол-во",
+				meta: { align: "right" },
+				cell: ({ row }) => {
+					const p = row.original;
+					return (
+						<Input
+							type="number"
+							min={defaultQty(p)}
+							className="h-8 w-24 ml-auto font-mono tabular-nums"
+							value={rowQty[p.id] ?? defaultQty(p)}
+							onClick={(e) => e.stopPropagation()}
+							onChange={(e) =>
+								setRowQty((prev) => ({ ...prev, [p.id]: e.target.value }))
+							}
+							onKeyDown={(e) => {
+								if (e.key === "Enter") {
+									e.preventDefault();
+									handleAdd(p);
+								}
+							}}
+						/>
+					);
+				},
+			},
+			{
+				id: "add",
+				header: "",
+				meta: { pinned: "right" },
+				cell: ({ row }) => {
+					const p = row.original;
+					const busy = addingId === p.id && addOrderMut.isPending;
+					return (
+						<Button
+							size="icon"
+							className="h-8 w-8 shrink-0"
+							disabled={busy}
+							onClick={(e) => {
+								e.stopPropagation();
+								handleAdd(p);
+							}}
+							title="Добавить в заявку"
+						>
+							{busy ? (
+								<Loader2 className="w-4 h-4 animate-spin" />
+							) : (
+								<Plus className="w-4 h-4" />
+							)}
+						</Button>
+					);
+				},
+			},
+		],
+		[rowQty, addingId, addOrderMut.isPending, handleAdd],
+	);
 
 	return (
 		<div className="space-y-8">
 			<div>
 				<h1 className="text-3xl font-bold text-gray-900">Маркетплейс материалов</h1>
 				<p className="text-gray-500 mt-1">
-					Каталог платформы — заявки на покупку для вашей компании
+					Умный поиск по каталогу — укажите количество и добавьте в заявку одной кнопкой
 				</p>
 			</div>
 
-			<section>
-				<div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-					<h2 className="text-lg font-semibold flex items-center gap-2">
-						<Package className="w-5 h-5" />
-						Каталог
-					</h2>
+			<section className="space-y-4">
+				<div className="flex flex-wrap items-end gap-3">
+					<div className="flex-1 min-w-[240px] max-w-xl relative">
+						<Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+						<Input
+							value={searchInput}
+							onChange={(e) => setSearchInput(e.target.value)}
+							placeholder="Поиск: название, артикул, категория, поставщик…"
+							className="pl-9 h-11 text-base"
+							autoComplete="off"
+						/>
+					</div>
 					{suppliers.length > 0 && (
 						<Select value={supplierFilter} onValueChange={setSupplierFilter}>
-							<SelectTrigger className="w-56">
+							<SelectTrigger className="w-52 h-11">
 								<SelectValue placeholder="Все поставщики" />
 							</SelectTrigger>
 							<SelectContent>
@@ -163,58 +296,57 @@ export default function WarehouseMarketplace() {
 							</SelectContent>
 						</Select>
 					)}
+					<Select value={projectId} onValueChange={setProjectId}>
+						<SelectTrigger className="w-52 h-11">
+							<SelectValue placeholder="Проект (опц.)" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="none">Без проекта</SelectItem>
+							{(projects || []).map((pr) => (
+								<SelectItem key={pr.id} value={String(pr.id)}>
+									{pr.name}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
 				</div>
-				{loadingProducts ? (
-					<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-						{[1, 2, 3].map((i) => (
-							<Skeleton key={i} className="h-40 rounded-xl" />
-						))}
-					</div>
-				) : !products?.length ? (
-					<Card className="p-8 text-center text-gray-500">
-						Каталог пока пуст. Администратор платформы добавит материалы.
-					</Card>
-				) : (
-					<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-						{products.map((p) => (
-							<Card key={p.id} className="p-4 flex flex-col gap-3">
-								<div>
-									<div className="flex flex-wrap gap-1 mb-2">
-										{p.supplierName && (
-											<Badge variant="outline">{p.supplierName}</Badge>
-										)}
-										<Badge variant="secondary">{p.category}</Badge>
-									</div>
-									<h3 className="font-semibold text-gray-900">{p.name}</h3>
-									{p.sku && (
-										<p className="text-xs text-gray-400 mt-0.5">Арт. {p.sku}</p>
-									)}
-									{p.description && (
-										<p className="text-sm text-gray-500 mt-1 line-clamp-2">
-											{p.description}
-										</p>
-									)}
-								</div>
-								<div className="mt-auto flex items-end justify-between gap-2">
-									<div>
-										<p className="text-lg font-bold">
-											{formatMoney(p.unitPrice, p.currency)}
-										</p>
-										<p className="text-xs text-gray-500">за {p.unit}</p>
-									</div>
-									<Button size="sm" onClick={() => setOrderProduct(p)}>
-										<ShoppingCart className="w-4 h-4 mr-1" />
-										Заявка
-									</Button>
-								</div>
-							</Card>
-						))}
-					</div>
-				)}
+
+				<div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+					<Package className="w-4 h-4" />
+					{isFetching && !loadingProducts ? (
+						<span className="flex items-center gap-1.5">
+							<Loader2 className="w-3.5 h-3.5 animate-spin" /> Поиск…
+						</span>
+					) : (
+						<span>
+							Найдено: <strong className="text-foreground">{products.length}</strong>
+							{debouncedSearch ? ` по «${debouncedSearch}»` : ""}
+						</span>
+					)}
+				</div>
+
+				<DataTable
+					tableId="warehouse-marketplace-catalog"
+					columns={columns}
+					data={products}
+					isLoading={loadingProducts}
+					hideToolbar
+					getRowId={(row) => String(row.id)}
+					emptyState={
+						<div className="py-10 text-center text-muted-foreground">
+							{debouncedSearch
+								? "Ничего не найдено — измените запрос или фильтр поставщика"
+								: "Каталог пока пуст. Администратор платформы добавит материалы."}
+						</div>
+					}
+				/>
 			</section>
 
 			<section>
-				<h2 className="text-lg font-semibold mb-4">Мои заявки</h2>
+				<h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+					<ShoppingCart className="w-5 h-5" />
+					Мои заявки
+				</h2>
 				{loadingOrders ? (
 					<Skeleton className="h-32 rounded-xl" />
 				) : !orders?.length ? (
@@ -238,52 +370,6 @@ export default function WarehouseMarketplace() {
 					</div>
 				)}
 			</section>
-
-			<Dialog open={!!orderProduct} onOpenChange={(v) => !v && setOrderProduct(null)}>
-				<DialogContent className="sm:max-w-md">
-					<DialogHeader>
-						<DialogTitle>Заявка: {orderProduct?.name}</DialogTitle>
-					</DialogHeader>
-					<div className="space-y-4">
-						<div>
-							<Label>Количество ({orderProduct?.unit})</Label>
-							<Input
-								type="number"
-								min={orderProduct?.minOrderQty || "1"}
-								value={qty}
-								onChange={(e) => setQty(e.target.value)}
-								placeholder={orderProduct?.minOrderQty || "1"}
-							/>
-						</div>
-						<div>
-							<Label>Проект (куда пойдут материалы)</Label>
-							<Select value={projectId} onValueChange={setProjectId}>
-								<SelectTrigger>
-									<SelectValue placeholder="Не указан" />
-								</SelectTrigger>
-								<SelectContent>
-									{(projects || []).map((pr) => (
-										<SelectItem key={pr.id} value={String(pr.id)}>
-											{pr.name}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</div>
-						<div>
-							<Label>Комментарий</Label>
-							<Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
-						</div>
-						<Button
-							className="w-full"
-							disabled={orderMut.isPending || !qty}
-							onClick={() => orderMut.mutate()}
-						>
-							Отправить заявку
-						</Button>
-					</div>
-				</DialogContent>
-			</Dialog>
 		</div>
 	);
 }
