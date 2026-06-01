@@ -31,9 +31,16 @@ const productListSelect = {
   sortOrder: marketplaceProductsTable.sortOrder,
 };
 
+function parseSupplierIdQuery(raw: unknown): number | null | "invalid" {
+  if (raw == null || String(raw).trim() === "") return null;
+  const parsed = parseInt(String(raw), 10);
+  if (!Number.isFinite(parsed)) return "invalid";
+  return parsed;
+}
+
 function buildProductSearchConditions(searchQ: string, supplierId: number | null) {
   const conditions = [eq(marketplaceProductsTable.isActive, true)];
-  if (supplierId) {
+  if (supplierId != null) {
     conditions.push(eq(marketplaceProductsTable.supplierId, supplierId));
   }
   if (searchQ) {
@@ -53,9 +60,12 @@ function buildProductSearchConditions(searchQ: string, supplierId: number | null
 
 /** Каталог материалов платформы (активные позиции) + live-поиск ?q= */
 router.get("/marketplace/products", async (req: AuthenticatedRequest, res): Promise<void> => {
-  const supplierId = req.query.supplierId
-    ? parseInt(String(req.query.supplierId), 10)
-    : null;
+  const supplierIdParsed = parseSupplierIdQuery(req.query.supplierId);
+  if (supplierIdParsed === "invalid") {
+    res.status(400).json({ error: "Некорректный supplierId" });
+    return;
+  }
+  const supplierId = supplierIdParsed;
   const searchQ = req.query.q ? String(req.query.q).trim().slice(0, 120) : "";
   const limitRaw = parseInt(String(req.query.limit ?? "150"), 10);
   const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 200) : 150;

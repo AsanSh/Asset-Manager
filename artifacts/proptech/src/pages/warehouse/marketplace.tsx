@@ -83,6 +83,10 @@ export default function WarehouseMarketplace() {
 		return () => window.clearTimeout(t);
 	}, [searchInput]);
 
+	useEffect(() => {
+		setRowQty({});
+	}, [supplierFilter, debouncedSearch]);
+
 	const { data: suppliers = [] } = useQuery({
 		queryKey: ["marketplace-suppliers"],
 		queryFn: () =>
@@ -139,9 +143,9 @@ export default function WarehouseMarketplace() {
 		(product: MarketplaceProduct) => {
 			const raw = rowQty[product.id] ?? defaultQty(product);
 			const quantity = parseFloat(raw);
-			if (!quantity || quantity <= 0) {
+			if (!Number.isFinite(quantity) || quantity <= 0) {
 				toast({
-					title: "Укажите количество",
+					title: "Введите количество больше нуля",
 					variant: "destructive",
 				});
 				return;
