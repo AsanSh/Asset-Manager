@@ -1,6 +1,8 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Edit2, Plus } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table";
 import {
 	type Company,
 	getListCompaniesQueryKey,
@@ -18,15 +20,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Companies() {
@@ -44,88 +37,104 @@ export default function Companies() {
 		setIsDialogOpen(true);
 	};
 
+	const rows = Array.isArray(companies) ? companies : [];
+
+	const columns = useMemo<ColumnDef<Company, unknown>[]>(
+		() => [
+			{
+				id: "name",
+				header: "Название",
+				size: 180,
+				minSize: 120,
+				maxSize: 320,
+				accessorKey: "name",
+				meta: { exportLabel: "Название", grow: true },
+				cell: ({ row }) => (
+					<span className="font-medium truncate block" title={row.original.name}>
+						{row.original.name}
+					</span>
+				),
+			},
+			{
+				id: "legalName",
+				header: "Юр. название",
+				size: 200,
+				minSize: 140,
+				maxSize: 360,
+				accessorFn: (row) => row.legalName || "",
+				meta: { exportLabel: "Юр. название", grow: true },
+				cell: ({ row }) => row.original.legalName || "—",
+			},
+			{
+				id: "bin",
+				header: "ИНН",
+				size: 120,
+				accessorFn: (row) => row.bin || "",
+				meta: { exportLabel: "ИНН" },
+				cell: ({ row }) => row.original.bin || "—",
+			},
+			{
+				id: "status",
+				header: "Статус",
+				size: 100,
+				accessorFn: (row) => (row.isActive ? "active" : "inactive"),
+				meta: { exportLabel: "Статус" },
+				cell: ({ row }) => (
+					<Badge variant={row.original.isActive ? "default" : "secondary"}>
+						{row.original.isActive ? "Активна" : "Неактивна"}
+					</Badge>
+				),
+			},
+			{
+				id: "actions",
+				header: "",
+				size: 56,
+				enableSorting: false,
+				enableResizing: false,
+				meta: { align: "right" },
+				cell: ({ row }) => (
+					<Button
+						variant="ghost"
+						size="icon"
+						onClick={() => handleOpenEdit(row.original)}
+					>
+						<Edit2 className="h-4 w-4" />
+					</Button>
+				),
+			},
+		],
+		[],
+	);
+
 	return (
 		<div className="space-y-6">
 			<div className="flex items-center justify-between">
 				<div>
-					<h2 className="text-3xl font-bold tracking-tight">Companies</h2>
-					<p className="text-muted-foreground mt-2">
-						Manage operating companies and legal entities.
+					<h2 className="text-2xl font-bold tracking-tight">Компании</h2>
+					<p className="text-muted-foreground text-sm mt-1">
+						Операционные компании и юридические лица
 					</p>
 				</div>
 				<Button onClick={handleOpenCreate}>
 					<Plus className="h-4 w-4 mr-2" />
-					Add Company
+					Добавить компанию
 				</Button>
 			</div>
 
-			<div className="border rounded-md bg-card">
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead>Name</TableHead>
-							<TableHead>Legal Name</TableHead>
-							<TableHead>BIN</TableHead>
-							<TableHead>Status</TableHead>
-							<TableHead className="text-right">Actions</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isLoading ? (
-							Array.from({ length: 5 }).map((_, i) => (
-								<TableRow key={i}>
-									<TableCell>
-										<Skeleton className="h-5 w-32" />
-									</TableCell>
-									<TableCell>
-										<Skeleton className="h-5 w-40" />
-									</TableCell>
-									<TableCell>
-										<Skeleton className="h-5 w-24" />
-									</TableCell>
-									<TableCell>
-										<Skeleton className="h-5 w-20" />
-									</TableCell>
-									<TableCell className="text-right">
-										<Skeleton className="h-8 w-8 inline-block" />
-									</TableCell>
-								</TableRow>
-							))
-						) : !companies || companies.length === 0 ? (
-							<TableRow>
-								<TableCell
-									colSpan={5}
-									className="text-center py-8 text-muted-foreground"
-								>
-									No companies found. Create one to get started.
-								</TableCell>
-							</TableRow>
-						) : (
-							(Array.isArray(companies) ? companies : []).map((company) => (
-								<TableRow key={company.id}>
-									<TableCell className="font-medium">{company.name}</TableCell>
-									<TableCell>{company.legalName || "-"}</TableCell>
-									<TableCell>{company.bin || "-"}</TableCell>
-									<TableCell>
-										<Badge variant={company.isActive ? "default" : "secondary"}>
-											{company.isActive ? "Active" : "Inactive"}
-										</Badge>
-									</TableCell>
-									<TableCell className="text-right">
-										<Button
-											variant="ghost"
-											size="icon"
-											onClick={() => handleOpenEdit(company)}
-										>
-											<Edit2 className="h-4 w-4" />
-										</Button>
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</div>
+			<DataTable
+				tableId="directory-companies"
+				columns={columns}
+				data={rows}
+				isLoading={isLoading}
+				enableSearch
+				searchPlaceholder="Поиск по названию…"
+				initialSorting={[{ id: "name", desc: false }]}
+				emptyState={
+					<p className="py-8 text-center text-muted-foreground">
+						Компаний пока нет. Создайте первую.
+					</p>
+				}
+			/>
 
 			<CompanyDialog
 				open={isDialogOpen}
@@ -193,12 +202,12 @@ function CompanyDialog({
 						queryClient.invalidateQueries({
 							queryKey: getListCompaniesQueryKey(),
 						});
-						toast({ title: "Company updated" });
+						toast({ title: "Компания обновлена" });
 						onOpenChange(false);
 					},
 					onError: (error: any) => {
 						toast({
-							title: "Error",
+							title: "Ошибка",
 							description: error.message,
 							variant: "destructive",
 						});
@@ -213,12 +222,12 @@ function CompanyDialog({
 						queryClient.invalidateQueries({
 							queryKey: getListCompaniesQueryKey(),
 						});
-						toast({ title: "Company created" });
+						toast({ title: "Компания создана" });
 						onOpenChange(false);
 					},
 					onError: (error: any) => {
 						toast({
-							title: "Error",
+							title: "Ошибка",
 							description: error.message,
 							variant: "destructive",
 						});
@@ -235,13 +244,13 @@ function CompanyDialog({
 			<DialogContent className="sm:max-w-[500px]">
 				<DialogHeader>
 					<DialogTitle>
-						{isEditing ? "Edit Company" : "Add Company"}
+						{isEditing ? "Редактировать компанию" : "Добавить компанию"}
 					</DialogTitle>
 				</DialogHeader>
 				<form onSubmit={handleSubmit} className="space-y-4 pt-4">
 					<div className="grid gap-4">
 						<div className="space-y-2">
-							<Label htmlFor="name">Display Name *</Label>
+							<Label htmlFor="name">Отображаемое название *</Label>
 							<Input
 								id="name"
 								required
@@ -252,7 +261,7 @@ function CompanyDialog({
 							/>
 						</div>
 						<div className="space-y-2">
-							<Label htmlFor="legalName">Legal Name</Label>
+							<Label htmlFor="legalName">Юридическое название</Label>
 							<Input
 								id="legalName"
 								value={formData.legalName}
@@ -262,9 +271,10 @@ function CompanyDialog({
 							/>
 						</div>
 						<div className="grid grid-cols-2 gap-4">
-							<div className="space-y-2">
-								<Label htmlFor="bin">BIN (Business ID)</Label>
+							<div className="space-y-2 flex flex-col">
+								<Label className="leading-tight mb-1.5" htmlFor="bin">ИНН</Label>
 								<Input
+									className="mt-auto"
 									id="bin"
 									value={formData.bin}
 									onChange={(e) =>
@@ -272,9 +282,10 @@ function CompanyDialog({
 									}
 								/>
 							</div>
-							<div className="space-y-2">
-								<Label htmlFor="phone">Phone</Label>
+							<div className="space-y-2 flex flex-col">
+								<Label className="leading-tight mb-1.5" htmlFor="phone">Телефон</Label>
 								<Input
+									className="mt-auto"
 									id="phone"
 									value={formData.phone}
 									onChange={(e) =>
@@ -284,7 +295,7 @@ function CompanyDialog({
 							</div>
 						</div>
 						<div className="space-y-2">
-							<Label htmlFor="email">Email</Label>
+							<Label htmlFor="email">Почта</Label>
 							<Input
 								id="email"
 								type="email"
@@ -295,7 +306,7 @@ function CompanyDialog({
 							/>
 						</div>
 						<div className="space-y-2">
-							<Label htmlFor="address">Address</Label>
+							<Label htmlFor="address">Адрес</Label>
 							<Input
 								id="address"
 								value={formData.address}
@@ -312,10 +323,10 @@ function CompanyDialog({
 							className="mr-2"
 							onClick={() => onOpenChange(false)}
 						>
-							Cancel
+							Отмена
 						</Button>
 						<Button type="submit" disabled={isPending}>
-							{isPending ? "Saving..." : "Save Company"}
+							{isPending ? "Сохранение…" : "Сохранить"}
 						</Button>
 					</div>
 				</form>

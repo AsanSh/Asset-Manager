@@ -64,4 +64,11 @@ export * from "./otp_codes";
 export * from "./idempotency_keys";
 export * from "./marketplace_products";
 export * from "./marketplace_orders";
+export * from "./finance_reconciliation_lines";
+export * from "./payroll_employees";
+export * from "./payroll_salary_changes";
+export * from "./payroll_approval_requests";
+export * from "./project_legal_entities";
+export * from "./supply";
+export * from "./global_catalog";
 

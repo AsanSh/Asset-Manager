@@ -9,6 +9,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useListLeaseContracts, useListProperties } from "@/api-client";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useColResize } from "@/lib/use-col-resize";
+import { MATRIX_TH, MatrixTableFrame } from "@/components/matrix-table-frame";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-error";
@@ -680,57 +681,94 @@ export default function RentalSummary() {
 					))}
 					{totalMV > 0 && <> · портфель <span className="font-medium text-gray-800">{fmtNum(totalMV)} KGS</span></>}
 				</p>
-				<div className="flex items-center gap-2">
-					<Popover>
-						<PopoverTrigger asChild>
-							<button className="inline-flex items-center gap-1.5 h-8 px-3 rounded border border-gray-200 bg-white text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-								<Columns className="w-3.5 h-3.5" /> Столбцы
-							</button>
-						</PopoverTrigger>
-						<PopoverContent className="w-52 p-2" align="end">
-							<p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5 px-1">Столбцы</p>
-							{COLUMNS.map(col => (
-								<label key={col.key} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-50 cursor-pointer">
-									<input type="checkbox" checked={visibleCols.has(col.key)} onChange={() => toggleCol(col.key)} className="w-3.5 h-3.5 accent-blue-600" />
-									<span className="text-xs text-gray-700">{col.label}</span>
-								</label>
-							))}
-						</PopoverContent>
-					</Popover>
-
-					{/* Import */}
-					<input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileChange} />
-					<button onClick={() => fileRef.current?.click()}
-						className="inline-flex items-center gap-1.5 h-8 px-3 rounded border border-emerald-200 bg-emerald-50 text-xs font-medium text-emerald-700 hover:bg-emerald-100 transition-colors">
-						<Upload className="w-3.5 h-3.5" /> Импорт Excel
-					</button>
-
-					{/* Export xlsx */}
-					<button onClick={exportXlsx}
-						className="inline-flex items-center gap-1.5 h-8 px-3 rounded border border-blue-200 bg-blue-50 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors">
-						<FileSpreadsheet className="w-3.5 h-3.5" /> Excel
-					</button>
-
-					{/* Export csv */}
-					<button onClick={exportCsv}
-						className="inline-flex items-center gap-1.5 h-8 px-3 rounded border border-gray-200 bg-white text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-						<Download className="w-3.5 h-3.5" /> CSV
-					</button>
-				</div>
 			</div>
 
-			{/* ── Excel table ── */}
-			<div className="overflow-auto border border-gray-300 rounded-sm flex-1" style={{ maxHeight: "calc(100vh - 300px)" }}>
-				<table className="text-xs border-separate border-spacing-0 table-fixed" style={{ minWidth: visibleDefs.reduce((s, c) => s + (colWidths[c.key] ?? c.width ?? 100), 50) + "px" }}>
+			<MatrixTableFrame
+				title="Сводная матрица"
+				className="flex-1 min-h-0"
+				maxHeight="calc(100vh - 300px)"
+				onExportCsv={exportCsv}
+				toolbar={
+					<>
+						<Popover>
+							<PopoverTrigger asChild>
+								<button
+									type="button"
+									className="inline-flex items-center gap-1.5 h-8 px-3 rounded border border-am-border bg-am-surface text-xs font-medium text-am-text-muted hover:bg-gray-50 transition-colors"
+								>
+									<Columns className="w-3.5 h-3.5" /> Столбцы
+								</button>
+							</PopoverTrigger>
+							<PopoverContent className="w-52 p-2" align="end">
+								<p className="text-[10px] font-semibold text-am-text-muted uppercase tracking-wide mb-1.5 px-1">
+									Столбцы
+								</p>
+								{COLUMNS.map((col) => (
+									<label
+										key={col.key}
+										className="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-50 cursor-pointer"
+									>
+										<input
+											type="checkbox"
+											checked={visibleCols.has(col.key)}
+											onChange={() => toggleCol(col.key)}
+											className="w-3.5 h-3.5 accent-blue-600"
+										/>
+										<span className="text-xs text-gray-700">{col.label}</span>
+									</label>
+								))}
+							</PopoverContent>
+						</Popover>
+						<input
+							ref={fileRef}
+							type="file"
+							accept=".xlsx,.xls"
+							className="hidden"
+							onChange={handleFileChange}
+						/>
+						<button
+							type="button"
+							onClick={() => fileRef.current?.click()}
+							className="inline-flex items-center gap-1.5 h-8 px-3 rounded border border-emerald-200 bg-emerald-50 text-xs font-medium text-emerald-700 hover:bg-emerald-100 transition-colors"
+						>
+							<Upload className="w-3.5 h-3.5" /> Импорт Excel
+						</button>
+						<button
+							type="button"
+							onClick={exportXlsx}
+							className="inline-flex items-center gap-1.5 h-8 px-3 rounded border border-blue-200 bg-blue-50 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors"
+						>
+							<FileSpreadsheet className="w-3.5 h-3.5" /> Excel
+						</button>
+					</>
+				}
+			>
+				<table
+					className="text-xs border-separate border-spacing-0 table-fixed w-full"
+					style={{
+						minWidth:
+							visibleDefs.reduce(
+								(s, c) => s + (colWidths[c.key] ?? c.width ?? 100),
+								50,
+							) + "px",
+					}}
+				>
 					<thead>
 						<tr>
-							<th className="border border-gray-300 text-center text-gray-500 font-semibold py-1.5 px-2 select-none sticky top-0 left-0 z-30 text-[11px] shadow-[0_1px_0_0_#d1d5db] w-10" style={{ backgroundColor: "#E8EAED" }}>#</th>
+							<th
+								className={`border border-gray-300 ${MATRIX_TH} text-center sticky top-0 left-0 z-30 shadow-[0_1px_0_0_#d1d5db] w-10 bg-gray-50/95`}
+							>
+								#
+							</th>
 							{visibleDefs.map(col => {
 								const w = colWidths[col.key] ?? col.width ?? 100;
 								return (
-								<th key={col.key} onClick={() => handleSort(col.key)}
-									className="border border-gray-300 text-left py-1.5 px-2 font-semibold text-gray-700 cursor-pointer select-none hover:bg-[#d8dde3] transition-colors whitespace-nowrap text-[11px] sticky top-0 z-20 shadow-[0_1px_0_0_#d1d5db] relative"
-									style={{ backgroundColor: "#E8EAED", width: w, minWidth: w, maxWidth: w }}>
+								<th
+									key={col.key}
+									onClick={() => handleSort(col.key)}
+									className={`border border-gray-300 ${MATRIX_TH} text-left cursor-pointer select-none hover:bg-gray-100 transition-colors sticky top-0 z-20 shadow-[0_1px_0_0_#d1d5db] relative bg-gray-50/95`}
+									style={{ width: w, minWidth: w, maxWidth: w }}
+								>
 									<span className="inline-flex items-center gap-1 pr-1">
 										{col.label}
 										{sortKey === col.key ? (sortDir === "asc" ? <ChevronUp className="w-3 h-3 text-blue-600" /> : <ChevronDown className="w-3 h-3 text-blue-600" />) : <ChevronsUpDown className="w-3 h-3 text-gray-300" />}
@@ -858,7 +896,7 @@ export default function RentalSummary() {
 						</tfoot>
 					)}
 				</table>
-			</div>
+			</MatrixTableFrame>
 
 			<p className="text-[11px] text-gray-400 flex-shrink-0">
 				* Рыночная стоимость — нажмите на ячейку для ввода · ROI = Взнос ÷ Рын. стоимость × 100% · Красный = просрочен · Жёлтый = &lt;30 дней

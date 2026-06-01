@@ -85,6 +85,93 @@ const CURRENCY_SYMBOLS: Record<Currency, string> = {
 	EUR: "€",
 };
 
+type BankAccountRow = {
+	id: number;
+	name: string;
+	type: AccountType;
+	bank?: string | null;
+	bik?: string | null;
+	accountNumber?: string | null;
+	currency: Currency;
+	openingBalance: string | number;
+	currentBalance: string | number;
+	isActive: boolean;
+	notes?: string | null;
+	module?: string;
+	createdAt?: string;
+	updatedAt?: string;
+};
+
+function mapBankAccount(row: BankAccountRow): SystemAccount {
+	return {
+		id: row.id,
+		name: row.name,
+		type: row.type,
+		bankName: row.bank ?? undefined,
+		bik: row.bik ?? undefined,
+		accountNumber: row.accountNumber ?? undefined,
+		currency: row.currency,
+		openingBalance: parseFloat(String(row.openingBalance ?? 0)),
+		currentBalance: parseFloat(String(row.currentBalance ?? 0)),
+		isActive: row.isActive,
+		notes: row.notes ?? undefined,
+		createdAt: row.createdAt,
+		updatedAt: row.updatedAt,
+	};
+}
+
+function toBankAccountCreatePayload(formData: {
+	name: string;
+	type: AccountType;
+	bankName: string;
+	bik: string;
+	accountNumber: string;
+	currency: Currency;
+	openingBalance: string;
+	isActive: boolean;
+	notes: string;
+}) {
+	const opening = parseFloat(formData.openingBalance) || 0;
+	return {
+		name: formData.name,
+		type: formData.type,
+		bank: formData.bankName || null,
+		bik: formData.bik || null,
+		accountNumber: formData.accountNumber || null,
+		currency: formData.currency,
+		openingBalance: String(opening),
+		currentBalance: String(opening),
+		module: "consolidated",
+		isActive: formData.isActive,
+		notes: formData.notes || null,
+	};
+}
+
+function toBankAccountUpdatePayload(formData: {
+	name: string;
+	type: AccountType;
+	bankName: string;
+	bik: string;
+	accountNumber: string;
+	currency: Currency;
+	openingBalance: string;
+	isActive: boolean;
+	notes: string;
+}) {
+	const opening = parseFloat(formData.openingBalance) || 0;
+	return {
+		name: formData.name,
+		type: formData.type,
+		bank: formData.bankName || null,
+		bik: formData.bik || null,
+		accountNumber: formData.accountNumber || null,
+		currency: formData.currency,
+		openingBalance: String(opening),
+		isActive: formData.isActive,
+		notes: formData.notes || null,
+	};
+}
+
 function formatCurrency(amount: number, currency: Currency) {
 	const formatted = new Intl.NumberFormat("ru-RU", {
 		minimumFractionDigits: 2,
@@ -148,9 +235,10 @@ function AccountDialog({ open, onClose, account }: AccountDialogProps) {
 	}, [account, open]);
 
 	const createMutation = useMutation({
-		mutationFn: (data: any) => api.post("/system-accounts", data),
+		mutationFn: (data: ReturnType<typeof toBankAccountCreatePayload>) =>
+			api.post("/bank-accounts", data),
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["system-accounts"] });
+			queryClient.invalidateQueries({ queryKey: ["bank-accounts-settings"] });
 			toast({ title: "Счет создан" });
 			onClose();
 		},
@@ -164,10 +252,10 @@ function AccountDialog({ open, onClose, account }: AccountDialogProps) {
 	});
 
 	const updateMutation = useMutation({
-		mutationFn: (data: any) =>
-			api.patch(`/system-accounts/${account?.id}`, data),
+		mutationFn: (data: ReturnType<typeof toBankAccountUpdatePayload>) =>
+			api.patch(`/bank-accounts/${account?.id}`, data),
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["system-accounts"] });
+			queryClient.invalidateQueries({ queryKey: ["bank-accounts-settings"] });
 			toast({ title: "Счет обновлен" });
 			onClose();
 		},
@@ -182,22 +270,10 @@ function AccountDialog({ open, onClose, account }: AccountDialogProps) {
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
-		const payload = {
-			name: formData.name,
-			type: formData.type,
-			bankName: formData.bankName || null,
-			bik: formData.bik || null,
-			accountNumber: formData.accountNumber || null,
-			currency: formData.currency,
-			openingBalance: parseFloat(formData.openingBalance) || 0,
-			isActive: formData.isActive,
-			notes: formData.notes || null,
-		};
-
 		if (account) {
-			updateMutation.mutate(payload);
+			updateMutation.mutate(toBankAccountUpdatePayload(formData));
 		} else {
-			createMutation.mutate(payload);
+			createMutation.mutate(toBankAccountCreatePayload(formData));
 		}
 	};
 
@@ -214,8 +290,8 @@ function AccountDialog({ open, onClose, account }: AccountDialogProps) {
 				</DialogHeader>
 				<form onSubmit={handleSubmit} className="space-y-4">
 					<div className="grid grid-cols-2 gap-4">
-						<div>
-							<Label>Название счета *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Название счета *</Label>
 							<Input
 								value={formData.name}
 								onChange={(e) =>
@@ -223,18 +299,18 @@ function AccountDialog({ open, onClose, account }: AccountDialogProps) {
 								}
 								placeholder="Основной расчетный счет"
 								required
-								className="mt-1"
+								className="mt-auto"
 							/>
 						</div>
-						<div>
-							<Label>Тип счета *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Тип счета *</Label>
 							<Select
 								value={formData.type}
 								onValueChange={(val: AccountType) =>
 									setFormData({ ...formData, type: val })
 								}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -251,26 +327,26 @@ function AccountDialog({ open, onClose, account }: AccountDialogProps) {
 					{isBankAccount && (
 						<>
 							<div className="grid grid-cols-2 gap-4">
-								<div>
-									<Label>Название банка</Label>
+								<div className="flex flex-col">
+									<Label className="leading-tight mb-1.5">Название банка</Label>
 									<Input
 										value={formData.bankName}
 										onChange={(e) =>
 											setFormData({ ...formData, bankName: e.target.value })
 										}
 										placeholder="ОАО Банк"
-										className="mt-1"
+										className="mt-auto"
 									/>
 								</div>
-								<div>
-									<Label>БИК</Label>
+								<div className="flex flex-col">
+									<Label className="leading-tight mb-1.5">БИК</Label>
 									<Input
 										value={formData.bik}
 										onChange={(e) =>
 											setFormData({ ...formData, bik: e.target.value })
 										}
 										placeholder="123456"
-										className="mt-1"
+										className="mt-auto"
 									/>
 								</div>
 							</div>
@@ -290,15 +366,15 @@ function AccountDialog({ open, onClose, account }: AccountDialogProps) {
 					)}
 
 					<div className="grid grid-cols-2 gap-4">
-						<div>
-							<Label>Валюта *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Валюта *</Label>
 							<Select
 								value={formData.currency}
 								onValueChange={(val: Currency) =>
 									setFormData({ ...formData, currency: val })
 								}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -310,8 +386,8 @@ function AccountDialog({ open, onClose, account }: AccountDialogProps) {
 								</SelectContent>
 							</Select>
 						</div>
-						<div>
-							<Label>Начальный баланс</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Начальный баланс</Label>
 							<Input
 								type="number"
 								step="0.01"
@@ -320,7 +396,7 @@ function AccountDialog({ open, onClose, account }: AccountDialogProps) {
 									setFormData({ ...formData, openingBalance: e.target.value })
 								}
 								placeholder="0.00"
-								className="mt-1"
+								className="mt-auto"
 								disabled={!!account}
 							/>
 							{account && (
@@ -381,8 +457,11 @@ export default function SystemAccounts() {
 	const queryClient = useQueryClient();
 
 	const { data: accounts, isLoading } = useQuery({
-		queryKey: ["system-accounts"],
-		queryFn: () => api.get("/system-accounts").then((r) => r.data),
+		queryKey: ["bank-accounts-settings"],
+		queryFn: () =>
+			api
+				.get<BankAccountRow[]>("/bank-accounts")
+				.then((r) => (Array.isArray(r.data) ? r.data.map(mapBankAccount) : [])),
 	});
 
 	const [dialogOpen, setDialogOpen] = useState(false);
@@ -392,9 +471,9 @@ export default function SystemAccounts() {
 	const [deleteId, setDeleteId] = useState<number | null>(null);
 
 	const deleteMutation = useMutation({
-		mutationFn: (id: number) => api.delete(`/system-accounts/${id}`),
+		mutationFn: (id: number) => api.delete(`/bank-accounts/${id}`),
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["system-accounts"] });
+			queryClient.invalidateQueries({ queryKey: ["bank-accounts-settings"] });
 			toast({ title: "Счет удален" });
 		},
 		onError: (error: any) => {

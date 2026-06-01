@@ -87,10 +87,10 @@ function GenerateTZ() {
 	return (
 		<div className="space-y-4">
 			<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-				<div className="space-y-2">
-					<Label>Тип проекта</Label>
+				<div className="space-y-2 flex flex-col">
+					<Label className="leading-tight mb-1.5">Тип проекта</Label>
 					<Select value={projectType} onValueChange={setProjectType}>
-						<SelectTrigger>
+						<SelectTrigger className="mt-auto">
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
@@ -345,10 +345,10 @@ function GenerateAct() {
 	return (
 		<div className="space-y-4">
 			<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-				<div className="space-y-2">
-					<Label>Тип акта</Label>
+				<div className="space-y-2 flex flex-col">
+					<Label className="leading-tight mb-1.5">Тип акта</Label>
 					<Select value={actType} onValueChange={(v) => setActType(v as any)}>
-						<SelectTrigger>
+						<SelectTrigger className="mt-auto">
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
@@ -361,25 +361,28 @@ function GenerateAct() {
 						</SelectContent>
 					</Select>
 				</div>
-				<div className="space-y-2">
-					<Label>Период</Label>
+				<div className="space-y-2 flex flex-col">
+					<Label className="leading-tight mb-1.5">Период</Label>
 					<Input
+						className="mt-auto"
 						value={period}
 						onChange={(e) => setPeriod(e.target.value)}
 						placeholder="Май 2026"
 					/>
 				</div>
-				<div className="space-y-2">
-					<Label>Наименование объекта *</Label>
+				<div className="space-y-2 flex flex-col">
+					<Label className="leading-tight mb-1.5">Наименование объекта *</Label>
 					<Input
+						className="mt-auto"
 						value={projectName}
 						onChange={(e) => setProjectName(e.target.value)}
 						placeholder="ЖК 'Ромашка', корпус 1"
 					/>
 				</div>
-				<div className="space-y-2">
-					<Label>Подрядчик</Label>
+				<div className="space-y-2 flex flex-col">
+					<Label className="leading-tight mb-1.5">Подрядчик</Label>
 					<Input
+						className="mt-auto"
 						value={contractor}
 						onChange={(e) => setContractor(e.target.value)}
 						placeholder="ООО 'СтройГрупп'"

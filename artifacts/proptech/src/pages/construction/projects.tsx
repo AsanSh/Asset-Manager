@@ -323,23 +323,23 @@ function ProjectDialog({
 							Основное
 						</p>
 						<div className="grid grid-cols-2 gap-3">
-							<div className="col-span-2">
-								<Label>Название проекта *</Label>
+							<div className="col-span-2 flex flex-col">
+								<Label className="leading-tight mb-1.5">Название проекта *</Label>
 								<Input
-									className="mt-1"
+									className="mt-auto"
 									value={form.name}
 									onChange={(e) => set("name", e.target.value)}
 									placeholder='ЖК "Бишкек Хайтс"'
 									required
 								/>
 							</div>
-							<div>
-								<Label>Статус</Label>
+							<div className="flex flex-col">
+								<Label className="leading-tight mb-1.5">Статус</Label>
 								<Select
 									value={form.status}
 									onValueChange={(v) => set("status", v)}
 								>
-									<SelectTrigger className="mt-1">
+									<SelectTrigger className="mt-auto">
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>
@@ -351,19 +351,19 @@ function ProjectDialog({
 									</SelectContent>
 								</Select>
 							</div>
-							<div>
-								<Label>Регион</Label>
+							<div className="flex flex-col">
+								<Label className="leading-tight mb-1.5">Регион</Label>
 								<Input
-									className="mt-1"
+									className="mt-auto"
 									value={form.region}
 									onChange={(e) => set("region", e.target.value)}
 									placeholder="Бишкек"
 								/>
 							</div>
-							<div className="col-span-2">
-								<Label>Адрес</Label>
+							<div className="col-span-2 flex flex-col">
+								<Label className="leading-tight mb-1.5">Адрес</Label>
 								<Input
-									className="mt-1"
+									className="mt-auto"
 									value={form.address}
 									onChange={(e) => set("address", e.target.value)}
 									placeholder="ул. Манаса, 45"
@@ -378,13 +378,13 @@ function ProjectDialog({
 							<Building className="w-3.5 h-3.5" /> Характеристики здания
 						</p>
 						<div className="grid grid-cols-2 gap-3">
-							<div>
-								<Label>Тип здания</Label>
+							<div className="flex flex-col">
+								<Label className="leading-tight mb-1.5">Тип здания</Label>
 								<Select
 									value={form.buildingType}
 									onValueChange={(v) => set("buildingType", v)}
 								>
-									<SelectTrigger className="mt-1">
+									<SelectTrigger className="mt-auto">
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>
@@ -396,13 +396,13 @@ function ProjectDialog({
 									</SelectContent>
 								</Select>
 							</div>
-							<div>
-								<Label>Тип конструкции</Label>
+							<div className="flex flex-col">
+								<Label className="leading-tight mb-1.5">Тип конструкции</Label>
 								<Select
 									value={form.constructionType}
 									onValueChange={(v) => set("constructionType", v)}
 								>
-									<SelectTrigger className="mt-1">
+									<SelectTrigger className="mt-auto">
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>
@@ -414,10 +414,10 @@ function ProjectDialog({
 									</SelectContent>
 								</Select>
 							</div>
-							<div>
-								<Label>Этажей</Label>
+							<div className="flex flex-col">
+								<Label className="leading-tight mb-1.5">Этажей</Label>
 								<Input
-									className="mt-1"
+									className="mt-auto"
 									type="number"
 									min="1"
 									value={form.totalFloors}
@@ -425,10 +425,10 @@ function ProjectDialog({
 									placeholder="16"
 								/>
 							</div>
-							<div>
-								<Label>Квартир / юнитов (всего)</Label>
+							<div className="flex flex-col">
+								<Label className="leading-tight mb-1.5">Квартир / юнитов (всего)</Label>
 								<Input
-									className="mt-1"
+									className="mt-auto"
 									type="number"
 									min="1"
 									value={form.totalUnits}
@@ -439,10 +439,10 @@ function ProjectDialog({
 									При сохранении проекта квартиры появятся в шахматке автоматически
 								</p>
 							</div>
-							<div className="col-span-2">
-								<Label>Общая площадь (кв.м)</Label>
+							<div className="col-span-2 flex flex-col">
+								<Label className="leading-tight mb-1.5">Общая площадь (кв.м)</Label>
 								<Input
-									className="mt-1"
+									className="mt-auto"
 									type="number"
 									min="0"
 									step="0.01"
@@ -460,10 +460,10 @@ function ProjectDialog({
 							<Calculator className="w-3.5 h-3.5" /> Расчёт себестоимости
 						</p>
 						<div className="grid grid-cols-2 gap-3">
-							<div>
-								<Label>Стоимость за 1 кв.м ({form.currency})</Label>
+							<div className="flex flex-col">
+								<Label className="leading-tight mb-1.5">Стоимость за 1 кв.м ({form.currency})</Label>
 								<Input
-									className="mt-1"
+									className="mt-auto"
 									type="number"
 									min="0"
 									value={form.costPerSqm}
@@ -471,8 +471,8 @@ function ProjectDialog({
 									placeholder={form.currency === "USD" ? "1200" : "105000"}
 								/>
 							</div>
-							<div>
-								<Label>Валюта проекта</Label>
+							<div className="flex flex-col">
+								<Label className="leading-tight mb-1.5">Валюта проекта</Label>
 								<Select
 									value={form.currency}
 									onValueChange={(v) => {
@@ -480,7 +480,7 @@ function ProjectDialog({
 										if (v === "KGS") set("exchangeRate", "1");
 									}}
 								>
-									<SelectTrigger className="mt-1">
+									<SelectTrigger className="mt-auto">
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>
@@ -564,19 +564,19 @@ function ProjectDialog({
 							Сроки
 						</p>
 						<div className="grid grid-cols-2 gap-3">
-							<div>
-								<Label>Дата начала</Label>
+							<div className="flex flex-col">
+								<Label className="leading-tight mb-1.5">Дата начала</Label>
 								<Input
-									className="mt-1"
+									className="mt-auto"
 									type="date"
 									value={form.startDate}
 									onChange={(e) => set("startDate", e.target.value)}
 								/>
 							</div>
-							<div>
-								<Label>Плановая дата сдачи</Label>
+							<div className="flex flex-col">
+								<Label className="leading-tight mb-1.5">Плановая дата сдачи</Label>
 								<Input
-									className="mt-1"
+									className="mt-auto"
 									type="date"
 									value={form.plannedEndDate}
 									onChange={(e) => set("plannedEndDate", e.target.value)}

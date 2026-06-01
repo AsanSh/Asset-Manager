@@ -256,22 +256,22 @@ export default function ConstructionEmployees() {
 
 						<div className="p-5 space-y-4">
 							<div className="grid grid-cols-2 gap-3">
-								<div>
-									<Label className="text-xs font-medium text-gray-600">Имя *</Label>
+								<div className="flex flex-col">
+									<Label className="text-xs font-medium text-gray-600 leading-tight mb-1.5">Имя *</Label>
 									<Input
-										className="mt-1 h-9"
+										className="mt-auto h-9"
 										value={form.firstName}
 										onChange={(e) =>
 											setForm((f) => ({ ...f, firstName: e.target.value }))
 										}
 									/>
 								</div>
-								<div>
-									<Label className="text-xs font-medium text-gray-600">
+								<div className="flex flex-col">
+									<Label className="text-xs font-medium text-gray-600 leading-tight mb-1.5">
 										Фамилия *
 									</Label>
 									<Input
-										className="mt-1 h-9"
+										className="mt-auto h-9"
 										value={form.lastName}
 										onChange={(e) =>
 											setForm((f) => ({ ...f, lastName: e.target.value }))

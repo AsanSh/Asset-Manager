@@ -1,32 +1,17 @@
 import { AlertTriangle, Clock, TrendingDown, Users } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { KpiCard, KpiRow } from "@/components/kpi-card";
 import { RentalDebtMatrix } from "@/components/rental/rental-debt-matrix";
-import { RentalExcelTable, type RentalExcelColumn } from "@/components/rental/rental-excel-table";
-import { RentalViewModeToggle } from "@/components/rental/rental-view-mode-toggle";
-import { useRentalViewMode } from "@/hooks/use-rental-view-mode";
 import {
 	AGING_BUCKETS,
 	fmtCurrency,
-	fmtDate,
 	fmtNum,
-	periodLabel,
 	sortDebtRows,
 	useRentalOverdueSearch,
 } from "@/lib/rental-overdue";
-import { useSortable } from "@/lib/use-sortable";
-
-function debtBadge(days: number) {
-	if (days > 60) return <Badge className="bg-rose-100 text-rose-800">60+ дн.</Badge>;
-	if (days > 30) return <Badge className="bg-amber-100 text-amber-800">30+ дн.</Badge>;
-	if (days > 14) return <Badge className="bg-amber-100 text-amber-800">14+ дн.</Badge>;
-	return <Badge className="bg-blue-100 text-blue-800">до 14 дн.</Badge>;
-}
 
 export default function RentalDebt() {
-	const [viewMode, setViewMode] = useRentalViewMode("debt");
 	const {
 		isLoading,
 		overdueItems,
@@ -56,38 +41,6 @@ export default function RentalDebt() {
 		}
 	};
 
-	const flatItems = useMemo(
-		() =>
-			overdueItems.map((i) => ({
-				...i,
-				tenantName: i.tenant?.fullName || i.tenant?.name || "",
-				amountNum: parseFloat(i.amount || "0") || 0,
-				balanceNum: parseFloat(i.balance || "0") || 0,
-			})),
-		[overdueItems],
-	);
-
-	const { sorted: sortedItems, sortKey, sortDir, toggle } = useSortable(flatItems, "days");
-
-	const classicColumns: RentalExcelColumn<(typeof flatItems)[number]>[] = [
-		{
-			key: "tenantName",
-			label: "Арендатор",
-			width: 160,
-			render: (r) => (
-				<div>
-					<p className="font-medium truncate">{r.tenant?.fullName || r.tenant?.name || "—"}</p>
-					<p className="text-[10px] text-gray-400 truncate">{r.contract?.propertyAddress || `Дог. #${r.leaseContractId}`}</p>
-				</div>
-			),
-		},
-		{ key: "period", label: "Период", width: 90, render: (r) => periodLabel(r.period) },
-		{ key: "amountNum", label: "Начислено", width: 100, align: "right", render: (r) => fmtCurrency(r.amount, r.currency) },
-		{ key: "balanceNum", label: "Остаток", width: 100, align: "right", render: (r) => <span className="font-semibold text-rose-700">{fmtCurrency(r.balance, r.currency)}</span> },
-		{ key: "dueDate", label: "Срок", width: 90, render: (r) => fmtDate(r.dueDate) },
-		{ key: "days", label: "Просрочка", width: 90, align: "center", render: (r) => debtBadge(r.days) },
-	];
-
 	return (
 		<div className="flex flex-col gap-3">
 			<div className="flex flex-wrap items-start justify-between gap-3">
@@ -104,7 +57,6 @@ export default function RentalDebt() {
 						value={search}
 						onChange={(e) => setSearch(e.target.value)}
 					/>
-					<RentalViewModeToggle mode={viewMode} onChange={setViewMode} />
 				</div>
 			</div>
 
@@ -126,39 +78,20 @@ export default function RentalDebt() {
 				))}
 			</KpiRow>
 
-			{viewMode === "report" ? (
-				<>
-					<p className="text-xs text-gray-500">
-						Строки — арендаторы · столбцы — сроки просрочки (дни) · суммы в KGS
-					</p>
-					<RentalDebtMatrix
-						mode="aging"
-						rows={sortedMatrix}
-						periodColumns={[]}
-						isLoading={isLoading}
-						sortKey={matrixSortKey}
-						sortDir={matrixSortDir}
-						onSort={matrixToggleSort}
-						footerTotal={totalDebt}
-						emptyMessage="Просроченных долгов нет"
-					/>
-				</>
-			) : (
-				<RentalExcelTable
-					columns={classicColumns}
-					rows={sortedItems}
-					sortKey={sortKey}
-					sortDir={sortDir}
-					onSort={toggle}
-					isLoading={isLoading}
-					emptyMessage="Просроченных долгов нет"
-					footer={[
-						{ colSpan: 3, content: `Итого: ${overdueItems.length}` },
-						{ content: fmtNum(totalDebt), align: "right", className: "font-bold text-rose-700" },
-						{ colSpan: 2, content: "" },
-					]}
-				/>
-			)}
+			<p className="text-xs text-gray-500">
+				Строки — арендаторы · столбцы — сроки просрочки (дни) · суммы в сом
+			</p>
+			<RentalDebtMatrix
+				mode="aging"
+				rows={sortedMatrix}
+				periodColumns={[]}
+				isLoading={isLoading}
+				sortKey={matrixSortKey}
+				sortDir={matrixSortDir}
+				onSort={matrixToggleSort}
+				footerTotal={totalDebt}
+				emptyMessage="Просроченных долгов нет"
+			/>
 		</div>
 	);
 }

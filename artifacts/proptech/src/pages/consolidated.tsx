@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table";
 import {
 	Select,
 	SelectContent,
@@ -8,7 +10,6 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 
 const MODULE_LABELS: Record<string, string> = {
@@ -121,6 +122,84 @@ export default function ConsolidatedModule() {
 		return { income, expense, net: income - expense };
 	}, [filtered]);
 
+	const columns = useMemo<ColumnDef<LogRow, unknown>[]>(
+		() => [
+			{
+				id: "date",
+				header: "Дата",
+				size: 100,
+				accessorFn: (row) => row.operationDate || row.createdAt,
+				meta: { exportLabel: "Дата", pinned: "left" },
+				cell: ({ row }) => {
+					const d = row.original.operationDate || row.original.createdAt;
+					return d ? new Date(d).toLocaleDateString("ru-KG") : "—";
+				},
+			},
+			{
+				id: "module",
+				header: "Модуль",
+				size: 130,
+				accessorKey: "module",
+				meta: { exportLabel: "Модуль" },
+				cell: ({ row }) => (
+					<span
+						className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${MODULE_COLORS[row.original.module] || "bg-gray-100 text-gray-600"}`}
+					>
+						{MODULE_LABELS[row.original.module] || row.original.module}
+					</span>
+				),
+			},
+			{
+				id: "operationType",
+				header: "Тип",
+				size: 110,
+				accessorKey: "operationType",
+				meta: { exportLabel: "Тип" },
+				cell: ({ row }) =>
+					OP_LABELS[row.original.operationType] || row.original.operationType,
+			},
+			{
+				id: "counterparty",
+				header: "Контрагент",
+				size: 160,
+				minSize: 120,
+				maxSize: 320,
+				accessorFn: (row) => row.counterpartyName || "",
+				meta: { exportLabel: "Контрагент", grow: true },
+				cell: ({ row }) => row.original.counterpartyName || "—",
+			},
+			{
+				id: "description",
+				header: "Описание",
+				size: 200,
+				minSize: 120,
+				maxSize: 400,
+				accessorFn: (row) => row.description || "",
+				meta: { exportLabel: "Описание", grow: true },
+				cell: ({ row }) => (
+					<span className="truncate block" title={row.original.description || undefined}>
+						{row.original.description || "—"}
+					</span>
+				),
+			},
+			{
+				id: "amount",
+				header: "Сумма",
+				size: 120,
+				accessorFn: (row) => parseFloat(row.amount || "0"),
+				meta: { exportLabel: "Сумма", align: "right", financeAmount: true, pinned: "right" },
+				cell: ({ row }) => (
+					<span
+						className={`tabular-nums font-medium ${OP_COLORS[row.original.operationType] || "text-gray-700"}`}
+					>
+						{fmtAmt(row.original.amount, row.original.currency)}
+					</span>
+				),
+			},
+		],
+		[],
+	);
+
 	return (
 		<div className="p-6 space-y-4">
 			<div className="flex items-center justify-between">
@@ -203,72 +282,19 @@ export default function ConsolidatedModule() {
 				<span className="ml-auto text-xs text-gray-400">{filtered.length} записей</span>
 			</div>
 
-			{/* Table */}
-			<div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-				<div className="overflow-auto max-h-[calc(100vh-380px)]">
-					<table className="w-full text-xs border-collapse">
-						<thead className="sticky top-0 z-10">
-							<tr className="bg-gray-50 border-b border-gray-100">
-								<th className="text-left px-3 py-2.5 font-semibold text-gray-500">Дата</th>
-								<th className="text-left px-3 py-2.5 font-semibold text-gray-500">Модуль</th>
-								<th className="text-left px-3 py-2.5 font-semibold text-gray-500">Тип</th>
-								<th className="text-left px-3 py-2.5 font-semibold text-gray-500">Контрагент</th>
-								<th className="text-left px-3 py-2.5 font-semibold text-gray-500">Описание</th>
-								<th className="text-right px-3 py-2.5 font-semibold text-gray-500">Сумма</th>
-							</tr>
-						</thead>
-						<tbody>
-							{isLoading ? (
-								Array.from({ length: 6 }).map((_, i) => (
-									<tr key={i} className="border-b border-gray-50">
-										{Array.from({ length: 6 }).map((_, j) => (
-											<td key={j} className="px-3 py-2">
-												<Skeleton className="h-3 w-full" />
-											</td>
-										))}
-									</tr>
-								))
-							) : filtered.length === 0 ? (
-								<tr>
-									<td colSpan={6} className="text-center py-16 text-gray-400">
-										Нет операций по выбранным фильтрам
-									</td>
-								</tr>
-							) : (
-								filtered.map((row, idx) => (
-									<tr
-										key={row.id}
-										className={`border-b border-gray-50 ${idx % 2 === 0 ? "bg-white" : "bg-gray-50/50"}`}
-									>
-										<td className="px-3 py-2 text-gray-500 whitespace-nowrap">
-											{row.operationDate
-												? new Date(row.operationDate).toLocaleDateString("ru-KG")
-												: new Date(row.createdAt).toLocaleDateString("ru-KG")}
-										</td>
-										<td className="px-3 py-2">
-											<span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${MODULE_COLORS[row.module] || "bg-gray-100 text-gray-600"}`}>
-												{MODULE_LABELS[row.module] || row.module}
-											</span>
-										</td>
-										<td className="px-3 py-2 text-gray-600">
-											{OP_LABELS[row.operationType] || row.operationType}
-										</td>
-										<td className="px-3 py-2 text-gray-700">
-											{row.counterpartyName || "—"}
-										</td>
-										<td className="px-3 py-2 text-gray-500 max-w-xs truncate">
-											{row.description || "—"}
-										</td>
-										<td className={`px-3 py-2 text-right font-medium ${OP_COLORS[row.operationType] || "text-gray-700"}`}>
-											{fmtAmt(row.amount, row.currency)}
-										</td>
-									</tr>
-								))
-							)}
-						</tbody>
-					</table>
-				</div>
-			</div>
+			<DataTable
+				tableId="consolidated-operations"
+				columns={columns}
+				data={filtered}
+				isLoading={isLoading}
+				maxHeight="calc(100vh - 380px)"
+				initialSorting={[{ id: "date", desc: true }]}
+				emptyState={
+					<p className="py-12 text-center text-am-text-muted">
+						Нет операций по выбранным фильтрам
+					</p>
+				}
+			/>
 		</div>
 	);
 }

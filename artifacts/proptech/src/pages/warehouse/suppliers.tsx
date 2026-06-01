@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Plus, Search, Star, Trash2, UserPlus, Eye, CheckCircle2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Pencil, Plus, Star, Trash2, Truck, UserPlus, Eye, CheckCircle2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -13,6 +15,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import {
 	Dialog,
 	DialogContent,
@@ -28,15 +31,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { ContractFileUpload } from "@/components/contract-file-upload";
@@ -64,6 +58,15 @@ interface Supplier {
 	status: "active" | "inactive";
 	note?: string;
 	contractDocument?: { fileName: string; mimeType: string; uploadedAt: string } | null;
+}
+interface SupplierCreditLimit {
+	id: number;
+	supplierId: number;
+	limitAmount: string;
+	usedAmount: string;
+	termDays: number;
+	markupPercent: string;
+	status: string;
 }
 
 const statusLabels: Record<string, string> = {
@@ -94,6 +97,13 @@ function SupplierDialog({ open, onClose, supplier }: SupplierDialogProps) {
 	});
 	const [portalLoading, setPortalLoading] = useState(false);
 	const [previewOpen, setPreviewOpen] = useState(false);
+	const [creditForm, setCreditForm] = useState({
+		limitAmount: "0",
+		usedAmount: "0",
+		termDays: "0",
+		markupPercent: "0",
+		status: "active",
+	});
 
 	const { data: portalStatus } = useQuery<{
 		exists: boolean;
@@ -135,6 +145,11 @@ function SupplierDialog({ open, onClose, supplier }: SupplierDialogProps) {
 				.then((r) => r.data),
 		enabled: !!supplier?.id && open,
 	});
+	const { data: creditLimits = [] } = useQuery<SupplierCreditLimit[]>({
+		queryKey: ["supplier-credit-limits", supplier?.id],
+		queryFn: () => api.get("/supply/credit-limits").then((r) => r.data),
+		enabled: !!supplier?.id && open,
+	});
 
 	useEffect(() => {
 		if (!open) return;
@@ -161,6 +176,17 @@ function SupplierDialog({ open, onClose, supplier }: SupplierDialogProps) {
 			lastName: parts.slice(1).join(" ") || "",
 		});
 	}, [open, supplier]);
+	useEffect(() => {
+		if (!supplier?.id || !open) return;
+		const current = creditLimits.find((x) => Number(x.supplierId) === Number(supplier.id));
+		setCreditForm({
+			limitAmount: current?.limitAmount ?? "0",
+			usedAmount: current?.usedAmount ?? "0",
+			termDays: String(current?.termDays ?? 0),
+			markupPercent: current?.markupPercent ?? "0",
+			status: current?.status ?? "active",
+		});
+	}, [creditLimits, supplier?.id, open]);
 
 	const reconciliation = reconciliationData?.reconciliation;
 
@@ -240,6 +266,25 @@ function SupplierDialog({ open, onClose, supplier }: SupplierDialogProps) {
 			setLoading(false);
 		}
 	};
+	const saveCreditLimit = async () => {
+		if (!supplier?.id) return;
+		try {
+			await api.put(`/supply/credit-limits/${supplier.id}`, {
+				limitAmount: creditForm.limitAmount,
+				usedAmount: creditForm.usedAmount,
+				termDays: Number(creditForm.termDays || 0),
+				markupPercent: creditForm.markupPercent,
+				status: creditForm.status,
+			});
+			toast({ title: "Лимиты и отсрочка сохранены" });
+			void queryClient.invalidateQueries({ queryKey: ["supplier-credit-limits", supplier.id] });
+		} catch (e: unknown) {
+			toast({
+				title: getApiErrorMessage(e, "Ошибка сохранения лимита"),
+				variant: "destructive",
+			});
+		}
+	};
 
 	return (
 		<Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -263,9 +308,10 @@ function SupplierDialog({ open, onClose, supplier }: SupplierDialogProps) {
 					</div>
 
 					<div className="grid grid-cols-2 gap-4">
-						<div>
-							<Label>Контактное лицо</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Контактное лицо</Label>
 							<Input
+								className="mt-auto"
 								value={formData.contactPerson}
 								onChange={(e) =>
 									setFormData({ ...formData, contactPerson: e.target.value })
@@ -273,9 +319,10 @@ function SupplierDialog({ open, onClose, supplier }: SupplierDialogProps) {
 								placeholder="Иванов Иван Иванович"
 							/>
 						</div>
-						<div>
-							<Label>Телефон</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Телефон</Label>
 							<Input
+								className="mt-auto"
 								value={formData.phone}
 								onChange={(e) =>
 									setFormData({ ...formData, phone: e.target.value })
@@ -284,12 +331,85 @@ function SupplierDialog({ open, onClose, supplier }: SupplierDialogProps) {
 							/>
 						</div>
 					</div>
+					{supplier?.id && (
+						<Card className="p-4 border-dashed">
+							<p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+								Лимиты и отсрочка
+							</p>
+							<div className="grid grid-cols-2 gap-3">
+								<div>
+									<Label>Кредитный лимит</Label>
+									<Input
+										type="number"
+										value={creditForm.limitAmount}
+										onChange={(e) =>
+											setCreditForm((prev) => ({ ...prev, limitAmount: e.target.value }))
+										}
+									/>
+								</div>
+								<div>
+									<Label>Использовано</Label>
+									<Input
+										type="number"
+										value={creditForm.usedAmount}
+										onChange={(e) =>
+											setCreditForm((prev) => ({ ...prev, usedAmount: e.target.value }))
+										}
+									/>
+								</div>
+								<div>
+									<Label>Срок отсрочки (дни)</Label>
+									<Input
+										type="number"
+										value={creditForm.termDays}
+										onChange={(e) =>
+											setCreditForm((prev) => ({ ...prev, termDays: e.target.value }))
+										}
+									/>
+								</div>
+								<div>
+									<Label>Наценка (%)</Label>
+									<Input
+										type="number"
+										value={creditForm.markupPercent}
+										onChange={(e) =>
+											setCreditForm((prev) => ({ ...prev, markupPercent: e.target.value }))
+										}
+									/>
+								</div>
+								<div className="col-span-2">
+									<Label>Статус лимита</Label>
+									<Select
+										value={creditForm.status}
+										onValueChange={(v) =>
+											setCreditForm((prev) => ({ ...prev, status: v }))
+										}
+									>
+										<SelectTrigger>
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="active">Активен</SelectItem>
+											<SelectItem value="suspended">Приостановлен</SelectItem>
+											<SelectItem value="expired">Истек</SelectItem>
+										</SelectContent>
+									</Select>
+								</div>
+							</div>
+							<div className="mt-3 flex justify-end">
+								<Button type="button" variant="outline" onClick={() => void saveCreditLimit()}>
+									Сохранить лимиты
+								</Button>
+							</div>
+						</Card>
+					)}
 
 					<div className="grid grid-cols-2 gap-4">
-						<div>
-							<Label>Email</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Email</Label>
 							<Input
 								type="email"
+								className="mt-auto"
 								value={formData.email}
 								onChange={(e) =>
 									setFormData({ ...formData, email: e.target.value })
@@ -297,9 +417,10 @@ function SupplierDialog({ open, onClose, supplier }: SupplierDialogProps) {
 								placeholder="info@stroytorg.kg"
 							/>
 						</div>
-						<div>
-							<Label>ИНН</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">ИНН</Label>
 							<Input
+								className="mt-auto"
 								value={formData.inn}
 								onChange={(e) =>
 									setFormData({ ...formData, inn: e.target.value })
@@ -321,13 +442,13 @@ function SupplierDialog({ open, onClose, supplier }: SupplierDialogProps) {
 					</div>
 
 					<div className="grid grid-cols-2 gap-4">
-						<div>
-							<Label>Рейтинг (1-5 звёзд)</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Рейтинг (1-5 звёзд)</Label>
 							<Select
 								value={formData.rating}
 								onValueChange={(v) => setFormData({ ...formData, rating: v })}
 							>
-								<SelectTrigger>
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -339,15 +460,15 @@ function SupplierDialog({ open, onClose, supplier }: SupplierDialogProps) {
 								</SelectContent>
 							</Select>
 						</div>
-						<div>
-							<Label>Статус</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Статус</Label>
 							<Select
 								value={formData.status}
 								onValueChange={(v) =>
 									setFormData({ ...formData, status: v as "active" | "inactive" })
 								}
 							>
-								<SelectTrigger>
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -370,33 +491,35 @@ function SupplierDialog({ open, onClose, supplier }: SupplierDialogProps) {
 					</div>
 
 					<div className="grid grid-cols-2 gap-4">
-						<div>
-							<Label>Сумма договора</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Сумма договора</Label>
 							<Input
 								type="number"
+								className="mt-auto"
 								value={formData.contractAmount}
 								onChange={(e) =>
 									setFormData({ ...formData, contractAmount: e.target.value })
 								}
 							/>
 						</div>
-						<div>
-							<Label>Оплачено</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Оплачено</Label>
 							<Input
 								type="number"
+								className="mt-auto"
 								value={formData.paidAmount}
 								onChange={(e) =>
 									setFormData({ ...formData, paidAmount: e.target.value })
 								}
 							/>
 						</div>
-						<div>
-							<Label>Валюта</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Валюта</Label>
 							<Select
 								value={formData.currency}
 								onValueChange={(v) => setFormData({ ...formData, currency: v })}
 							>
-								<SelectTrigger>
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -407,10 +530,10 @@ function SupplierDialog({ open, onClose, supplier }: SupplierDialogProps) {
 								</SelectContent>
 							</Select>
 						</div>
-						<div>
-							<Label>Остаток к оплате</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Остаток к оплате</Label>
 							<div
-								className={`h-10 px-3 flex items-center rounded-md border text-sm font-medium ${
+								className={`mt-auto h-10 px-3 flex items-center rounded-md border text-sm font-medium ${
 									outstanding < 0
 										? "text-rose-700 bg-rose-50 border-rose-200"
 										: outstanding === 0
@@ -520,28 +643,31 @@ function SupplierDialog({ open, onClose, supplier }: SupplierDialogProps) {
 										Войдёт по телефону из контактов выше ({formData.phone || "укажите телефон"}) и SMS-коду
 									</p>
 									<div className="grid grid-cols-2 gap-3">
-										<div>
-											<Label>Имя *</Label>
+										<div className="flex flex-col">
+											<Label className="leading-tight mb-1.5">Имя *</Label>
 											<Input
+												className="mt-auto"
 												value={portalForm.firstName}
 												onChange={(e) =>
 													setPortalForm((p) => ({ ...p, firstName: e.target.value }))
 												}
 											/>
 										</div>
-										<div>
-											<Label>Фамилия *</Label>
+										<div className="flex flex-col">
+											<Label className="leading-tight mb-1.5">Фамилия *</Label>
 											<Input
+												className="mt-auto"
 												value={portalForm.lastName}
 												onChange={(e) =>
 													setPortalForm((p) => ({ ...p, lastName: e.target.value }))
 												}
 											/>
 										</div>
-										<div className="col-span-2">
-											<Label>Email (необязательно)</Label>
+										<div className="col-span-2 flex flex-col">
+											<Label className="leading-tight mb-1.5">Email (необязательно)</Label>
 											<Input
 												type="email"
+												className="mt-auto"
 												value={portalForm.email}
 												onChange={(e) =>
 													setPortalForm((p) => ({ ...p, email: e.target.value }))
@@ -639,7 +765,6 @@ export default function Suppliers() {
 		supplier: null,
 	});
 
-	const [search, setSearch] = useState("");
 	const [statusFilter, setStatusFilter] = useState("all");
 
 	const deleteMutation = useMutation({
@@ -659,18 +784,117 @@ export default function Suppliers() {
 	});
 
 	const filteredSuppliers = suppliersArray.filter((supplier) => {
-		const matchesSearch =
-			search === "" ||
-			supplier.name.toLowerCase().includes(search.toLowerCase()) ||
-			supplier.contactPerson?.toLowerCase().includes(search.toLowerCase()) ||
-			supplier.phone?.toLowerCase().includes(search.toLowerCase()) ||
-			supplier.inn?.toLowerCase().includes(search.toLowerCase());
-
 		const matchesStatus =
 			statusFilter === "all" || supplier.status === statusFilter;
-
-		return matchesSearch && matchesStatus;
+		return matchesStatus;
 	});
+
+	const columns = useMemo<ColumnDef<Supplier, unknown>[]>(
+		() => [
+			{
+				accessorKey: "name",
+				header: "Название",
+				size: 180,
+				meta: { exportLabel: "Название" },
+				cell: ({ row }) => (
+					<span className="font-medium">{row.original.name}</span>
+				),
+			},
+			{
+				accessorKey: "contactPerson",
+				header: "Контактное лицо",
+				size: 150,
+				meta: { exportLabel: "Контактное лицо" },
+				cell: ({ row }) => row.original.contactPerson || "—",
+			},
+			{
+				accessorKey: "phone",
+				header: "Телефон",
+				size: 130,
+				meta: { exportLabel: "Телефон" },
+				cell: ({ row }) => row.original.phone || "—",
+			},
+			{
+				accessorKey: "email",
+				header: "Почта",
+				size: 160,
+				meta: { exportLabel: "Email" },
+				cell: ({ row }) => (
+					<span className="text-sm">{row.original.email || "—"}</span>
+				),
+			},
+			{
+				accessorKey: "inn",
+				header: "ИНН",
+				size: 120,
+				meta: { exportLabel: "ИНН" },
+				cell: ({ row }) => (
+					<span className="text-sm">{row.original.inn || "—"}</span>
+				),
+			},
+			{
+				id: "rating",
+				header: "Рейтинг",
+				size: 120,
+				accessorFn: (row) => row.rating ?? 0,
+				meta: { exportLabel: "Рейтинг" },
+				cell: ({ row }) => (
+					<RatingStars rating={row.original.rating || 0} />
+				),
+			},
+			{
+				accessorKey: "status",
+				header: "Статус",
+				size: 110,
+				meta: { exportLabel: "Статус" },
+				cell: ({ row }) => (
+					<Badge
+						className={statusColors[row.original.status]}
+						variant="secondary"
+					>
+						{statusLabels[row.original.status]}
+					</Badge>
+				),
+			},
+			{
+				id: "__actions",
+				header: "",
+				size: 90,
+				enableSorting: false,
+				meta: { align: "right" },
+				cell: ({ row }) => {
+					const supplier = row.original;
+					return (
+						<div
+							className="flex justify-end gap-2"
+							onClick={(e) => e.stopPropagation()}
+						>
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={() => {
+									setEditSupplier(supplier);
+									setDialogOpen(true);
+								}}
+							>
+								<Pencil className="h-4 w-4" />
+							</Button>
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={() =>
+									setDeleteDialog({ open: true, supplier })
+								}
+							>
+								<Trash2 className="h-4 w-4 text-rose-600" />
+							</Button>
+						</div>
+					);
+				},
+			},
+		],
+		[],
+	);
 
 	return (
 		<div className="p-6 space-y-4">
@@ -692,30 +916,6 @@ export default function Suppliers() {
 				</Button>
 			</div>
 
-			{/* Filters */}
-			<div className="flex flex-wrap gap-3">
-				<div className="flex-1 min-w-[200px] max-w-sm">
-					<div className="relative">
-						<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-						<Input
-							placeholder="Поиск по названию, контактам, ИНН..."
-							value={search}
-							onChange={(e) => setSearch(e.target.value)}
-							className="pl-9"
-						/>
-					</div>
-				</div>
-				<Select value={statusFilter} onValueChange={setStatusFilter}>
-					<SelectTrigger className="w-[180px]">
-						<SelectValue placeholder="Статус" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="all">Все статусы</SelectItem>
-						<SelectItem value="active">Активные</SelectItem>
-						<SelectItem value="inactive">Неактивные</SelectItem>
-					</SelectContent>
-				</Select>
-			</div>
 
 			{/* Stats */}
 			{suppliersArray.length > 0 && (
@@ -730,95 +930,36 @@ export default function Suppliers() {
 				</div>
 			)}
 
-			{/* Table */}
-			<div className="rounded-md border">
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead>Название</TableHead>
-							<TableHead>Контактное лицо</TableHead>
-							<TableHead>Телефон</TableHead>
-							<TableHead>Email</TableHead>
-							<TableHead>ИНН</TableHead>
-							<TableHead>Рейтинг</TableHead>
-							<TableHead>Статус</TableHead>
-							<TableHead className="text-right">Действия</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isLoading ? (
-							Array.from({ length: 5 }).map((_, i) => (
-								<TableRow key={i}>
-									{Array.from({ length: 8 }).map((_, j) => (
-										<TableCell key={j}>
-											<Skeleton className="h-4 w-full" />
-										</TableCell>
-									))}
-								</TableRow>
-							))
-						) : !filteredSuppliers.length ? (
-							<TableRow>
-								<TableCell
-									colSpan={8}
-									className="text-center text-muted-foreground py-8"
-								>
-									{search || statusFilter !== "all"
-										? "Ничего не найдено"
-										: "Нет поставщиков"}
-								</TableCell>
-							</TableRow>
-						) : (
-							filteredSuppliers.map((supplier) => (
-								<TableRow key={supplier.id}>
-									<TableCell className="font-medium">{supplier.name}</TableCell>
-									<TableCell>{supplier.contactPerson || "—"}</TableCell>
-									<TableCell>{supplier.phone || "—"}</TableCell>
-									<TableCell className="text-sm">
-										{supplier.email || "—"}
-									</TableCell>
-									<TableCell className="text-sm">
-										{supplier.inn || "—"}
-									</TableCell>
-									<TableCell>
-										<RatingStars rating={supplier.rating || 0} />
-									</TableCell>
-									<TableCell>
-										<Badge
-											className={statusColors[supplier.status]}
-											variant="secondary"
-										>
-											{statusLabels[supplier.status]}
-										</Badge>
-									</TableCell>
-									<TableCell className="text-right">
-										<div className="flex justify-end gap-2">
-											<Button
-												variant="ghost"
-												size="sm"
-												onClick={() => {
-													setEditSupplier(supplier);
-													setDialogOpen(true);
-												}}
-											>
-												<Pencil className="h-4 w-4" />
-											</Button>
-											<Button
-												variant="ghost"
-												size="sm"
-												onClick={() =>
-													setDeleteDialog({ open: true, supplier })
-												}
-											>
-												<Trash2 className="h-4 w-4 text-rose-600" />
-											</Button>
-										</div>
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</div>
+			<DataTable
+				tableId="warehouse-suppliers"
+				columns={columns}
+				data={filteredSuppliers}
+				isLoading={isLoading}
+				enableSearch
+				searchPlaceholder="Поиск по названию, контактам, ИНН..."
+				toolbar={
+					<Select value={statusFilter} onValueChange={setStatusFilter}>
+						<SelectTrigger className="w-[180px]">
+							<SelectValue placeholder="Статус" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="all">Все статусы</SelectItem>
+							<SelectItem value="active">Активные</SelectItem>
+							<SelectItem value="inactive">Неактивные</SelectItem>
+						</SelectContent>
+					</Select>
+				}
+				emptyState={
+					<div className="flex flex-col items-center gap-2 text-muted-foreground">
+						<Truck className="h-8 w-8 opacity-30" />
+						<span>
+							{statusFilter !== "all"
+								? "Ничего не найдено"
+								: "Нет поставщиков"}
+						</span>
+					</div>
+				}
+			/>
 
 			<SupplierDialog
 				open={dialogOpen}

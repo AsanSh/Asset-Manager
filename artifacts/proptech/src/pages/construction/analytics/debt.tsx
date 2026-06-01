@@ -1,5 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Clock } from "lucide-react";
+import { useMemo } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
 
@@ -52,6 +55,93 @@ export default function ConstructionDebt() {
 		else if (d <= 90) aging.d90 += amt;
 		else aging.d90plus += amt;
 	});
+
+	const columns = useMemo<ColumnDef<any, unknown>[]>(
+		() => [
+			{
+				id: "contract",
+				header: "Договор / Покупатель",
+				size: 220,
+				accessorFn: (row: any) =>
+					contracts.find((c: any) => c.id === row.contractId)?.contractNumber ||
+					`#${row.contractId}`,
+				meta: { exportLabel: "Договор / Покупатель" },
+				cell: ({ row }) => {
+					const c = contracts.find((x: any) => x.id === row.original.contractId);
+					return (
+						<div>
+							<div className="font-mono text-xs font-medium text-amber-600">
+								{c?.contractNumber || `#${row.original.contractId}`}
+							</div>
+							<div className="text-xs text-gray-500">{c?.buyerName}</div>
+						</div>
+					);
+				},
+			},
+			{
+				accessorKey: "dueDate",
+				header: "Срок",
+				size: 120,
+				meta: { exportLabel: "Срок" },
+				cell: ({ row }) => (
+					<span className="text-gray-600">{row.original.dueDate}</span>
+				),
+			},
+			{
+				id: "overdueDays",
+				header: "Просрочка",
+				size: 120,
+				accessorFn: (row: any) =>
+					new Date(row.dueDate) < new Date() ? daysOverdue(row.dueDate) : -1,
+				meta: { exportLabel: "Просрочка (дн.)" },
+				cell: ({ row }) => {
+					const a = row.original;
+					const isOvd = new Date(a.dueDate) < new Date();
+					if (!isOvd) {
+						return (
+							<span className="text-xs text-emerald-600">Не просрочен</span>
+						);
+					}
+					return (
+						<Badge
+							variant="outline"
+							className="bg-rose-100 text-rose-700 border-rose-200 text-xs"
+						>
+							{daysOverdue(a.dueDate)} дн.
+						</Badge>
+					);
+				},
+			},
+			{
+				id: "amount",
+				header: "Начислено",
+				size: 130,
+				accessorFn: (row: any) => parseFloat(row.amount || "0"),
+				meta: { exportLabel: "Начислено (сом)", align: "right" },
+				cell: ({ row }) => (
+					<span className="font-mono">{fmtFull(row.original.amount)}</span>
+				),
+			},
+			{
+				id: "remainingAmount",
+				header: "Остаток",
+				size: 130,
+				accessorFn: (row: any) => parseFloat(row.remainingAmount || "0"),
+				meta: { exportLabel: "Остаток (сом)", align: "right" },
+				cell: ({ row }) => {
+					const isOvd = new Date(row.original.dueDate) < new Date();
+					return (
+						<span
+							className={`font-mono font-bold ${isOvd ? "text-rose-700" : "text-amber-600"}`}
+						>
+							{fmtFull(row.original.remainingAmount)}
+						</span>
+					);
+				},
+			},
+		],
+		[contracts],
+	);
 
 	return (
 		<div>
@@ -136,91 +226,17 @@ export default function ConstructionDebt() {
 				</div>
 			</div>
 
-			{/* Table */}
-			<div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-				<table className="w-full text-sm">
-					<thead>
-						<tr className="bg-gray-50 border-b border-gray-100">
-							<th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">
-								Договор / Покупатель
-							</th>
-							<th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">
-								Срок
-							</th>
-							<th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">
-								Просрочка
-							</th>
-							<th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">
-								Начислено
-							</th>
-							<th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">
-								Остаток
-							</th>
-						</tr>
-					</thead>
-					<tbody>
-						{isLoading ? (
-							<tr>
-								<td colSpan={5} className="text-center py-12 text-gray-400">
-									Загрузка...
-								</td>
-							</tr>
-						) : accruals.length === 0 ? (
-							<tr>
-								<td colSpan={5} className="text-center py-12 text-gray-400">
-									Нет задолженностей
-								</td>
-							</tr>
-						) : (
-							accruals.map((a: any) => {
-								const contract = contracts.find(
-									(c: any) => c.id === a.contractId,
-								);
-								const isOvd = new Date(a.dueDate) < new Date();
-								const days = isOvd ? daysOverdue(a.dueDate) : 0;
-								return (
-									<tr
-										key={a.id}
-										className={`border-b border-gray-50 hover:bg-gray-50/50 ${isOvd ? "bg-rose-50/20" : ""}`}
-									>
-										<td className="px-4 py-2.5">
-											<div className="font-mono text-xs font-medium text-amber-600">
-												{contract?.contractNumber || `#${a.contractId}`}
-											</div>
-											<div className="text-xs text-gray-500">
-												{contract?.buyerName}
-											</div>
-										</td>
-										<td className="px-4 py-2.5 text-gray-600">{a.dueDate}</td>
-										<td className="px-4 py-2.5">
-											{isOvd ? (
-												<Badge
-													variant="outline"
-													className="bg-rose-100 text-rose-700 border-rose-200 text-xs"
-												>
-													{days} дн.
-												</Badge>
-											) : (
-												<span className="text-xs text-emerald-600">
-													Не просрочен
-												</span>
-											)}
-										</td>
-										<td className="px-4 py-2.5 text-right font-mono">
-											{fmtFull(a.amount)}
-										</td>
-										<td
-											className={`px-4 py-2.5 text-right font-mono font-bold ${isOvd ? "text-rose-700" : "text-amber-600"}`}
-										>
-											{fmtFull(a.remainingAmount)}
-										</td>
-									</tr>
-								);
-							})
-						)}
-					</tbody>
-				</table>
-			</div>
+			<DataTable
+				tableId="construction-debt"
+				columns={columns}
+				data={accruals}
+				isLoading={isLoading}
+				initialSorting={[{ id: "dueDate", desc: false }]}
+				rowClassName={(a: any) =>
+					new Date(a.dueDate) < new Date() ? "bg-rose-50/20" : ""
+				}
+				emptyState="Нет задолженностей"
+			/>
 		</div>
 	);
 }

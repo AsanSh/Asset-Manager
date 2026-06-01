@@ -7,20 +7,17 @@ import {
 import {
 	AlertTriangle,
 	Banknote,
-	Building2,
-	ChevronDown,
 	Clock,
-	List,
 	Receipt,
 	RefreshCw,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table";
 import { defaultPeriod, inPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
 import { KpiCard, KpiRow } from "@/components/kpi-card";
 import {
 	AccrualActionButtons,
-	AccrualRow,
-	AccrualsTableHeader,
 	DiscountDialog,
 	fmtCurrency,
 	formatDate,
@@ -30,11 +27,8 @@ import {
 	statusLabels,
 	type Accrual,
 } from "@/components/rental/accrual-components";
-import { RentalExcelTable, type RentalExcelColumn } from "@/components/rental/rental-excel-table";
-import { RentalViewModeToggle } from "@/components/rental/rental-view-mode-toggle";
-import { useRentalViewMode } from "@/hooks/use-rental-view-mode";
-import { useSortable } from "@/lib/use-sortable";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
 	Select,
 	SelectContent,
@@ -43,12 +37,6 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableRow,
-} from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { getApiBase } from "@/lib/api-base";
@@ -83,19 +71,6 @@ export default function Accruals() {
 	const [discountAccrual, setDiscountAccrual] = useState<Accrual | null>(null);
 	const [quickPayAccrual, setQuickPayAccrual] = useState<Accrual | null>(null);
 	const [recalcLoading, setRecalcLoading] = useState(false);
-	const [groupByObject, setGroupByObject] = useState(true);
-	const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-	const [viewMode, setViewMode] = useRentalViewMode("accruals");
-
-	const toggleGroup = (key: string) => {
-		setExpandedGroups((prev) => {
-			const next = new Set(prev);
-			if (next.has(key)) next.delete(key);
-			else next.add(key);
-			return next;
-		});
-	};
-
 	const { data: accruals, isLoading } = useQuery<Accrual[]>({
 		queryKey: getListAccrualsQueryKey(),
 		queryFn: () => api.get("/rental/accruals").then((r) => r.data),
@@ -142,18 +117,6 @@ export default function Accruals() {
 		});
 	}, [accruals, leaseFilter, statusFilter, period]);
 
-	// Group by project name
-	const grouped = useMemo(() => {
-		if (!groupByObject) return null;
-		const map = new Map<string, Accrual[]>();
-		for (const a of filtered) {
-			const key = leaseInfoMap[a.leaseContractId]?.projectName || "Без проекта";
-			if (!map.has(key)) map.set(key, []);
-			map.get(key)?.push(a);
-		}
-		return map;
-	}, [filtered, leaseInfoMap, groupByObject]);
-
 	const enrichedAccruals = useMemo(
 		() =>
 			filtered.map((a) => {
@@ -167,11 +130,6 @@ export default function Accruals() {
 			}),
 		[filtered, leaseInfoMap],
 	);
-	const { sorted: sortedAccruals, sortKey, sortDir, toggle } = useSortable(
-		enrichedAccruals,
-		"dueDate",
-	);
-
 	const filteredBalance = filtered.reduce(
 		(s, a) => s + (parseFloat(a.balance) || 0),
 		0,
@@ -205,54 +163,120 @@ export default function Accruals() {
 		}
 	};
 
-	const accrualColumns: RentalExcelColumn<(typeof enrichedAccruals)[number]>[] = useMemo(
+	type EnrichedAccrual = (typeof enrichedAccruals)[number];
+
+	const tableColumns = useMemo<ColumnDef<EnrichedAccrual, unknown>[]>(
 		() => [
-		{ key: "projectName", label: "Объект", width: 130, render: (r) => r.projectName },
-		{ key: "contractLabel", label: "Договор", width: 160, render: (r) => r.contractLabel },
-		{ key: "period", label: "Период", width: 90, render: (r) => r.period },
-		{ key: "amount", label: "Сумма", width: 100, align: "right", render: (r) => fmtCurrency(parseFloat(r.amount)) },
-		{
-			key: "discountAmount", label: "Скидка", width: 90, align: "right",
-			render: (r) =>
-				parseFloat(r.discountAmount || "0") > 0
-					? `-${fmtCurrency(parseFloat(r.discountAmount!))}`
-					: "—",
-		},
-		{ key: "paidAmount", label: "Оплачено", width: 100, align: "right", render: (r) => fmtCurrency(parseFloat(r.paidAmount)) },
-		{
-			key: "balance", label: "Остаток", width: 100, align: "right",
-			render: (r) => (
-				<span className={parseFloat(r.balance) > 0 ? "text-rose-600 font-medium" : "text-emerald-600"}>
-					{fmtCurrency(parseFloat(r.balance))}
-				</span>
-			),
-		},
-		{ key: "dueDate", label: "Срок", width: 90, render: (r) => formatDate(r.dueDate) },
-		{
-			key: "status", label: "Статус", width: 100, align: "center",
-			render: (r) => (
-				<span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${statusColors[r.status] || "bg-gray-100"}`}>
-					{statusLabels[r.status] || r.status}
-				</span>
-			),
-		},
-		{
-			key: "actions",
-			label: "",
-			width: 44,
-			align: "center",
-			sortable: false,
-			render: (r) => (
-				<AccrualActionButtons
-					accrual={r}
-					loadingId={loadingId}
-					onAccept={setQuickPayAccrual}
-					onStatusChange={handleStatusChange}
-					onDiscount={setDiscountAccrual}
-				/>
-			),
-		},
-	],
+			{
+				id: "projectName",
+				header: "Объект",
+				size: 130,
+				accessorFn: (row) => row.projectName,
+				meta: { exportLabel: "Объект", pinned: "left" },
+				cell: ({ row }) => row.original.projectName,
+			},
+			{
+				id: "contractLabel",
+				header: "Договор",
+				size: 280,
+				minSize: 140,
+				maxSize: 720,
+				accessorFn: (row) => row.contractLabel,
+				meta: { exportLabel: "Договор", grow: true },
+				cell: ({ row }) => row.original.contractLabel,
+			},
+			{
+				accessorKey: "period",
+				header: "Период",
+				size: 90,
+				meta: { exportLabel: "Период" },
+				cell: ({ row }) => row.original.period,
+			},
+			{
+				id: "amount",
+				header: "Сумма",
+				size: 110,
+				accessorFn: (row) => parseFloat(row.amount || "0"),
+				meta: { exportLabel: "Сумма", align: "right" },
+				cell: ({ row }) => (
+					<span className="font-mono">{fmtCurrency(parseFloat(row.original.amount))}</span>
+				),
+			},
+			{
+				id: "discountAmount",
+				header: "Скидка",
+				size: 100,
+				accessorFn: (row) => parseFloat(row.discountAmount || "0"),
+				meta: { exportLabel: "Скидка", align: "right" },
+				cell: ({ row }) =>
+					parseFloat(row.original.discountAmount || "0") > 0
+						? `-${fmtCurrency(parseFloat(row.original.discountAmount!))}`
+						: "—",
+			},
+			{
+				id: "paidAmount",
+				header: "Оплачено",
+				size: 110,
+				accessorFn: (row) => parseFloat(row.paidAmount || "0"),
+				meta: { exportLabel: "Оплачено", align: "right" },
+				cell: ({ row }) => (
+					<span className="font-mono text-emerald-700">
+						{fmtCurrency(parseFloat(row.original.paidAmount))}
+					</span>
+				),
+			},
+			{
+				id: "balance",
+				header: "Остаток",
+				size: 110,
+				accessorFn: (row) => parseFloat(row.balance || "0"),
+				meta: { exportLabel: "Остаток", align: "right" },
+				cell: ({ row }) => (
+					<span
+						className={`font-mono font-medium ${parseFloat(row.original.balance) > 0 ? "text-rose-600" : "text-emerald-600"}`}
+					>
+						{fmtCurrency(parseFloat(row.original.balance))}
+					</span>
+				),
+			},
+			{
+				id: "dueDate",
+				header: "Срок",
+				size: 100,
+				accessorFn: (row) => row.dueDate,
+				meta: { exportLabel: "Срок", pinned: "left" },
+				cell: ({ row }) => formatDate(row.original.dueDate),
+			},
+			{
+				id: "status",
+				header: "Статус",
+				size: 120,
+				accessorKey: "status",
+				meta: { exportLabel: "Статус" },
+				cell: ({ row }) => (
+					<Badge className={statusColors[row.original.status]} variant="secondary">
+						{statusLabels[row.original.status] || row.original.status}
+					</Badge>
+				),
+			},
+			{
+				id: "actions",
+				header: "",
+				size: 50,
+				enableSorting: false,
+				enableResizing: false,
+				meta: { align: "center" },
+				cell: ({ row }) => (
+					<AccrualActionButtons
+						accrual={row.original}
+						loadingId={loadingId}
+						onAccept={setQuickPayAccrual}
+						onStatusChange={handleStatusChange}
+						onDiscount={setDiscountAccrual}
+					/>
+				),
+			},
+		],
 		[loadingId],
 	);
 
@@ -312,7 +336,6 @@ export default function Accruals() {
 						)}
 					</p>
 				</div>
-				<RentalViewModeToggle mode={viewMode} onChange={setViewMode} />
 			</div>
 
 			<div className="flex flex-wrap items-center gap-3">
@@ -338,25 +361,6 @@ export default function Accruals() {
 					</SelectContent>
 				</Select>
 
-				{viewMode === "classic" && (
-					<Button
-						variant={groupByObject ? "default" : "outline"}
-						size="sm"
-						onClick={() => setGroupByObject(!groupByObject)}
-						className="gap-2"
-					>
-						{groupByObject ? (
-							<>
-								<Building2 className="w-4 h-4" /> По объектам
-							</>
-						) : (
-							<>
-								<List className="w-4 h-4" /> Списком
-							</>
-						)}
-					</Button>
-				)}
-
 				{leaseFilter !== "all" && (
 					<Button
 						variant="outline"
@@ -372,156 +376,47 @@ export default function Accruals() {
 					</Button>
 				)}
 
-				<p className="text-xs text-gray-500 ml-auto">{sortedAccruals.length} записей</p>
+				<p className="text-xs text-gray-500 ml-auto">{enrichedAccruals.length} записей</p>
 			</div>
 
-			{isLoading ? (
-				<div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-					<Table>
-						<AccrualsTableHeader />
-						<TableBody>
-							{Array.from({ length: 5 }).map((_, i) => (
-								<TableRow key={i}>
-									{Array.from({ length: 9 }).map((_, j) => (
-										<TableCell key={j}>
-											<Skeleton className="h-4 w-full" />
-										</TableCell>
-									))}
-								</TableRow>
-							))}
-						</TableBody>
-					</Table>
-				</div>
-			) : !filtered.length ? (
-				<div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400 text-sm">
-					{accruals?.length
-						? "Начисления не соответствуют фильтру"
-						: "Начисления не найдены. Создайте договор аренды — начисления появятся автоматически."}
-				</div>
-			) : viewMode === "report" ? (
-				<RentalExcelTable
-					columns={accrualColumns}
-					rows={sortedAccruals}
-					sortKey={sortKey}
-					sortDir={sortDir}
-					onSort={toggle}
-					emptyMessage="Начисления не найдены"
-					rowKey={(r) => r.id}
-					footer={[
-						{ colSpan: 3, content: `Итого: ${filtered.length}` },
-						{ content: fmtCurrency(filteredAmount), align: "right" },
-						{ content: "—", align: "right" },
-						{
-							content: fmtCurrency(
-								filtered.reduce((s, a) => s + (parseFloat(a.paidAmount) || 0), 0),
-							),
-							align: "right",
-						},
-						{ content: fmtCurrency(filteredBalance), align: "right", className: "text-rose-700" },
-						{ colSpan: 3, content: "" },
-					]}
-				/>
-			) : groupByObject && grouped ? (
-				<div className="space-y-4">
-					{Array.from(grouped.entries()).map(([projectName, rows]) => {
-						const rowsArray = Array.isArray(rows) ? rows : [];
-						const groupBalance = rowsArray.reduce(
-							(s, a) => s + (parseFloat(a.balance) || 0),
-							0,
-						);
-						const groupPending = rowsArray.filter(
-							(a) => a.status === "pending",
-						).length;
-						const isExpanded = expandedGroups.has(projectName);
-						return (
-							<div
-								key={projectName}
-								className="bg-white rounded-xl border border-gray-200 overflow-hidden"
-							>
-								<button
-									type="button"
-									className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
-									onClick={() => toggleGroup(projectName)}
-								>
-									<div className="flex items-center gap-2">
-										<ChevronDown
-											className={cn(
-												"w-4 h-4 text-gray-400 flex-shrink-0 transition-transform duration-200",
-												!isExpanded && "-rotate-90",
-											)}
-										/>
-										<Building2 className="w-4 h-4 text-blue-600 flex-shrink-0" />
-										<span className="font-semibold text-gray-800 text-sm">
-											{projectName}
-										</span>
-										<span className="text-gray-400 text-xs">
-											· {rowsArray.length} начисл.
-										</span>
-										{groupPending > 0 && (
-											<span className="text-xs text-amber-600 font-medium bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
-												{groupPending} ожидают
-											</span>
-										)}
-									</div>
-									{groupBalance > 0 && (
-										<span className="text-sm font-bold text-rose-600">
-											Долг: {fmtCurrency(groupBalance)}
-										</span>
+			<DataTable
+					tableId="rental-accruals"
+					columns={tableColumns}
+					data={enrichedAccruals}
+					isLoading={isLoading}
+					enableSearch
+					searchPlaceholder="Поиск по объекту, договору…"
+					initialSorting={[{ id: "dueDate", desc: true }]}
+					emptyState={
+						<div className="py-8 text-center text-sm text-muted-foreground">
+							{accruals?.length
+								? "Начисления не соответствуют фильтру"
+								: "Начисления не найдены. Создайте договор аренды — начисления появятся автоматически."}
+						</div>
+					}
+					footer={
+						!isLoading && filtered.length > 0 ? (
+							<tr className="bg-gray-50 font-semibold border-t-2">
+								<td colSpan={3} className="px-3 py-2 text-sm text-gray-600">
+									Итого: {filtered.length}
+								</td>
+								<td className="px-3 py-2 font-mono text-right">
+									{fmtCurrency(filteredAmount)}
+								</td>
+								<td />
+								<td className="px-3 py-2 font-mono text-right text-emerald-700">
+									{fmtCurrency(
+										filtered.reduce((s, a) => s + (parseFloat(a.paidAmount) || 0), 0),
 									)}
-								</button>
-
-								{isExpanded && (
-									<Table>
-										<AccrualsTableHeader label="Помещение / Договор" />
-										<TableBody>
-											{rowsArray.map((accrual) => {
-												const info = leaseInfoMap[accrual.leaseContractId];
-												const rowLabel = info
-													? `${info.unitNumber ? `кв. ${info.unitNumber}` : ""} ${info.tenantName ? `— ${info.tenantName}` : ""}`.trim() ||
-														info.label
-													: `#${accrual.leaseContractId}`;
-												return (
-													<AccrualRow
-														key={accrual.id}
-														accrual={accrual}
-														label={rowLabel}
-														loadingId={loadingId}
-														onAccept={setQuickPayAccrual}
-														onStatusChange={handleStatusChange}
-														onDiscount={setDiscountAccrual}
-													/>
-												);
-											})}
-										</TableBody>
-									</Table>
-								)}
-							</div>
-						);
-					})}
-				</div>
-			) : (
-				<div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-					<Table>
-						<AccrualsTableHeader />
-						<TableBody>
-							{filtered.map((accrual) => (
-								<AccrualRow
-									key={accrual.id}
-									accrual={accrual}
-									label={
-										leaseInfoMap[accrual.leaseContractId]?.label ||
-										`#${accrual.leaseContractId}`
-									}
-									loadingId={loadingId}
-									onAccept={setQuickPayAccrual}
-									onStatusChange={handleStatusChange}
-									onDiscount={setDiscountAccrual}
-								/>
-							))}
-						</TableBody>
-					</Table>
-				</div>
-			)}
+								</td>
+								<td className="px-3 py-2 font-mono text-right text-rose-700">
+									{fmtCurrency(filteredBalance)}
+								</td>
+								<td colSpan={3} />
+							</tr>
+						) : undefined
+					}
+				/>
 
 			<DiscountDialog
 				accrual={discountAccrual}

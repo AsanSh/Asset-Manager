@@ -38,7 +38,9 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { MatrixTableFrame } from "@/components/matrix-table-frame";
 import { ChessStatusSettingsDialog } from "@/components/chess-status-settings-dialog";
+import { exportChessUnitsCsv } from "@/lib/chess-grid-export";
 import { UnitSaleDialog } from "@/components/unit-sale-dialog";
 import { api } from "@/lib/api";
 import {
@@ -101,6 +103,7 @@ function UnitDialog({
 	onRequestSale,
 	statuses,
 	statusGridMap,
+	salesOnly,
 }: {
 	unit: Unit | null | "new";
 	projectId: number;
@@ -109,6 +112,7 @@ function UnitDialog({
 	onRequestSale?: (status: "reserved" | "sold", unit: Unit) => void;
 	statuses: UnitStatusDto[];
 	statusGridMap: ReturnType<typeof buildStatusGridCfg>;
+	salesOnly?: boolean;
 }) {
 	const { toast } = useToast();
 	const isEdit = unit && unit !== "new";
@@ -131,8 +135,11 @@ function UnitDialog({
 	const totalPrice =
 		parseFloat(form.area || "0") * parseFloat(form.pricePerSqm || "0");
 
+	const readOnly = salesOnly && isEdit;
+
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
+		if (readOnly) return;
 		if (!form.unitNumber) {
 			toast({ title: "Укажите номер квартиры", variant: "destructive" });
 			return;
@@ -165,40 +172,47 @@ function UnitDialog({
 				</DialogHeader>
 				<form onSubmit={handleSubmit} className="space-y-3">
 					<div className="grid grid-cols-2 gap-3">
-						<div>
-							<Label>Номер *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Номер *</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								value={form.unitNumber}
 								onChange={(e) => set("unitNumber", e.target.value)}
 								required
+								readOnly={readOnly}
+								disabled={readOnly}
 							/>
 						</div>
-						<div>
-							<Label>Этаж</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Этаж</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								type="number"
 								value={form.floor}
 								onChange={(e) => set("floor", e.target.value)}
+								readOnly={readOnly}
+								disabled={readOnly}
 							/>
 						</div>
-						<div>
-							<Label>Секция / блок</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Секция / блок</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								value={form.block}
 								onChange={(e) => set("block", e.target.value)}
 								placeholder="А"
+								readOnly={readOnly}
+								disabled={readOnly}
 							/>
 						</div>
-						<div>
-							<Label>Тип</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Тип</Label>
 							<Select
 								value={form.unitType}
 								onValueChange={(v) => set("unitType", v)}
+								disabled={readOnly}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -210,37 +224,43 @@ function UnitDialog({
 								</SelectContent>
 							</Select>
 						</div>
-						<div>
-							<Label>Комнат</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Комнат</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								type="number"
 								min="0"
 								value={form.roomCount}
 								onChange={(e) => set("roomCount", e.target.value)}
+								readOnly={readOnly}
+								disabled={readOnly}
 							/>
 						</div>
-						<div>
-							<Label>Площадь (м²)</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Площадь (м²)</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								type="number"
 								step="0.01"
 								value={form.area}
 								onChange={(e) => set("area", e.target.value)}
+								readOnly={readOnly}
+								disabled={readOnly}
 							/>
 						</div>
-						<div>
-							<Label>Цена за м²</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Цена за м²</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								type="number"
 								value={form.pricePerSqm}
 								onChange={(e) => set("pricePerSqm", e.target.value)}
+								readOnly={readOnly}
+								disabled={readOnly}
 							/>
 						</div>
-						<div>
-							<Label>Статус</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Статус</Label>
 							<Select
 								value={form.status}
 								onValueChange={(v) => {
@@ -252,7 +272,7 @@ function UnitDialog({
 									set("status", v);
 								}}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -285,6 +305,8 @@ function UnitDialog({
 							className="mt-1"
 							value={form.notes}
 							onChange={(e) => set("notes", e.target.value)}
+							readOnly={readOnly}
+							disabled={readOnly}
 						/>
 					</div>
 					<div className="flex justify-end gap-2 pt-1">
@@ -294,15 +316,17 @@ function UnitDialog({
 							onClick={onClose}
 							disabled={loading}
 						>
-							Отмена
+							{readOnly ? "Закрыть" : "Отмена"}
 						</Button>
-						<Button
-							type="submit"
-							className="bg-amber-500 hover:bg-orange-600"
-							disabled={loading}
-						>
-							{loading ? "..." : "Сохранить"}
-						</Button>
+						{!readOnly && (
+							<Button
+								type="submit"
+								className="bg-amber-500 hover:bg-orange-600"
+								disabled={loading}
+							>
+								{loading ? "..." : "Сохранить"}
+							</Button>
+						)}
 					</div>
 				</form>
 			</DialogContent>
@@ -361,10 +385,10 @@ function BulkGenerateDialog({
 				</DialogHeader>
 				<form onSubmit={handleSubmit} className="space-y-3">
 					<div className="grid grid-cols-2 gap-3">
-						<div>
-							<Label>Этажей *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Этажей *</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								type="number"
 								min="1"
 								value={form.floors}
@@ -372,10 +396,10 @@ function BulkGenerateDialog({
 								required
 							/>
 						</div>
-						<div>
-							<Label>Квартир на этаже *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Квартир на этаже *</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								type="number"
 								min="1"
 								value={form.unitsPerFloor}
@@ -383,40 +407,40 @@ function BulkGenerateDialog({
 								required
 							/>
 						</div>
-						<div>
-							<Label>Секция</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Секция</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								value={form.block}
 								onChange={(e) => set("block", e.target.value)}
 								placeholder="А"
 							/>
 						</div>
-						<div>
-							<Label>Площадь (м²)</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Площадь (м²)</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								type="number"
 								value={form.area}
 								onChange={(e) => set("area", e.target.value)}
 							/>
 						</div>
-						<div>
-							<Label>Цена за м²</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Цена за м²</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								type="number"
 								value={form.pricePerSqm}
 								onChange={(e) => set("pricePerSqm", e.target.value)}
 							/>
 						</div>
-						<div>
-							<Label>Валюта</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Валюта</Label>
 							<Select
 								value={form.currency}
 								onValueChange={(v) => set("currency", v)}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -725,6 +749,7 @@ export default function ConstructionChess() {
 	const { user } = useAuth();
 	const userRole = (user as any)?.role;
 	const isAdmin = userRole === "admin" || userRole === "super_admin" || userRole === "company_admin";
+	const isSalesOnly = userRole === "sales_manager";
 	const forcedRoleByUser = userRole === "pto" || userRole === "engineer";
 	// Админы могут вручную переключать режим ПТО/CRM
 	const [adminModeOverride, setAdminModeOverride] = useState<"crm" | "pto">("crm");
@@ -915,7 +940,9 @@ export default function ConstructionChess() {
 					<p className="text-sm text-gray-500 mt-0.5">
 						{isPTO
 							? "Управление площадями · клик по площади для редактирования"
-							: "Визуальная карта квартир · договоры и финансы"}
+							: isSalesOnly
+								? "Продажи · бронь и оформление договоров"
+								: "Визуальная карта квартир · договоры и финансы"}
 					</p>
 				</div>
 				<div className="flex gap-2 flex-wrap items-center">
@@ -935,6 +962,7 @@ export default function ConstructionChess() {
 							</button>
 						</div>
 					)}
+					{!isSalesOnly && (
 					<Button
 						variant="outline"
 						onClick={() => setShowStatusSettings(true)}
@@ -942,7 +970,8 @@ export default function ConstructionChess() {
 					>
 						<Settings2 className="w-3.5 h-3.5" /> Статусы
 					</Button>
-					{projectId && (
+					)}
+					{projectId && !isSalesOnly && (
 						<>
 							<Button
 								variant="outline"
@@ -971,7 +1000,7 @@ export default function ConstructionChess() {
 							</Button>
 						</>
 					)}
-					{projectId && (
+					{projectId && !isSalesOnly && (
 						<Button
 							variant="outline"
 							onClick={() => setShowBulk(true)}
@@ -980,7 +1009,7 @@ export default function ConstructionChess() {
 							<Layers className="w-3.5 h-3.5" /> Заполнить шахматку
 						</Button>
 					)}
-					{projectId && (
+					{projectId && !isSalesOnly && (
 						<Button
 							onClick={() => setSelectedUnit("new")}
 							className="bg-amber-500 hover:bg-orange-600 gap-2 text-xs"
@@ -1124,9 +1153,11 @@ export default function ConstructionChess() {
 							<Grid3X3 className="w-12 h-12 mx-auto mb-3 opacity-20" />
 							<p className="font-medium">Шахматка пуста</p>
 							<p className="text-sm mt-1 max-w-md mx-auto">
-								Квартиры создаются отдельно от карточки проекта. Если при создании
-								проекта указали этажи и число квартир — нажмите кнопку ниже.
+								{isSalesOnly
+									? "Квартиры ещё не добавлены в шахматку. Обратитесь к администратору."
+									: "Квартиры создаются отдельно от карточки проекта. Если при создании проекта указали этажи и число квартир — нажмите кнопку ниже."}
 							</p>
+							{!isSalesOnly && (
 							<div className="flex flex-wrap justify-center gap-2 mt-4">
 								{selectedProject?.totalFloors &&
 									selectedProject?.totalUnits && (
@@ -1149,10 +1180,12 @@ export default function ConstructionChess() {
 									<Layers className="w-4 h-4" /> Заполнить вручную
 								</Button>
 							</div>
+							)}
 						</div>
 					) : (
 						<>
-						{selectedProject?.totalUnits &&
+						{!isSalesOnly &&
+							selectedProject?.totalUnits &&
 							units.length > 0 &&
 							units.length < selectedProject.totalUnits && (
 								<div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-900 flex flex-wrap items-center justify-between gap-2">
@@ -1172,7 +1205,16 @@ export default function ConstructionChess() {
 									</Button>
 								</div>
 							)}
-						<div className="bg-white rounded-xl border border-gray-200 overflow-auto">
+						<MatrixTableFrame
+							title="Сетка квартир"
+							maxHeight="calc(100vh - 280px)"
+							onExportCsv={() =>
+								exportChessUnitsCsv(
+									filteredUnits,
+									(code) => gridCfgFor(statusGridMap, code).label,
+								)
+							}
+						>
 							<div className="p-4 min-w-max">
 								{floors.length === 0 ? (
 									<div className="p-4 text-center text-gray-400">
@@ -1238,7 +1280,7 @@ export default function ConstructionChess() {
 									})
 								)}
 							</div>
-						</div>
+						</MatrixTableFrame>
 						</>
 						))}
 				</>
@@ -1250,6 +1292,7 @@ export default function ConstructionChess() {
 					projectId={projectId}
 					statuses={unitStatuses}
 					statusGridMap={statusGridMap}
+					salesOnly={isSalesOnly}
 					onClose={() => setSelectedUnit(null)}
 					onSaved={invalidateAll}
 					onRequestSale={(status, unit) => {

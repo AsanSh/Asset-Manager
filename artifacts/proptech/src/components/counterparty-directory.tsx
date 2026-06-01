@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Briefcase, Edit2, Plus, Search, Trash2 } from "lucide-react";
-import { useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { Briefcase, Edit2, Plus, Trash2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { DataTable } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,7 +20,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-error";
@@ -63,13 +64,9 @@ export interface CounterpartyRow {
 interface Props {
 	title: string;
 	subtitle?: string;
-	/** Какие роли показывать на этой странице. Если массив — фильтр по любой из них. */
 	allowedRoles: string[];
-	/** Какая роль ставится по умолчанию при создании. */
 	defaultRole: string;
-	/** Разрешено ли создавать/редактировать/удалять. */
 	canEdit?: boolean;
-	/** Показывать ли селектор ролей в шапке (несколько вкладок). */
 	showRoleTabs?: boolean;
 }
 
@@ -83,12 +80,12 @@ export function CounterpartyDirectory({
 }: Props) {
 	const qc = useQueryClient();
 	const { toast } = useToast();
-	const [search, setSearch] = useState("");
 	const [roleFilter, setRoleFilter] = useState<string>("all");
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [editing, setEditing] = useState<CounterpartyRow | null>(null);
 
 	const queryRoles = roleFilter === "all" ? allowedRoles : [roleFilter];
+	const tableId = `counterparties-${allowedRoles.slice().sort().join("-")}`;
 
 	const { data: rows = [], isLoading } = useQuery<CounterpartyRow[]>({
 		queryKey: ["counterparties", queryRoles.sort().join(",")],
@@ -107,19 +104,26 @@ export function CounterpartyDirectory({
 			setDialogOpen(false);
 			setEditing(null);
 		},
-		onError: (e) => toast({ title: getApiErrorMessage(e, "Ошибка создания"), variant: "destructive" }),
+		onError: (e) =>
+			toast({ title: getApiErrorMessage(e, "Ошибка создания"), variant: "destructive" }),
 	});
 
 	const updateMut = useMutation({
-		mutationFn: ({ id, data }: { id: number; data: Partial<CounterpartyRow> & { categories?: string[] } }) =>
-			api.patch(`/counterparties/${id}`, data).then((r) => r.data),
+		mutationFn: ({
+			id,
+			data,
+		}: {
+			id: number;
+			data: Partial<CounterpartyRow> & { categories?: string[] };
+		}) => api.patch(`/counterparties/${id}`, data).then((r) => r.data),
 		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: ["counterparties"] });
 			toast({ title: "Контрагент обновлён" });
 			setDialogOpen(false);
 			setEditing(null);
 		},
-		onError: (e) => toast({ title: getApiErrorMessage(e, "Ошибка обновления"), variant: "destructive" }),
+		onError: (e) =>
+			toast({ title: getApiErrorMessage(e, "Ошибка обновления"), variant: "destructive" }),
 	});
 
 	const deleteMut = useMutation({
@@ -128,15 +132,9 @@ export function CounterpartyDirectory({
 			qc.invalidateQueries({ queryKey: ["counterparties"] });
 			toast({ title: "Удалено" });
 		},
-		onError: (e) => toast({ title: getApiErrorMessage(e, "Ошибка удаления"), variant: "destructive" }),
+		onError: (e) =>
+			toast({ title: getApiErrorMessage(e, "Ошибка удаления"), variant: "destructive" }),
 	});
-
-	const filtered = rows.filter((r) =>
-		!search ||
-		r.fullName.toLowerCase().includes(search.toLowerCase()) ||
-		(r.iin || "").includes(search) ||
-		(r.phone || "").includes(search),
-	);
 
 	const openCreate = () => {
 		setEditing(null);
@@ -147,12 +145,146 @@ export function CounterpartyDirectory({
 		setDialogOpen(true);
 	};
 
+	const columns = useMemo<ColumnDef<CounterpartyRow, unknown>[]>(() => {
+		const cols: ColumnDef<CounterpartyRow, unknown>[] = [
+			{
+				id: "fullName",
+				header: "ФИО / Название",
+				size: 240,
+				minSize: 160,
+				maxSize: 640,
+				accessorFn: (row) => row.fullName,
+				meta: { exportLabel: "ФИО / Название", grow: true },
+				cell: ({ row }) => (
+					<div className="min-w-0">
+						<p className="font-medium text-am-text-strong truncate" title={row.original.fullName}>
+							{row.original.fullName}
+						</p>
+						<p className="text-[10px] text-am-text-muted">
+							{row.original.type === "company" ? "Юр. лицо" : "Физ. лицо"}
+						</p>
+					</div>
+				),
+			},
+			{
+				id: "roles",
+				header: "Роли",
+				size: 180,
+				enableSorting: false,
+				accessorFn: (row) => (row.categories || []).join(", "),
+				meta: { exportLabel: "Роли" },
+				cell: ({ row }) => (
+					<div className="flex gap-1 flex-wrap">
+						{(row.original.categories || []).map((cat) => (
+							<Badge
+								key={cat}
+								className={`text-[10px] ${ROLE_COLORS[cat] || "bg-gray-100"}`}
+								variant="secondary"
+							>
+								{ROLE_LABELS[cat] || cat}
+							</Badge>
+						))}
+					</div>
+				),
+			},
+			{
+				id: "iin",
+				header: "ИИН / ИНН",
+				size: 130,
+				accessorFn: (row) => row.iin || "",
+				meta: { exportLabel: "ИИН / ИНН" },
+				cell: ({ row }) => row.original.iin || "—",
+			},
+			{
+				id: "phone",
+				header: "Телефон",
+				size: 130,
+				accessorFn: (row) => row.phone || "",
+				meta: { exportLabel: "Телефон" },
+				cell: ({ row }) => row.original.phone || "—",
+			},
+			{
+				id: "email",
+				header: "Почта",
+				size: 160,
+				minSize: 120,
+				maxSize: 320,
+				accessorFn: (row) => row.email || "",
+				meta: { exportLabel: "Почта", grow: true },
+				cell: ({ row }) => (
+					<span className="truncate block" title={row.original.email || ""}>
+						{row.original.email || "—"}
+					</span>
+				),
+			},
+		];
+		if (canEdit) {
+			cols.push({
+				id: "actions",
+				header: "",
+				size: 72,
+				enableSorting: false,
+				enableResizing: false,
+				meta: { align: "center" },
+				cell: ({ row }) => (
+					<div className="flex gap-1 justify-end">
+						<button
+							type="button"
+							onClick={() => openEdit(row.original)}
+							className="text-am-text-subtle hover:text-am-text-strong p-1"
+							title="Редактировать"
+						>
+							<Edit2 className="w-3.5 h-3.5" />
+						</button>
+						<button
+							type="button"
+							onClick={() => {
+								if (confirm(`Удалить «${row.original.fullName}»?`))
+									deleteMut.mutate(row.original.id);
+							}}
+							className="text-am-text-subtle hover:text-rose-600 p-1"
+							title="Удалить"
+						>
+							<Trash2 className="w-3.5 h-3.5" />
+						</button>
+					</div>
+				),
+			});
+		}
+		return cols;
+	}, [canEdit, deleteMut]);
+
+	const roleTabs = showRoleTabs && allowedRoles.length > 1 && (
+		<div className="flex gap-1.5 flex-wrap">
+			<button
+				type="button"
+				onClick={() => setRoleFilter("all")}
+				className={`px-3 py-1.5 rounded-full text-xs font-medium ${roleFilter === "all" ? "bg-amber-500 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
+			>
+				Все ({rows.length})
+			</button>
+			{allowedRoles.map((role) => {
+				const count = rows.filter((r) => (r.categories || []).includes(role)).length;
+				return (
+					<button
+						key={role}
+						type="button"
+						onClick={() => setRoleFilter(role)}
+						className={`px-3 py-1.5 rounded-full text-xs font-medium ${roleFilter === role ? "bg-amber-500 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
+					>
+						{ROLE_LABELS[role] || role} ({count})
+					</button>
+				);
+			})}
+		</div>
+	);
+
 	return (
 		<div className="p-6 space-y-4">
 			<div className="flex items-center justify-between flex-wrap gap-3">
 				<div>
-					<h1 className="text-2xl font-bold text-gray-900">{title}</h1>
-					{subtitle && <p className="text-sm text-gray-500 mt-0.5">{subtitle}</p>}
+					<h1 className="text-2xl font-bold text-am-text-strong">{title}</h1>
+					{subtitle && <p className="text-sm text-am-text-muted mt-0.5">{subtitle}</p>}
 				</div>
 				{canEdit && (
 					<Button onClick={openCreate} className="bg-amber-500 hover:bg-orange-600 gap-2">
@@ -161,120 +293,23 @@ export function CounterpartyDirectory({
 				)}
 			</div>
 
-			{showRoleTabs && allowedRoles.length > 1 && (
-				<div className="flex gap-1.5 flex-wrap">
-					<button
-						onClick={() => setRoleFilter("all")}
-						className={`px-3 py-1.5 rounded-full text-xs font-medium ${roleFilter === "all" ? "bg-amber-500 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
-					>
-						Все ({rows.length})
-					</button>
-					{allowedRoles.map((role) => {
-						const count = rows.filter((r) => (r.categories || []).includes(role)).length;
-						return (
-							<button
-								key={role}
-								onClick={() => setRoleFilter(role)}
-								className={`px-3 py-1.5 rounded-full text-xs font-medium ${roleFilter === role ? "bg-amber-500 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
-							>
-								{ROLE_LABELS[role] || role} ({count})
-							</button>
-						);
-					})}
-				</div>
-			)}
+			{roleTabs}
 
-			<div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-				<div className="p-3 border-b border-gray-100 flex items-center gap-2">
-					<Search className="w-4 h-4 text-gray-400" />
-					<Input
-						className="border-0 shadow-none h-8 text-sm flex-1"
-						placeholder="Поиск по ФИО / ИИН / телефону..."
-						value={search}
-						onChange={(e) => setSearch(e.target.value)}
-					/>
-				</div>
-				<div className="overflow-auto max-h-[calc(100vh-280px)]">
-					<table className="w-full text-xs border-collapse">
-						<thead className="sticky top-0 bg-gray-50 z-10">
-							<tr className="border-b border-gray-100">
-								<th className="text-left px-3 py-2.5 font-semibold text-gray-500">ФИО / Название</th>
-								<th className="text-left px-3 py-2.5 font-semibold text-gray-500">Роли</th>
-								<th className="text-left px-3 py-2.5 font-semibold text-gray-500">ИИН / ИНН</th>
-								<th className="text-left px-3 py-2.5 font-semibold text-gray-500">Телефон</th>
-								<th className="text-left px-3 py-2.5 font-semibold text-gray-500">Email</th>
-								{canEdit && <th className="px-3 py-2.5"></th>}
-							</tr>
-						</thead>
-						<tbody>
-							{isLoading ? (
-								Array.from({ length: 5 }).map((_, i) => (
-									<tr key={i} className="border-b border-gray-50">
-										{Array.from({ length: canEdit ? 6 : 5 }).map((_, j) => (
-											<td key={j} className="px-3 py-2.5">
-												<Skeleton className="h-3 w-full" />
-											</td>
-										))}
-									</tr>
-								))
-							) : filtered.length === 0 ? (
-								<tr>
-									<td colSpan={canEdit ? 6 : 5} className="text-center py-12 text-gray-400">
-										<Briefcase className="w-8 h-8 mx-auto mb-2 opacity-20" />
-										<p>Контрагентов нет</p>
-									</td>
-								</tr>
-							) : (
-								filtered.map((row, idx) => (
-									<tr key={row.id} className={`border-b border-gray-50 ${idx % 2 ? "bg-gray-50/40" : ""} hover:bg-amber-50/30`}>
-										<td className="px-3 py-2 font-medium text-gray-900">
-											{row.fullName}
-											<div className="text-[10px] text-gray-400">{row.type === "company" ? "Юр. лицо" : "Физ. лицо"}</div>
-										</td>
-										<td className="px-3 py-2">
-											<div className="flex gap-1 flex-wrap">
-												{(row.categories || []).map((cat) => (
-													<Badge key={cat} className={`text-[10px] ${ROLE_COLORS[cat] || "bg-gray-100"}`} variant="secondary">
-														{ROLE_LABELS[cat] || cat}
-													</Badge>
-												))}
-											</div>
-										</td>
-										<td className="px-3 py-2 text-gray-600">{row.iin || "—"}</td>
-										<td className="px-3 py-2 text-gray-600">{row.phone || "—"}</td>
-										<td className="px-3 py-2 text-gray-600">{row.email || "—"}</td>
-										{canEdit && (
-											<td className="px-3 py-2">
-												<div className="flex gap-1 justify-end">
-													<button
-														onClick={() => openEdit(row)}
-														className="text-gray-400 hover:text-gray-700"
-														title="Редактировать"
-													>
-														<Edit2 className="w-3.5 h-3.5" />
-													</button>
-													<button
-														onClick={() => {
-															if (confirm(`Удалить «${row.fullName}»?`)) deleteMut.mutate(row.id);
-														}}
-														className="text-gray-400 hover:text-rose-600"
-														title="Удалить"
-													>
-														<Trash2 className="w-3.5 h-3.5" />
-													</button>
-												</div>
-											</td>
-										)}
-									</tr>
-								))
-							)}
-						</tbody>
-					</table>
-				</div>
-				<div className="px-3 py-2 border-t border-gray-100 text-xs text-gray-400">
-					Показано: {filtered.length} из {rows.length}
-				</div>
-			</div>
+			<DataTable
+				tableId={tableId}
+				columns={columns}
+				data={rows}
+				isLoading={isLoading}
+				enableSearch
+				searchPlaceholder="Поиск по ФИО / ИИН / телефону…"
+				initialSorting={[{ id: "fullName", desc: false }]}
+				emptyState={
+					<div className="flex flex-col items-center gap-2 py-8 text-am-text-muted">
+						<Briefcase className="w-8 h-8 opacity-30" />
+						<p>Контрагентов нет</p>
+					</div>
+				}
+			/>
 
 			{dialogOpen && (
 				<CounterpartyDialog
@@ -288,7 +323,7 @@ export function CounterpartyDirectory({
 					}}
 					onSave={(data) => {
 						if (editing) updateMut.mutate({ id: editing.id, data });
-						else createMut.mutate(data as any);
+						else createMut.mutate(data as Partial<CounterpartyRow> & { categories: string[] });
 					}}
 					saving={createMut.isPending || updateMut.isPending}
 				/>
@@ -358,7 +393,9 @@ function CounterpartyDialog({
 					<div>
 						<Label className="text-sm">Тип</Label>
 						<Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
-							<SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+							<SelectTrigger className="mt-1">
+								<SelectValue />
+							</SelectTrigger>
 							<SelectContent>
 								<SelectItem value="company">Юридическое лицо</SelectItem>
 								<SelectItem value="individual">Физическое лицо</SelectItem>
@@ -388,7 +425,7 @@ function CounterpartyDialog({
 					</div>
 
 					<div>
-						<Label className="text-sm">Email</Label>
+						<Label className="text-sm">Почта</Label>
 						<Input className="mt-1" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
 					</div>
 
@@ -415,9 +452,6 @@ function CounterpartyDialog({
 								);
 							})}
 						</div>
-						<p className="text-[10px] text-gray-400 mt-1">
-							Можно выбрать несколько ролей — например, поставщик может быть и покупателем
-						</p>
 					</div>
 
 					<div>

@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2, Edit2, Plus } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,15 +20,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
@@ -112,6 +105,84 @@ export default function SalesProperties() {
 		sold: "Продан",
 	};
 
+	const columns = useMemo<ColumnDef<any, unknown>[]>(
+		() => [
+			{
+				accessorKey: "projectName",
+				header: "Проект",
+				size: 160,
+				meta: { exportLabel: "Проект", pinned: "left" },
+				cell: ({ row }) => (
+					<span className="font-medium">{row.original.projectName || "—"}</span>
+				),
+			},
+			{
+				accessorKey: "unitNumber",
+				header: "№ объекта",
+				size: 110,
+				meta: { exportLabel: "№ объекта" },
+				cell: ({ row }) => row.original.unitNumber || "—",
+			},
+			{
+				id: "salePrice",
+				header: "Цена продажи",
+				size: 140,
+				accessorFn: (row) => parseFloat(row.salePrice || "0"),
+				meta: { exportLabel: "Цена продажи", align: "right" },
+				cell: ({ row }) => (
+					<span className="font-mono font-medium">
+						{formatCurrency(row.original.salePrice, row.original.currency)}
+					</span>
+				),
+			},
+			{
+				id: "status",
+				header: "Статус",
+				size: 130,
+				accessorKey: "status",
+				meta: { exportLabel: "Статус" },
+				cell: ({ row }) => (
+					<Badge
+						className={statusColors[row.original.status] || "bg-gray-100"}
+					>
+						{statusLabels[row.original.status] || row.original.status}
+					</Badge>
+				),
+			},
+			{
+				id: "availableFrom",
+				header: "Доступен с",
+				size: 110,
+				accessorFn: (row) => row.availableFrom || "",
+				meta: { exportLabel: "Доступен с" },
+				cell: ({ row }) =>
+					row.original.availableFrom
+						? new Date(row.original.availableFrom).toLocaleDateString("ru-KG")
+						: "—",
+			},
+			{
+				id: "actions",
+				header: "",
+				size: 60,
+				enableSorting: false,
+				meta: { align: "right" },
+				cell: ({ row }) => (
+					<Button
+						variant="ghost"
+						size="icon"
+						onClick={() => {
+							setSelectedProperty(row.original);
+							setDialogOpen(true);
+						}}
+					>
+						<Edit2 className="h-4 w-4" />
+					</Button>
+				),
+			},
+		],
+		[],
+	);
+
 	return (
 		<div className="space-y-6">
 			<div className="flex items-center justify-between">
@@ -134,92 +205,20 @@ export default function SalesProperties() {
 				</Button>
 			</div>
 
-			<div className="border rounded-md bg-card">
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead>Проект</TableHead>
-							<TableHead>№ Объекта</TableHead>
-							<TableHead>Цена продажи</TableHead>
-							<TableHead>Статус</TableHead>
-							<TableHead>Доступен с</TableHead>
-							<TableHead className="text-right">Действия</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isLoading ? (
-							Array.from({ length: 5 }).map((_, i) => (
-								<TableRow key={i}>
-									<TableCell>
-										<Skeleton className="h-5 w-32" />
-									</TableCell>
-									<TableCell>
-										<Skeleton className="h-5 w-24" />
-									</TableCell>
-									<TableCell>
-										<Skeleton className="h-5 w-24" />
-									</TableCell>
-									<TableCell>
-										<Skeleton className="h-5 w-20" />
-									</TableCell>
-									<TableCell>
-										<Skeleton className="h-5 w-24" />
-									</TableCell>
-									<TableCell className="text-right">
-										<Skeleton className="h-8 w-16 inline-block" />
-									</TableCell>
-								</TableRow>
-							))
-						) : salesPropertiesArray.length === 0 ? (
-							<TableRow>
-								<TableCell
-									colSpan={6}
-									className="text-center py-8 text-muted-foreground"
-								>
-									<Building2 className="h-12 w-12 mx-auto mb-2 opacity-50" />
-									<p>Нет объектов на продажу</p>
-								</TableCell>
-							</TableRow>
-						) : (
-							salesPropertiesArray.map((prop: any) => (
-								<TableRow key={prop.id}>
-									<TableCell className="font-medium">
-										{prop.projectName || "—"}
-									</TableCell>
-									<TableCell>{prop.unitNumber || "—"}</TableCell>
-									<TableCell>
-										{formatCurrency(prop.salePrice, prop.currency)}
-									</TableCell>
-									<TableCell>
-										<Badge
-											className={statusColors[prop.status] || "bg-gray-100"}
-										>
-											{statusLabels[prop.status] || prop.status}
-										</Badge>
-									</TableCell>
-									<TableCell>
-										{prop.availableFrom
-											? new Date(prop.availableFrom).toLocaleDateString("ru-RU")
-											: "—"}
-									</TableCell>
-									<TableCell className="text-right">
-										<Button
-											variant="ghost"
-											size="icon"
-											onClick={() => {
-												setSelectedProperty(prop);
-												setDialogOpen(true);
-											}}
-										>
-											<Edit2 className="h-4 w-4" />
-										</Button>
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</div>
+			<DataTable
+				tableId="crm-sales-properties"
+				columns={columns}
+				data={salesPropertiesArray}
+				isLoading={isLoading}
+				enableSearch
+				searchPlaceholder="Поиск по проекту, номеру…"
+				emptyState={
+					<div className="flex flex-col items-center gap-2 text-muted-foreground py-8">
+						<Building2 className="h-12 w-12 opacity-50" />
+						<span>Нет объектов на продажу</span>
+					</div>
+				}
+			/>
 
 			<Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
 				<DialogContent className="sm:max-w-[600px]">
@@ -249,9 +248,10 @@ export default function SalesProperties() {
 							</div>
 						)}
 						<div className="grid grid-cols-2 gap-4">
-							<div>
-								<Label htmlFor="salePrice">Цена продажи *</Label>
+							<div className="flex flex-col">
+								<Label className="leading-tight mb-1.5" htmlFor="salePrice">Цена продажи *</Label>
 								<Input
+									className="mt-auto"
 									id="salePrice"
 									name="salePrice"
 									type="number"
@@ -260,13 +260,13 @@ export default function SalesProperties() {
 									defaultValue={selectedProperty?.salePrice}
 								/>
 							</div>
-							<div>
-								<Label htmlFor="currency">Валюта *</Label>
+							<div className="flex flex-col">
+								<Label className="leading-tight mb-1.5" htmlFor="currency">Валюта *</Label>
 								<Select
 									name="currency"
 									defaultValue={selectedProperty?.currency || "KGS"}
 								>
-									<SelectTrigger>
+									<SelectTrigger className="mt-auto">
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>
@@ -278,13 +278,13 @@ export default function SalesProperties() {
 							</div>
 						</div>
 						<div className="grid grid-cols-2 gap-4">
-							<div>
-								<Label htmlFor="status">Статус *</Label>
+							<div className="flex flex-col">
+								<Label className="leading-tight mb-1.5" htmlFor="status">Статус *</Label>
 								<Select
 									name="status"
 									defaultValue={selectedProperty?.status || "available"}
 								>
-									<SelectTrigger>
+									<SelectTrigger className="mt-auto">
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>
@@ -294,9 +294,10 @@ export default function SalesProperties() {
 									</SelectContent>
 								</Select>
 							</div>
-							<div>
-								<Label htmlFor="availableFrom">Доступен с</Label>
+							<div className="flex flex-col">
+								<Label className="leading-tight mb-1.5" htmlFor="availableFrom">Доступен с</Label>
 								<Input
+									className="mt-auto"
 									id="availableFrom"
 									name="availableFrom"
 									type="date"

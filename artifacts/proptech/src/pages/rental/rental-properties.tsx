@@ -89,14 +89,14 @@ function PropertyFormFields({ form, setField }: { form: FormState; setField: (k:
 				<Input className="mt-1" value={form.projectName} onChange={(e) => setField("projectName", e.target.value)} placeholder="Например, ЖК Центральный" />
 			</div>
 			<div className="grid grid-cols-2 gap-2">
-				<div>
-					<Label className="text-xs">Номер / кабинет *</Label>
-					<Input className="mt-1" value={form.unitNumber} onChange={(e) => setField("unitNumber", e.target.value)} placeholder="101" />
+				<div className="flex flex-col">
+					<Label className="text-xs leading-tight mb-1.5">Номер / кабинет *</Label>
+					<Input className="mt-auto" value={form.unitNumber} onChange={(e) => setField("unitNumber", e.target.value)} placeholder="101" />
 				</div>
-				<div>
-					<Label className="text-xs">Тип</Label>
+				<div className="flex flex-col">
+					<Label className="text-xs leading-tight mb-1.5">Тип</Label>
 					<Select value={form.type} onValueChange={(v) => setField("type", v)}>
-						<SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+						<SelectTrigger className="mt-auto"><SelectValue /></SelectTrigger>
 						<SelectContent>
 							<SelectItem value="apartment">Квартира</SelectItem>
 							<SelectItem value="office">Офис</SelectItem>
@@ -107,17 +107,17 @@ function PropertyFormFields({ form, setField }: { form: FormState; setField: (k:
 				</div>
 			</div>
 			<div className="grid grid-cols-3 gap-2">
-				<div>
-					<Label className="text-xs">Площадь, м²</Label>
-					<Input className="mt-1" type="number" value={form.area} onChange={(e) => setField("area", e.target.value)} />
+				<div className="flex flex-col">
+					<Label className="text-xs leading-tight mb-1.5">Площадь, м²</Label>
+					<Input className="mt-auto" type="number" value={form.area} onChange={(e) => setField("area", e.target.value)} />
 				</div>
-				<div>
-					<Label className="text-xs">Блок</Label>
-					<Input className="mt-1" value={form.block} onChange={(e) => setField("block", e.target.value)} />
+				<div className="flex flex-col">
+					<Label className="text-xs leading-tight mb-1.5">Блок</Label>
+					<Input className="mt-auto" value={form.block} onChange={(e) => setField("block", e.target.value)} />
 				</div>
-				<div>
-					<Label className="text-xs">Этаж</Label>
-					<Input className="mt-1" type="number" value={form.floor} onChange={(e) => setField("floor", e.target.value)} />
+				<div className="flex flex-col">
+					<Label className="text-xs leading-tight mb-1.5">Этаж</Label>
+					<Input className="mt-auto" type="number" value={form.floor} onChange={(e) => setField("floor", e.target.value)} />
 				</div>
 			</div>
 			<div>

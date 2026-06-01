@@ -1,58 +1,57 @@
 /**
- * BuildFlow Design System - Status Colors Helper
- *
- * Единая палитра цветов для статусных badges во всей системе.
- * Использует мягкие оттенки вместо ярких неоновых цветов.
+ * @deprecated Используйте `<Status value="..." />` из `@/components/am`.
+ * Этот модуль оставлен для постепенной миграции — классы синхронизированы с STATUS_REGISTRY.
  */
+import { STATUS_REGISTRY } from "@/components/am/Status";
 
-export const statusColors = {
-	// Активные/успешные состояния
-	active: "bg-emerald-100 text-emerald-700 border-emerald-200",
-	success: "bg-emerald-100 text-emerald-700 border-emerald-200",
-	approved: "bg-emerald-100 text-emerald-700 border-emerald-200",
-	completed: "bg-emerald-100 text-emerald-700 border-emerald-200",
-	paid: "bg-emerald-100 text-emerald-700 border-emerald-200",
-
-	// Ожидание/в процессе
-	pending: "bg-amber-100 text-amber-700 border-amber-200",
-	inProgress: "bg-blue-100 text-blue-700 border-blue-200",
-	processing: "bg-blue-100 text-blue-700 border-blue-200",
-	review: "bg-amber-100 text-amber-700 border-amber-200",
-
-	// Проблемы/отклонения
-	overdue: "bg-rose-100 text-rose-700 border-rose-200",
-	rejected: "bg-rose-100 text-rose-700 border-rose-200",
-	failed: "bg-rose-100 text-rose-700 border-rose-200",
-	cancelled: "bg-rose-100 text-rose-700 border-rose-200",
-
-	// Нейтральные
-	draft: "bg-gray-100 text-gray-700 border-gray-200",
-	inactive: "bg-gray-100 text-gray-600 border-gray-200",
-	paused: "bg-gray-100 text-gray-700 border-gray-200",
-
-	// Предупреждения
-	warning: "bg-amber-100 text-amber-700 border-amber-200",
-	expired: "bg-amber-100 text-amber-700 border-amber-200",
-
-	// Информационные
+const VARIANT_TO_CLASS = {
+	neutral: "bg-gray-100 text-gray-700 border-gray-200",
 	info: "bg-blue-100 text-blue-700 border-blue-200",
+	success: "bg-emerald-100 text-emerald-700 border-emerald-200",
+	warning: "bg-amber-100 text-amber-700 border-amber-200",
+	danger: "bg-rose-100 text-rose-700 border-rose-200",
+	brand: "bg-orange-100 text-orange-700 border-orange-200",
+} as const;
+
+function classForStatusKey(status: string): string {
+	const def = STATUS_REGISTRY[status];
+	if (def) return VARIANT_TO_CLASS[def.variant] ?? VARIANT_TO_CLASS.neutral;
+	return VARIANT_TO_CLASS.neutral;
+}
+
+/** @deprecated */
+export const statusColors = {
+	active: classForStatusKey("active"),
+	success: classForStatusKey("success"),
+	approved: classForStatusKey("approved"),
+	completed: classForStatusKey("completed"),
+	paid: classForStatusKey("paid"),
+	pending: classForStatusKey("pending"),
+	inProgress: classForStatusKey("in_progress"),
+	processing: classForStatusKey("in_progress"),
+	review: classForStatusKey("review"),
+	overdue: classForStatusKey("overdue"),
+	rejected: classForStatusKey("rejected"),
+	failed: classForStatusKey("rejected"),
+	cancelled: classForStatusKey("cancelled"),
+	draft: classForStatusKey("draft"),
+	inactive: classForStatusKey("inactive"),
+	paused: classForStatusKey("paused"),
+	warning: classForStatusKey("warning"),
+	expired: classForStatusKey("overdue"),
+	info: classForStatusKey("review"),
 } as const;
 
 export type StatusColorKey = keyof typeof statusColors;
 
 /**
- * Получить цвет для статуса с fallback на neutral
- * @param status - ключ статуса или строка
- * @returns CSS классы для Badge
+ * @deprecated Prefer `<Status value={status} />`
  */
 export function getStatusColor(status: string | StatusColorKey): string {
 	const key = status as StatusColorKey;
-	return statusColors[key] || statusColors.draft;
+	return statusColors[key] ?? classForStatusKey(status) ?? statusColors.draft;
 }
 
-/**
- * Цвета для типов операций (приход/расход)
- */
 export const operationColors = {
 	income: {
 		bg: "bg-emerald-50",
@@ -79,9 +78,6 @@ export const operationColors = {
 
 export type OperationType = keyof typeof operationColors;
 
-/**
- * Получить цвета для типа операции
- */
-export function getOperationColors(type: OperationType) {
+export function getOperationColor(type: OperationType) {
 	return operationColors[type];
 }

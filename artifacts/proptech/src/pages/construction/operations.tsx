@@ -9,7 +9,9 @@ import {
 	Upload,
 	X,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table";
 import { defaultPeriod, inPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
@@ -274,6 +276,77 @@ export default function ConstructionOperations() {
 	const editingOp = editingId
 		? sortedOps.find((o: { id: number }) => o.id === editingId)
 		: null;
+
+	const opColumns = useMemo<ColumnDef<any, unknown>[]>(
+		() => [
+			{
+				accessorKey: "date",
+				header: "Дата",
+				size: 120,
+				meta: { exportLabel: "Дата" },
+				cell: ({ row }) => (
+					<span className="text-gray-400 text-xs whitespace-nowrap">
+						{relDate(row.original.date)}
+					</span>
+				),
+			},
+			{
+				accessorKey: "description",
+				header: "Операция",
+				size: 320,
+				meta: { exportLabel: "Операция" },
+				cell: ({ row }) => (
+					<div>
+						<div className="font-medium text-gray-900 text-sm">
+							{row.original.description}
+						</div>
+						{row.original.category && (
+							<div className="text-xs text-gray-400 mt-0.5">
+								{row.original.category}
+							</div>
+						)}
+					</div>
+				),
+			},
+			{
+				id: "project",
+				header: "Проект",
+				size: 180,
+				accessorFn: (row: any) =>
+					projects.find((p: any) => p.id === row.projectId)?.name || "—",
+				meta: { exportLabel: "Проект" },
+				cell: ({ getValue }) => (
+					<span className="text-xs text-gray-400">{getValue() as string}</span>
+				),
+			},
+			{
+				id: "amountKgs",
+				header: "Сумма",
+				size: 160,
+				accessorFn: (row: any) => parseFloat(row.amountKgs || "0"),
+				meta: { exportLabel: "Сумма (сом)", align: "right" },
+				cell: ({ row }) => {
+					const op = row.original;
+					const isIncome = op.type === "income";
+					const isTransfer = op.type === "transfer";
+					return (
+						<div
+							className={`font-mono font-semibold text-sm ${isIncome ? "text-emerald-600" : isTransfer ? "text-blue-600" : "text-gray-700"}`}
+						>
+							{isIncome ? "+" : isTransfer ? "" : "−"}
+							{fmt(op.amountKgs)}
+							{op.currency !== "KGS" && (
+								<div className="text-[10px] text-gray-400 font-normal">
+									{fmt(op.amount)} {op.currency}
+								</div>
+							)}
+						</div>
+					);
+				},
+			},
+		],
+		[projects],
+	);
 	let accountBalance = parseFloat(
 		selectedAccount?.currentBalance?.toString() || "0",
 	);
@@ -426,106 +499,23 @@ export default function ConstructionOperations() {
 				)}
 
 				{/* Operations list */}
-				<div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden flex-1">
-					<table className="w-full text-sm">
-						<thead>
-							<tr className="bg-gray-50/80 border-b border-gray-100">
-								<th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-400 w-6">
-									<input type="checkbox" className="rounded" />
-								</th>
-								<th className="text-left px-2 py-2.5 text-xs font-semibold text-gray-400 w-24">
-									ДАТА
-								</th>
-								<th className="text-left px-2 py-2.5 text-xs font-semibold text-gray-400">
-									ОПЕРАЦИЯ
-								</th>
-								<th className="text-left px-2 py-2.5 text-xs font-semibold text-gray-400">
-									ПРОЕКТ
-								</th>
-								<th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-400">
-									СУММА
-								</th>
-							</tr>
-						</thead>
-						<tbody>
-							{isLoading ? (
-								<tr>
-									<td colSpan={5} className="text-center py-16 text-gray-400">
-										Загрузка...
-									</td>
-								</tr>
-							) : sortedOps.length === 0 ? (
-								<tr>
-									<td colSpan={5} className="text-center py-16 text-gray-400">
-										<div className="flex flex-col items-center gap-2">
-											<ArrowLeftRight className="w-10 h-10 text-gray-200" />
-											<span>
-												Нет операций. Нажмите «Приход» или «Расход» для
-												добавления.
-											</span>
-										</div>
-									</td>
-								</tr>
-							) : (
-								sortedOps.map((op: any) => {
-									const proj = projects.find(
-										(p: any) => p.id === op.projectId,
-									);
-									const isIncome = op.type === "income";
-									const isTransfer = op.type === "transfer";
-									return (
-										<tr
-											key={op.id}
-											role="button"
-											tabIndex={0}
-											onClick={() => openEdit(op)}
-											onKeyDown={(e) => {
-												if (e.key === "Enter" || e.key === " ") openEdit(op);
-											}}
-											className="border-b border-gray-50 hover:bg-blue-50/30 transition-colors cursor-pointer group"
-										>
-											<td
-												className="px-4 py-2.5"
-												onClick={(e) => e.stopPropagation()}
-											>
-												<input
-													type="checkbox"
-													className="rounded opacity-0 group-hover:opacity-100"
-												/>
-											</td>
-											<td className="px-2 py-2.5 text-gray-400 text-xs whitespace-nowrap">
-												{relDate(op.date)}
-											</td>
-											<td className="px-2 py-2.5">
-												<div className="font-medium text-gray-900 text-sm">
-													{op.description}
-												</div>
-												{op.category && (
-													<div className="text-xs text-gray-400 mt-0.5">
-														{op.category}
-													</div>
-												)}
-											</td>
-											<td className="px-2 py-2.5 text-xs text-gray-400">
-												{proj?.name || "—"}
-											</td>
-											<td
-												className={`px-4 py-2.5 text-right font-mono font-semibold text-sm ${isIncome ? "text-emerald-600" : isTransfer ? "text-blue-600" : "text-gray-700"}`}
-											>
-												{isIncome ? "+" : isTransfer ? "" : "−"}
-												{fmt(op.amountKgs)}
-												{op.currency !== "KGS" && (
-													<div className="text-[10px] text-gray-400 font-normal">
-														{fmt(op.amount)} {op.currency}
-													</div>
-												)}
-											</td>
-										</tr>
-									);
-								})
-							)}
-						</tbody>
-					</table>
+				<div className="flex-1">
+					<DataTable
+						tableId="construction-operations"
+						columns={opColumns}
+						data={filteredArray}
+						isLoading={isLoading}
+						onRowClick={(op) => openEdit(op)}
+						initialSorting={[{ id: "date", desc: true }]}
+						emptyState={
+							<div className="flex flex-col items-center gap-2">
+								<ArrowLeftRight className="w-10 h-10 text-gray-200" />
+								<span>
+									Нет операций. Нажмите «Приход» или «Расход» для добавления.
+								</span>
+							</div>
+						}
+					/>
 				</div>
 			</div>
 

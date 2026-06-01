@@ -1,5 +1,7 @@
-import { Edit2, Plus, Search, Trash2, Users } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Edit2, Plus, Trash2, Users } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -27,15 +29,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
@@ -185,15 +178,15 @@ function ClientDialog({ open, onClose, client, onSuccess }: ClientDialogProps) {
 				</DialogHeader>
 				<form onSubmit={handleSubmit} className="space-y-4">
 					<div className="grid grid-cols-2 gap-3">
-						<div>
-							<Label>Тип *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Тип *</Label>
 							<Select
 								value={formData.type}
 								onValueChange={(v: "individual" | "company") =>
 									setFormData({ ...formData, type: v })
 								}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -205,13 +198,13 @@ function ClientDialog({ open, onClose, client, onSuccess }: ClientDialogProps) {
 								</SelectContent>
 							</Select>
 						</div>
-						<div>
-							<Label>Статус *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Статус *</Label>
 							<Select
 								value={formData.status}
 								onValueChange={(v) => setFormData({ ...formData, status: v })}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -247,8 +240,8 @@ function ClientDialog({ open, onClose, client, onSuccess }: ClientDialogProps) {
 					</div>
 
 					<div className="grid grid-cols-2 gap-3">
-						<div>
-							<Label>Телефон *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Телефон *</Label>
 							<Input
 								value={formData.phone}
 								onChange={(e) =>
@@ -256,11 +249,11 @@ function ClientDialog({ open, onClose, client, onSuccess }: ClientDialogProps) {
 								}
 								placeholder="+996 700 000 000"
 								required
-								className="mt-1"
+								className="mt-auto"
 							/>
 						</div>
-						<div>
-							<Label>Email</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Email</Label>
 							<Input
 								type="email"
 								value={formData.email}
@@ -268,7 +261,7 @@ function ClientDialog({ open, onClose, client, onSuccess }: ClientDialogProps) {
 									setFormData({ ...formData, email: e.target.value })
 								}
 								placeholder="example@mail.kg"
-								className="mt-1"
+								className="mt-auto"
 							/>
 						</div>
 					</div>
@@ -287,26 +280,26 @@ function ClientDialog({ open, onClose, client, onSuccess }: ClientDialogProps) {
 
 					{formData.type === "individual" ? (
 						<div className="grid grid-cols-2 gap-3">
-								<div>
-									<Label>Паспортные данные</Label>
+								<div className="flex flex-col">
+									<Label className="leading-tight mb-1.5">Паспортные данные</Label>
 									<Input
 										value={formData.passportData}
 										onChange={(e) =>
 											setFormData({ ...formData, passportData: e.target.value })
 										}
 										placeholder="ID 1234567"
-										className="mt-1"
+										className="mt-auto"
 									/>
 								</div>
-								<div>
-									<Label>Дата рождения</Label>
+								<div className="flex flex-col">
+									<Label className="leading-tight mb-1.5">Дата рождения</Label>
 									<Input
 										type="date"
 										value={formData.birthDate}
 										onChange={(e) =>
 											setFormData({ ...formData, birthDate: e.target.value })
 										}
-										className="mt-1"
+										className="mt-auto"
 									/>
 								</div>
 							</div>
@@ -325,8 +318,8 @@ function ClientDialog({ open, onClose, client, onSuccess }: ClientDialogProps) {
 					)}
 
 					<div className="grid grid-cols-2 gap-3">
-						<div>
-							<Label>Бюджет (KGS)</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Бюджет (KGS)</Label>
 							<Input
 								type="number"
 								value={formData.budget}
@@ -334,7 +327,7 @@ function ClientDialog({ open, onClose, client, onSuccess }: ClientDialogProps) {
 									setFormData({ ...formData, budget: e.target.value })
 								}
 								placeholder="10000000"
-								className="mt-1"
+								className="mt-auto"
 							/>
 						</div>
 						<div className="flex items-center gap-2 pt-6">
@@ -383,7 +376,6 @@ function ClientDialog({ open, onClose, client, onSuccess }: ClientDialogProps) {
 export default function Clients() {
 	const [clients, setClients] = useState<Client[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
-	const [search, setSearch] = useState("");
 	const [typeFilter, setTypeFilter] = useState<string>("all");
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [selectedClient, setSelectedClient] = useState<Client | undefined>();
@@ -394,7 +386,6 @@ export default function Clients() {
 		try {
 			setIsLoading(true);
 			const params: Record<string, string | undefined> = {
-				search: search || undefined,
 				type: typeFilter !== "all" ? typeFilter : undefined,
 			};
 			const response = await api.get<Client[]>("/crm/clients", { params });
@@ -413,7 +404,7 @@ export default function Clients() {
 
 	useEffect(() => {
 		loadClients();
-	}, [search, typeFilter]);
+	}, [typeFilter]);
 
 	const handleDelete = async () => {
 		if (!deleteId) return;
@@ -452,6 +443,125 @@ export default function Clients() {
 		);
 	};
 
+	const columns = useMemo<ColumnDef<Client, unknown>[]>(
+		() => [
+			{
+				accessorKey: "fullName",
+				header: "Имя / Название",
+				size: 200,
+				meta: { exportLabel: "Имя / Название" },
+				cell: ({ row }) => (
+					<span className="font-medium text-gray-900">
+						{row.original.fullName}
+					</span>
+				),
+			},
+			{
+				accessorKey: "type",
+				header: "Тип",
+				size: 140,
+				meta: { exportLabel: "Тип" },
+				cell: ({ row }) => getTypeBadge(row.original.type),
+			},
+			{
+				accessorKey: "phone",
+				header: "Телефон",
+				size: 130,
+				meta: { exportLabel: "Телефон" },
+				cell: ({ row }) => (
+					<span className="text-gray-600">{row.original.phone}</span>
+				),
+			},
+			{
+				accessorKey: "email",
+				header: "Почта",
+				size: 160,
+				meta: { exportLabel: "Email" },
+				cell: ({ row }) => (
+					<span className="text-gray-500 text-sm">
+						{row.original.email || "—"}
+					</span>
+				),
+			},
+			{
+				id: "budget",
+				header: "Бюджет",
+				size: 120,
+				accessorFn: (row) => row.budget ?? 0,
+				meta: { exportLabel: "Бюджет (сом)", align: "right" },
+				cell: ({ row }) => (
+					<span className="font-mono text-sm">
+						{row.original.budget
+							? `${row.original.budget.toLocaleString("ru-KG")} сом`
+							: "—"}
+					</span>
+				),
+			},
+			{
+				id: "creditApproved",
+				header: "Кредит",
+				size: 90,
+				accessorFn: (row) => (row.creditApproved ? 1 : 0),
+				meta: { exportLabel: "Кредит одобрен" },
+				cell: ({ row }) =>
+					row.original.creditApproved ? (
+						<Badge
+							className="text-xs bg-emerald-100 text-emerald-800"
+							variant="secondary"
+						>
+							Да
+						</Badge>
+					) : (
+						<span className="text-xs text-gray-400">—</span>
+					),
+			},
+			{
+				accessorKey: "status",
+				header: "Статус",
+				size: 110,
+				meta: { exportLabel: "Статус" },
+				cell: ({ row }) => getStatusBadge(row.original.status),
+			},
+			{
+				id: "__actions",
+				header: "",
+				size: 90,
+				enableSorting: false,
+				cell: ({ row }) => {
+					const client = row.original;
+					return (
+						<div
+							className="flex gap-1"
+							onClick={(e) => e.stopPropagation()}
+						>
+							<Button
+								variant="ghost"
+								size="icon"
+								onClick={() => {
+									setSelectedClient(client);
+									setDialogOpen(true);
+								}}
+								title="Редактировать"
+							>
+								<Edit2 className="w-4 h-4" />
+							</Button>
+							<Button
+								variant="ghost"
+								size="icon"
+								className="text-rose-600 hover:text-rose-700"
+								onClick={() => setDeleteId(client.id)}
+								title="Удалить"
+							>
+								<Trash2 className="w-4 h-4" />
+							</Button>
+						</div>
+					);
+				},
+			},
+		],
+		[],
+	);
+
 	return (
 		<div className="space-y-5">
 			<div className="flex justify-between items-start">
@@ -471,126 +581,35 @@ export default function Clients() {
 				</Button>
 			</div>
 
-			{/* Filters */}
-			<div className="flex gap-3">
-				<div className="relative flex-1">
-					<Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-					<Input
-						placeholder="Поиск по имени, телефону, email..."
-						value={search}
-						onChange={(e) => setSearch(e.target.value)}
-						className="pl-9"
-					/>
-				</div>
-				<Select value={typeFilter} onValueChange={setTypeFilter}>
-					<SelectTrigger className="w-44">
-						<SelectValue placeholder="Все типы" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="all">Все типы</SelectItem>
-						{TYPE_OPTIONS.map((opt) => (
-							<SelectItem key={opt.value} value={opt.value}>
-								{opt.label}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-			</div>
-
-			{/* Table */}
-			<div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-				<Table>
-					<TableHeader>
-						<TableRow className="bg-gray-50">
-							<TableHead>Имя / Название</TableHead>
-							<TableHead>Тип</TableHead>
-							<TableHead>Телефон</TableHead>
-							<TableHead>Email</TableHead>
-							<TableHead>Бюджет</TableHead>
-							<TableHead>Кредит</TableHead>
-							<TableHead>Статус</TableHead>
-							<TableHead className="w-24"></TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isLoading ? (
-							Array.from({ length: 5 }).map((_, i) => (
-								<TableRow key={i}>
-									{Array.from({ length: 8 }).map((_, j) => (
-										<TableCell key={j}>
-											<Skeleton className="h-4 w-full" />
-										</TableCell>
-									))}
-								</TableRow>
-							))
-						) : !clients.length ? (
-							<TableRow>
-								<TableCell colSpan={8} className="text-center py-12">
-									<Users className="w-8 h-8 text-gray-200 mx-auto mb-2" />
-									<p className="text-gray-400">Клиенты не найдены</p>
-								</TableCell>
-							</TableRow>
-						) : (
-							clients.map((client) => (
-								<TableRow key={client.id} className="hover:bg-gray-50">
-									<TableCell className="font-medium text-gray-900">
-										{client.fullName}
-									</TableCell>
-									<TableCell>{getTypeBadge(client.type)}</TableCell>
-									<TableCell className="text-gray-600">
-										{client.phone}
-									</TableCell>
-									<TableCell className="text-gray-500 text-sm">
-										{client.email || "—"}
-									</TableCell>
-									<TableCell className="text-sm">
-										{client.budget
-											? `${client.budget.toLocaleString()} с`
-											: "—"}
-									</TableCell>
-									<TableCell>
-										{client.creditApproved ? (
-											<Badge
-												className="text-xs bg-emerald-100 text-emerald-800"
-												variant="secondary"
-											>
-												Да
-											</Badge>
-										) : (
-											<span className="text-xs text-gray-400">—</span>
-										)}
-									</TableCell>
-									<TableCell>{getStatusBadge(client.status)}</TableCell>
-									<TableCell>
-										<div className="flex gap-1">
-											<Button
-												variant="ghost"
-												size="icon"
-												onClick={() => {
-													setSelectedClient(client);
-													setDialogOpen(true);
-												}}
-												title="Редактировать"
-											>
-												<Edit2 className="w-4 h-4" />
-											</Button>
-											<Button
-												variant="ghost"
-												size="icon"
-												className="text-rose-600 hover:text-rose-700"
-												onClick={() => setDeleteId(client.id)}
-												title="Удалить"
-											>
-												<Trash2 className="w-4 h-4" />
-											</Button>
-										</div>
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</div>
+			<DataTable
+				tableId="crm-clients"
+				columns={columns}
+				data={clients}
+				isLoading={isLoading}
+				enableSearch
+				searchPlaceholder="Поиск по имени, телефону, email..."
+				toolbar={
+					<Select value={typeFilter} onValueChange={setTypeFilter}>
+						<SelectTrigger className="w-44">
+							<SelectValue placeholder="Все типы" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="all">Все типы</SelectItem>
+							{TYPE_OPTIONS.map((opt) => (
+								<SelectItem key={opt.value} value={opt.value}>
+									{opt.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				}
+				emptyState={
+					<div className="flex flex-col items-center gap-2">
+						<Users className="w-8 h-8 text-gray-200" />
+						<p className="text-gray-400">Клиенты не найдены</p>
+					</div>
+				}
+			/>
 
 			<ClientDialog
 				open={dialogOpen}

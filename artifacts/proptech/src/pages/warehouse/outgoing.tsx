@@ -1,7 +1,9 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, Plus, Search } from "lucide-react";
+import { AlertCircle, Plus } from "lucide-react";
 import { defaultPeriod, inPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,15 +22,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 
@@ -352,26 +345,104 @@ export default function OutgoingOperations() {
 	const operationsArray = Array.isArray(operations) ? operations : [];
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod());
-	const [search, setSearch] = useState("");
 	const [recipientTypeFilter, setRecipientTypeFilter] = useState("all");
 
-	const filteredOperations = operationsArray.filter((op) => {
-		if (!inPeriod(op.date, period)) return false;
-		if (
-			search !== "" &&
-			!op.itemName.toLowerCase().includes(search.toLowerCase()) &&
-			!op.recipientName.toLowerCase().includes(search.toLowerCase()) &&
-			!op.documentNumber?.toLowerCase().includes(search.toLowerCase())
-		)
-			return false;
-		if (recipientTypeFilter !== "all" && op.recipientType !== recipientTypeFilter)
-			return false;
-		return true;
-	});
+	const filteredOperations = useMemo(
+		() =>
+			operationsArray.filter((op) => {
+				if (!inPeriod(op.date, period)) return false;
+				if (recipientTypeFilter !== "all" && op.recipientType !== recipientTypeFilter)
+					return false;
+				return true;
+			}),
+		[operationsArray, period, recipientTypeFilter],
+	);
 
 	const totalQuantity = filteredOperations.reduce(
 		(sum, op) => sum + op.quantity,
 		0,
+	);
+
+	const columns = useMemo<ColumnDef<OutgoingOperation, unknown>[]>(
+		() => [
+			{
+				id: "date",
+				header: "Дата",
+				size: 110,
+				accessorFn: (row) => row.date,
+				meta: { exportLabel: "Дата", pinned: "left" },
+				cell: ({ row }) => formatDate(row.original.date),
+			},
+			{
+				accessorKey: "itemName",
+				header: "Товар",
+				size: 180,
+				meta: { exportLabel: "Товар" },
+				cell: ({ row }) => (
+					<span className="font-medium">{row.original.itemName}</span>
+				),
+			},
+			{
+				id: "quantity",
+				header: "Количество",
+				size: 110,
+				accessorFn: (row) => row.quantity,
+				meta: { exportLabel: "Количество", align: "right" },
+				cell: ({ row }) => (
+					<span className="font-mono">{formatNumber(row.original.quantity)}</span>
+				),
+			},
+			{
+				id: "recipient",
+				header: "Получатель",
+				size: 180,
+				accessorFn: (row) => row.recipientName,
+				meta: { exportLabel: "Получатель" },
+				cell: ({ row }) => (
+					<div className="space-y-1">
+						<div className="font-medium">{row.original.recipientName}</div>
+						<Badge
+							className={recipientTypeColors[row.original.recipientType]}
+							variant="secondary"
+						>
+							{recipientTypeLabels[row.original.recipientType]}
+						</Badge>
+					</div>
+				),
+			},
+			{
+				accessorKey: "purpose",
+				header: "Назначение",
+				size: 160,
+				meta: { exportLabel: "Назначение" },
+				cell: ({ row }) => (
+					<span className="text-sm">{row.original.purpose || "—"}</span>
+				),
+			},
+			{
+				accessorKey: "issuedBy",
+				header: "Выдал",
+				size: 120,
+				meta: { exportLabel: "Выдал" },
+				cell: ({ row }) => (
+					<span className="text-sm">{row.original.issuedBy || "—"}</span>
+				),
+			},
+			{
+				id: "documentNumber",
+				header: "Документ",
+				size: 120,
+				accessorFn: (row) => row.documentNumber || "",
+				meta: { exportLabel: "Документ" },
+				cell: ({ row }) =>
+					row.original.documentNumber ? (
+						<Badge variant="outline">{row.original.documentNumber}</Badge>
+					) : (
+						<span className="text-muted-foreground">—</span>
+					),
+			},
+		],
+		[],
 	);
 
 	return (
@@ -389,41 +460,8 @@ export default function OutgoingOperations() {
 				</Button>
 			</div>
 
-			{/* Filters */}
-			<div className="space-y-2">
-				<PeriodPicker value={period} onChange={setPeriod} />
-				<div className="flex flex-wrap gap-3">
-					<div className="flex-1 min-w-[200px] max-w-sm">
-						<div className="relative">
-							<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-							<Input
-								placeholder="Поиск по товару, получателю, документу..."
-								value={search}
-								onChange={(e) => setSearch(e.target.value)}
-								className="pl-9"
-							/>
-						</div>
-					</div>
-					<Select
-						value={recipientTypeFilter}
-						onValueChange={setRecipientTypeFilter}
-					>
-						<SelectTrigger className="w-[200px]">
-							<SelectValue placeholder="Тип получателя" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">Все типы</SelectItem>
-							<SelectItem value="construction_project">
-								Строительные проекты
-							</SelectItem>
-							<SelectItem value="department">Отделы</SelectItem>
-							<SelectItem value="other">Другое</SelectItem>
-						</SelectContent>
-					</Select>
-				</div>
-			</div>
+			<PeriodPicker value={period} onChange={setPeriod} />
 
-			{/* Summary */}
 			{filteredOperations.length > 0 && (
 				<div className="flex gap-4">
 					<Badge variant="secondary" className="px-4 py-2">
@@ -435,78 +473,33 @@ export default function OutgoingOperations() {
 				</div>
 			)}
 
-			{/* Table */}
-			<div className="rounded-md border">
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead>Дата</TableHead>
-							<TableHead>Товар</TableHead>
-							<TableHead className="text-right">Количество</TableHead>
-							<TableHead>Получатель</TableHead>
-							<TableHead>Назначение</TableHead>
-							<TableHead>Выдал</TableHead>
-							<TableHead>Документ</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isLoading ? (
-							Array.from({ length: 5 }).map((_, i) => (
-								<TableRow key={i}>
-									{Array.from({ length: 7 }).map((_, j) => (
-										<TableCell key={j}>
-											<Skeleton className="h-4 w-full" />
-										</TableCell>
-									))}
-								</TableRow>
-							))
-						) : !filteredOperations.length ? (
-							<TableRow>
-								<TableCell
-									colSpan={7}
-									className="text-center text-muted-foreground py-8"
-								>
-									{search || recipientTypeFilter !== "all"
-										? "Ничего не найдено"
-										: "Нет операций расхода"}
-								</TableCell>
-							</TableRow>
-						) : (
-							filteredOperations.map((op) => (
-								<TableRow key={op.id}>
-									<TableCell>{formatDate(op.date)}</TableCell>
-									<TableCell className="font-medium">{op.itemName}</TableCell>
-									<TableCell className="text-right">
-										{formatNumber(op.quantity)}
-									</TableCell>
-									<TableCell>
-										<div className="space-y-1">
-											<div className="font-medium">{op.recipientName}</div>
-											<Badge
-												className={recipientTypeColors[op.recipientType]}
-												variant="secondary"
-											>
-												{recipientTypeLabels[op.recipientType]}
-											</Badge>
-										</div>
-									</TableCell>
-									<TableCell className="text-sm">{op.purpose || "—"}</TableCell>
-									<TableCell className="text-sm">
-										{op.issuedBy || "—"}
-									</TableCell>
-									<TableCell>
-										{op.documentNumber ? (
-											<Badge variant="outline">{op.documentNumber}</Badge>
-										) : (
-											<span className="text-muted-foreground">—</span>
-										)}
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</div>
+			<DataTable
+				tableId="warehouse-outgoing"
+				columns={columns}
+				data={filteredOperations}
+				isLoading={isLoading}
+				enableSearch
+				searchPlaceholder="Поиск по товару, получателю, документу…"
+				initialSorting={[{ id: "date", desc: true }]}
+				toolbar={
+					<Select value={recipientTypeFilter} onValueChange={setRecipientTypeFilter}>
+						<SelectTrigger className="w-[200px] h-8">
+							<SelectValue placeholder="Тип получателя" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="all">Все типы</SelectItem>
+							<SelectItem value="construction_project">Строительные проекты</SelectItem>
+							<SelectItem value="department">Отделы</SelectItem>
+							<SelectItem value="other">Другое</SelectItem>
+						</SelectContent>
+					</Select>
+				}
+				emptyState={
+					recipientTypeFilter !== "all"
+						? "Ничего не найдено"
+						: "Нет операций расхода"
+				}
+			/>
 
 			<OutgoingDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
 		</div>

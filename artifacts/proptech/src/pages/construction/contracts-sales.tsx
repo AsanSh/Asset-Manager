@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, Eye, FileText, Plus, Search, UserPlus } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ChevronRight, Eye, FileText, Plus, UserPlus } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
 import { useLocation, useSearch } from "wouter";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -13,7 +13,6 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
 	Select,
 	SelectContent,
@@ -23,6 +22,15 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+	Field,
+	FormGrid,
+	FormSection,
+	MoneyInput,
+	PageShell,
+	Status,
+	Tablo,
+} from "@/components/am";
 import { ContractStatusStepper } from "@/components/contract-status-stepper";
 import { ContractTab } from "@/components/contract-tab";
 import { ContractFileUpload } from "@/components/contract-file-upload";
@@ -32,29 +40,15 @@ import {
 } from "@/components/admin-reconciliation-act";
 import { getApiErrorMessage } from "@/lib/api-error";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 
-const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-	draft: {
-		label: "Черновик",
-		color: "bg-gray-100 text-gray-600 border-gray-200",
-	},
-	review: {
-		label: "На утверждение",
-		color: "bg-amber-100 text-amber-700 border-amber-200",
-	},
-	signed: {
-		label: "Подписан",
-		color: "bg-emerald-100 text-emerald-700 border-emerald-200",
-	},
-	cancelled: {
-		label: "Расторгнут",
-		color: "bg-rose-100 text-rose-700 border-rose-200",
-	},
-	completed: {
-		label: "Завершён",
-		color: "bg-blue-100 text-blue-700 border-blue-200",
-	},
-};
+const CONTRACT_STATUS_OPTIONS = [
+	{ value: "draft", label: "Черновик" },
+	{ value: "review", label: "На утверждение" },
+	{ value: "signed", label: "Подписан" },
+	{ value: "completed", label: "Завершён" },
+	{ value: "cancelled", label: "Расторгнут" },
+] as const;
 
 function fmt(n: any) {
 	const v = parseFloat(n);
@@ -68,12 +62,14 @@ function ContractDetailSummary({
 	statusMut,
 	scheduleMut,
 	onRefresh,
+	hideReconciliation,
 }: {
 	contract: any;
 	proj: any;
 	statusMut: any;
 	scheduleMut: any;
 	onRefresh: () => void;
+	hideReconciliation?: boolean;
 }) {
 	const [portalForm, setPortalForm] = useState({
 		phone: "",
@@ -90,6 +86,7 @@ function ContractDetailSummary({
 			api
 				.get(`/construction/contracts-sales/${contract.id}/reconciliation`)
 				.then((r) => r.data),
+		enabled: !hideReconciliation,
 	});
 
 	useEffect(() => {
@@ -204,7 +201,7 @@ function ContractDetailSummary({
 				}
 			/>
 
-			{reconciliation && (
+			{!hideReconciliation && reconciliation && (
 				<AdminReconciliationAct
 					mode="buyer"
 					subjectLabel="Покупатель"
@@ -245,10 +242,10 @@ function ContractDetailSummary({
 						</p>
 					)}
 					<div className="grid grid-cols-2 gap-3">
-						<div className="col-span-2">
-							<Label>Телефон *</Label>
+						<div className="col-span-2 flex flex-col">
+							<Label className="leading-tight mb-1.5">Телефон *</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								type="tel"
 								placeholder="+996 700 123 456"
 								value={portalForm.phone}
@@ -258,30 +255,30 @@ function ContractDetailSummary({
 							/>
 							<p className="text-[10px] text-gray-400 mt-1">Покупатель войдёт по этому номеру и SMS-коду</p>
 						</div>
-						<div>
-							<Label>Имя *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Имя *</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								value={portalForm.firstName}
 								onChange={(e) =>
 									setPortalForm((p) => ({ ...p, firstName: e.target.value }))
 								}
 							/>
 						</div>
-						<div>
-							<Label>Фамилия *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Фамилия *</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								value={portalForm.lastName}
 								onChange={(e) =>
 									setPortalForm((p) => ({ ...p, lastName: e.target.value }))
 								}
 							/>
 						</div>
-						<div className="col-span-2">
-							<Label>Email (необязательно)</Label>
+						<div className="col-span-2 flex flex-col">
+							<Label className="leading-tight mb-1.5">Email (необязательно)</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								type="email"
 								value={portalForm.email}
 								onChange={(e) =>
@@ -322,6 +319,8 @@ function ContractDetailSummary({
 
 export default function ConstructionContractsSales() {
 	const qc = useQueryClient();
+	const { user } = useAuth();
+	const isSalesOnly = user?.role === "sales_manager";
 	const urlSearch = useSearch();
 	const urlParams = new URLSearchParams(urlSearch);
 	const highlightFromUrl = urlParams.get("highlight");
@@ -329,7 +328,6 @@ export default function ConstructionContractsSales() {
 
 	const [open, setOpen] = useState(false);
 	const [detailId, setDetailId] = useState<number | null>(null);
-	const [search, setSearch] = useState("");
 	const [statusFilter, setStatusFilter] = useState<string>(
 		statusFromUrl || "all",
 	);
@@ -440,17 +438,150 @@ export default function ConstructionContractsSales() {
 		}
 	}, [highlightFromUrl, statusFromUrl]);
 
-	const filtered = contracts.filter((c: any) => {
-		if (statusFilter !== "all" && c.status !== statusFilter) return false;
-		if (
-			!search ||
-			c.buyerName?.toLowerCase().includes(search.toLowerCase()) ||
-			c.contractNumber?.toLowerCase().includes(search.toLowerCase())
-		) {
-			return true;
-		}
-		return !search;
-	});
+	const filtered = useMemo(
+		() =>
+			contracts.filter(
+				(c: any) => statusFilter === "all" || c.status === statusFilter,
+			),
+		[contracts, statusFilter],
+	);
+
+	const columns = useMemo<ColumnDef<any, unknown>[]>(
+		() => [
+			{
+				id: "contractNumber",
+				header: "№ договора",
+				size: 120,
+				accessorKey: "contractNumber",
+				meta: { exportLabel: "№ договора", pinned: "left" },
+				cell: ({ row }) => (
+					<span className="font-mono text-xs font-medium text-amber-600">
+						{row.original.contractNumber}
+					</span>
+				),
+			},
+			{
+				id: "buyer",
+				header: "Покупатель",
+				size: 180,
+				accessorFn: (row: any) => row.buyerName || "",
+				meta: { exportLabel: "Покупатель", pinned: "left" },
+				cell: ({ row }) => (
+					<div>
+						<div className="font-medium text-gray-900">
+							{row.original.buyerName || "—"}
+						</div>
+						{row.original.buyerPhone && (
+							<div className="text-xs text-gray-400">
+								{row.original.buyerPhone}
+							</div>
+						)}
+					</div>
+				),
+			},
+			{
+				id: "project",
+				header: "Проект",
+				size: 140,
+				accessorFn: (row: any) =>
+					projects.find((p: any) => p.id === row.projectId)?.name || "—",
+				meta: { exportLabel: "Проект" },
+			},
+			{
+				id: "status",
+				header: "Статус",
+				size: 130,
+				accessorKey: "status",
+				meta: { exportLabel: "Статус" },
+				cell: ({ row }) => {
+					return (
+						<Status
+							value={row.original.status}
+							label={
+								CONTRACT_STATUS_OPTIONS.find((o) => o.value === row.original.status)
+									?.label
+							}
+							dot
+						/>
+					);
+				},
+			},
+			{
+				id: "totalAmount",
+				header: "Сумма",
+				size: 120,
+				accessorFn: (row: any) => parseFloat(row.totalAmount || "0"),
+				meta: { exportLabel: "Сумма", align: "right" },
+				cell: ({ row }) => (
+					<span className="font-mono font-medium">
+						{fmt(row.original.totalAmount)} {row.original.currency}
+					</span>
+				),
+			},
+			{
+				id: "paidAmount",
+				header: "Оплачено",
+				size: 130,
+				accessorFn: (row: any) => parseFloat(row.paidAmount || "0"),
+				meta: { exportLabel: "Оплачено", align: "right" },
+				cell: ({ row }) => {
+					const c = row.original;
+					const pct =
+						c.totalAmount > 0
+							? Math.round(
+									(parseFloat(c.paidAmount || "0") /
+										parseFloat(c.totalAmount)) *
+										100,
+								)
+							: 0;
+					return (
+						<div className="text-right">
+							<div className="font-mono font-medium text-emerald-600">
+								{fmt(c.paidAmount)}
+							</div>
+							<div className="w-16 ml-auto mt-1 h-1 bg-gray-100 rounded-full overflow-hidden">
+								<div
+									className="h-full bg-emerald-400 rounded-full"
+									style={{ width: `${pct}%` }}
+								/>
+							</div>
+						</div>
+					);
+				},
+			},
+			{
+				id: "remainingAmount",
+				header: "Остаток",
+				size: 110,
+				accessorFn: (row: any) => parseFloat(row.remainingAmount || "0"),
+				meta: { exportLabel: "Остаток", align: "right" },
+				cell: ({ row }) => (
+					<span className="font-mono text-amber-600 font-medium">
+						{fmt(row.original.remainingAmount)}
+					</span>
+				),
+			},
+			{
+				accessorKey: "contractDate",
+				header: "Дата",
+				size: 100,
+				meta: { exportLabel: "Дата" },
+				cell: ({ row }) => (
+					<span className="text-gray-400 text-xs">
+						{row.original.contractDate}
+					</span>
+				),
+			},
+			{
+				id: "__chevron",
+				header: "",
+				size: 40,
+				enableSorting: false,
+				cell: () => <ChevronRight className="w-4 h-4 text-gray-300" />,
+			},
+		],
+		[projects],
+	);
 
 	const totalContracts = contracts.length;
 	const totalSold = contracts.filter(
@@ -466,65 +597,44 @@ export default function ConstructionContractsSales() {
 	);
 
 	return (
-		<div>
-			<div className="flex items-center justify-between mb-6">
-				<div>
-					<h1 className="text-2xl font-bold text-gray-900">Договоры продажи</h1>
-					<p className="text-gray-500 text-sm mt-0.5">
-						Воронка сделок и договоры ДКП
-					</p>
-				</div>
+		<PageShell.List
+			title="Договоры продажи"
+			subtitle="Воронка сделок и договоры ДКП"
+			primaryAction={
 				<Button
 					onClick={() => setOpen(true)}
-					className="bg-amber-500 hover:bg-orange-600"
+					className="bg-am-brand hover:bg-am-brand-hover text-white h-10"
 				>
 					<Plus className="w-4 h-4 mr-2" /> Новый договор
 				</Button>
-			</div>
-
-			{/* Stats */}
-			<div className="grid grid-cols-4 gap-4 mb-6">
-				{[
-					{
-						label: "Всего договоров",
-						value: totalContracts,
-						color: "text-gray-900",
-					},
-					{ label: "Подписанных", value: totalSold, color: "text-emerald-600" },
-					{
-						label: "Сумма договоров",
-						value: `${fmt(totalAmount)} KGS`,
-						color: "text-blue-600",
-					},
-					{
-						label: "Получено",
-						value: `${fmt(totalPaid)} KGS`,
-						color: "text-amber-600",
-					},
-				].map((stat) => (
-					<div
-						key={stat.label}
-						className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm"
-					>
-						<div className="text-xs text-gray-500 mb-1">{stat.label}</div>
-						<div className={`text-xl font-bold ${stat.color}`}>
-							{stat.value}
-						</div>
-					</div>
-				))}
-			</div>
-
-			{/* Search + filter */}
-			<div className="bg-white rounded-xl border border-gray-100 shadow-sm mb-4 p-3 flex flex-wrap gap-3 items-center">
-				<div className="relative max-w-xs flex-1 min-w-[200px]">
-					<Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-					<Input
-						className="pl-9 h-8 text-sm"
-						placeholder="Поиск по покупателю или №..."
-						value={search}
-						onChange={(e) => setSearch(e.target.value)}
-					/>
+			}
+			kpis={[
+				{
+					label: "Всего договоров",
+					value: totalContracts,
+					color: "text-am-text-strong",
+				},
+				{ label: "Подписанных", value: totalSold, color: "text-am-success" },
+				{
+					label: "Сумма договоров",
+					value: `${fmt(totalAmount)} сом`,
+					color: "text-am-info",
+				},
+				{
+					label: "Получено",
+					value: `${fmt(totalPaid)} сом`,
+					color: "text-am-brand",
+				},
+			].map((stat) => (
+				<div
+					key={stat.label}
+					className="bg-am-bg rounded-lg p-4 border border-am-border shadow-sm"
+				>
+					<div className="text-xs text-am-text-muted mb-1">{stat.label}</div>
+					<div className={`text-xl font-bold ${stat.color}`}>{stat.value}</div>
 				</div>
+			))}
+			filters={
 				<div className="flex gap-2 flex-wrap">
 					{[
 						{ id: "all", label: "Все" },
@@ -536,161 +646,63 @@ export default function ConstructionContractsSales() {
 							key={f.id}
 							type="button"
 							onClick={() => setStatusFilter(f.id)}
-							className={`px-3 py-1.5 rounded-full text-xs font-medium ${
+							className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
 								statusFilter === f.id
-									? "bg-amber-500 text-white"
-									: "bg-gray-100 text-gray-700 hover:bg-gray-200"
+									? "bg-am-brand text-white border-am-brand"
+									: "bg-am-bg text-am-text border-am-border hover:bg-am-brand-surface"
 							}`}
 						>
 							{f.label}
 						</button>
 					))}
 				</div>
-			</div>
-
-			{/* Table */}
-			<div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-				<table className="w-full text-sm">
-					<thead>
-						<tr className="bg-gray-50 border-b border-gray-100">
-							<th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">
-								№ договора
-							</th>
-							<th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">
-								Покупатель
-							</th>
-							<th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">
-								Проект
-							</th>
-							<th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">
-								Статус
-							</th>
-							<th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">
-								Сумма
-							</th>
-							<th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">
-								Оплачено
-							</th>
-							<th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">
-								Остаток
-							</th>
-							<th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">
-								Дата
-							</th>
-							<th className="px-4 py-3"></th>
-						</tr>
-					</thead>
-					<tbody>
-						{isLoading ? (
-							<tr>
-								<td colSpan={9} className="text-center py-12 text-gray-400">
-									Загрузка...
-								</td>
-							</tr>
-						) : filtered.length === 0 ? (
-							<tr>
-								<td colSpan={9} className="text-center py-12 text-gray-400">
-									<FileText className="w-10 h-10 mx-auto mb-2 text-gray-200" />
-									Нет договоров. Нажмите «Новый договор»
-								</td>
-							</tr>
-						) : (
-							filtered.map((c: any) => {
-								const sc = STATUS_CONFIG[c.status] || STATUS_CONFIG.draft;
-								const proj = projects.find((p: any) => p.id === c.projectId);
-								const pct =
-									c.totalAmount > 0
-										? Math.round(
-												(parseFloat(c.paidAmount || "0") /
-													parseFloat(c.totalAmount)) *
-													100,
-											)
-										: 0;
-								const isHighlight =
-									highlightFromUrl && Number(highlightFromUrl) === c.id;
-								return (
-									<tr
-										key={c.id}
-										className={`border-b border-gray-50 hover:bg-amber-50/30 transition-colors cursor-pointer ${
-											isHighlight ? "bg-amber-100/60 ring-1 ring-amber-400" : ""
-										}`}
-										onClick={() => setDetailId(c.id)}
-									>
-										<td className="px-4 py-3 font-mono text-xs font-medium text-amber-600">
-											{c.contractNumber}
-										</td>
-										<td className="px-4 py-3">
-											<div className="font-medium text-gray-900">
-												{c.buyerName || "—"}
-											</div>
-											{c.buyerPhone && (
-												<div className="text-xs text-gray-400">
-													{c.buyerPhone}
-												</div>
-											)}
-										</td>
-										<td className="px-4 py-3 text-gray-600">
-											{proj?.name || "—"}
-										</td>
-										<td className="px-4 py-3">
-											<Badge
-												variant="outline"
-												className={`${sc.color} text-xs`}
-											>
-												{sc.label}
-											</Badge>
-										</td>
-										<td className="px-4 py-3 text-right font-mono font-medium">
-											{fmt(c.totalAmount)} {c.currency}
-										</td>
-										<td className="px-4 py-3 text-right">
-											<div className="font-mono font-medium text-emerald-600">
-												{fmt(c.paidAmount)}
-											</div>
-											<div className="w-16 ml-auto mt-1 h-1 bg-gray-100 rounded-full overflow-hidden">
-												<div
-													className="h-full bg-emerald-400 rounded-full"
-													style={{ width: `${pct}%` }}
-												/>
-											</div>
-										</td>
-										<td className="px-4 py-3 text-right font-mono text-amber-600 font-medium">
-											{fmt(c.remainingAmount)}
-										</td>
-										<td className="px-4 py-3 text-gray-400 text-xs">
-											{c.contractDate}
-										</td>
-										<td className="px-4 py-3">
-											<ChevronRight className="w-4 h-4 text-gray-300" />
-										</td>
-									</tr>
-								);
-							})
-						)}
-					</tbody>
-				</table>
-			</div>
+			}
+		>
+			<Tablo
+				title="Договоры ДКП"
+				meta={`${filtered.length} записей`}
+				tableId="construction-contracts-sales"
+				columns={columns}
+				data={filtered}
+				isLoading={isLoading}
+				enableSearch
+				searchPlaceholder="Поиск по покупателю или №..."
+				initialSorting={[{ id: "contractDate", desc: true }]}
+				onRowClick={(c: any) => setDetailId(c.id)}
+				rowClassName={(c: any) => {
+					const isHighlight =
+						highlightFromUrl && Number(highlightFromUrl) === c.id;
+					return `cursor-pointer hover:bg-am-brand-surface/50 ${
+						isHighlight ? "bg-am-brand-surface ring-1 ring-am-brand" : ""
+					}`;
+				}}
+				emptyState={
+					<div className="flex flex-col items-center gap-2 py-8 text-am-text-muted">
+						<FileText className="w-10 h-10 opacity-30" />
+						<span>Нет договоров. Нажмите «Новый договор»</span>
+					</div>
+				}
+			/>
 
 			{/* Create Dialog */}
 			<Dialog open={open} onOpenChange={setOpen}>
-				<DialogContent className="max-w-lg">
+				<DialogContent className="max-w-2xl">
 					<DialogHeader>
 						<DialogTitle>Новый договор продажи (ДКП)</DialogTitle>
 						<DialogDescription className="sr-only">
 							Форма создания договора купли-продажи
 						</DialogDescription>
 					</DialogHeader>
-					<div className="space-y-4 mt-2">
-						<div className="grid grid-cols-2 gap-3">
-							<div>
-								<Label className="text-xs">Проект *</Label>
+					<div className="space-y-5 mt-2">
+						<FormSection title="Объект">
+							<Field label="Проект" required className="col-span-6">
 								<Select
 									value={form.projectId}
 									onValueChange={(v) =>
 										setForm((f) => ({ ...f, projectId: v, unitId: "" }))
 									}
 								>
-									<SelectTrigger className="mt-1 h-8 text-sm">
+									<SelectTrigger className="am-control w-full">
 										<SelectValue placeholder="Выберите проект" />
 									</SelectTrigger>
 									<SelectContent>
@@ -701,191 +713,163 @@ export default function ConstructionContractsSales() {
 										))}
 									</SelectContent>
 								</Select>
-							</div>
-							<div>
-								<Label className="text-xs">Квартира/помещение</Label>
+							</Field>
+							<Field label="Квартира / помещение" className="col-span-6">
 								<Select
 									value={form.unitId}
 									onValueChange={(v) => setForm((f) => ({ ...f, unitId: v }))}
 								>
-									<SelectTrigger className="mt-1 h-8 text-sm">
+									<SelectTrigger className="am-control w-full">
 										<SelectValue placeholder="Из шахматки" />
 									</SelectTrigger>
 									<SelectContent>
 										<SelectItem value="none">Без привязки</SelectItem>
 										{filteredUnits.map((u: any) => (
 											<SelectItem key={u.id} value={String(u.id)}>
-												Эт.{u.floor} №{u.unitNumber} ({u.area}м²)
+												Эт.{u.floor} №{u.unitNumber} ({u.area} м²)
 											</SelectItem>
 										))}
 									</SelectContent>
 								</Select>
-							</div>
-						</div>
+							</Field>
+						</FormSection>
 
-						<div className="border-t border-gray-100 pt-3">
-							<div className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">
-								Покупатель
-							</div>
-							<div className="grid grid-cols-2 gap-3">
-								<div>
-									<Label className="text-xs">ФИО / Название *</Label>
-									<Input
-										value={form.buyerName}
-										onChange={(e) =>
-											setForm((f) => ({ ...f, buyerName: e.target.value }))
-										}
-										className="mt-1 h-8 text-sm"
-										placeholder="Иванов Иван Иванович"
-									/>
-								</div>
-								<div>
-									<Label className="text-xs">Телефон</Label>
-									<Input
-										value={form.buyerPhone}
-										onChange={(e) =>
-											setForm((f) => ({ ...f, buyerPhone: e.target.value }))
-										}
-										className="mt-1 h-8 text-sm"
-										placeholder="+996 XXX XXX XXX"
-									/>
-								</div>
-							</div>
-						</div>
+						<FormSection title="Покупатель">
+							<Field label="ФИО / название" required className="col-span-6">
+								<Input
+									value={form.buyerName}
+									onChange={(e) =>
+										setForm((f) => ({ ...f, buyerName: e.target.value }))
+									}
+									className="am-control w-full"
+									placeholder="Иванов Иван Иванович"
+								/>
+							</Field>
+							<Field label="Телефон" className="col-span-6">
+								<Input
+									value={form.buyerPhone}
+									onChange={(e) =>
+										setForm((f) => ({ ...f, buyerPhone: e.target.value }))
+									}
+									className="am-control w-full"
+									placeholder="+996 555 123456"
+								/>
+							</Field>
+						</FormSection>
 
-						<div className="border-t border-gray-100 pt-3">
-							<div className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">
-								Финансовые условия
-							</div>
-							<div className="grid grid-cols-3 gap-3">
-								<div>
-									<Label className="text-xs">Сумма договора *</Label>
-									<Input
-										type="number"
-										value={form.totalAmount}
-										onChange={(e) =>
-											setForm((f) => ({ ...f, totalAmount: e.target.value }))
-										}
-										className="mt-1 h-8 text-sm"
-										placeholder="0"
-									/>
-								</div>
-								<div>
-									<Label className="text-xs">Первый взнос</Label>
-									<Input
-										type="number"
-										value={form.downPayment}
-										onChange={(e) =>
-											setForm((f) => ({ ...f, downPayment: e.target.value }))
-										}
-										className="mt-1 h-8 text-sm"
-										placeholder="0"
-									/>
-								</div>
-								<div>
-									<Label className="text-xs">Рассрочка (мес.)</Label>
-									<Input
-										type="number"
-										value={form.installmentMonths}
-										onChange={(e) =>
-											setForm((f) => ({
-												...f,
-												installmentMonths: e.target.value,
-											}))
-										}
-										className="mt-1 h-8 text-sm"
-										placeholder="12"
-									/>
-								</div>
-							</div>
+						<FormSection
+							title="Финансовые условия"
+							description="Суммы в выбранной валюте. Минимальная сумма договора — по условиям проекта."
+						>
+							<Field
+								label="Сумма договора"
+								required
+								help="Полная стоимость по договору ДКП"
+								className="col-span-4"
+							>
+								<MoneyInput
+									value={form.totalAmount}
+									onChange={(v) => setForm((f) => ({ ...f, totalAmount: v }))}
+									currency={form.currency}
+									onCurrencyChange={(c) => setForm((f) => ({ ...f, currency: c }))}
+								/>
+							</Field>
+							<Field
+								label="Первоначальный взнос"
+								help="Сумма, внесённая при подписании"
+								className="col-span-4"
+							>
+								<MoneyInput
+									value={form.downPayment}
+									onChange={(v) => setForm((f) => ({ ...f, downPayment: v }))}
+									currency={form.currency}
+								/>
+							</Field>
+							<Field label="Рассрочка" helper="Срок в месяцах" className="col-span-4">
+								<Input
+									type="number"
+									min={1}
+									value={form.installmentMonths}
+									onChange={(e) =>
+										setForm((f) => ({
+											...f,
+											installmentMonths: e.target.value,
+										}))
+									}
+									className="am-control w-full"
+									placeholder="12"
+								/>
+							</Field>
 							{form.totalAmount && (
-								<div className="mt-2 bg-amber-50 rounded-lg px-3 py-2 text-sm">
-									<div className="grid grid-cols-3 gap-2 text-center">
+								<div className="col-span-12 bg-am-brand-surface border border-am-border rounded-lg px-4 py-3">
+									<div className="grid grid-cols-3 gap-4 text-center text-sm">
 										<div>
-											<div className="text-xs text-gray-500">Остаток</div>
-											<div className="font-bold text-amber-600">
-												{fmt(remaining)}
-											</div>
+											<p className="text-xs text-am-text-muted">Остаток</p>
+											<p className="font-semibold text-am-brand tabular-nums">
+												{fmt(remaining)} {form.currency === "KGS" ? "сом" : form.currency}
+											</p>
 										</div>
 										<div>
-											<div className="text-xs text-gray-500">В месяц</div>
-											<div className="font-bold text-blue-600">
-												{fmt(monthly)}
-											</div>
+											<p className="text-xs text-am-text-muted">В месяц</p>
+											<p className="font-semibold text-am-info tabular-nums">
+												{fmt(monthly)} {form.currency === "KGS" ? "сом" : form.currency}
+											</p>
 										</div>
 										<div>
-											<div className="text-xs text-gray-500">Валюта</div>
-											<Select
-												value={form.currency}
-												onValueChange={(v) =>
-													setForm((f) => ({ ...f, currency: v }))
-												}
-											>
-												<SelectTrigger className="h-6 text-xs mt-0.5">
-													<SelectValue />
-												</SelectTrigger>
-												<SelectContent>
-													{["KGS", "USD", "EUR"].map((c) => (
-														<SelectItem key={c} value={c}>
-															{c}
-														</SelectItem>
-													))}
-												</SelectContent>
-											</Select>
+											<p className="text-xs text-am-text-muted">Платежей</p>
+											<p className="font-semibold text-am-text-strong">
+												{form.installmentMonths || "—"}
+											</p>
 										</div>
 									</div>
 								</div>
 							)}
-						</div>
+						</FormSection>
 
-						<div className="grid grid-cols-2 gap-3">
-							<div>
-								<Label className="text-xs">Дата договора</Label>
+						<FormGrid>
+							<Field label="Дата договора" className="col-span-6">
 								<Input
 									type="date"
 									value={form.contractDate}
 									onChange={(e) =>
 										setForm((f) => ({ ...f, contractDate: e.target.value }))
 									}
-									className="mt-1 h-8 text-sm"
+									className="am-control w-full"
 								/>
-							</div>
-							<div>
-								<Label className="text-xs">Статус</Label>
+							</Field>
+							<Field label="Статус" className="col-span-6">
 								<Select
 									value={form.status}
 									onValueChange={(v) => setForm((f) => ({ ...f, status: v }))}
 								>
-									<SelectTrigger className="mt-1 h-8 text-sm">
+									<SelectTrigger className="am-control w-full">
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>
-										{Object.entries(STATUS_CONFIG).map(([k, v]) => (
-											<SelectItem key={k} value={k}>
-												{v.label}
+										{CONTRACT_STATUS_OPTIONS.map((o) => (
+											<SelectItem key={o.value} value={o.value}>
+												{o.label}
 											</SelectItem>
 										))}
 									</SelectContent>
 								</Select>
-							</div>
-						</div>
+							</Field>
+							<Field label="Примечание" className="col-span-12">
+								<Textarea
+									value={form.notes}
+									onChange={(e) =>
+										setForm((f) => ({ ...f, notes: e.target.value }))
+									}
+									className="am-control min-h-[80px] w-full resize-none"
+									rows={2}
+								/>
+							</Field>
+						</FormGrid>
 
-						<div>
-							<Label className="text-xs">Примечание</Label>
-							<Textarea
-								value={form.notes}
-								onChange={(e) =>
-									setForm((f) => ({ ...f, notes: e.target.value }))
-								}
-								className="mt-1 text-sm resize-none"
-								rows={2}
-							/>
-						</div>
-
-						<div className="flex gap-2 pt-2">
+						<div className="flex gap-2 pt-2 border-t border-am-border">
 							<Button
 								variant="outline"
-								className="flex-1"
+								className="flex-1 h-10"
 								onClick={() => {
 									setOpen(false);
 									resetForm();
@@ -894,7 +878,7 @@ export default function ConstructionContractsSales() {
 								Отмена
 							</Button>
 							<Button
-								className="flex-1 bg-amber-500 hover:bg-orange-600"
+								className="flex-1 h-10 bg-am-brand hover:bg-am-brand-hover text-white"
 								disabled={
 									createMut.isPending ||
 									!form.projectId ||
@@ -925,18 +909,22 @@ export default function ConstructionContractsSales() {
 					const contract = contracts.find((c: any) => c.id === detailId);
 					if (!contract) return null;
 					const proj = projects.find((p: any) => p.id === contract.projectId);
-					const sc = STATUS_CONFIG[contract.status] || STATUS_CONFIG.draft;
 					return (
 						<Dialog open={!!detailId} onOpenChange={() => setDetailId(null)}>
 							<DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto">
 								<DialogHeader>
 									<DialogTitle className="flex items-center gap-2">
-										<span className="font-mono text-amber-600">
+										<span className="font-mono text-am-brand">
 											{contract.contractNumber}
 										</span>
-										<Badge variant="outline" className={`${sc.color} text-xs`}>
-											{sc.label}
-										</Badge>
+										<Status
+											value={contract.status}
+											label={
+												CONTRACT_STATUS_OPTIONS.find(
+													(o) => o.value === contract.status,
+												)?.label
+											}
+										/>
 									</DialogTitle>
 									<DialogDescription className="sr-only">
 										Карточка договора: сводка, этапы сделки и текст договора
@@ -953,6 +941,7 @@ export default function ConstructionContractsSales() {
 											proj={proj}
 											statusMut={statusMut}
 											scheduleMut={scheduleMut}
+											hideReconciliation={isSalesOnly}
 											onRefresh={() => {
 												qc.invalidateQueries({
 													queryKey: ["construction-contracts-sales"],
@@ -977,6 +966,6 @@ export default function ConstructionContractsSales() {
 						</Dialog>
 					);
 				})()}
-		</div>
+		</PageShell.List>
 	);
 }

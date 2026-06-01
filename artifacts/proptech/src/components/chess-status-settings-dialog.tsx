@@ -225,8 +225,8 @@ export function ChessStatusSettingsDialog({
 						/>
 					</div>
 					<div className="grid grid-cols-2 gap-3">
-						<div>
-							<Label>Цвет</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Цвет</Label>
 							<Select
 								value={form.colorKey}
 								onValueChange={(v) =>
@@ -236,7 +236,7 @@ export function ChessStatusSettingsDialog({
 									}))
 								}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -248,8 +248,8 @@ export function ChessStatusSettingsDialog({
 								</SelectContent>
 							</Select>
 						</div>
-						<div>
-							<Label>Оформление продажи</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Оформление продажи</Label>
 							<Select
 								value={form.saleMode}
 								onValueChange={(v) =>
@@ -259,7 +259,7 @@ export function ChessStatusSettingsDialog({
 									}))
 								}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>

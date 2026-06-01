@@ -278,11 +278,12 @@ export default function InvestorDetail() {
 								портале.
 							</p>
 							<div className="grid grid-cols-2 gap-3">
-								<div>
-									<label className="text-xs font-medium text-gray-700 mb-1 block">
+								<div className="flex flex-col">
+									<label className="text-xs font-medium text-gray-700 mb-1 block leading-tight">
 										Имя
 									</label>
 									<Input
+										className="mt-auto"
 										value={portalForm.firstName}
 										onChange={(e) =>
 											setPortalForm((p) => ({
@@ -293,11 +294,12 @@ export default function InvestorDetail() {
 										placeholder="Иван"
 									/>
 								</div>
-								<div>
-									<label className="text-xs font-medium text-gray-700 mb-1 block">
+								<div className="flex flex-col">
+									<label className="text-xs font-medium text-gray-700 mb-1 block leading-tight">
 										Фамилия
 									</label>
 									<Input
+										className="mt-auto"
 										value={portalForm.lastName}
 										onChange={(e) =>
 											setPortalForm((p) => ({ ...p, lastName: e.target.value }))

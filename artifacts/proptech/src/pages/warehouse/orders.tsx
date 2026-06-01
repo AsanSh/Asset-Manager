@@ -1,154 +1,130 @@
-import {
-	AlertCircle,
-	CheckCircle,
-	Clock,
-	Package,
-	Plus,
-	Truck,
-	XCircle,
-} from "lucide-react";
-import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { CheckCircle, Package, Plus, Truck } from "lucide-react";
+import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { getApiErrorMessage } from "@/lib/api-error";
+import { api } from "@/lib/api";
 
-// Mock data - в реальном приложении из API
-const mockOrders = [
-	{
-		id: 1,
-		orderNumber: "ЗАК-2026-001",
-		supplier: "ООО СтройМатериалы",
-		date: "2026-05-01",
-		expectedDate: "2026-05-10",
-		total: 450000,
-		status: "new",
-		items: 5,
-	},
-	{
-		id: 2,
-		orderNumber: "ЗАК-2026-002",
-		supplier: "Баткен Снаб",
-		date: "2026-05-02",
-		expectedDate: "2026-05-08",
-		total: 230000,
-		status: "sent",
-		items: 3,
-	},
-	{
-		id: 3,
-		orderNumber: "ЗАК-2026-003",
-		supplier: "Кыргыз Цемент",
-		date: "2026-05-03",
-		expectedDate: "2026-05-07",
-		total: 680000,
-		status: "in_transit",
-		items: 2,
-	},
-	{
-		id: 4,
-		orderNumber: "ЗАК-2026-004",
-		supplier: "ООО СтройМатериалы",
-		date: "2026-04-28",
-		expectedDate: "2026-05-05",
-		total: 320000,
-		status: "received",
-		items: 4,
-	},
-];
+type SupplyOrder = {
+	id: number;
+	supplierId: number;
+	requestId?: number | null;
+	status: string;
+	paymentType: string;
+	totalAmount: string;
+	currency: string;
+	createdAt: string;
+};
+type Supplier = { id: number; name: string };
+type SupplyRequest = { id: number; status: string };
 
-const statusConfig = {
-	new: {
-		label: "Новый",
-		color: "bg-blue-100 text-blue-700",
-		icon: AlertCircle,
-	},
-	sent: {
-		label: "Отправлен",
-		color: "bg-blue-100 text-blue-700",
-		icon: Package,
-	},
-	in_transit: {
-		label: "В пути",
-		color: "bg-amber-100 text-amber-700",
-		icon: Truck,
-	},
-	received: {
-		label: "Получен",
-		color: "bg-emerald-100 text-emerald-700",
-		icon: CheckCircle,
-	},
-	cancelled: {
-		label: "Отменён",
-		color: "bg-rose-100 text-rose-700",
-		icon: XCircle,
-	},
+const statusConfig: Record<string, { label: string; color: string; icon: React.ElementType }> = {
+	draft: { label: "Черновик", color: "bg-gray-100 text-gray-700", icon: Package },
+	placed: { label: "Размещен", color: "bg-blue-100 text-blue-700", icon: Package },
+	processing: { label: "В работе", color: "bg-amber-100 text-amber-700", icon: Truck },
+	delivered: { label: "Доставлен", color: "bg-emerald-100 text-emerald-700", icon: CheckCircle },
+	closed: { label: "Закрыт", color: "bg-violet-100 text-violet-700", icon: CheckCircle },
 };
 
-export default function WarehouseOrders() {
-	const [statusFilter, setStatusFilter] = useState("all");
+const ORDER_STATUSES = ["draft", "placed", "processing", "delivered", "closed"] as const;
 
-	const filteredOrders =
-		statusFilter === "all"
-			? mockOrders
-			: mockOrders.filter((o) => o.status === statusFilter);
+export default function WarehouseOrders() {
+	const { toast } = useToast();
+	const qc = useQueryClient();
+	const [statusFilter, setStatusFilter] = useState("all");
+	const [open, setOpen] = useState(false);
+	const [supplierId, setSupplierId] = useState("");
+	const [requestId, setRequestId] = useState("");
+	const [paymentType, setPaymentType] = useState("prepaid");
+	const [totalAmount, setTotalAmount] = useState("");
+
+	const { data: orders = [] } = useQuery<SupplyOrder[]>({
+		queryKey: ["supply-orders"],
+		queryFn: () => api.get("/supply/orders").then((r) => r.data),
+	});
+	const { data: suppliers = [] } = useQuery<Supplier[]>({
+		queryKey: ["warehouse-suppliers-light"],
+		queryFn: () =>
+			api.get<any[]>("/warehouse/suppliers").then((r) =>
+				(Array.isArray(r.data) ? r.data : []).map((s) => ({ id: Number(s.id), name: String(s.name) })),
+			),
+	});
+	const { data: approvedRequests = [] } = useQuery<SupplyRequest[]>({
+		queryKey: ["supply-requests-approved-for-orders"],
+		queryFn: () =>
+			api
+				.get<SupplyRequest[]>("/supply/requests")
+				.then((r) => r.data.filter((x) => x.status === "approved" || x.status === "ordered")),
+	});
+
+	const createMut = useMutation({
+		mutationFn: () =>
+			api.post("/supply/orders", {
+				supplierId: Number(supplierId),
+				requestId: requestId ? Number(requestId) : undefined,
+				paymentType,
+				totalAmount: totalAmount || "0",
+				status: "draft",
+			}),
+		onSuccess: () => {
+			toast({ title: "Заказ создан" });
+			setOpen(false);
+			setSupplierId("");
+			setRequestId("");
+			setPaymentType("prepaid");
+			setTotalAmount("");
+			qc.invalidateQueries({ queryKey: ["supply-orders"] });
+			qc.invalidateQueries({ queryKey: ["supply-requests"] });
+		},
+		onError: (e) =>
+			toast({ title: "Ошибка", description: getApiErrorMessage(e), variant: "destructive" }),
+	});
+
+	const statusMut = useMutation({
+		mutationFn: ({ id, status }: { id: number; status: string }) => api.patch(`/supply/orders/${id}`, { status }),
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: ["supply-orders"] });
+		},
+		onError: (e) =>
+			toast({ title: "Ошибка", description: getApiErrorMessage(e), variant: "destructive" }),
+	});
+
+	const filteredOrders = useMemo(
+		() => (statusFilter === "all" ? orders : orders.filter((o) => o.status === statusFilter)),
+		[orders, statusFilter],
+	);
+
+	const supplierMap = useMemo(() => Object.fromEntries(suppliers.map((s) => [s.id, s.name])), [suppliers]);
 
 	return (
 		<div className="space-y-6">
 			<div className="flex items-center justify-between">
 				<div>
-					<h1 className="text-3xl font-bold text-gray-900">
-						Заказы поставщикам
-					</h1>
-					<p className="text-gray-500 mt-1">Управление закупками и заказами</p>
+					<h1 className="text-3xl font-bold text-gray-900">Заказы поставщикам</h1>
+					<p className="text-gray-500 mt-1">Формируются из одобренных заявок снабжения</p>
 				</div>
-				<Button className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white gap-2">
+				<Button className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white gap-2" onClick={() => setOpen(true)}>
 					<Plus className="w-4 h-4" />
 					Новый заказ
 				</Button>
 			</div>
 
-			{/* Stats */}
-			<div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-				{[
-					{
-						label: "Новые",
-						count: mockOrders.filter((o) => o.status === "new").length,
-						color: "from-blue-500 to-blue-600",
-					},
-					{
-						label: "Отправлено",
-						count: mockOrders.filter((o) => o.status === "sent").length,
-						color: "from-blue-500 to-blue-600",
-					},
-					{
-						label: "В пути",
-						count: mockOrders.filter((o) => o.status === "in_transit").length,
-						color: "from-yellow-500 to-yellow-600",
-					},
-					{
-						label: "Получено",
-						count: mockOrders.filter((o) => o.status === "received").length,
-						color: "from-green-500 to-green-600",
-					},
-				].map((stat, idx) => (
-					<Card
-						key={idx}
-						className={`p-5 bg-gradient-to-br ${stat.color} text-white shadow-lg`}
-					>
-						<div className="text-4xl font-bold mb-1">{stat.count}</div>
-						<div className="text-sm opacity-90">{stat.label}</div>
+			<div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+				{ORDER_STATUSES.map((s) => (
+					<Card key={s} className="p-4">
+						<p className="text-xs text-gray-500">{statusConfig[s].label}</p>
+						<p className="text-2xl font-bold mt-1">{orders.filter((o) => o.status === s).length}</p>
 					</Card>
 				))}
 			</div>
 
-			{/* Filters */}
 			<div className="flex gap-3">
 				<Select value={statusFilter} onValueChange={setStatusFilter}>
 					<SelectTrigger className="w-56">
@@ -157,36 +133,26 @@ export default function WarehouseOrders() {
 					<SelectContent>
 						<SelectItem value="all">Все статусы</SelectItem>
 						{Object.entries(statusConfig).map(([key, config]) => (
-							<SelectItem key={key} value={key}>
-								{config.label}
-							</SelectItem>
+							<SelectItem key={key} value={key}>{config.label}</SelectItem>
 						))}
 					</SelectContent>
 				</Select>
 			</div>
 
-			{/* Orders List */}
 			<div className="space-y-4">
 				{filteredOrders.map((order) => {
-					const status =
-						statusConfig[order.status as keyof typeof statusConfig];
+					const status = statusConfig[order.status] ?? statusConfig.draft;
 					const StatusIcon = status.icon;
-
 					return (
-						<Card
-							key={order.id}
-							className="p-6 hover:shadow-lg transition-all border-2 border-gray-100 hover:border-emerald-300"
-						>
-							<div className="flex items-start justify-between mb-4">
-								<div className="flex items-center gap-4">
-									<div className="w-14 h-14 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-white shadow-md">
-										<Package className="w-7 h-7" />
+						<Card key={order.id} className="p-6">
+							<div className="flex items-start justify-between mb-3">
+								<div className="flex items-center gap-3">
+									<div className="w-12 h-12 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+										<Package className="w-6 h-6" />
 									</div>
 									<div>
-										<h3 className="font-bold text-lg text-gray-900">
-											{order.orderNumber}
-										</h3>
-										<p className="text-sm text-gray-600">{order.supplier}</p>
+										<h3 className="font-bold text-lg text-gray-900">Заказ #{order.id}</h3>
+										<p className="text-sm text-gray-600">{supplierMap[order.supplierId] || `Поставщик #${order.supplierId}`}</p>
 									</div>
 								</div>
 								<Badge className={status.color}>
@@ -195,57 +161,109 @@ export default function WarehouseOrders() {
 								</Badge>
 							</div>
 
-							<div className="grid grid-cols-4 gap-4 mb-4">
+							<div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
 								<div>
-									<div className="text-xs text-gray-500 mb-1">Дата заказа</div>
-									<div className="text-sm font-medium text-gray-900">
-										{new Date(order.date).toLocaleDateString("ru-RU")}
-									</div>
+									<p className="text-xs text-gray-500">Дата</p>
+									<p className="text-sm font-medium">{new Date(order.createdAt).toLocaleString("ru-KG")}</p>
 								</div>
 								<div>
-									<div className="text-xs text-gray-500 mb-1">Ожидается</div>
-									<div className="text-sm font-medium text-gray-900 flex items-center gap-1">
-										<Clock className="w-3 h-3 text-gray-400" />
-										{new Date(order.expectedDate).toLocaleDateString("ru-RU")}
-									</div>
+									<p className="text-xs text-gray-500">Заявка</p>
+									<p className="text-sm font-medium">{order.requestId ? `#${order.requestId}` : "—"}</p>
 								</div>
 								<div>
-									<div className="text-xs text-gray-500 mb-1">Позиций</div>
-									<div className="text-sm font-medium text-gray-900">
-										{order.items} шт
-									</div>
+									<p className="text-xs text-gray-500">Оплата</p>
+									<p className="text-sm font-medium">{order.paymentType}</p>
 								</div>
 								<div>
-									<div className="text-xs text-gray-500 mb-1">Сумма заказа</div>
-									<div className="text-lg font-bold text-emerald-600">
-										{new Intl.NumberFormat("ru-RU", {
-											notation: "compact",
-										}).format(order.total)}{" "}
-										с
-									</div>
+									<p className="text-xs text-gray-500">Сумма</p>
+									<p className="text-lg font-bold text-emerald-700">
+										{new Intl.NumberFormat("ru-KG").format(Number(order.totalAmount || 0))} {order.currency === "KGS" ? "сом" : order.currency}
+									</p>
 								</div>
 							</div>
 
 							<div className="flex gap-2">
-								<Button size="sm" variant="outline">
-									Просмотр
-								</Button>
-								<Button size="sm" variant="outline">
-									Печать
-								</Button>
-								{order.status === "in_transit" && (
+								{ORDER_STATUSES.map((next) => (
 									<Button
+										key={next}
 										size="sm"
-										className="bg-emerald-600 text-white ml-auto"
+										variant={next === order.status ? "default" : "outline"}
+										disabled={next === order.status || statusMut.isPending}
+										onClick={() => statusMut.mutate({ id: order.id, status: next })}
 									>
-										Подтвердить получение
+										{statusConfig[next].label}
 									</Button>
-								)}
+								))}
 							</div>
 						</Card>
 					);
 				})}
+				{filteredOrders.length === 0 && (
+					<p className="text-sm text-gray-500 text-center py-10">Нет заказов</p>
+				)}
 			</div>
+
+			<Dialog open={open} onOpenChange={setOpen}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Новый заказ поставщику</DialogTitle>
+					</DialogHeader>
+					<div className="space-y-3">
+						<div>
+							<Label>Поставщик</Label>
+							<Select value={supplierId || "none"} onValueChange={(v) => setSupplierId(v === "none" ? "" : v)}>
+								<SelectTrigger><SelectValue placeholder="Выберите поставщика" /></SelectTrigger>
+								<SelectContent>
+									<SelectItem value="none">Не выбрано</SelectItem>
+									{suppliers.map((s) => (
+										<SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+						<div>
+							<Label>Основание: заявка</Label>
+							<Select value={requestId || "none"} onValueChange={(v) => setRequestId(v === "none" ? "" : v)}>
+								<SelectTrigger><SelectValue placeholder="Выберите заявку" /></SelectTrigger>
+								<SelectContent>
+									<SelectItem value="none">Без заявки</SelectItem>
+									{approvedRequests.map((r) => (
+										<SelectItem key={r.id} value={String(r.id)}>
+											Заявка #{r.id}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+						<div className="grid grid-cols-2 gap-2">
+							<div>
+								<Label>Тип оплаты</Label>
+								<Select value={paymentType} onValueChange={setPaymentType}>
+									<SelectTrigger><SelectValue /></SelectTrigger>
+									<SelectContent>
+										<SelectItem value="prepaid">Предоплата</SelectItem>
+										<SelectItem value="postpaid">Постоплата</SelectItem>
+										<SelectItem value="installment">Рассрочка</SelectItem>
+									</SelectContent>
+								</Select>
+							</div>
+							<div>
+								<Label>Сумма</Label>
+								<Input value={totalAmount} onChange={(e) => setTotalAmount(e.target.value)} placeholder="0" />
+							</div>
+						</div>
+						<div className="flex justify-end gap-2">
+							<Button variant="outline" onClick={() => setOpen(false)}>Отмена</Button>
+							<Button
+								onClick={() => createMut.mutate()}
+								disabled={!supplierId || createMut.isPending}
+							>
+								Создать заказ
+							</Button>
+						</div>
+					</div>
+				</DialogContent>
+			</Dialog>
 		</div>
 	);
 }

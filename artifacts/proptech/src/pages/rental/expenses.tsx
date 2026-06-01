@@ -12,15 +12,12 @@ import {
 	getAccrualsOpenQueryKey,
 } from "@/lib/rental-query-keys";
 import { Building2, Pencil, Plus, Receipt, Tag, Trash2, Wallet } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table";
 import { defaultPeriod, inPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
 import { KpiCard, KpiRow } from "@/components/kpi-card";
-import { RentalExcelTable, type RentalExcelColumn } from "@/components/rental/rental-excel-table";
-import { RentalViewModeToggle } from "@/components/rental/rental-view-mode-toggle";
-import { useRentalViewMode } from "@/hooks/use-rental-view-mode";
-import { useSortable } from "@/lib/use-sortable";
-import { SortHead } from "@/components/sort-head";
+import { Button } from "@/components/ui/button";
 import {
 	getListExpensesQueryKey,
 	useListExpenses,
@@ -43,15 +40,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 
@@ -217,9 +205,10 @@ function ExpenseDialog({ open, expense, onClose }: ExpenseDialogProps) {
 						</Select>
 					</div>
 					<div className="grid grid-cols-3 gap-3">
-						<div className="col-span-2">
-							<Label>Сумма *</Label>
+						<div className="col-span-2 flex flex-col">
+							<Label className="leading-tight mb-1.5">Сумма *</Label>
 							<Input
+								className="mt-auto"
 								type="number"
 								value={formData.amount}
 								onChange={(e) =>
@@ -229,13 +218,13 @@ function ExpenseDialog({ open, expense, onClose }: ExpenseDialogProps) {
 								required
 							/>
 						</div>
-						<div>
-							<Label>Валюта</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Валюта</Label>
 							<Select
 								value={formData.currency}
 								onValueChange={(v) => setFormData({ ...formData, currency: v })}
 							>
-								<SelectTrigger>
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -317,7 +306,6 @@ export default function Expenses() {
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [editingExpense, setEditingExpense] = useState<any | null>(null);
 	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod());
-	const [viewMode, setViewMode] = useRentalViewMode("expenses");
 
 	const openCreate = () => {
 		setEditingExpense(null);
@@ -334,7 +322,7 @@ export default function Expenses() {
 		setEditingExpense(null);
 	};
 
-	const handleDelete = async (expense: any) => {
+	const handleDelete = useCallback(async (expense: any) => {
 		if (!confirm(`Удалить расход ${formatCurrency(expense.amount, expense.currency)} от ${formatDate(expense.expenseDate)}?`)) return;
 		try {
 			await api.delete(`/rental/expenses/${expense.id}`);
@@ -344,7 +332,7 @@ export default function Expenses() {
 		} catch {
 			toast({ title: "Ошибка", description: "Не удалось удалить расход", variant: "destructive" });
 		}
-	};
+	}, [queryClient, toast]);
 
 	const ExpenseActions = ({ expense }: { expense: any }) => (
 		<div className="flex items-center justify-center gap-0.5">
@@ -385,26 +373,68 @@ export default function Expenses() {
 			})),
 		[filteredExpenses, propertyLabel],
 	);
-	const { sorted, sortKey, sortDir, toggle } = useSortable(enriched, "expenseDate");
 	const totalAmount = filteredExpenses.reduce((s, e) => s + parseFloat(String(e.amount || "0")), 0);
 	const categoriesCount = new Set(filteredExpenses.map((e) => e.category)).size;
 
-	const columns: RentalExcelColumn<(typeof enriched)[number]>[] = [
-		{ key: "propertyLabel", label: "Объект", width: 160, render: (r) => r.propertyLabel },
-		{ key: "categoryLabel", label: "Категория", width: 140, render: (r) => r.categoryLabel },
-		{ key: "expenseDate", label: "Дата", width: 100, render: (r) => formatDate(r.expenseDate) },
-		{ key: "amount", label: "Сумма", width: 120, align: "right", render: (r) => formatCurrency(r.amount, r.currency) },
-		{ key: "description", label: "Описание", width: 180, sortable: false, render: (r) => r.description || "—" },
-		{
-			key: "actions",
-			label: "",
-			width: 72,
-			align: "center",
-			sortable: false,
-			resizable: false,
-			render: (r) => <ExpenseActions expense={r} />,
-		},
-	];
+	type EnrichedExpense = (typeof enriched)[number];
+
+	const tableColumns = useMemo<ColumnDef<EnrichedExpense, unknown>[]>(
+		() => [
+			{
+				id: "propertyLabel",
+				header: "Объект",
+				size: 180,
+				accessorFn: (row) => row.propertyLabel,
+				meta: { exportLabel: "Объект", pinned: "left" },
+				cell: ({ row }) => row.original.propertyLabel,
+			},
+			{
+				id: "categoryLabel",
+				header: "Категория",
+				size: 140,
+				accessorFn: (row) => row.categoryLabel,
+				meta: { exportLabel: "Категория" },
+				cell: ({ row }) => row.original.categoryLabel,
+			},
+			{
+				id: "expenseDate",
+				header: "Дата",
+				size: 110,
+				accessorFn: (row) => row.expenseDate,
+				meta: { exportLabel: "Дата", pinned: "left" },
+				cell: ({ row }) => formatDate(row.original.expenseDate),
+			},
+			{
+				id: "amount",
+				header: "Сумма",
+				size: 130,
+				accessorFn: (row) => parseFloat(String(row.amount || "0")),
+				meta: { exportLabel: "Сумма", align: "right" },
+				cell: ({ row }) => (
+					<span className="font-mono font-medium text-rose-700">
+						{formatCurrency(row.original.amount, row.original.currency)}
+					</span>
+				),
+			},
+			{
+				id: "description",
+				header: "Описание",
+				size: 180,
+				accessorFn: (row) => row.description || "",
+				meta: { exportLabel: "Описание" },
+				cell: ({ row }) => row.original.description || "—",
+			},
+			{
+				id: "actions",
+				header: "",
+				size: 80,
+				enableSorting: false,
+				meta: { align: "center" },
+				cell: ({ row }) => <ExpenseActions expense={row.original} />,
+			},
+		],
+		[],
+	);
 
 	return (
 		<div className="p-6 space-y-3">
@@ -423,7 +453,6 @@ export default function Expenses() {
 					</p>
 				</div>
 				<div className="flex items-center gap-2">
-					<RentalViewModeToggle mode={viewMode} onChange={setViewMode} />
 					<Button onClick={openCreate}>
 						<Plus className="w-4 h-4 mr-2" />
 						Добавить
@@ -433,80 +462,33 @@ export default function Expenses() {
 
 			<div className="flex items-center justify-between flex-wrap gap-2">
 				<PeriodPicker value={period} onChange={setPeriod} />
-				<p className="text-xs text-gray-500">{sorted.length} записей</p>
+				<p className="text-xs text-gray-500">{enriched.length} записей</p>
 			</div>
 
 			<RentalQueryState isLoading={isLoading} isError={isError} error={error} onRetry={() => refetch()}>
-			{viewMode === "report" ? (
-				<RentalExcelTable
-					columns={columns}
-					rows={sorted}
-					sortKey={sortKey}
-					sortDir={sortDir}
-					onSort={toggle}
+			<DataTable
+					tableId="rental-expenses"
+					columns={tableColumns}
+					data={enriched}
 					isLoading={isLoading}
-					emptyMessage="Расходы не найдены"
-					rowKey={(r) => r.id}
-					footer={[
-						{ colSpan: 3, content: `Итого: ${filteredExpenses.length}` },
-						{ content: new Intl.NumberFormat("ru-RU").format(totalAmount), align: "right" },
-						{ colSpan: 2, content: "" },
-					]}
+					enableSearch
+					searchPlaceholder="Поиск по объекту, категории, описанию…"
+					initialSorting={[{ id: "expenseDate", desc: true }]}
+					emptyState="Расходы не найдены"
+					footer={
+						!isLoading && filteredExpenses.length > 0 ? (
+							<tr className="bg-gray-50 font-semibold border-t-2">
+								<td colSpan={3} className="px-3 py-2 text-sm text-gray-600">
+									Итого: {filteredExpenses.length} расходов
+								</td>
+								<td className="px-3 py-2 text-sm font-mono text-right tabular-nums text-rose-700">
+									{new Intl.NumberFormat("ru-KG").format(totalAmount)}
+								</td>
+								<td colSpan={2} />
+							</tr>
+						) : undefined
+					}
 				/>
-			) : (
-			<div className="rounded-md border">
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<SortHead label="Объект" sortKey="propertyId" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
-							<SortHead label="Категория" sortKey="category" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
-							<SortHead label="Дата" sortKey="expenseDate" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
-							<SortHead label="Сумма" sortKey="amount" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
-							<TableHead>Описание</TableHead>
-							<TableHead className="w-20 text-center"> </TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isLoading ? (
-							Array.from({ length: 3 }).map((_, i) => (
-								<TableRow key={i}>
-									{Array.from({ length: 6 }).map((_, j) => (
-										<TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
-									))}
-								</TableRow>
-							))
-						) : !filteredExpenses.length ? (
-							<TableRow>
-								<TableCell colSpan={6} className="text-center text-muted-foreground py-8">Расходы не найдены</TableCell>
-							</TableRow>
-						) : (
-							sorted.map((expense) => (
-								<TableRow key={expense.id}>
-									<TableCell>{expense.propertyLabel || `Объект #${expense.propertyId}`}</TableCell>
-									<TableCell>{expense.categoryLabel || categoryLabels[expense.category] || expense.category}</TableCell>
-									<TableCell>{formatDate(expense.expenseDate)}</TableCell>
-									<TableCell className="font-medium">{formatCurrency(expense.amount, expense.currency)}</TableCell>
-									<TableCell>{expense.description || "—"}</TableCell>
-									<TableCell className="text-center">
-										<ExpenseActions expense={expense} />
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-					{!isLoading && filteredExpenses.length > 0 && (
-						<tfoot>
-							<TableRow className="bg-gray-50 font-semibold border-t-2">
-								<TableCell colSpan={3} className="text-sm text-gray-600">Итого: {filteredExpenses.length} расходов</TableCell>
-								<TableCell className="text-sm tabular-nums">{new Intl.NumberFormat("ru-RU").format(totalAmount)}</TableCell>
-								<TableCell />
-								<TableCell />
-							</TableRow>
-						</tfoot>
-					)}
-				</Table>
-			</div>
-			)}
 			</RentalQueryState>
 
 			<ExpenseDialog open={dialogOpen} expense={editingExpense} onClose={closeDialog} />

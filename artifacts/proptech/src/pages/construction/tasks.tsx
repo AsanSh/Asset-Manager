@@ -230,10 +230,10 @@ function TaskDialog({
 						<Input className="mt-1" value={form.description} onChange={(e) => set("description", e.target.value)} />
 					</div>
 					<div className="grid grid-cols-2 gap-3">
-						<div>
-							<Label>Статус</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Статус</Label>
 							<Select value={form.status} onValueChange={(v) => set("status", v)}>
-								<SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+								<SelectTrigger className="mt-auto"><SelectValue /></SelectTrigger>
 								<SelectContent>
 									{STATUS_OPTS.map((o) => (
 										<SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
@@ -241,10 +241,10 @@ function TaskDialog({
 								</SelectContent>
 							</Select>
 						</div>
-						<div>
-							<Label>Приоритет</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Приоритет</Label>
 							<Select value={form.priority} onValueChange={(v) => set("priority", v)}>
-								<SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+								<SelectTrigger className="mt-auto"><SelectValue /></SelectTrigger>
 								<SelectContent>
 									{PRIORITY_OPTS.map((o) => (
 										<SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
@@ -252,13 +252,13 @@ function TaskDialog({
 								</SelectContent>
 							</Select>
 						</div>
-						<div>
-							<Label>Срок</Label>
-							<Input className="mt-1" type="date" value={form.dueDate} onChange={(e) => set("dueDate", e.target.value)} />
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Срок</Label>
+							<Input className="mt-auto" type="date" value={form.dueDate} onChange={(e) => set("dueDate", e.target.value)} />
 						</div>
-						<div>
-							<Label>Плановые часы</Label>
-							<Input className="mt-1" type="number" value={form.estimatedHours} onChange={(e) => set("estimatedHours", e.target.value)} />
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Плановые часы</Label>
+							<Input className="mt-auto" type="number" value={form.estimatedHours} onChange={(e) => set("estimatedHours", e.target.value)} />
 						</div>
 					</div>
 					<div>

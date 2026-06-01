@@ -14,6 +14,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
+import { CashflowMonthTable } from "./cashflow-table";
 import { getRentalPaymentsAllQueryKey, getRentalExpensesAllQueryKey } from "@/lib/rental-query-keys";
 
 const MONTHS = [
@@ -31,15 +32,10 @@ const MONTHS = [
 	"Дек",
 ];
 
-function fmtFull(n: any) {
-	const v = parseFloat(n || "0");
-	if (Number.isNaN(v)) return "0 ₸";
-	return new Intl.NumberFormat("ru-KG", {
-		style: "currency",
-		currency: "KGS",
-		minimumFractionDigits: 0,
-		maximumFractionDigits: 0,
-	}).format(v);
+function fmtFull(n: unknown) {
+	const v = parseFloat(String(n ?? "0"));
+	if (Number.isNaN(v)) return "0 сом";
+	return `${new Intl.NumberFormat("ru-KG", { maximumFractionDigits: 0 }).format(v)} сом`;
 }
 
 export default function RentalCashflow() {
@@ -184,46 +180,15 @@ export default function RentalCashflow() {
 				</div>
 			</div>
 
-			<div className="bg-white border rounded-lg mt-4 overflow-hidden">
-				<table className="w-full text-sm">
-					<thead className="bg-gray-50">
-						<tr>
-							<th className="text-left p-3 font-medium text-gray-600">Месяц</th>
-							<th className="text-right p-3 font-medium text-gray-600">
-								Поступления
-							</th>
-							<th className="text-right p-3 font-medium text-gray-600">
-								Расходы
-							</th>
-							<th className="text-right p-3 font-medium text-gray-600">
-								Нетто
-							</th>
-						</tr>
-					</thead>
-					<tbody>
-						{months.map(([mon, vals]) => {
-							const n = vals.income - vals.expense;
-							return (
-								<tr key={mon} className="border-t hover:bg-gray-50">
-									<td className="p-3 text-gray-700">
-										{MONTHS[parseInt(mon, 10) - 1]} {year}
-									</td>
-									<td className="p-3 text-right font-medium text-emerald-600">
-										{vals.income > 0 ? fmtFull(vals.income) : "—"}
-									</td>
-									<td className="p-3 text-right font-medium text-rose-600">
-										{vals.expense > 0 ? fmtFull(vals.expense) : "—"}
-									</td>
-									<td
-										className={`p-3 text-right font-semibold ${n > 0 ? "text-blue-600" : n < 0 ? "text-amber-600" : "text-gray-400"}`}
-									>
-										{vals.income > 0 || vals.expense > 0 ? fmtFull(n) : "—"}
-									</td>
-								</tr>
-							);
-						})}
-					</tbody>
-				</table>
+			<div className="mt-4">
+				<CashflowMonthTable
+					rows={months.map(([mon, vals]) => ({
+						mon,
+						year,
+						income: vals.income,
+						expense: vals.expense,
+					}))}
+				/>
 			</div>
 		</div>
 	);

@@ -1,7 +1,9 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getDistributionsQueryKey } from "@/lib/rental-query-keys";
 import { BarChart2, CheckCircle2, Play, Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,15 +21,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { authFetch } from "@/lib/auth-fetch";
@@ -164,20 +157,20 @@ function AddDialog({
 						/>
 					</div>
 					<div className="grid grid-cols-2 gap-3">
-						<div>
-							<Label>Валовый доход (KGS)</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Валовый доход (KGS)</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								type="number"
 								min="0"
 								value={form.grossIncome}
 								onChange={(e) => set("grossIncome", e.target.value)}
 							/>
 						</div>
-						<div>
-							<Label>Расходы (KGS)</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Расходы (KGS)</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								type="number"
 								min="0"
 								value={form.expenses}
@@ -237,7 +230,7 @@ export default function Distributions() {
 		.filter((d) => d.status !== "paid")
 		.reduce((s, d) => s + parseFloat(d.netProfit || "0"), 0);
 
-	const updateStatus = async (id: number, status: string) => {
+	const updateStatus = useCallback(async (id: number, status: string) => {
 		try {
 			await authFetch(`/rental/distributions/${id}/status`, {
 				method: "PATCH",
@@ -250,9 +243,9 @@ export default function Distributions() {
 		} catch (e: unknown) {
 			toast({ title: "Ошибка", description: getApiErrorMessage(e), variant: "destructive" });
 		}
-	};
+	}, [queryClient, toast]);
 
-	const handleDelete = async (id: number) => {
+	const handleDelete = useCallback(async (id: number) => {
 		if (!confirm("Удалить запись?")) return;
 		try {
 			await authFetch(`/rental/distributions/${id}`, { method: "DELETE" });
@@ -261,7 +254,129 @@ export default function Distributions() {
 		} catch (e: unknown) {
 			toast({ title: "Ошибка", description: getApiErrorMessage(e), variant: "destructive" });
 		}
-	};
+	}, [queryClient, toast]);
+
+	const columns = useMemo<ColumnDef<Distribution, unknown>[]>(
+		() => [
+			{
+				id: "property",
+				header: "Объект",
+				size: 180,
+				accessorFn: (row) => row.propertyName || "",
+				meta: { exportLabel: "Объект", pinned: "left" },
+				cell: ({ row }) => (
+					<div>
+						<p className="font-medium text-sm">{row.original.propertyName || "—"}</p>
+						{row.original.propertyUnit && (
+							<p className="text-xs text-muted-foreground">
+								ед. {row.original.propertyUnit}
+							</p>
+						)}
+					</div>
+				),
+			},
+			{
+				accessorKey: "period",
+				header: "Период",
+				size: 110,
+				meta: { exportLabel: "Период" },
+				cell: ({ row }) => (
+					<span className="font-medium">{row.original.period}</span>
+				),
+			},
+			{
+				id: "grossIncome",
+				header: "Валовый доход",
+				size: 130,
+				accessorFn: (row) => parseFloat(row.grossIncome || "0"),
+				meta: { exportLabel: "Валовый доход", align: "right" },
+				cell: ({ row }) => (
+					<span className="font-mono">{fmtCurrency(row.original.grossIncome)}</span>
+				),
+			},
+			{
+				id: "expenses",
+				header: "Расходы",
+				size: 120,
+				accessorFn: (row) => parseFloat(row.expenses || "0"),
+				meta: { exportLabel: "Расходы", align: "right" },
+				cell: ({ row }) => (
+					<span className="font-mono text-rose-600">
+						{fmtCurrency(row.original.expenses)}
+					</span>
+				),
+			},
+			{
+				id: "netProfit",
+				header: "Чистая прибыль",
+				size: 130,
+				accessorFn: (row) => parseFloat(row.netProfit || "0"),
+				meta: { exportLabel: "Чистая прибыль", align: "right" },
+				cell: ({ row }) => {
+					const net = parseFloat(row.original.netProfit);
+					return (
+						<span
+							className={`font-mono font-semibold ${net >= 0 ? "text-emerald-600" : "text-rose-600"}`}
+						>
+							{fmtCurrency(net)}
+						</span>
+					);
+				},
+			},
+			{
+				id: "status",
+				header: "Статус",
+				size: 120,
+				accessorKey: "status",
+				meta: { exportLabel: "Статус" },
+				cell: ({ row }) => (
+					<Badge className={statusColors[row.original.status] || ""} variant="secondary">
+						{statusLabels[row.original.status] || row.original.status}
+					</Badge>
+				),
+			},
+			{
+				id: "actions",
+				header: "",
+				size: 160,
+				enableSorting: false,
+				meta: { align: "center" },
+				cell: ({ row }) => (
+					<div className="flex gap-1 justify-center">
+						{row.original.status === "pending" && (
+							<Button
+								size="sm"
+								variant="outline"
+								className="h-7 px-2 text-xs border-blue-300 text-blue-700"
+								onClick={() => updateStatus(row.original.id, "calculated")}
+							>
+								<Play className="w-3 h-3 mr-1" /> Рассчитать
+							</Button>
+						)}
+						{row.original.status === "calculated" && (
+							<Button
+								size="sm"
+								variant="outline"
+								className="h-7 px-2 text-xs border-green-300 text-emerald-700"
+								onClick={() => updateStatus(row.original.id, "paid")}
+							>
+								<CheckCircle2 className="w-3 h-3 mr-1" /> Выплачено
+							</Button>
+						)}
+						<Button
+							size="sm"
+							variant="ghost"
+							className="h-7 w-7 p-0"
+							onClick={() => handleDelete(row.original.id)}
+						>
+							<Trash2 className="w-3.5 h-3.5 text-muted-foreground hover:text-rose-600" />
+						</Button>
+					</div>
+				),
+			},
+		],
+		[handleDelete, updateStatus],
+	);
 
 	return (
 		<div className="space-y-6">
@@ -301,116 +416,21 @@ export default function Distributions() {
 			</div>
 
 			<RentalQueryState isLoading={isLoading} isError={isError} error={error} onRetry={() => refetch()}>
-			<div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-				<Table>
-					<TableHeader>
-						<TableRow className="bg-gray-50">
-							<TableHead>Объект</TableHead>
-							<TableHead>Период</TableHead>
-							<TableHead className="text-right">Валовый доход</TableHead>
-							<TableHead className="text-right">Расходы</TableHead>
-							<TableHead className="text-right">Чистая прибыль</TableHead>
-							<TableHead>Статус</TableHead>
-							<TableHead className="text-center">Действия</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isLoading ? (
-							Array.from({ length: 4 }).map((_, i) => (
-								<TableRow key={i}>
-									{Array.from({ length: 7 }).map((_, j) => (
-										<TableCell key={j}>
-											<Skeleton className="h-4 w-full" />
-										</TableCell>
-									))}
-								</TableRow>
-							))
-						) : distributions.length === 0 ? (
-							<TableRow>
-								<TableCell
-									colSpan={7}
-									className="text-center py-12 text-gray-400"
-								>
-									<BarChart2 className="w-10 h-10 mx-auto mb-2 opacity-30" />
-									<p>Записей о прибыли пока нет</p>
-								</TableCell>
-							</TableRow>
-						) : (
-							distributions.map((d) => {
-								const net = parseFloat(d.netProfit);
-								return (
-									<TableRow key={d.id} className="hover:bg-gray-50">
-										<TableCell>
-											<p className="font-medium text-sm text-gray-900">
-												{d.propertyName || "—"}
-											</p>
-											{d.propertyUnit && (
-												<p className="text-xs text-gray-400">
-													ед. {d.propertyUnit}
-												</p>
-											)}
-										</TableCell>
-										<TableCell className="text-sm font-medium text-gray-700">
-											{d.period}
-										</TableCell>
-										<TableCell className="text-right text-sm text-gray-600">
-											{fmtCurrency(d.grossIncome)}
-										</TableCell>
-										<TableCell className="text-right text-sm text-rose-600">
-											{fmtCurrency(d.expenses)}
-										</TableCell>
-										<TableCell
-											className={`text-right font-semibold text-sm ${net >= 0 ? "text-emerald-600" : "text-rose-600"}`}
-										>
-											{fmtCurrency(net)}
-										</TableCell>
-										<TableCell>
-											<Badge
-												className={statusColors[d.status] || ""}
-												variant="secondary"
-											>
-												{statusLabels[d.status] || d.status}
-											</Badge>
-										</TableCell>
-										<TableCell>
-											<div className="flex gap-1 justify-center">
-												{d.status === "pending" && (
-													<Button
-														size="sm"
-														variant="outline"
-														className="h-7 px-2 text-xs border-blue-300 text-blue-700"
-														onClick={() => updateStatus(d.id, "calculated")}
-													>
-														<Play className="w-3 h-3 mr-1" /> Рассчитать
-													</Button>
-												)}
-												{d.status === "calculated" && (
-													<Button
-														size="sm"
-														variant="outline"
-														className="h-7 px-2 text-xs border-green-300 text-emerald-700"
-														onClick={() => updateStatus(d.id, "paid")}
-													>
-														<CheckCircle2 className="w-3 h-3 mr-1" /> Выплачено
-													</Button>
-												)}
-												<Button
-													size="sm"
-													variant="ghost"
-													className="h-7 w-7 p-0"
-													onClick={() => handleDelete(d.id)}
-												>
-													<Trash2 className="w-3.5 h-3.5 text-gray-400 hover:text-rose-600" />
-												</Button>
-											</div>
-										</TableCell>
-									</TableRow>
-								);
-							})
-						)}
-					</TableBody>
-				</Table>
-			</div>
+				<DataTable
+					tableId="rental-distributions"
+					columns={columns}
+					data={distributions}
+					isLoading={isLoading}
+					enableSearch
+					searchPlaceholder="Поиск по объекту, периоду…"
+					initialSorting={[{ id: "period", desc: true }]}
+					emptyState={
+						<div className="flex flex-col items-center gap-2 text-muted-foreground py-8">
+							<BarChart2 className="w-10 h-10 opacity-30" />
+							<span>Записей о прибыли пока нет</span>
+						</div>
+					}
+				/>
 			</RentalQueryState>
 
 			{showAdd && (

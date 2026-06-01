@@ -214,13 +214,13 @@ export default function ConstructionAccounts() {
 							/>
 						</div>
 						<div className="grid grid-cols-2 gap-3">
-							<div>
-								<Label className="text-xs">Тип</Label>
+							<div className="flex flex-col">
+								<Label className="text-xs leading-tight mb-1.5">Тип</Label>
 								<Select
 									value={form.type}
 									onValueChange={(v) => setForm((f) => ({ ...f, type: v }))}
 								>
-									<SelectTrigger className="mt-1 h-8 text-sm">
+									<SelectTrigger className="mt-auto h-8 text-sm">
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>
@@ -230,13 +230,13 @@ export default function ConstructionAccounts() {
 									</SelectContent>
 								</Select>
 							</div>
-							<div>
-								<Label className="text-xs">Валюта</Label>
+							<div className="flex flex-col">
+								<Label className="text-xs leading-tight mb-1.5">Валюта</Label>
 								<Select
 									value={form.currency}
 									onValueChange={(v) => setForm((f) => ({ ...f, currency: v }))}
 								>
-									<SelectTrigger className="mt-1 h-8 text-sm">
+									<SelectTrigger className="mt-auto h-8 text-sm">
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>
@@ -251,35 +251,35 @@ export default function ConstructionAccounts() {
 						</div>
 						{form.type === "bank" && (
 							<div className="grid grid-cols-2 gap-3">
-								<div>
-									<Label className="text-xs">Банк</Label>
+								<div className="flex flex-col">
+									<Label className="text-xs leading-tight mb-1.5">Банк</Label>
 									<Input
 										value={form.bank}
 										onChange={(e) =>
 											setForm((f) => ({ ...f, bank: e.target.value }))
 										}
-										className="mt-1 h-8 text-sm"
+										className="mt-auto h-8 text-sm"
 										placeholder="Optima Bank"
 									/>
 								</div>
-								<div>
-									<Label className="text-xs">БИК</Label>
+								<div className="flex flex-col">
+									<Label className="text-xs leading-tight mb-1.5">БИК</Label>
 									<Input
 										value={form.bik}
 										onChange={(e) =>
 											setForm((f) => ({ ...f, bik: e.target.value }))
 										}
-										className="mt-1 h-8 text-sm"
+										className="mt-auto h-8 text-sm"
 									/>
 								</div>
-								<div className="col-span-2">
-									<Label className="text-xs">Расчётный счёт</Label>
+								<div className="col-span-2 flex flex-col">
+									<Label className="text-xs leading-tight mb-1.5">Расчётный счёт</Label>
 									<Input
 										value={form.accountNumber}
 										onChange={(e) =>
 											setForm((f) => ({ ...f, accountNumber: e.target.value }))
 										}
-										className="mt-1 h-8 text-sm font-mono"
+										className="mt-auto h-8 text-sm font-mono"
 									/>
 								</div>
 							</div>

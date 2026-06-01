@@ -3,6 +3,7 @@ import { eq, and, SQL } from "drizzle-orm";
 import { db, legalEntitiesTable } from "../lib/db";
 import { requireAuth, requireRole, AuthenticatedRequest } from "../middleware/auth";
 import { requireTenantCompany } from "../middleware/tenant";
+import { ensureLegalEntitiesFromCompany } from "../lib/settings-catalog-sync";
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -12,13 +13,13 @@ router.use(requireAuth, requireTenantCompany);
 router.get("/legal-entities",
   async (req: AuthenticatedRequest, res): Promise<void> => {
     try {
-      const conditions: SQL[] = [];
-      conditions.push(eq(legalEntitiesTable.companyId, req.scopedCompanyId!));
+      const companyId = req.scopedCompanyId!;
+      await ensureLegalEntitiesFromCompany(companyId);
 
       const rows = await db
         .select()
         .from(legalEntitiesTable)
-        .where(conditions.length ? and(...conditions) : undefined)
+        .where(eq(legalEntitiesTable.companyId, companyId))
         .orderBy(legalEntitiesTable.createdAt);
 
       res.json(rows);

@@ -138,10 +138,10 @@ function CategoryForm({
 				/>
 			</div>
 			<div className="grid grid-cols-2 gap-3">
-				<div>
-					<Label className="text-xs text-gray-600 mb-1.5 block">Тип</Label>
+				<div className="flex flex-col">
+					<Label className="text-xs text-gray-600 mb-1.5 block leading-tight">Тип</Label>
 					<Select value={form.type} onValueChange={(v) => set("type", v)}>
-						<SelectTrigger className="h-9">
+						<SelectTrigger className="mt-auto h-9">
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
@@ -150,10 +150,10 @@ function CategoryForm({
 						</SelectContent>
 					</Select>
 				</div>
-				<div>
-					<Label className="text-xs text-gray-600 mb-1.5 block">Модуль</Label>
+				<div className="flex flex-col">
+					<Label className="text-xs text-gray-600 mb-1.5 block leading-tight">Модуль</Label>
 					<Select value={form.module} onValueChange={(v) => set("module", v)}>
-						<SelectTrigger className="h-9">
+						<SelectTrigger className="mt-auto h-9">
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>

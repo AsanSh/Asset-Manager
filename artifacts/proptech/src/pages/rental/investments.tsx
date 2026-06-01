@@ -1,6 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { PieChart, Plus, Trash2, } from "lucide-react";
-import { useState } from "react";
+import { PieChart, Plus, Trash2 } from "lucide-react";
+import { useMemo, useState, useCallback } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -17,15 +19,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { authFetch } from "@/lib/auth-fetch";
@@ -172,10 +165,10 @@ function AddDialog({
 						</Select>
 					</div>
 					<div className="grid grid-cols-2 gap-3">
-						<div>
-							<Label>Доля (%) *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Доля (%) *</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								type="number"
 								min="0.01"
 								max="100"
@@ -185,10 +178,10 @@ function AddDialog({
 								placeholder="25.00"
 							/>
 						</div>
-						<div>
-							<Label>Вложено (KGS)</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Вложено (KGS)</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								type="number"
 								min="0"
 								value={form.capitalInvested}
@@ -249,7 +242,7 @@ export default function Investments() {
 		0,
 	);
 
-	const handleDelete = async (id: number) => {
+	const handleDelete = useCallback(async (id: number) => {
 		if (!confirm("Удалить инвестицию?")) return;
 		try {
 			await authFetch(`/rental/investments/${id}`, { method: "DELETE" });
@@ -258,7 +251,115 @@ export default function Investments() {
 		} catch (e: unknown) {
 			toast({ title: "Ошибка", description: getApiErrorMessage(e), variant: "destructive" });
 		}
-	};
+	}, [queryClient, toast]);
+
+	const columns = useMemo<ColumnDef<Investment, unknown>[]>(
+		() => [
+			{
+				id: "property",
+				header: "Объект",
+				size: 180,
+				accessorFn: (row) =>
+					`${row.propertyName || ""} ${row.propertyUnit || ""}`.trim(),
+				meta: { exportLabel: "Объект", pinned: "left" },
+				cell: ({ row }) => (
+					<div>
+						<p className="font-medium text-sm">
+							{row.original.propertyName || "—"}
+						</p>
+						{row.original.propertyUnit && (
+							<p className="text-xs text-muted-foreground">
+								ед. {row.original.propertyUnit}
+							</p>
+						)}
+					</div>
+				),
+			},
+			{
+				id: "investor",
+				header: "Владелец",
+				size: 160,
+				accessorFn: (row) => row.investorName || `#${row.investorId}`,
+				meta: { exportLabel: "Владелец" },
+				cell: ({ row }) => (
+					<div>
+						<p className="font-medium text-sm">
+							{row.original.investorName || `#${row.original.investorId}`}
+						</p>
+						{row.original.investorPhone && (
+							<p className="text-xs text-muted-foreground">
+								{row.original.investorPhone}
+							</p>
+						)}
+					</div>
+				),
+			},
+			{
+				id: "sharePercent",
+				header: "Доля",
+				size: 140,
+				accessorFn: (row) => parseFloat(row.sharePercent || "0"),
+				meta: { exportLabel: "Доля (%)", align: "right" },
+				cell: ({ row }) => {
+					const pct = parseFloat(row.original.sharePercent);
+					return (
+						<div className="flex items-center justify-end gap-1.5">
+							<div className="w-20 h-2 bg-gray-100 rounded-full overflow-hidden">
+								<div
+									className="h-full bg-blue-600 rounded-full"
+									style={{ width: `${Math.min(100, pct)}%` }}
+								/>
+							</div>
+							<span className="font-semibold text-blue-600 text-sm font-mono">
+								{pct}%
+							</span>
+						</div>
+					);
+				},
+			},
+			{
+				id: "capitalInvested",
+				header: "Вложено",
+				size: 130,
+				accessorFn: (row) => parseFloat(row.capitalInvested || "0"),
+				meta: { exportLabel: "Вложено", align: "right" },
+				cell: ({ row }) => (
+					<span className="font-mono font-medium text-emerald-600">
+						{fmtCurrency(row.original.capitalInvested)}
+					</span>
+				),
+			},
+			{
+				id: "investedAt",
+				header: "Дата",
+				size: 110,
+				accessorFn: (row) => row.investedAt || "",
+				meta: { exportLabel: "Дата" },
+				cell: ({ row }) =>
+					row.original.investedAt
+						? new Date(row.original.investedAt).toLocaleDateString("ru-KG")
+						: "—",
+			},
+			{
+				id: "actions",
+				header: "",
+				size: 60,
+				enableSorting: false,
+				meta: { exportLabel: "Удалить", align: "center" },
+				cell: ({ row }) => (
+					<Button
+						size="sm"
+						variant="ghost"
+						className="h-7 w-7 p-0"
+						onClick={() => handleDelete(row.original.id)}
+					>
+						<Trash2 className="w-3.5 h-3.5 text-muted-foreground hover:text-rose-600" />
+					</Button>
+				),
+			},
+		],
+		[handleDelete],
+	);
 
 	return (
 		<div className="space-y-6">
@@ -296,105 +397,21 @@ export default function Investments() {
 				</div>
 			</div>
 
-			<div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-				<Table>
-					<TableHeader>
-						<TableRow className="bg-gray-50">
-							<TableHead>Объект</TableHead>
-							<TableHead>Владелец</TableHead>
-							<TableHead className="text-right">Доля</TableHead>
-							<TableHead className="text-right">Вложено</TableHead>
-							<TableHead>Дата</TableHead>
-							<TableHead className="text-center">Удалить</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isLoading ? (
-							Array.from({ length: 4 }).map((_, i) => (
-								<TableRow key={i}>
-									{Array.from({ length: 6 }).map((_, j) => (
-										<TableCell key={j}>
-											<Skeleton className="h-4 w-full" />
-										</TableCell>
-									))}
-								</TableRow>
-							))
-						) : investmentsArray.length === 0 ? (
-							<TableRow>
-								<TableCell
-									colSpan={6}
-									className="text-center py-12 text-gray-400"
-								>
-									<PieChart className="w-10 h-10 mx-auto mb-2 opacity-30" />
-									<p>Инвестиций пока нет</p>
-								</TableCell>
-							</TableRow>
-						) : (
-							investmentsArray.map((inv) => (
-								<TableRow key={inv.id} className="hover:bg-gray-50">
-									<TableCell>
-										<div>
-											<p className="font-medium text-sm text-gray-900">
-												{inv.propertyName || "—"}
-											</p>
-											{inv.propertyUnit && (
-												<p className="text-xs text-gray-400">
-													ед. {inv.propertyUnit}
-												</p>
-											)}
-										</div>
-									</TableCell>
-									<TableCell>
-										<div>
-											<p className="font-medium text-sm text-gray-800">
-												{inv.investorName || `#${inv.investorId}`}
-											</p>
-											{inv.investorPhone && (
-												<p className="text-xs text-gray-400">
-													{inv.investorPhone}
-												</p>
-											)}
-										</div>
-									</TableCell>
-									<TableCell className="text-right">
-										<div className="flex items-center justify-end gap-1.5">
-											<div className="w-20 h-2 bg-gray-100 rounded-full overflow-hidden">
-												<div
-													className="h-full bg-blue-600 rounded-full"
-													style={{
-														width: `${Math.min(100, parseFloat(inv.sharePercent))}%`,
-													}}
-												/>
-											</div>
-											<span className="font-semibold text-blue-600 text-sm">
-												{parseFloat(inv.sharePercent)}%
-											</span>
-										</div>
-									</TableCell>
-									<TableCell className="text-right font-medium text-emerald-600 text-sm">
-										{fmtCurrency(inv.capitalInvested)}
-									</TableCell>
-									<TableCell className="text-sm text-gray-500">
-										{inv.investedAt
-											? new Date(inv.investedAt).toLocaleDateString("ru-KG")
-											: "—"}
-									</TableCell>
-									<TableCell className="text-center">
-										<Button
-											size="sm"
-											variant="ghost"
-											className="h-7 w-7 p-0"
-											onClick={() => handleDelete(inv.id)}
-										>
-											<Trash2 className="w-3.5 h-3.5 text-gray-400 hover:text-rose-600" />
-										</Button>
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</div>
+			<DataTable
+				tableId="rental-investments"
+				columns={columns}
+				data={investmentsArray}
+				isLoading={isLoading}
+				enableSearch
+				searchPlaceholder="Поиск по объекту, владельцу…"
+				initialSorting={[{ id: "investedAt", desc: true }]}
+				emptyState={
+					<div className="flex flex-col items-center gap-2 text-muted-foreground">
+						<PieChart className="w-10 h-10 opacity-30" />
+						<span>Инвестиций пока нет</span>
+					</div>
+				}
+			/>
 
 			{showAdd && (
 				<AddDialog

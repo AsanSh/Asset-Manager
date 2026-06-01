@@ -10,7 +10,9 @@ import {
 	Trash2,
 	UserPlus,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,15 +30,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { ContractFileUpload } from "@/components/contract-file-upload";
 import { PortalPreviewDialog } from "@/components/portal-preview-dialog";
@@ -314,19 +307,19 @@ function ContractorDialog({
 				<form onSubmit={handleSubmit} className="space-y-4">
 					{/* Basic info */}
 					<div className="grid grid-cols-2 gap-3">
-						<div className="col-span-2">
-							<Label>Название / ФИО *</Label>
+						<div className="col-span-2 flex flex-col">
+							<Label className="leading-tight mb-1.5">Название / ФИО *</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								value={form.fullName}
 								onChange={(e) => set("fullName", e.target.value)}
 								required
 							/>
 						</div>
-						<div>
-							<Label>Тип</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Тип</Label>
 							<Select value={form.type} onValueChange={(v) => set("type", v)}>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -335,13 +328,13 @@ function ContractorDialog({
 								</SelectContent>
 							</Select>
 						</div>
-						<div>
-							<Label>Специализация</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Специализация</Label>
 							<Select
 								value={form.specialization}
 								onValueChange={(v) => set("specialization", v)}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue placeholder="Выберите..." />
 								</SelectTrigger>
 								<SelectContent>
@@ -386,30 +379,30 @@ function ContractorDialog({
 
 					{/* Contacts */}
 					<div className="grid grid-cols-2 gap-3">
-						<div>
-							<Label>Телефон</Label>
-							<Input className="mt-1" value={form.phone} onChange={(e) => set("phone", e.target.value)} />
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Телефон</Label>
+							<Input className="mt-auto" value={form.phone} onChange={(e) => set("phone", e.target.value)} />
 						</div>
-						<div>
-							<Label>Email</Label>
-							<Input className="mt-1" type="email" value={form.email} onChange={(e) => set("email", e.target.value)} />
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Email</Label>
+							<Input className="mt-auto" type="email" value={form.email} onChange={(e) => set("email", e.target.value)} />
 						</div>
-						<div>
-							<Label>ИНН</Label>
-							<Input className="mt-1" value={form.inn} onChange={(e) => set("inn", e.target.value)} />
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">ИНН</Label>
+							<Input className="mt-auto" value={form.inn} onChange={(e) => set("inn", e.target.value)} />
 						</div>
-						<div>
-							<Label>ОКПО</Label>
-							<Input className="mt-1" value={form.okpo} onChange={(e) => set("okpo", e.target.value)} placeholder="Код организации" />
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">ОКПО</Label>
+							<Input className="mt-auto" value={form.okpo} onChange={(e) => set("okpo", e.target.value)} placeholder="Код организации" />
 						</div>
-						<div>
-							<Label>БИК банка</Label>
-							<Input className="mt-1" value={form.bic} onChange={(e) => set("bic", e.target.value)} placeholder="БИК" />
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">БИК банка</Label>
+							<Input className="mt-auto" value={form.bic} onChange={(e) => set("bic", e.target.value)} placeholder="БИК" />
 						</div>
-						<div>
-							<Label>Статус</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Статус</Label>
 							<Select value={form.status} onValueChange={(v) => set("status", v)}>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -425,20 +418,20 @@ function ContractorDialog({
 					<div className="border-t pt-3">
 						<p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Договор</p>
 						<div className="grid grid-cols-2 gap-3">
-							<div>
-								<Label>№ договора</Label>
-								<Input className="mt-1" value={form.contractNumber} onChange={(e) => set("contractNumber", e.target.value)} />
+							<div className="flex flex-col">
+								<Label className="leading-tight mb-1.5">№ договора</Label>
+								<Input className="mt-auto" value={form.contractNumber} onChange={(e) => set("contractNumber", e.target.value)} />
 							</div>
-							<div>
-								<Label>Сумма договора</Label>
-								<Input className="mt-1" type="number" value={form.contractAmount} onChange={(e) => set("contractAmount", e.target.value)} />
+							<div className="flex flex-col">
+								<Label className="leading-tight mb-1.5">Сумма договора</Label>
+								<Input className="mt-auto" type="number" value={form.contractAmount} onChange={(e) => set("contractAmount", e.target.value)} />
 							</div>
-							<div>
-								<Label>Оплачено</Label>
-								<Input className="mt-1" type="number" value={form.paidAmount} onChange={(e) => set("paidAmount", e.target.value)} />
+							<div className="flex flex-col">
+								<Label className="leading-tight mb-1.5">Оплачено</Label>
+								<Input className="mt-auto" type="number" value={form.paidAmount} onChange={(e) => set("paidAmount", e.target.value)} />
 							</div>
-							<div>
-								<Label>Остаток к оплате</Label>
+							<div className="flex flex-col">
+								<Label className="leading-tight mb-1.5">Остаток к оплате</Label>
 								<div className={`mt-1 h-9 px-3 flex items-center rounded-md border text-sm font-medium ${outstanding < 0 ? "text-rose-700 bg-rose-50 border-rose-200" : outstanding === 0 ? "text-emerald-700 bg-emerald-50 border-emerald-200" : "text-amber-700 bg-amber-50 border-amber-200"}`}>
 									{outstanding.toLocaleString("ru-KG")} {form.currency}
 								</div>
@@ -480,10 +473,10 @@ function ContractorDialog({
 
 					{/* Rating */}
 					<div className="grid grid-cols-2 gap-3">
-						<div>
-							<Label>Рейтинг (1–5)</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Рейтинг (1–5)</Label>
 							<Select value={form.rating} onValueChange={(v) => set("rating", v)}>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue placeholder="—" />
 								</SelectTrigger>
 								<SelectContent>
@@ -590,30 +583,30 @@ function ContractorDialog({
 										Войдёт по телефону из контактов выше ({form.phone || "укажите телефон"}) и SMS-коду
 									</p>
 									<div className="grid grid-cols-2 gap-3">
-										<div>
-											<Label>Имя *</Label>
+										<div className="flex flex-col">
+											<Label className="leading-tight mb-1.5">Имя *</Label>
 											<Input
-												className="mt-1"
+												className="mt-auto"
 												value={portalForm.firstName}
 												onChange={(e) =>
 													setPortalForm((p) => ({ ...p, firstName: e.target.value }))
 												}
 											/>
 										</div>
-										<div>
-											<Label>Фамилия *</Label>
+										<div className="flex flex-col">
+											<Label className="leading-tight mb-1.5">Фамилия *</Label>
 											<Input
-												className="mt-1"
+												className="mt-auto"
 												value={portalForm.lastName}
 												onChange={(e) =>
 													setPortalForm((p) => ({ ...p, lastName: e.target.value }))
 												}
 											/>
 										</div>
-										<div className="col-span-2">
-											<Label>Email (необязательно)</Label>
+										<div className="col-span-2 flex flex-col">
+											<Label className="leading-tight mb-1.5">Email (необязательно)</Label>
 											<Input
-												className="mt-1"
+												className="mt-auto"
 												type="email"
 												value={portalForm.email}
 												onChange={(e) =>
@@ -668,7 +661,6 @@ export default function ConstructionContractors() {
 	const qc = useQueryClient();
 	const { toast } = useToast();
 	const [dialog, setDialog] = useState<Contractor | null | "new">(null);
-	const [search, setSearch] = useState("");
 
 	const { data: contractors = [], isLoading } = useQuery<Contractor[]>({
 		queryKey: ["construction-contractors"],
@@ -701,13 +693,6 @@ export default function ConstructionContractors() {
 			throw err;
 		}
 	};
-	const filtered = contractors.filter(
-		(c) =>
-			!search ||
-			c.fullName.toLowerCase().includes(search.toLowerCase()) ||
-			c.specialization?.toLowerCase().includes(search.toLowerCase()),
-	);
-
 	const handleDelete = async (id: number) => {
 		if (!confirm("Удалить подрядчика?")) return;
 		await fetch(`${BASE}/construction/contractors/${id}`, {
@@ -717,6 +702,221 @@ export default function ConstructionContractors() {
 		toast({ title: "Удалено" });
 		qc.invalidateQueries({ queryKey: ["construction-contractors"] });
 	};
+
+	const columns = useMemo<ColumnDef<Contractor, unknown>[]>(
+		() => [
+			{
+				id: "fullName",
+				header: "Подрядчик",
+				size: 200,
+				accessorKey: "fullName",
+				meta: { exportLabel: "Подрядчик", pinned: "left" },
+				cell: ({ row }) => {
+					const c = row.original;
+					return (
+						<div className="flex items-center gap-2.5">
+							<div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 text-xs font-bold">
+								{c.fullName.charAt(0)}
+							</div>
+							<div>
+								<p className="font-medium text-sm text-gray-900">{c.fullName}</p>
+								<p className="text-xs text-gray-400">
+									{c.type === "company" ? "Компания" : "ИП"}
+								</p>
+							</div>
+						</div>
+					);
+				},
+			},
+			{
+				accessorKey: "specialization",
+				header: "Специализация",
+				size: 140,
+				meta: { exportLabel: "Специализация" },
+				cell: ({ row }) => (
+					<span className="text-sm text-gray-600">
+						{row.original.specialization || "—"}
+					</span>
+				),
+			},
+			{
+				id: "contacts",
+				header: "Контакты / ИНН",
+				size: 160,
+				accessorFn: (row) =>
+					[row.phone, row.inn, row.okpo].filter(Boolean).join(" "),
+				meta: { exportLabel: "Контакты / ИНН" },
+				cell: ({ row }) => {
+					const c = row.original;
+					return (
+						<div className="text-xs">
+							<p className="text-gray-600">{c.phone || "—"}</p>
+							{c.inn && <p className="text-gray-400">ИНН: {c.inn}</p>}
+							{c.okpo && <p className="text-gray-400">ОКПО: {c.okpo}</p>}
+						</div>
+					);
+				},
+			},
+			{
+				id: "contract",
+				header: "Договор",
+				size: 140,
+				accessorFn: (row) => row.contractNumber || "",
+				meta: { exportLabel: "Договор" },
+				cell: ({ row }) => {
+					const c = row.original;
+					const contractAmt = parseFloat(c.contractAmount || "0");
+					return (
+						<div className="text-sm">
+							{c.contractNumber && (
+								<p className="font-medium text-gray-800">№{c.contractNumber}</p>
+							)}
+							{contractAmt > 0 && (
+								<p className="text-gray-400 text-xs">
+									{contractAmt.toLocaleString("ru-KG")} сом
+								</p>
+							)}
+							{c.contractDocument && (
+								<p className="text-amber-600 text-xs flex items-center gap-0.5 mt-0.5">
+									<FileText className="w-3 h-3" /> договор
+								</p>
+							)}
+							{!c.contractNumber && !c.contractDocument && "—"}
+						</div>
+					);
+				},
+			},
+			{
+				id: "payments",
+				header: "Оплачено / Остаток",
+				size: 150,
+				accessorFn: (row) => parseFloat(row.paidAmount || "0"),
+				meta: { exportLabel: "Оплачено", align: "right" },
+				cell: ({ row }) => {
+					const c = row.original;
+					const contractAmt = parseFloat(c.contractAmount || "0");
+					const paid = parseFloat(c.paidAmount || "0");
+					const outstanding = contractAmt - paid;
+					if (contractAmt <= 0) return "—";
+					return (
+						<div className="text-xs">
+							<p className="text-emerald-700 font-medium">
+								{paid.toLocaleString("ru-KG")} сом
+							</p>
+							<p
+								className={
+									outstanding > 0 ? "text-amber-600" : "text-gray-400"
+								}
+							>
+								ост. {outstanding.toLocaleString("ru-KG")} сом
+							</p>
+						</div>
+					);
+				},
+			},
+			{
+				id: "stage",
+				header: "Этап",
+				size: 120,
+				accessorFn: (row) =>
+					row.stageId ? stageMap[row.stageId] || `Этап #${row.stageId}` : "—",
+				meta: { exportLabel: "Этап" },
+				cell: ({ row }) => (
+					<span className="text-xs text-gray-600">
+						{row.original.stageId
+							? stageMap[row.original.stageId] ||
+								`Этап #${row.original.stageId}`
+							: "—"}
+					</span>
+				),
+			},
+			{
+				id: "rating",
+				header: "Рейтинг",
+				size: 110,
+				accessorFn: (row) => row.rating ?? 0,
+				meta: { exportLabel: "Рейтинг" },
+				cell: ({ row }) => {
+					const c = row.original;
+					if (!c.rating) {
+						return <span className="text-gray-400 text-sm">—</span>;
+					}
+					return (
+						<div className="flex items-center gap-0.5">
+							{Array.from({ length: 5 }).map((_, i) => (
+								<Star
+									key={i}
+									className={`w-3.5 h-3.5 ${i < c.rating! ? "text-yellow-400 fill-yellow-400" : "text-gray-200"}`}
+								/>
+							))}
+						</div>
+					);
+				},
+			},
+			{
+				id: "status",
+				header: "Статус",
+				size: 120,
+				accessorKey: "status",
+				meta: { exportLabel: "Статус" },
+				cell: ({ row }) => {
+					const c = row.original;
+					return (
+						<Badge
+							className={
+								c.status === "active"
+									? "bg-emerald-100 text-emerald-800"
+									: c.status === "blacklisted"
+										? "bg-rose-100 text-rose-800"
+										: "bg-gray-100 text-gray-700"
+							}
+							variant="secondary"
+						>
+							{c.status === "active"
+								? "Активен"
+								: c.status === "blacklisted"
+									? "Чёрный список"
+									: "Неактивен"}
+						</Badge>
+					);
+				},
+			},
+			{
+				id: "__actions",
+				header: "Действия",
+				size: 90,
+				enableSorting: false,
+				meta: { align: "center" },
+				cell: ({ row }) => {
+					const c = row.original;
+					return (
+						<div
+							className="flex gap-1 justify-center"
+							onClick={(e) => e.stopPropagation()}
+						>
+							<Button
+								size="sm"
+								variant="ghost"
+								className="h-7 w-7 p-0"
+								onClick={() => setDialog(c)}
+							>
+								<Edit2 className="w-3.5 h-3.5 text-gray-400" />
+							</Button>
+							<Button
+								size="sm"
+								variant="ghost"
+								className="h-7 w-7 p-0"
+								onClick={() => handleDelete(c.id)}
+							>
+								<Trash2 className="w-3.5 h-3.5 text-gray-400 hover:text-rose-600" />
+							</Button>
+						</div>
+					);
+				},
+			},
+		],
+		[stageMap, handleDelete],
+	);
 
 	return (
 		<div className="space-y-6">
@@ -739,174 +939,23 @@ export default function ConstructionContractors() {
 				</Button>
 			</div>
 
-			<div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-				<div className="p-4 border-b border-gray-100">
-					<Input
-						placeholder="Поиск по названию или специализации..."
-						value={search}
-						onChange={(e) => setSearch(e.target.value)}
-						className="max-w-sm"
-					/>
-				</div>
-				<Table>
-					<TableHeader>
-						<TableRow className="bg-gray-50">
-							<TableHead>Подрядчик</TableHead>
-							<TableHead>Специализация</TableHead>
-							<TableHead>Контакты / ИНН</TableHead>
-							<TableHead>Договор</TableHead>
-							<TableHead>Оплачено / Остаток</TableHead>
-							<TableHead>Этап</TableHead>
-							<TableHead>Рейтинг</TableHead>
-							<TableHead>Статус</TableHead>
-							<TableHead className="text-center">Действия</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isLoading ? (
-							Array.from({ length: 4 }).map((_, i) => (
-								<TableRow key={i}>
-									{Array.from({ length: 9 }).map((_, j) => (
-										<TableCell key={j}>
-											<Skeleton className="h-4 w-full" />
-										</TableCell>
-									))}
-								</TableRow>
-							))
-						) : filtered.length === 0 ? (
-							<TableRow>
-								<TableCell
-									colSpan={9}
-									className="text-center py-12 text-gray-400"
-								>
-									<Briefcase className="w-10 h-10 mx-auto mb-2 opacity-20" />
-									<p>Подрядчиков нет</p>
-								</TableCell>
-							</TableRow>
-						) : (
-							filtered.map((c) => {
-								const contractAmt = parseFloat(c.contractAmount || "0");
-								const paid = parseFloat(c.paidAmount || "0");
-								const outstanding = contractAmt - paid;
-								return (
-									<TableRow key={c.id} className="hover:bg-gray-50">
-										<TableCell>
-											<div className="flex items-center gap-2.5">
-												<div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 text-xs font-bold">
-													{c.fullName.charAt(0)}
-												</div>
-												<div>
-													<p className="font-medium text-sm text-gray-900">
-														{c.fullName}
-													</p>
-													<p className="text-xs text-gray-400">
-														{c.type === "company" ? "Компания" : "ИП"}
-													</p>
-												</div>
-											</div>
-										</TableCell>
-										<TableCell className="text-sm text-gray-600">
-											{c.specialization || "—"}
-										</TableCell>
-										<TableCell>
-											<div className="text-xs">
-												<p className="text-gray-600">{c.phone || "—"}</p>
-												{c.inn && <p className="text-gray-400">ИНН: {c.inn}</p>}
-												{c.okpo && <p className="text-gray-400">ОКПО: {c.okpo}</p>}
-											</div>
-										</TableCell>
-										<TableCell className="text-sm">
-											{c.contractNumber && (
-												<p className="font-medium text-gray-800">
-													№{c.contractNumber}
-												</p>
-											)}
-											{contractAmt > 0 && (
-												<p className="text-gray-400 text-xs">
-													{contractAmt.toLocaleString("ru-KG")} сом
-												</p>
-											)}
-											{c.contractDocument && (
-												<p className="text-amber-600 text-xs flex items-center gap-0.5 mt-0.5">
-													<FileText className="w-3 h-3" /> договор
-												</p>
-											)}
-											{!c.contractNumber && !c.contractDocument && "—"}
-										</TableCell>
-										<TableCell className="text-xs">
-											{contractAmt > 0 ? (
-												<div>
-													<p className="text-emerald-700 font-medium">
-														{paid.toLocaleString("ru-KG")} сом
-													</p>
-													<p className={outstanding > 0 ? "text-amber-600" : "text-gray-400"}>
-														ост. {outstanding.toLocaleString("ru-KG")} сом
-													</p>
-												</div>
-											) : "—"}
-										</TableCell>
-										<TableCell className="text-xs text-gray-600">
-											{c.stageId ? stageMap[c.stageId] || `Этап #${c.stageId}` : "—"}
-										</TableCell>
-										<TableCell>
-											{c.rating ? (
-												<div className="flex items-center gap-0.5">
-													{Array.from({ length: 5 }).map((_, i) => (
-														<Star
-															key={i}
-															className={`w-3.5 h-3.5 ${i < c.rating! ? "text-yellow-400 fill-yellow-400" : "text-gray-200"}`}
-														/>
-													))}
-												</div>
-											) : (
-												<span className="text-gray-400 text-sm">—</span>
-											)}
-										</TableCell>
-										<TableCell>
-											<Badge
-												className={
-													c.status === "active"
-														? "bg-emerald-100 text-emerald-800"
-														: c.status === "blacklisted"
-															? "bg-rose-100 text-rose-800"
-															: "bg-gray-100 text-gray-700"
-												}
-												variant="secondary"
-											>
-												{c.status === "active"
-													? "Активен"
-													: c.status === "blacklisted"
-														? "Чёрный список"
-														: "Неактивен"}
-											</Badge>
-										</TableCell>
-										<TableCell>
-											<div className="flex gap-1 justify-center">
-												<Button
-													size="sm"
-													variant="ghost"
-													className="h-7 w-7 p-0"
-													onClick={() => setDialog(c)}
-												>
-													<Edit2 className="w-3.5 h-3.5 text-gray-400" />
-												</Button>
-												<Button
-													size="sm"
-													variant="ghost"
-													className="h-7 w-7 p-0"
-													onClick={() => handleDelete(c.id)}
-												>
-													<Trash2 className="w-3.5 h-3.5 text-gray-400 hover:text-rose-600" />
-												</Button>
-											</div>
-										</TableCell>
-									</TableRow>
-								);
-							})
-						)}
-					</TableBody>
-				</Table>
-			</div>
+			<DataTable
+				tableId="construction-contractors"
+				columns={columns}
+				data={contractors}
+				isLoading={isLoading}
+				enableSearch
+				searchPlaceholder="Поиск по названию или специализации..."
+				initialSorting={[{ id: "fullName", desc: false }]}
+				onRowClick={(c) => setDialog(c)}
+				rowClassName={() => "cursor-pointer hover:bg-gray-50"}
+				emptyState={
+					<div className="flex flex-col items-center gap-2">
+						<Briefcase className="w-10 h-10 opacity-20" />
+						<span>Подрядчиков нет</span>
+					</div>
+				}
+			/>
 
 			<ContractorDialog
 				key={

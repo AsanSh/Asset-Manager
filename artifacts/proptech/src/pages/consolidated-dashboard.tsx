@@ -1,4 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table";
 import {
 	AlertCircle,
 	ArrowRight,
@@ -18,8 +21,24 @@ import { useAuth } from "@/lib/auth";
 function fmtFull(n: unknown) {
 	const v = parseFloat(String(n ?? "0"));
 	if (Number.isNaN(v)) return "0";
-	return new Intl.NumberFormat("ru-RU").format(Math.round(v));
+	return new Intl.NumberFormat("ru-KG", { maximumFractionDigits: 0 }).format(
+		Math.round(v),
+	);
 }
+
+type ProjectRow = {
+	id: number;
+	name: string;
+	status?: string;
+	income: number;
+	expense: number;
+	profit: number;
+	unitsTotal: number;
+	unitsSold: number;
+	salesSum: number;
+	paidSum: number;
+	overdue: number;
+};
 
 const PROJECT_STATUS: Record<string, { label: string; className: string }> = {
 	planning: { label: "Планирование", className: "bg-slate-100 text-slate-700" },
@@ -133,6 +152,127 @@ export default function ConsolidatedDashboard() {
 		{ income: 0, expense: 0, sales: 0, paid: 0, overdue: 0, units: 0, sold: 0 },
 	);
 	const totalProfit = totals.income - totals.expense;
+
+	const projectColumns = useMemo<ColumnDef<ProjectRow, unknown>[]>(
+		() => [
+			{
+				id: "name",
+				header: "Проект",
+				size: 180,
+				minSize: 140,
+				maxSize: 280,
+				accessorKey: "name",
+				meta: { exportLabel: "Проект", grow: true, pinned: "left" },
+				cell: ({ row }) => (
+					<Link
+						href="/construction/projects"
+						className="font-medium text-am-text-strong hover:text-amber-600 truncate block"
+						title={row.original.name}
+					>
+						{row.original.name}
+					</Link>
+				),
+			},
+			{
+				id: "status",
+				header: "Статус",
+				size: 110,
+				accessorKey: "status",
+				meta: { exportLabel: "Статус" },
+				cell: ({ row }) => {
+					const st =
+						PROJECT_STATUS[row.original.status || ""] ||
+						PROJECT_STATUS.planning;
+					return (
+						<Badge variant="outline" className={`text-[10px] ${st.className}`}>
+							{st.label}
+						</Badge>
+					);
+				},
+			},
+			{
+				id: "income",
+				header: "Доходы",
+				size: 110,
+				accessorKey: "income",
+				meta: { exportLabel: "Доходы", align: "right", financeAmount: true },
+				cell: ({ row }) => (
+					<span className="tabular-nums text-emerald-700">
+						{fmtFull(row.original.income)} сом
+					</span>
+				),
+			},
+			{
+				id: "expense",
+				header: "Расходы",
+				size: 110,
+				accessorKey: "expense",
+				meta: { exportLabel: "Расходы", align: "right", financeAmount: true },
+				cell: ({ row }) => (
+					<span className="tabular-nums text-rose-600">
+						{fmtFull(row.original.expense)} сом
+					</span>
+				),
+			},
+			{
+				id: "profit",
+				header: "Прибыль",
+				size: 110,
+				accessorKey: "profit",
+				meta: { exportLabel: "Прибыль", align: "right", financeAmount: true },
+				cell: ({ row }) => (
+					<span
+						className={`tabular-nums font-semibold ${row.original.profit >= 0 ? "text-am-text-strong" : "text-rose-600"}`}
+					>
+						{fmtFull(row.original.profit)} сом
+					</span>
+				),
+			},
+			{
+				id: "sales",
+				header: "Продажи",
+				size: 120,
+				accessorKey: "salesSum",
+				meta: { exportLabel: "Продажи", align: "right", financeAmount: true },
+				cell: ({ row }) => (
+					<div className="text-right tabular-nums">
+						<div>{fmtFull(row.original.salesSum)} сом</div>
+						<div className="text-[10px] text-am-text-muted">
+							опл. {fmtFull(row.original.paidSum)} сом
+						</div>
+					</div>
+				),
+			},
+			{
+				id: "chess",
+				header: "Шахматка",
+				size: 90,
+				accessorFn: (r) => r.unitsSold,
+				meta: { exportLabel: "Шахматка", align: "center" },
+				cell: ({ row }) => (
+					<span className="text-center block tabular-nums">
+						{row.original.unitsSold} / {row.original.unitsTotal}
+					</span>
+				),
+			},
+			{
+				id: "overdue",
+				header: "Просрочка",
+				size: 110,
+				accessorKey: "overdue",
+				meta: { exportLabel: "Просрочка", align: "right", financeAmount: true, pinned: "right" },
+				cell: ({ row }) =>
+					row.original.overdue > 0 ? (
+						<span className="tabular-nums text-rose-600">
+							{fmtFull(row.original.overdue)} сом
+						</span>
+					) : (
+						<span className="text-am-text-muted">—</span>
+					),
+			},
+		],
+		[],
+	);
 
 	const cashBalance = accountsArray
 		.filter((a: { currency?: string }) => a.currency === "KGS")
@@ -249,8 +389,8 @@ export default function ConsolidatedDashboard() {
 				</div>
 			</div>
 
-			<div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-				<div className="px-5 py-4 border-b flex items-center justify-between">
+			<div className="space-y-2">
+				<div className="flex items-center justify-between px-1">
 					<h2 className="font-semibold text-gray-900">Свод по каждому проекту</h2>
 					<Link href="/construction/projects">
 						<span className="text-xs text-amber-600 hover:text-orange-600 inline-flex items-center gap-1 cursor-pointer">
@@ -258,126 +398,43 @@ export default function ConsolidatedDashboard() {
 						</span>
 					</Link>
 				</div>
-				{loadingProjects ? (
-					<p className="p-8 text-center text-gray-400 text-sm">Загрузка...</p>
-				) : projectRows.length === 0 ? (
-					<p className="p-8 text-center text-gray-400 text-sm">
-						Нет проектов. Создайте проекты в модуле «Строительство».
-					</p>
-				) : (
-					<div className="overflow-x-auto">
-						<table className="w-full text-sm">
-							<thead className="bg-gray-50 text-left">
-								<tr>
-									<th className="px-4 py-3 font-medium text-gray-600">Проект</th>
-									<th className="px-4 py-3 font-medium text-gray-600">Статус</th>
-									<th className="px-4 py-3 font-medium text-gray-600 text-right">
-										Доходы
-									</th>
-									<th className="px-4 py-3 font-medium text-gray-600 text-right">
-										Расходы
-									</th>
-									<th className="px-4 py-3 font-medium text-gray-600 text-right">
-										Прибыль
-									</th>
-									<th className="px-4 py-3 font-medium text-gray-600 text-right">
-										Продажи
-									</th>
-									<th className="px-4 py-3 font-medium text-gray-600 text-center">
-										Шахматка
-									</th>
-									<th className="px-4 py-3 font-medium text-gray-600 text-right">
-										Просрочка
-									</th>
-								</tr>
-							</thead>
-							<tbody>
-								{projectRows.map((row) => {
-									const st =
-										PROJECT_STATUS[row.status || ""] ||
-										PROJECT_STATUS.planning;
-									return (
-										<tr
-											key={row.id}
-											className="border-t hover:bg-amber-50/30"
-										>
-											<td className="px-4 py-3 font-medium text-gray-900">
-												<Link
-													href={`/construction/projects`}
-													className="hover:text-amber-600"
-												>
-													{row.name}
-												</Link>
-											</td>
-											<td className="px-4 py-3">
-												<Badge
-													variant="outline"
-													className={`text-[10px] ${st.className}`}
-												>
-													{st.label}
-												</Badge>
-											</td>
-											<td className="px-4 py-3 text-right font-mono text-emerald-700">
-												{fmtFull(row.income)}
-											</td>
-											<td className="px-4 py-3 text-right font-mono text-rose-600">
-												{fmtFull(row.expense)}
-											</td>
-											<td
-												className={`px-4 py-3 text-right font-mono font-semibold ${row.profit >= 0 ? "text-gray-900" : "text-rose-600"}`}
-											>
-												{fmtFull(row.profit)}
-											</td>
-											<td className="px-4 py-3 text-right">
-												<div className="font-mono">{fmtFull(row.salesSum)}</div>
-												<div className="text-[10px] text-gray-400">
-													опл. {fmtFull(row.paidSum)}
-												</div>
-											</td>
-											<td className="px-4 py-3 text-center text-gray-700">
-												{row.unitsSold} / {row.unitsTotal}
-											</td>
-											<td className="px-4 py-3 text-right font-mono">
-												{row.overdue > 0 ? (
-													<span className="text-rose-600">
-														{fmtFull(row.overdue)}
-													</span>
-												) : (
-													<span className="text-gray-300">—</span>
-												)}
-											</td>
-										</tr>
-									);
-								})}
-							</tbody>
-							<tfoot className="bg-gray-50 border-t font-semibold">
-								<tr>
-									<td className="px-4 py-3" colSpan={2}>
-										Итого
-									</td>
-									<td className="px-4 py-3 text-right font-mono text-emerald-700">
-										{fmtFull(totals.income)}
-									</td>
-									<td className="px-4 py-3 text-right font-mono text-rose-600">
-										{fmtFull(totals.expense)}
-									</td>
-									<td className="px-4 py-3 text-right font-mono">
-										{fmtFull(totalProfit)}
-									</td>
-									<td className="px-4 py-3 text-right font-mono">
-										{fmtFull(totals.sales)}
-									</td>
-									<td className="px-4 py-3 text-center">
-										{totals.sold} / {totals.units}
-									</td>
-									<td className="px-4 py-3 text-right font-mono text-rose-600">
-										{fmtFull(totals.overdue)}
-									</td>
-								</tr>
-							</tfoot>
-						</table>
-					</div>
-				)}
+				<DataTable
+					tableId="consolidated-dashboard-projects"
+					columns={projectColumns}
+					data={projectRows as ProjectRow[]}
+					isLoading={loadingProjects}
+					initialSorting={[{ id: "name", desc: false }]}
+					emptyState={
+						<p className="py-8 text-center text-am-text-muted text-sm">
+							Нет проектов. Создайте проекты в модуле «Строительство».
+						</p>
+					}
+					footer={
+						projectRows.length > 0 ? (
+							<div className="grid grid-cols-[minmax(140px,1fr)_repeat(6,minmax(90px,1fr))] gap-2 px-3 py-2.5 text-xs font-semibold bg-gray-50/90 border-t border-am-border">
+								<span className="col-span-2">Итого</span>
+								<span className="text-right tabular-nums text-emerald-700">
+									{fmtFull(totals.income)} сом
+								</span>
+								<span className="text-right tabular-nums text-rose-600">
+									{fmtFull(totals.expense)} сом
+								</span>
+								<span className="text-right tabular-nums">
+									{fmtFull(totalProfit)} сом
+								</span>
+								<span className="text-right tabular-nums">
+									{fmtFull(totals.sales)} сом
+								</span>
+								<span className="text-center tabular-nums">
+									{totals.sold} / {totals.units}
+								</span>
+								<span className="text-right tabular-nums text-rose-600">
+									{fmtFull(totals.overdue)} сом
+								</span>
+							</div>
+						) : undefined
+					}
+				/>
 			</div>
 
 			<p className="text-xs text-gray-400 text-center">

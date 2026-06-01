@@ -1,4 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table";
 import { api } from "@/lib/api";
 
 function fmtFull(n: any) {
@@ -38,6 +41,55 @@ export default function ConstructionExpenseAnalysis() {
 			byProject[o.projectId] =
 				(byProject[o.projectId] || 0) + parseFloat(o.amountKgs || "0");
 	});
+
+	const expenseColumns = useMemo<ColumnDef<(typeof expenses)[number], unknown>[]>(
+		() => [
+			{
+				id: "date",
+				header: "Дата",
+				size: 100,
+				accessorKey: "date",
+				meta: { exportLabel: "Дата", pinned: "left" },
+			},
+			{
+				id: "description",
+				header: "Описание",
+				size: 220,
+				minSize: 140,
+				maxSize: 480,
+				accessorKey: "description",
+				meta: { exportLabel: "Описание", grow: true },
+				cell: ({ row }) => (
+					<span className="font-medium truncate block" title={row.original.description}>
+						{row.original.description}
+					</span>
+				),
+			},
+			{
+				id: "category",
+				header: "Статья",
+				size: 140,
+				accessorKey: "category",
+				meta: { exportLabel: "Статья" },
+				cell: ({ row }) => (
+					<span className="text-xs text-am-text-muted">{row.original.category}</span>
+				),
+			},
+			{
+				id: "amountKgs",
+				header: "Сумма",
+				size: 120,
+				accessorFn: (row) => parseFloat(row.amountKgs || "0"),
+				meta: { exportLabel: "Сумма", align: "right", financeAmount: true, pinned: "right" },
+				cell: ({ row }) => (
+					<span className="tabular-nums text-rose-700 font-medium">
+						−{fmtFull(row.original.amountKgs)} сом
+					</span>
+				),
+			},
+		],
+		[],
+	);
 
 	const COLORS = [
 		"bg-orange-400",
@@ -156,54 +208,19 @@ export default function ConstructionExpenseAnalysis() {
 				</div>
 			</div>
 
-			{/* Expense table */}
-			<div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden mt-6">
-				<div className="p-4 border-b border-gray-50 text-sm font-semibold text-gray-700">
-					Детализация расходов
-				</div>
-				<table className="w-full text-sm">
-					<thead>
-						<tr className="bg-gray-50 border-b border-gray-100">
-							<th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">
-								Дата
-							</th>
-							<th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">
-								Описание
-							</th>
-							<th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">
-								Статья
-							</th>
-							<th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-500">
-								Сумма KGS
-							</th>
-						</tr>
-					</thead>
-					<tbody>
-						{expenses.length === 0 ? (
-							<tr>
-								<td colSpan={4} className="text-center py-8 text-gray-400">
-									Нет расходных операций
-								</td>
-							</tr>
-						) : (
-							expenses.map((op: any) => (
-								<tr
-									key={op.id}
-									className="border-b border-gray-50 hover:bg-gray-50/50"
-								>
-									<td className="px-4 py-2.5 text-gray-500">{op.date}</td>
-									<td className="px-4 py-2.5 font-medium">{op.description}</td>
-									<td className="px-4 py-2.5 text-gray-400 text-xs">
-										{op.category}
-									</td>
-									<td className="px-4 py-2.5 text-right font-mono text-rose-700 font-medium">
-										-{fmtFull(op.amountKgs)}
-									</td>
-								</tr>
-							))
-						)}
-					</tbody>
-				</table>
+			<div className="mt-6 space-y-2">
+				<p className="text-sm font-semibold text-gray-700 px-1">Детализация расходов</p>
+				<DataTable
+					tableId="construction-expense-detail"
+					columns={expenseColumns}
+					data={expenses}
+					enableSearch
+					searchPlaceholder="Поиск по описанию или статье…"
+					initialSorting={[{ id: "date", desc: true }]}
+					emptyState={
+						<p className="py-8 text-center text-am-text-muted">Нет расходных операций</p>
+					}
+				/>
 			</div>
 		</div>
 	);

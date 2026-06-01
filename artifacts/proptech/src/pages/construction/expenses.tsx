@@ -1,6 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Receipt, Trash2, TrendingDown } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table";
 import { defaultPeriod, inPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,15 +21,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { getApiBase } from "@/lib/api-base";
@@ -187,13 +180,13 @@ function ExpenseDialog({
 				</DialogHeader>
 				<form onSubmit={handleSubmit} className="space-y-3">
 					<div className="grid grid-cols-2 gap-3">
-						<div>
-							<Label>Проект *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Проект *</Label>
 							<Select
 								value={form.projectId}
 								onValueChange={(v) => set("projectId", v)}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -205,13 +198,13 @@ function ExpenseDialog({
 								</SelectContent>
 							</Select>
 						</div>
-						<div>
-							<Label>Категория *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Категория *</Label>
 							<Select
 								value={form.category}
 								onValueChange={(v) => set("category", v)}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -223,19 +216,19 @@ function ExpenseDialog({
 								</SelectContent>
 							</Select>
 						</div>
-						<div className="col-span-2">
-							<Label>Описание *</Label>
+						<div className="col-span-2 flex flex-col">
+							<Label className="leading-tight mb-1.5">Описание *</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								value={form.description}
 								onChange={(e) => set("description", e.target.value)}
 								required
 							/>
 						</div>
-						<div>
-							<Label>Сумма *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Сумма *</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								type="number"
 								min="0"
 								step="0.01"
@@ -244,13 +237,13 @@ function ExpenseDialog({
 								required
 							/>
 						</div>
-						<div>
-							<Label>Валюта</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Валюта</Label>
 							<Select
 								value={form.currency}
 								onValueChange={(v) => set("currency", v)}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -294,13 +287,13 @@ function ExpenseDialog({
 								</div>
 							</>
 						)}
-						<div>
-							<Label>Подрядчик</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Подрядчик</Label>
 							<Select
 								value={form.contractorId}
 								onValueChange={(v) => set("contractorId", v)}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue placeholder="Не указан" />
 								</SelectTrigger>
 								<SelectContent>
@@ -313,13 +306,13 @@ function ExpenseDialog({
 								</SelectContent>
 							</Select>
 						</div>
-						<div>
-							<Label>Способ оплаты</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Способ оплаты</Label>
 							<Select
 								value={form.paymentMethod}
 								onValueChange={(v) => set("paymentMethod", v)}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -331,10 +324,10 @@ function ExpenseDialog({
 								</SelectContent>
 							</Select>
 						</div>
-						<div className="col-span-2">
-							<Label>Дата</Label>
+						<div className="col-span-2 flex flex-col">
+							<Label className="leading-tight mb-1.5">Дата</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								type="date"
 								value={form.date}
 								onChange={(e) => set("date", e.target.value)}
@@ -425,6 +418,127 @@ export default function ConstructionExpenses() {
 		RATE_SOURCES.map((r) => [r.value, r.label]),
 	);
 
+	const columns = useMemo<ColumnDef<any, unknown>[]>(
+		() => [
+			{
+				accessorKey: "date",
+				header: "Дата",
+				size: 110,
+				meta: { exportLabel: "Дата" },
+				cell: ({ row }) => (
+					<span className="text-sm text-gray-600 whitespace-nowrap">
+						{new Date(row.original.date).toLocaleDateString("ru-KG")}
+					</span>
+				),
+			},
+			{
+				id: "project",
+				header: "Проект",
+				size: 130,
+				accessorFn: (row: any) => row.projectName || `#${row.projectId}`,
+				meta: { exportLabel: "Проект" },
+				cell: ({ getValue }) => (
+					<span className="text-xs text-gray-500 truncate block max-w-[140px]">
+						{getValue() as string}
+					</span>
+				),
+			},
+			{
+				accessorKey: "category",
+				header: "Категория",
+				size: 140,
+				meta: { exportLabel: "Категория" },
+				cell: ({ row }) => (
+					<Badge
+						variant="secondary"
+						className="text-[10px] bg-amber-50 text-amber-700"
+					>
+						{row.original.category}
+					</Badge>
+				),
+			},
+			{
+				accessorKey: "description",
+				header: "Описание",
+				size: 180,
+				meta: { exportLabel: "Описание" },
+				cell: ({ row }) => (
+					<span className="text-sm text-gray-800 truncate block max-w-[180px]">
+						{row.original.description}
+					</span>
+				),
+			},
+			{
+				id: "contractor",
+				header: "Подрядчик",
+				size: 130,
+				accessorFn: (row: any) => row.contractorName || "—",
+				meta: { exportLabel: "Подрядчик" },
+				cell: ({ getValue }) => (
+					<span className="text-xs text-gray-500">{getValue() as string}</span>
+				),
+			},
+			{
+				id: "amount",
+				header: "Сумма",
+				size: 130,
+				accessorFn: (row: any) => parseFloat(row.amount || "0"),
+				meta: { exportLabel: "Сумма", align: "right" },
+				cell: ({ row }) => (
+					<span className="text-sm font-medium text-gray-800 whitespace-nowrap font-mono">
+						{parseFloat(row.original.amount).toLocaleString("ru-KG")}{" "}
+						{row.original.currency}
+					</span>
+				),
+			},
+			{
+				id: "amountKgs",
+				header: "В KGS",
+				size: 130,
+				accessorFn: (row: any) =>
+					parseFloat(row.amountKgs || row.amount || "0"),
+				meta: { exportLabel: "Сумма (сом)", align: "right" },
+				cell: ({ row }) => (
+					<span className="text-sm font-semibold text-rose-600 whitespace-nowrap font-mono">
+						{fmtKgs(row.original.amountKgs || row.original.amount)}
+					</span>
+				),
+			},
+			{
+				id: "rate",
+				header: "Курс",
+				size: 100,
+				accessorFn: (row: any) =>
+					row.currency !== "KGS"
+						? RATE_LABELS[row.exchangeRateSource] || row.exchangeRateSource
+						: "—",
+				meta: { exportLabel: "Курс" },
+				cell: ({ getValue }) => (
+					<span className="text-xs text-gray-400">{getValue() as string}</span>
+				),
+			},
+			{
+				id: "__actions",
+				header: "Удалить",
+				size: 80,
+				enableSorting: false,
+				meta: { align: "center" },
+				cell: ({ row }) => (
+					<Button
+						size="sm"
+						variant="ghost"
+						className="h-7 w-7 p-0"
+						onClick={() => handleDelete(row.original.id)}
+					>
+						<Trash2 className="w-3.5 h-3.5 text-gray-400 hover:text-rose-600" />
+					</Button>
+				),
+			},
+		],
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+		[RATE_LABELS],
+	);
+
 	return (
 		<div className="space-y-6">
 			<div className="flex items-center justify-between">
@@ -479,93 +593,19 @@ export default function ConstructionExpenses() {
 				))}
 			</div>
 
-			<div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-				<Table>
-					<TableHeader>
-						<TableRow className="bg-gray-50">
-							<TableHead>Дата</TableHead>
-							<TableHead>Проект</TableHead>
-							<TableHead>Категория</TableHead>
-							<TableHead>Описание</TableHead>
-							<TableHead>Подрядчик</TableHead>
-							<TableHead className="text-right">Сумма</TableHead>
-							<TableHead className="text-right">В KGS</TableHead>
-							<TableHead>Курс</TableHead>
-							<TableHead className="text-center">Удалить</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isLoading ? (
-							Array.from({ length: 5 }).map((_, i) => (
-								<TableRow key={i}>
-									{Array.from({ length: 9 }).map((_, j) => (
-										<TableCell key={j}>
-											<Skeleton className="h-4 w-full" />
-										</TableCell>
-									))}
-								</TableRow>
-							))
-						) : filteredExpenses.length === 0 ? (
-							<TableRow>
-								<TableCell
-									colSpan={9}
-									className="text-center py-12 text-gray-400"
-								>
-									<Receipt className="w-10 h-10 mx-auto mb-2 opacity-20" />
-									<p>Расходов нет</p>
-								</TableCell>
-							</TableRow>
-						) : (
-							filteredExpenses.map((e) => (
-								<TableRow key={e.id} className="hover:bg-gray-50">
-									<TableCell className="text-sm text-gray-600 whitespace-nowrap">
-										{new Date(e.date).toLocaleDateString("ru-KG")}
-									</TableCell>
-									<TableCell className="text-xs text-gray-500 max-w-[100px] truncate">
-										{e.projectName || `#${e.projectId}`}
-									</TableCell>
-									<TableCell>
-										<Badge
-											variant="secondary"
-											className="text-[10px] bg-amber-50 text-amber-700"
-										>
-											{e.category}
-										</Badge>
-									</TableCell>
-									<TableCell className="text-sm text-gray-800 max-w-[150px] truncate">
-										{e.description}
-									</TableCell>
-									<TableCell className="text-xs text-gray-500">
-										{e.contractorName || "—"}
-									</TableCell>
-									<TableCell className="text-right text-sm font-medium text-gray-800 whitespace-nowrap">
-										{parseFloat(e.amount).toLocaleString("ru-KG")} {e.currency}
-									</TableCell>
-									<TableCell className="text-right text-sm font-semibold text-rose-600 whitespace-nowrap">
-										{fmtKgs(e.amountKgs || e.amount)}
-									</TableCell>
-									<TableCell className="text-xs text-gray-400">
-										{e.currency !== "KGS"
-											? RATE_LABELS[e.exchangeRateSource] ||
-												e.exchangeRateSource
-											: "—"}
-									</TableCell>
-									<TableCell className="text-center">
-										<Button
-											size="sm"
-											variant="ghost"
-											className="h-7 w-7 p-0"
-											onClick={() => handleDelete(e.id)}
-										>
-											<Trash2 className="w-3.5 h-3.5 text-gray-400 hover:text-rose-600" />
-										</Button>
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</div>
+			<DataTable
+				tableId="construction-expenses"
+				columns={columns}
+				data={filteredExpenses}
+				isLoading={isLoading}
+				initialSorting={[{ id: "date", desc: true }]}
+				emptyState={
+					<div className="flex flex-col items-center gap-2">
+						<Receipt className="w-10 h-10 text-gray-200" />
+						<span>Расходов нет</span>
+					</div>
+				}
+			/>
 
 			<ExpenseDialog
 				expense={dialog}

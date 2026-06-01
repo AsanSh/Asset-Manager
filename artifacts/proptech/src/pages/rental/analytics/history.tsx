@@ -11,11 +11,12 @@ import {
 	getRentalExpensesAllQueryKey,
 	getAccrualsOpenQueryKey,
 } from "@/lib/rental-query-keys";
-import { Download, Search } from "lucide-react";
-import { useState } from "react";
+import { Download } from "lucide-react";
+import { useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
 	Select,
 	SelectContent,
@@ -33,19 +34,13 @@ const methodLabels: Record<string, string> = {
 	other: "Другое",
 };
 
-function fmtFull(n: any) {
-	const v = parseFloat(n || "0");
-	if (Number.isNaN(v)) return "0 ₸";
-	return new Intl.NumberFormat("ru-KG", {
-		style: "currency",
-		currency: "KGS",
-		minimumFractionDigits: 0,
-		maximumFractionDigits: 0,
-	}).format(v);
+function fmtFull(n: unknown) {
+	const v = parseFloat(String(n ?? "0"));
+	if (Number.isNaN(v)) return "0 сом";
+	return `${new Intl.NumberFormat("ru-KG", { maximumFractionDigits: 0 }).format(v)} сом`;
 }
 
 export default function RentalHistory() {
-	const [search, setSearch] = useState("");
 	const [period, setPeriod] = useState("all");
 	const [method, setMethod] = useState("all");
 
@@ -104,14 +99,6 @@ export default function RentalHistory() {
 				if (period === "year" && d.getFullYear() !== now.getFullYear())
 					return false;
 			}
-			if (search) {
-				const q = search.toLowerCase();
-				if (
-					!p.tenant?.name?.toLowerCase().includes(q) &&
-					!p.contract?.propertyAddress?.toLowerCase().includes(q)
-				)
-					return false;
-			}
 			return true;
 		})
 		.sort((a: any, b: any) =>
@@ -121,6 +108,100 @@ export default function RentalHistory() {
 	const total = filtered.reduce(
 		(s: number, p: any) => s + parseFloat(p.amount || "0"),
 		0,
+	);
+
+	type HistoryRow = (typeof filtered)[number];
+
+	const columns = useMemo<ColumnDef<HistoryRow, unknown>[]>(
+		() => [
+			{
+				id: "tenant",
+				header: "Арендатор",
+				size: 220,
+				minSize: 160,
+				maxSize: 400,
+				accessorFn: (row) => row.tenant?.name || "",
+				meta: { exportLabel: "Арендатор", grow: true },
+				cell: ({ row }) => (
+					<div className="min-w-0">
+						<p className="font-medium truncate" title={row.original.tenant?.name}>
+							{row.original.tenant?.name || "—"}
+						</p>
+						<p
+							className="text-xs text-am-text-muted truncate"
+							title={
+								row.original.contract?.propertyAddress ||
+								`Дог. #${row.original.leaseContractId}`
+							}
+						>
+							{row.original.contract?.propertyAddress ||
+								`Дог. #${row.original.leaseContractId}`}
+						</p>
+					</div>
+				),
+			},
+			{
+				id: "paymentDate",
+				header: "Дата",
+				size: 110,
+				accessorFn: (row) => row.paymentDate || "",
+				meta: { exportLabel: "Дата" },
+				cell: ({ row }) =>
+					row.original.paymentDate
+						? new Date(row.original.paymentDate).toLocaleDateString("ru-KG")
+						: "—",
+			},
+			{
+				id: "amount",
+				header: "Сумма",
+				size: 120,
+				accessorFn: (row) => parseFloat(row.amount || "0"),
+				meta: { exportLabel: "Сумма", align: "right", financeAmount: true },
+				cell: ({ row }) => (
+					<span className="text-emerald-600 font-semibold tabular-nums">
+						{fmtFull(row.original.amount)}
+					</span>
+				),
+			},
+			{
+				id: "method",
+				header: "Способ",
+				size: 120,
+				accessorFn: (row) =>
+					methodLabels[row.paymentMethod] || row.paymentMethod || "",
+				meta: { exportLabel: "Способ" },
+				cell: ({ row }) => (
+					<Badge className="bg-gray-100 text-gray-700 font-normal">
+						{methodLabels[row.original.paymentMethod] ||
+							row.original.paymentMethod ||
+							"—"}
+					</Badge>
+				),
+			},
+			{
+				id: "account",
+				header: "Счёт",
+				size: 140,
+				accessorFn: (row) => row.account?.name || "",
+				meta: { exportLabel: "Счёт" },
+				cell: ({ row }) => row.original.account?.name || "—",
+			},
+			{
+				id: "note",
+				header: "Примечание",
+				size: 180,
+				minSize: 100,
+				maxSize: 360,
+				accessorFn: (row) => row.note || "",
+				meta: { exportLabel: "Примечание", grow: true },
+				cell: ({ row }) => (
+					<span className="truncate block" title={row.original.note || undefined}>
+						{row.original.note || "—"}
+					</span>
+				),
+			},
+		],
+		[],
 	);
 
 	return (
@@ -137,16 +218,7 @@ export default function RentalHistory() {
 				</Button>
 			</div>
 
-			<div className="flex gap-2 mb-4">
-				<div className="relative flex-1">
-					<Search className="absolute left-2.5 top-2 w-4 h-4 text-gray-400" />
-					<Input
-						className="pl-8 h-8 text-sm"
-						placeholder="Поиск по арендатору или адресу..."
-						value={search}
-						onChange={(e) => setSearch(e.target.value)}
-					/>
-				</div>
+			<div className="flex gap-2 mb-4 flex-wrap">
 				<Select value={period} onValueChange={setPeriod}>
 					<SelectTrigger className="w-36 h-8 text-sm">
 						<SelectValue />
@@ -181,79 +253,16 @@ export default function RentalHistory() {
 				</span>
 			</div>
 
-			<div className="bg-white border rounded-lg overflow-hidden">
-				<table className="w-full text-sm">
-					<thead className="bg-gray-50">
-						<tr>
-							<th className="text-left p-3 font-medium text-gray-600">
-								Арендатор
-							</th>
-							<th className="text-left p-3 font-medium text-gray-600">Дата</th>
-							<th className="text-right p-3 font-medium text-gray-600">
-								Сумма
-							</th>
-							<th className="text-left p-3 font-medium text-gray-600">
-								Способ
-							</th>
-							<th className="text-left p-3 font-medium text-gray-600">Счёт</th>
-							<th className="text-left p-3 font-medium text-gray-600">
-								Примечание
-							</th>
-						</tr>
-					</thead>
-					<tbody>
-						{isLoading ? (
-							<tr>
-								<td colSpan={6} className="p-8 text-center text-gray-400">
-									Загрузка...
-								</td>
-							</tr>
-						) : filtered.length === 0 ? (
-							<tr>
-								<td
-									colSpan={6}
-									className="p-10 text-center text-gray-400 text-sm"
-								>
-									Нет платежей
-								</td>
-							</tr>
-						) : (
-							filtered.map((p: any) => (
-								<tr key={p.id} className="border-t hover:bg-gray-50">
-									<td className="p-3">
-										<p className="font-medium text-gray-900">
-											{p.tenant?.name || "—"}
-										</p>
-										<p className="text-xs text-gray-400">
-											{p.contract?.propertyAddress ||
-												`Дог. #${p.leaseContractId}`}
-										</p>
-									</td>
-									<td className="p-3 text-gray-600">
-										{p.paymentDate
-											? new Date(p.paymentDate).toLocaleDateString("ru-KG")
-											: "—"}
-									</td>
-									<td className="p-3 text-right font-semibold text-emerald-600">
-										{fmtFull(p.amount)}
-									</td>
-									<td className="p-3">
-										<Badge className="bg-gray-100 text-gray-700 font-normal">
-											{methodLabels[p.paymentMethod] || p.paymentMethod || "—"}
-										</Badge>
-									</td>
-									<td className="p-3 text-gray-500 text-xs">
-										{p.account?.name || "—"}
-									</td>
-									<td className="p-3 text-gray-400 text-xs max-w-xs truncate">
-										{p.note || "—"}
-									</td>
-								</tr>
-							))
-						)}
-					</tbody>
-				</table>
-			</div>
+			<DataTable
+				tableId="rental-payment-history"
+				columns={columns}
+				data={filtered}
+				isLoading={isLoading}
+				enableSearch
+				searchPlaceholder="Поиск по арендатору или адресу…"
+				initialSorting={[{ id: "paymentDate", desc: true }]}
+				emptyState={<p className="py-8 text-center text-am-text-muted">Нет платежей</p>}
+			/>
 		</div>
 	);
 }

@@ -35,10 +35,10 @@ export default function ConstructionSettings() {
 				</CardHeader>
 				<CardContent className="space-y-6">
 					<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-						<div className="space-y-2">
-							<Label>Валюта по умолчанию</Label>
+						<div className="space-y-2 flex flex-col">
+							<Label className="leading-tight mb-1.5">Валюта по умолчанию</Label>
 							<Select defaultValue="kgs">
-								<SelectTrigger>
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -50,10 +50,10 @@ export default function ConstructionSettings() {
 							</Select>
 						</div>
 
-						<div className="space-y-2">
-							<Label>Точность расчётов (знаков после запятой)</Label>
+						<div className="space-y-2 flex flex-col">
+							<Label className="leading-tight mb-1.5">Точность расчётов (знаков после запятой)</Label>
 							<Select defaultValue="2">
-								<SelectTrigger>
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -64,10 +64,10 @@ export default function ConstructionSettings() {
 							</Select>
 						</div>
 
-						<div className="space-y-2">
-							<Label>Формат дат</Label>
+						<div className="space-y-2 flex flex-col">
+							<Label className="leading-tight mb-1.5">Формат дат</Label>
 							<Select defaultValue="dmy">
-								<SelectTrigger>
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -78,10 +78,10 @@ export default function ConstructionSettings() {
 							</Select>
 						</div>
 
-						<div className="space-y-2">
-							<Label>Часовой пояс</Label>
+						<div className="space-y-2 flex flex-col">
+							<Label className="leading-tight mb-1.5">Часовой пояс</Label>
 							<Select defaultValue="asia_bishkek">
-								<SelectTrigger>
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>

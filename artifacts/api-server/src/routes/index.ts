@@ -32,6 +32,10 @@ import crmRouter from "./crm";
 import platformAdminRouter from "./platform-admin";
 import marketplaceRouter from "./marketplace";
 import contractDocxRouter from "./contract-docx";
+import financeReconciliationRouter from "./finance-reconciliation";
+import payrollRouter from "./payroll";
+import supplyRouter from "./supply";
+import catalogRouter from "./catalog";
 
 const router: IRouter = Router();
 
@@ -55,6 +59,10 @@ router.use("/construction", constructionFinanceRouter);
 router.use(contractDocxRouter);
 router.use("/construction", constructionBudgetRouter);
 router.use("/construction", constructionReportsRouter);
+router.use("/construction", payrollRouter);
+router.use("/finance-reconciliation", financeReconciliationRouter);
+router.use(supplyRouter);
+router.use(catalogRouter);
 router.use(notificationsRouter);
 router.use(notificationsApiRouter);
 router.use(categoriesRouter);

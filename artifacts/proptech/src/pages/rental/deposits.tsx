@@ -13,13 +13,10 @@ import {
 } from "@/lib/rental-query-keys";
 import { Banknote, CheckCircle2, Plus, Shield, Wallet } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table";
 import { defaultPeriod, inPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
 import { KpiCard, KpiRow } from "@/components/kpi-card";
-import { RentalExcelTable, type RentalExcelColumn } from "@/components/rental/rental-excel-table";
-import { RentalViewModeToggle } from "@/components/rental/rental-view-mode-toggle";
-import { useRentalViewMode } from "@/hooks/use-rental-view-mode";
-import { useSortable } from "@/lib/use-sortable";
-import { SortHead } from "@/components/sort-head";
 import {
 	getListDepositsQueryKey,
 	useListDeposits,
@@ -42,14 +39,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 
@@ -182,9 +171,10 @@ function DepositDialog({ open, onClose }: DepositDialogProps) {
 						</Select>
 					</div>
 					<div className="grid grid-cols-3 gap-3">
-						<div className="col-span-2">
-							<Label>Сумма *</Label>
+						<div className="col-span-2 flex flex-col">
+							<Label className="leading-tight mb-1.5">Сумма *</Label>
 							<Input
+								className="mt-auto"
 								type="number"
 								value={formData.amount}
 								onChange={(e) =>
@@ -194,13 +184,13 @@ function DepositDialog({ open, onClose }: DepositDialogProps) {
 								required
 							/>
 						</div>
-						<div>
-							<Label>Валюта</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Валюта</Label>
 							<Select
 								value={formData.currency}
 								onValueChange={(v) => setFormData({ ...formData, currency: v })}
 							>
-								<SelectTrigger>
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -278,8 +268,6 @@ export default function Deposits() {
 	const depositsArray = Array.isArray(deposits) ? deposits : [];
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod());
-	const [viewMode, setViewMode] = useRentalViewMode("deposits");
-
 	const leaseLabel = useMemo(() => {
 		const map: Record<number, string> = {};
 		for (const l of leasesArray) {
@@ -297,26 +285,77 @@ export default function Deposits() {
 			})),
 		[filteredDeposits, leaseLabel],
 	);
-	const { sorted, sortKey, sortDir, toggle } = useSortable(enriched, "receivedDate");
-
 	const totalAmount = filteredDeposits.reduce((s, d) => s + parseFloat(String(d.amount || "0")), 0);
 	const totalReturned = filteredDeposits.reduce((s, d) => s + parseFloat(String(d.returnedAmount || "0")), 0);
 	const heldCount = filteredDeposits.filter((d) => d.status === "held").length;
 
-	const columns: RentalExcelColumn<(typeof enriched)[number]>[] = [
-		{ key: "contractLabel", label: "Договор", width: 180, render: (r) => r.contractLabel },
-		{ key: "receivedDate", label: "Получен", width: 110, render: (r) => formatDate(r.receivedDate) },
-		{ key: "amount", label: "Сумма", width: 120, align: "right", render: (r) => formatCurrency(r.amount, r.currency) },
-		{ key: "returnedAmount", label: "Возвращено", width: 120, align: "right", render: (r) => r.returnedAmount ? formatCurrency(r.returnedAmount, r.currency) : "—" },
-		{
-			key: "status", label: "Статус", width: 130, align: "center",
-			render: (r) => (
-				<span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${statusColors[r.status] || "bg-gray-100"}`}>
-					{statusLabels[r.status] || r.status}
-				</span>
-			),
-		},
-	];
+	type EnrichedDeposit = (typeof enriched)[number];
+
+	const tableColumns = useMemo<ColumnDef<EnrichedDeposit, unknown>[]>(
+		() => [
+			{
+				id: "contractLabel",
+				header: "Договор",
+				size: 200,
+				accessorFn: (row) => row.contractLabel,
+				meta: { exportLabel: "Договор" },
+				cell: ({ row }) => row.original.contractLabel,
+			},
+			{
+				id: "receivedDate",
+				header: "Получен",
+				size: 110,
+				accessorFn: (row) => row.receivedDate,
+				meta: { exportLabel: "Получен" },
+				cell: ({ row }) => formatDate(row.original.receivedDate),
+			},
+			{
+				id: "amount",
+				header: "Сумма",
+				size: 130,
+				accessorFn: (row) => parseFloat(String(row.amount || "0")),
+				meta: { exportLabel: "Сумма", align: "right" },
+				cell: ({ row }) => (
+					<span className="font-mono font-medium">
+						{formatCurrency(row.original.amount, row.original.currency)}
+					</span>
+				),
+			},
+			{
+				id: "returnedAmount",
+				header: "Возвращено",
+				size: 130,
+				accessorFn: (row) => parseFloat(String(row.returnedAmount || "0")),
+				meta: { exportLabel: "Возвращено", align: "right" },
+				cell: ({ row }) => (
+					<span className="font-mono text-blue-700">
+						{row.original.returnedAmount
+							? formatCurrency(
+									row.original.returnedAmount,
+									row.original.currency,
+								)
+							: "—"}
+					</span>
+				),
+			},
+			{
+				id: "status",
+				header: "Статус",
+				size: 140,
+				accessorKey: "status",
+				meta: { exportLabel: "Статус" },
+				cell: ({ row }) => (
+					<Badge
+						className={statusColors[row.original.status]}
+						variant="secondary"
+					>
+						{statusLabels[row.original.status] || row.original.status}
+					</Badge>
+				),
+			},
+		],
+		[],
+	);
 
 	return (
 		<div className="p-6 space-y-3">
@@ -335,7 +374,6 @@ export default function Deposits() {
 					</p>
 				</div>
 				<div className="flex items-center gap-2">
-					<RentalViewModeToggle mode={viewMode} onChange={setViewMode} />
 					<Button onClick={() => setDialogOpen(true)}>
 						<Plus className="w-4 h-4 mr-2" />
 						Добавить
@@ -345,80 +383,40 @@ export default function Deposits() {
 
 			<div className="flex items-center justify-between flex-wrap gap-2">
 				<PeriodPicker value={period} onChange={setPeriod} />
-				<p className="text-xs text-gray-500">{sorted.length} записей</p>
+				<p className="text-xs text-gray-500">{enriched.length} записей</p>
 			</div>
 
-			{viewMode === "report" ? (
-				<RentalExcelTable
-					columns={columns}
-					rows={sorted}
-					sortKey={sortKey}
-					sortDir={sortDir}
-					onSort={toggle}
+			<DataTable
+					tableId="rental-deposits"
+					columns={tableColumns}
+					data={enriched}
 					isLoading={isLoading}
-					emptyMessage="Депозиты не найдены"
-					rowKey={(r) => r.id}
-					footer={[
-						{ colSpan: 2, content: `Итого: ${filteredDeposits.length}` },
-						{ content: new Intl.NumberFormat("ru-RU").format(totalAmount), align: "right" },
-						{ content: totalReturned > 0 ? new Intl.NumberFormat("ru-RU").format(totalReturned) : "—", align: "right" },
-						{ content: "" },
-					]}
+					initialSorting={[{ id: "receivedDate", desc: true }]}
+					emptyState={
+						<div className="flex flex-col items-center gap-2 text-muted-foreground">
+							<Banknote className="h-8 w-8 opacity-30" />
+							<span>Депозиты не найдены</span>
+						</div>
+					}
+					footer={
+						!isLoading && filteredDeposits.length > 0 ? (
+							<div className="grid grid-cols-5 gap-2 px-4 py-2 text-sm font-semibold border-t bg-gray-50">
+								<span className="col-span-2 text-gray-600">
+									Итого: {filteredDeposits.length}
+								</span>
+								<span className="font-mono text-right tabular-nums">
+									{new Intl.NumberFormat("ru-KG").format(totalAmount)} сом
+								</span>
+								<span className="font-mono text-right tabular-nums text-blue-700">
+									{totalReturned > 0
+										? `${new Intl.NumberFormat("ru-KG").format(totalReturned)} сом`
+										: "—"}
+								</span>
+								<span />
+							</div>
+						) : undefined
+					}
 				/>
-			) : (
-			<div className="rounded-md border">
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<SortHead label="Договор" sortKey="leaseContractId" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
-							<SortHead label="Получен" sortKey="receivedDate" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
-							<SortHead label="Сумма" sortKey="amount" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
-							<SortHead label="Возвращено" sortKey="returnedAmount" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
-							<SortHead label="Статус" sortKey="status" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isLoading ? (
-							Array.from({ length: 3 }).map((_, i) => (
-								<TableRow key={i}>
-									{Array.from({ length: 5 }).map((_, j) => (
-										<TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
-									))}
-								</TableRow>
-							))
-						) : !filteredDeposits.length ? (
-							<TableRow>
-								<TableCell colSpan={5} className="text-center text-muted-foreground py-8">Депозиты не найдены</TableCell>
-							</TableRow>
-						) : (
-							sorted.map((deposit) => (
-								<TableRow key={deposit.id}>
-									<TableCell>{deposit.contractLabel || `Договор #${deposit.leaseContractId}`}</TableCell>
-									<TableCell>{formatDate(deposit.receivedDate)}</TableCell>
-									<TableCell className="font-medium">{formatCurrency(deposit.amount, deposit.currency)}</TableCell>
-									<TableCell>{deposit.returnedAmount ? formatCurrency(deposit.returnedAmount, deposit.currency) : "—"}</TableCell>
-									<TableCell>
-										<Badge className={statusColors[deposit.status]} variant="secondary">
-											{statusLabels[deposit.status] || deposit.status}
-										</Badge>
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-					{!isLoading && filteredDeposits.length > 0 && (
-						<tfoot>
-							<TableRow className="bg-gray-50 font-semibold border-t-2">
-								<TableCell colSpan={2} className="text-sm text-gray-600">Итого: {filteredDeposits.length}</TableCell>
-								<TableCell className="text-sm tabular-nums">{new Intl.NumberFormat("ru-RU").format(totalAmount)}</TableCell>
-								<TableCell className="text-sm tabular-nums">{totalReturned > 0 ? new Intl.NumberFormat("ru-RU").format(totalReturned) : "—"}</TableCell>
-								<TableCell />
-							</TableRow>
-						</tfoot>
-					)}
-				</Table>
-			</div>
-			)}
 
 			<DepositDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
 		</div>

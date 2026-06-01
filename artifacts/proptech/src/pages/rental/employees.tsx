@@ -282,12 +282,12 @@ export default function RentalEmployees() {
 
 						<div className="p-5 space-y-4">
 							<div className="grid grid-cols-2 gap-3">
-								<div>
-									<Label className="text-xs font-medium text-gray-600">
+								<div className="flex flex-col">
+									<Label className="text-xs font-medium text-gray-600 leading-tight mb-1.5">
 										Имя *
 									</Label>
 									<Input
-										className="mt-1 h-9"
+										className="mt-auto h-9"
 										placeholder="Айбек"
 										value={form.firstName}
 										onChange={(e) =>
@@ -295,12 +295,12 @@ export default function RentalEmployees() {
 										}
 									/>
 								</div>
-								<div>
-									<Label className="text-xs font-medium text-gray-600">
+								<div className="flex flex-col">
+									<Label className="text-xs font-medium text-gray-600 leading-tight mb-1.5">
 										Фамилия *
 									</Label>
 									<Input
-										className="mt-1 h-9"
+										className="mt-auto h-9"
 										placeholder="Асанов"
 										value={form.lastName}
 										onChange={(e) =>

@@ -11,12 +11,9 @@ import {
 	getRentalExpensesAllQueryKey,
 	getAccrualsOpenQueryKey,
 } from "@/lib/rental-query-keys";
-import { useSortable } from "@/lib/use-sortable";
-import { SortHead } from "@/components/sort-head";
 import { KpiCard, KpiRow } from "@/components/kpi-card";
-import { RentalExcelTable, type RentalExcelColumn } from "@/components/rental/rental-excel-table";
-import { RentalViewModeToggle } from "@/components/rental/rental-view-mode-toggle";
-import { useRentalViewMode } from "@/hooks/use-rental-view-mode";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table";
 import {
 	AlertCircle,
 	ArrowRightLeft,
@@ -28,7 +25,7 @@ import {
 	Trash2,
 	Wallet,
 } from "lucide-react";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -47,14 +44,6 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-error";
@@ -123,8 +112,6 @@ export default function RentalAccounts() {
 	const [loading, setLoading] = useState(false);
 	const [deleting, setDeleting] = useState<number | null>(null);
 	const [recalculating, setRecalculating] = useState(false);
-	const [viewMode, setViewMode] = useRentalViewMode("accounts");
-
 	const handleRecalculate = async () => {
 		setRecalculating(true);
 		try {
@@ -143,38 +130,10 @@ export default function RentalAccounts() {
 		queryFn: () => api.get("/rental/accounts").then((r) => r.data),
 	});
 
-	const { sorted: sortedAccounts, sortKey, sortDir, toggle } = useSortable(accounts, "name");
 	const totalBalance = accounts
 		.filter((a) => a.currency === "KGS")
 		.reduce((s, a) => s + parseFloat(a.currentBalance || "0"), 0);
 	const activeCount = accounts.filter((a) => parseFloat(a.currentBalance || "0") > 0).length;
-
-	const accountColumns: RentalExcelColumn<(typeof accounts)[number]>[] = [
-		{ key: "name", label: "Название", width: 160, render: (r) => r.name },
-		{
-			key: "type", label: "Тип", width: 120,
-			render: (r) => (
-				<span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${typeColors[r.type] || typeColors.bank}`}>
-					{typeLabels[r.type] || r.type}
-				</span>
-			),
-		},
-		{ key: "bank", label: "Банк", width: 120, render: (r) => r.bank || "—" },
-		{ key: "accountNumber", label: "Номер счёта", width: 150, render: (r) => r.accountNumber || "—" },
-		{ key: "currency", label: "Валюта", width: 70, align: "center", render: (r) => r.currency },
-		{
-			key: "currentBalance", label: "Баланс", width: 120, align: "right",
-			render: (r) => (
-				<span className={parseFloat(r.currentBalance || "0") >= 0 ? "text-emerald-700 font-medium" : "text-rose-600 font-medium"}>
-					{fmt(r.currentBalance, r.currency)}
-				</span>
-			),
-		},
-		{
-			key: "notes", label: "Примечание", width: 140, sortable: false,
-			render: (r) => r.notes || "—",
-		},
-	];
 
 	// Fetch NBKR rates when transfer dialog opens
 	useEffect(() => {
@@ -271,6 +230,117 @@ export default function RentalAccounts() {
 		}
 	}
 
+	const tableColumns = useMemo<ColumnDef<any, unknown>[]>(
+		() => [
+			{
+				id: "name",
+				header: "Название",
+				size: 180,
+				accessorFn: (row) => row.name,
+				meta: { exportLabel: "Название", pinned: "left" },
+				cell: ({ row }) => (
+					<div>
+						<div className="flex items-center gap-2 font-medium">
+							{typeIcons[row.original.type] || typeIcons.bank}
+							{row.original.name}
+						</div>
+						{row.original.notes && (
+							<p className="text-xs text-muted-foreground mt-0.5 ml-6">
+								{row.original.notes}
+							</p>
+						)}
+					</div>
+				),
+			},
+			{
+				id: "type",
+				header: "Тип",
+				size: 130,
+				accessorKey: "type",
+				meta: { exportLabel: "Тип" },
+				cell: ({ row }) => (
+					<Badge className={typeColors[row.original.type] || typeColors.bank}>
+						{typeLabels[row.original.type] || row.original.type}
+					</Badge>
+				),
+			},
+			{
+				accessorKey: "bank",
+				header: "Банк",
+				size: 120,
+				meta: { exportLabel: "Банк" },
+				cell: ({ row }) => row.original.bank || "—",
+			},
+			{
+				accessorKey: "accountNumber",
+				header: "Номер счёта",
+				size: 150,
+				meta: { exportLabel: "Номер счёта" },
+				cell: ({ row }) => (
+					<span className="font-mono text-sm">{row.original.accountNumber || "—"}</span>
+				),
+			},
+			{
+				id: "currency",
+				header: "Валюта",
+				size: 80,
+				accessorKey: "currency",
+				meta: { exportLabel: "Валюта", align: "center" },
+				cell: ({ row }) =>
+					row.original.currency !== "KGS" ? (
+						<Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50">
+							{row.original.currency}
+						</Badge>
+					) : (
+						row.original.currency
+					),
+			},
+			{
+				id: "currentBalance",
+				header: "Баланс",
+				size: 130,
+				accessorFn: (row) => parseFloat(row.currentBalance || "0"),
+				meta: { exportLabel: "Баланс", align: "right" },
+				cell: ({ row }) => (
+					<span
+						className={`font-mono font-semibold ${parseFloat(row.original.currentBalance || "0") >= 0 ? "text-emerald-600" : "text-rose-600"}`}
+					>
+						{fmt(row.original.currentBalance, row.original.currency)}
+					</span>
+				),
+			},
+			{
+				id: "actions",
+				header: "",
+				size: 80,
+				enableSorting: false,
+				meta: { align: "right" },
+				cell: ({ row }) => (
+					<div className="flex items-center gap-1 justify-end">
+						<Button
+							variant="ghost"
+							size="sm"
+							className="h-7 w-7 p-0"
+							onClick={() => openEdit(row.original)}
+						>
+							<Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+						</Button>
+						<Button
+							variant="ghost"
+							size="sm"
+							className="h-7 w-7 p-0"
+							disabled={deleting === row.original.id}
+							onClick={() => handleDelete(row.original.id)}
+						>
+							<Trash2 className="w-3.5 h-3.5 text-rose-600" />
+						</Button>
+					</div>
+				),
+			},
+		],
+		[deleting],
+	);
+
 	async function handleTransfer() {
 		if (!transfer.fromAccountId || !transfer.toAccountId || !transfer.amount) {
 			toast({ title: "Заполните все поля перевода", variant: "destructive" });
@@ -324,7 +394,6 @@ export default function RentalAccounts() {
 					</p>
 				</div>
 				<div className="flex items-center gap-2 flex-wrap">
-					<RentalViewModeToggle mode={viewMode} onChange={setViewMode} />
 					<CashSummary accounts={accounts} />
 					<Button
 						variant="outline"
@@ -349,151 +418,34 @@ export default function RentalAccounts() {
 				</div>
 			</div>
 
-			{viewMode === "report" ? (
-				isLoading ? (
-					<div className="bg-white rounded-xl border border-gray-200 p-6">
-						{Array.from({ length: 3 }).map((_, i) => (
-							<Skeleton key={i} className="h-8 w-full mb-2" />
-						))}
-					</div>
-				) : (
-					<RentalExcelTable
-						columns={accountColumns}
-						rows={sortedAccounts}
-						sortKey={sortKey}
-						sortDir={sortDir}
-						onSort={toggle}
-						emptyMessage="Нет расчётных счетов. Добавьте первый."
-						rowKey={(r) => r.id}
-						footer={accounts.length > 0 ? [
-							{ colSpan: 5, content: `Итого: ${accounts.length} счетов` },
-							{ content: new Intl.NumberFormat("ru-RU").format(totalBalance) + " KGS", align: "right", className: "text-emerald-700" },
-							{ content: "" },
-						] : undefined}
-					/>
-				)
-			) : (
-			<div className="bg-white border rounded-xl overflow-hidden">
-				<Table>
-					<TableHeader>
-						<TableRow className="bg-gray-50">
-							<SortHead label="Название" sortKey="name" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
-							<SortHead label="Тип" sortKey="type" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
-							<SortHead label="Банк" sortKey="bank" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
-							<TableHead>Номер счёта</TableHead>
-							<SortHead label="Валюта" sortKey="currency" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
-							<SortHead label="Баланс" sortKey="currentBalance" currentKey={sortKey} dir={sortDir} onToggle={toggle} className="text-right" />
-							<TableHead className="w-20"></TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isLoading ? (
-							Array.from({ length: 3 }).map((_, i) => (
-								<TableRow key={i}>
-									{Array.from({ length: 7 }).map((_, j) => (
-										<TableCell key={j}>
-											<Skeleton className="h-4 w-full" />
-										</TableCell>
-									))}
-								</TableRow>
-							))
-						) : accounts.length === 0 ? (
-							<TableRow>
-								<TableCell
-									colSpan={7}
-									className="text-center py-12 text-gray-400"
-								>
-									<Wallet className="w-10 h-10 mx-auto mb-3 opacity-30" />
-									<p className="text-sm">
-										Нет расчётных счетов. Добавьте первый.
-									</p>
-								</TableCell>
-							</TableRow>
-						) : (
-							sortedAccounts.map((acc) => (
-								<TableRow key={acc.id} className="hover:bg-gray-50">
-									<TableCell>
-										<div className="flex items-center gap-2 font-medium text-gray-900">
-											{typeIcons[acc.type] || typeIcons.bank}
-											{acc.name}
-										</div>
-										{acc.notes && (
-											<p className="text-xs text-gray-400 mt-0.5 ml-6">
-												{acc.notes}
-											</p>
-										)}
-									</TableCell>
-									<TableCell>
-										<Badge className={typeColors[acc.type] || typeColors.bank}>
-											{typeLabels[acc.type] || acc.type}
-										</Badge>
-									</TableCell>
-									<TableCell className="text-gray-600">
-										{acc.bank || "—"}
-									</TableCell>
-									<TableCell className="font-mono text-sm text-gray-600">
-										{acc.accountNumber || "—"}
-									</TableCell>
-									<TableCell>
-										{acc.currency !== "KGS" ? (
-											<Badge
-												variant="outline"
-												className="text-amber-700 border-amber-300 bg-amber-50"
-											>
-												{acc.currency}
-											</Badge>
-										) : (
-											<span className="text-gray-600">{acc.currency}</span>
-										)}
-									</TableCell>
-									<TableCell className="text-right font-semibold">
-										<span
-											className={
-												parseFloat(acc.currentBalance || "0") >= 0
-													? "text-emerald-600"
-													: "text-rose-600"
-											}
-										>
-											{fmt(acc.currentBalance, acc.currency)}
-										</span>
-									</TableCell>
-									<TableCell>
-										<div className="flex items-center gap-1 justify-end">
-											<Button
-												variant="ghost"
-												size="sm"
-												className="h-7 w-7 p-0"
-												onClick={() => openEdit(acc)}
-											>
-												<Pencil className="w-3.5 h-3.5 text-gray-400" />
-											</Button>
-											<Button
-												variant="ghost"
-												size="sm"
-												className="h-7 w-7 p-0"
-												disabled={deleting === acc.id}
-												onClick={() => handleDelete(acc.id)}
-											>
-												<Trash2 className="w-3.5 h-3.5 text-rose-600" />
-											</Button>
-										</div>
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-					{!isLoading && accounts.length > 0 && (
-						<tfoot>
-							<TableRow className="bg-gray-50 font-semibold border-t-2">
-								<TableCell colSpan={5} className="text-sm text-gray-600">Итого: {accounts.length} счетов</TableCell>
-								<TableCell className="text-sm tabular-nums text-right text-emerald-700">{new Intl.NumberFormat("ru-RU").format(totalBalance)} KGS</TableCell>
-								<TableCell />
-							</TableRow>
-						</tfoot>
-					)}
-				</Table>
-			</div>
-			)}
+			<DataTable
+					tableId="rental-accounts"
+					columns={tableColumns}
+					data={accounts}
+					isLoading={isLoading}
+					enableSearch
+					searchPlaceholder="Поиск по названию, банку, номеру…"
+					initialSorting={[{ id: "name", desc: false }]}
+					emptyState={
+						<div className="flex flex-col items-center gap-2 text-muted-foreground py-8">
+							<Wallet className="w-10 h-10 opacity-30" />
+							<span>Нет расчётных счетов. Добавьте первый.</span>
+						</div>
+					}
+					footer={
+						!isLoading && accounts.length > 0 ? (
+							<tr className="bg-gray-50 font-semibold border-t-2">
+								<td colSpan={5} className="px-3 py-2 text-sm text-gray-600">
+									Итого: {accounts.length} счетов
+								</td>
+								<td className="px-3 py-2 text-sm font-mono text-right text-emerald-700">
+									{new Intl.NumberFormat("ru-KG").format(totalBalance)} KGS
+								</td>
+								<td />
+							</tr>
+						) : undefined
+					}
+				/>
 
 			{/* Create/Edit dialog */}
 			<Dialog open={open} onOpenChange={setOpen}>
@@ -516,8 +468,8 @@ export default function RentalAccounts() {
 							/>
 						</div>
 						<div className="grid grid-cols-2 gap-3">
-							<div>
-								<Label className="text-sm font-medium">Тип</Label>
+							<div className="flex flex-col">
+								<Label className="text-sm font-medium leading-tight mb-1.5">Тип</Label>
 								<Select
 									value={form.type}
 									onValueChange={(v) => setForm((f) => ({ ...f, type: v }))}
@@ -532,8 +484,8 @@ export default function RentalAccounts() {
 									</SelectContent>
 								</Select>
 							</div>
-							<div>
-								<Label className="text-sm font-medium">Валюта</Label>
+							<div className="flex flex-col">
+								<Label className="text-sm font-medium leading-tight mb-1.5">Валюта</Label>
 								<Select
 									value={form.currency}
 									onValueChange={(v) => setForm((f) => ({ ...f, currency: v }))}
@@ -564,8 +516,8 @@ export default function RentalAccounts() {
 									/>
 								</div>
 								<div className="grid grid-cols-2 gap-3">
-									<div>
-										<Label className="text-sm font-medium">БИК</Label>
+									<div className="flex flex-col">
+										<Label className="text-sm font-medium leading-tight mb-1.5">БИК</Label>
 										<Input
 											className="mt-1.5"
 											placeholder="109001"
@@ -575,8 +527,8 @@ export default function RentalAccounts() {
 											}
 										/>
 									</div>
-									<div>
-										<Label className="text-sm font-medium">Номер счёта</Label>
+									<div className="flex flex-col">
+										<Label className="text-sm font-medium leading-tight mb-1.5">Номер счёта</Label>
 										<Input
 											className="mt-1.5"
 											placeholder="1020000012345678"
@@ -644,8 +596,8 @@ export default function RentalAccounts() {
 					</DialogHeader>
 					<div className="space-y-4 py-2">
 						<div className="grid grid-cols-2 gap-3">
-							<div>
-								<Label className="text-sm font-medium">Со счёта *</Label>
+							<div className="flex flex-col">
+								<Label className="text-sm font-medium leading-tight mb-1.5">Со счёта *</Label>
 								<Select
 									value={transfer.fromAccountId}
 									onValueChange={(v) =>
@@ -669,8 +621,8 @@ export default function RentalAccounts() {
 									</p>
 								)}
 							</div>
-							<div>
-								<Label className="text-sm font-medium">На счёт *</Label>
+							<div className="flex flex-col">
+								<Label className="text-sm font-medium leading-tight mb-1.5">На счёт *</Label>
 								<Select
 									value={transfer.toAccountId}
 									onValueChange={(v) =>
@@ -699,8 +651,8 @@ export default function RentalAccounts() {
 						</div>
 
 						<div className="grid grid-cols-2 gap-3">
-							<div>
-								<Label className="text-sm font-medium">
+							<div className="flex flex-col">
+								<Label className="text-sm font-medium leading-tight mb-1.5">
 									Сумма * {fromAcc && `(${fromAcc.currency})`}
 								</Label>
 								<Input
@@ -714,8 +666,8 @@ export default function RentalAccounts() {
 									}
 								/>
 							</div>
-							<div>
-								<Label className="text-sm font-medium">Дата перевода</Label>
+							<div className="flex flex-col">
+								<Label className="text-sm font-medium leading-tight mb-1.5">Дата перевода</Label>
 								<Input
 									className="mt-1.5"
 									type="date"

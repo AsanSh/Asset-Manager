@@ -3,7 +3,9 @@ import {
 	ChevronRight,
 	Search,
 } from "lucide-react";
+import type { ColumnDef } from "@tanstack/react-table";
 import { Fragment, useMemo, useState } from "react";
+import { DataTable } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +18,10 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { badgeCfgFor, type StatusBadgeCfg } from "@/lib/unit-statuses";
+import { cn } from "@/lib/utils";
+
+const CHESS_TH =
+	"text-[10px] font-semibold uppercase tracking-wide text-am-text-muted h-9";
 
 export type UnitContract = {
 	id: number;
@@ -90,97 +96,149 @@ export function ChessByUnitView({
 		[units],
 	);
 
-	return (
-		<div className="bg-white rounded-xl border border-gray-200 overflow-auto">
-			<Table>
-				<TableHeader>
-					<TableRow>
-						<TableHead>Квартира</TableHead>
-						<TableHead>Этаж / секция</TableHead>
-						<TableHead>Площадь</TableHead>
-						<TableHead>Статус</TableHead>
-						<TableHead>Контрагент</TableHead>
-						<TableHead className="text-right">Сумма договора</TableHead>
-						<TableHead className="text-right">Оплачено</TableHead>
-						<TableHead className="text-right">Остаток</TableHead>
-					</TableRow>
-				</TableHeader>
-				<TableBody>
-					{sorted.length === 0 ? (
-						<TableRow>
-							<TableCell colSpan={8} className="text-center py-12 text-gray-400">
-								Нет квартир
-							</TableCell>
-						</TableRow>
+	const columns = useMemo<ColumnDef<OverviewUnit, unknown>[]>(
+		() => [
+			{
+				id: "unitNumber",
+				header: "Квартира",
+				size: 90,
+				accessorKey: "unitNumber",
+				meta: { exportLabel: "Квартира", pinned: "left" },
+				cell: ({ row }) => (
+					<span className="font-mono font-medium">{row.original.unitNumber}</span>
+				),
+			},
+			{
+				id: "floor",
+				header: "Этаж / секция",
+				size: 120,
+				accessorFn: (row) => `${row.floor || ""} ${row.block || ""}`,
+				meta: { exportLabel: "Этаж / секция" },
+				cell: ({ row }) => (
+					<span className="text-sm text-am-text-muted">
+						{row.original.floor ? `${row.original.floor} эт.` : "—"}
+						{row.original.block ? ` · ${row.original.block}` : ""}
+					</span>
+				),
+			},
+			{
+				id: "area",
+				header: "Площадь",
+				size: 90,
+				accessorFn: (row) => row.area || "",
+				meta: { exportLabel: "Площадь" },
+				cell: ({ row }) => (
+					<>
+						{row.original.area ? `${row.original.area} м²` : "—"}
+						{row.original.roomCount ? (
+							<span className="text-xs text-am-text-muted ml-1">
+								{row.original.roomCount}к
+							</span>
+						) : null}
+					</>
+				),
+			},
+			{
+				id: "status",
+				header: "Статус",
+				size: 110,
+				accessorKey: "status",
+				meta: { exportLabel: "Статус" },
+				cell: ({ row }) => {
+					const st = badgeCfgFor(statusBadgeMap, row.original.status);
+					return (
+						<Badge variant="outline" className={st.color}>
+							{st.label}
+						</Badge>
+					);
+				},
+			},
+			{
+				id: "buyer",
+				header: "Контрагент",
+				size: 180,
+				minSize: 140,
+				maxSize: 360,
+				accessorFn: (row) => row.contract?.buyerName || "",
+				meta: { exportLabel: "Контрагент", grow: true },
+				cell: ({ row }) =>
+					row.original.contract?.buyerName ? (
+						<div className="min-w-0">
+							<p className="font-medium text-sm truncate" title={row.original.contract.buyerName}>
+								{row.original.contract.buyerName}
+							</p>
+							{row.original.contract.buyerPhone && (
+								<p className="text-xs text-am-text-muted truncate">
+									{row.original.contract.buyerPhone}
+								</p>
+							)}
+							{row.original.contract.contractNumber && (
+								<p className="text-xs text-am-text-muted font-mono truncate">
+									{row.original.contract.contractNumber}
+								</p>
+							)}
+						</div>
 					) : (
-						sorted.map((u) => {
-							const st = badgeCfgFor(statusBadgeMap, u.status);
-							const cur = u.contract?.currency || u.currency;
-							return (
-								<TableRow
-									key={u.id}
-									className="cursor-pointer hover:bg-amber-50/50"
-									onClick={() => onSelectUnit(u)}
-								>
-									<TableCell className="font-mono font-medium">
-										{u.unitNumber}
-									</TableCell>
-									<TableCell className="text-sm text-gray-600">
-										{u.floor ? `${u.floor} эт.` : "—"}
-										{u.block ? ` · ${u.block}` : ""}
-									</TableCell>
-									<TableCell>
-										{u.area ? `${u.area} м²` : "—"}
-										{u.roomCount ? (
-											<span className="text-xs text-gray-400 ml-1">
-												{u.roomCount}к
-											</span>
-										) : null}
-									</TableCell>
-									<TableCell>
-										<Badge variant="outline" className={st.color}>
-											{st.label}
-										</Badge>
-									</TableCell>
-									<TableCell>
-										{u.contract?.buyerName ? (
-											<div>
-												<p className="font-medium text-sm">
-													{u.contract.buyerName}
-												</p>
-												{u.contract.buyerPhone && (
-													<p className="text-xs text-gray-400">
-														{u.contract.buyerPhone}
-													</p>
-												)}
-												{u.contract.contractNumber && (
-													<p className="text-xs text-gray-400 font-mono">
-														{u.contract.contractNumber}
-													</p>
-												)}
-											</div>
-										) : (
-											<span className="text-gray-400 text-sm">—</span>
-										)}
-									</TableCell>
-									<TableCell className="text-right font-mono">
-										{contractAmount(u) > 0
-											? `${fmt(contractAmount(u))} ${cur}`
-											: "—"}
-									</TableCell>
-									<TableCell className="text-right font-mono text-emerald-600">
-										{paidAmount(u) > 0 ? fmt(paidAmount(u)) : "0"}
-									</TableCell>
-									<TableCell className="text-right font-mono font-bold text-amber-600">
-										{remainingAmount(u) > 0 ? fmt(remainingAmount(u)) : "0"}
-									</TableCell>
-								</TableRow>
-							);
-						})
-					)}
-				</TableBody>
-			</Table>
-		</div>
+						<span className="text-am-text-muted text-sm">—</span>
+					),
+			},
+			{
+				id: "contractTotal",
+				header: "Сумма договора",
+				size: 130,
+				accessorFn: (row) => contractAmount(row),
+				meta: { exportLabel: "Сумма договора", align: "right", financeAmount: true },
+				cell: ({ row }) => {
+					const cur = row.original.contract?.currency || row.original.currency;
+					const amt = contractAmount(row.original);
+					return (
+						<span className="tabular-nums">
+							{amt > 0 ? `${fmt(amt)} ${cur}` : "—"}
+						</span>
+					);
+				},
+			},
+			{
+				id: "paid",
+				header: "Оплачено",
+				size: 110,
+				accessorFn: (row) => paidAmount(row),
+				meta: { exportLabel: "Оплачено", align: "right", financeAmount: true },
+				cell: ({ row }) => (
+					<span className="tabular-nums text-emerald-600">
+						{paidAmount(row.original) > 0 ? fmt(paidAmount(row.original)) : "0"}
+					</span>
+				),
+			},
+			{
+				id: "remaining",
+				header: "Остаток",
+				size: 110,
+				accessorFn: (row) => remainingAmount(row),
+				meta: { exportLabel: "Остаток", align: "right", financeAmount: true, pinned: "right" },
+				cell: ({ row }) => (
+					<span className="tabular-nums font-semibold text-amber-600">
+						{remainingAmount(row.original) > 0
+							? fmt(remainingAmount(row.original))
+							: "0"}
+					</span>
+				),
+			},
+		],
+		[statusBadgeMap],
+	);
+
+	return (
+		<DataTable
+			tableId="chess-by-unit"
+			columns={columns}
+			data={sorted}
+			enableSearch
+			searchPlaceholder="Поиск квартиры, контрагента…"
+			onRowClick={(row) => onSelectUnit(row.original)}
+			initialSorting={[{ id: "unitNumber", desc: false }]}
+			emptyState={<p className="py-12 text-center text-am-text-muted">Нет квартир</p>}
+		/>
 	);
 }
 
@@ -285,13 +343,15 @@ export function ChessByCounterpartyView({
 			<div className="bg-white rounded-xl border border-gray-200 overflow-auto">
 				<Table>
 					<TableHeader>
-						<TableRow>
-							<TableHead className="w-10" />
-							<TableHead>Контрагент</TableHead>
-							<TableHead>Квартир</TableHead>
-							<TableHead className="text-right">Сумма договоров</TableHead>
-							<TableHead className="text-right">Оплачено</TableHead>
-							<TableHead className="text-right">Остаток</TableHead>
+						<TableRow className="bg-gray-50/80 hover:bg-gray-50/80">
+							<TableHead className={cn("w-10", CHESS_TH)} />
+							<TableHead className={CHESS_TH}>Контрагент</TableHead>
+							<TableHead className={CHESS_TH}>Квартир</TableHead>
+							<TableHead className={cn(CHESS_TH, "text-right")}>
+								Сумма договоров
+							</TableHead>
+							<TableHead className={cn(CHESS_TH, "text-right")}>Оплачено</TableHead>
+							<TableHead className={cn(CHESS_TH, "text-right")}>Остаток</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>
@@ -350,20 +410,20 @@ export function ChessByCounterpartyView({
 												<TableCell colSpan={6} className="p-0 bg-gray-50/80">
 													<Table>
 														<TableHeader>
-															<TableRow>
-																<TableHead>Квартира</TableHead>
-																<TableHead>Этаж</TableHead>
-																<TableHead>Договор</TableHead>
-																<TableHead className="text-right">
+															<TableRow className="bg-white hover:bg-white">
+																<TableHead className={CHESS_TH}>Квартира</TableHead>
+																<TableHead className={CHESS_TH}>Этаж</TableHead>
+																<TableHead className={CHESS_TH}>Договор</TableHead>
+																<TableHead className={cn(CHESS_TH, "text-right")}>
 																	Сумма
 																</TableHead>
-																<TableHead className="text-right">
+																<TableHead className={cn(CHESS_TH, "text-right")}>
 																	Оплачено
 																</TableHead>
-																<TableHead className="text-right">
+																<TableHead className={cn(CHESS_TH, "text-right")}>
 																	Остаток
 																</TableHead>
-																<TableHead>Статус</TableHead>
+																<TableHead className={CHESS_TH}>Статус</TableHead>
 															</TableRow>
 														</TableHeader>
 														<TableBody>

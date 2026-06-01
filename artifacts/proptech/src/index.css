@@ -111,9 +111,9 @@
 	--chart-4: 43 74% 66%;
 	--chart-5: 27 87% 67%;
 
-	--app-font-sans: "Inter", sans-serif;
+	--app-font-sans: "Geist Sans", "Inter", system-ui, sans-serif;
 	--app-font-serif: Georgia, serif;
-	--app-font-mono: Menlo, monospace;
+	--app-font-mono: "Geist Mono", Menlo, monospace;
 	--radius: 0.5rem;
 	--shadow-2xs: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0);
 	--shadow-xs: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0);
@@ -248,6 +248,7 @@
 
 	body {
 		@apply font-sans antialiased bg-background text-foreground;
+		font-feature-settings: "cv11", "ss01", "ss03";
 	}
 }
 
@@ -314,6 +315,158 @@
 		inset: -1px;
 	}
 }
+
+/* ────────────────────────────────────────────────────────────────────────────
+   AM Design System tokens (Asset-Manager)
+   Семантические токены для всех страниц. НЕ использовать прямые цвета
+   (bg-amber-500, text-blue-600) в новых компонентах — только токены ниже.
+   ──────────────────────────────────────────────────────────────────────────── */
+:root {
+  /* Бренд (CTA, активные элементы) */
+  --am-brand: 24 95% 53%;            /* orange-500 */
+  --am-brand-hover: 21 90% 48%;
+  --am-brand-surface: 33 100% 96%;   /* amber-50 — hover row, tab bg */
+  --am-brand-fg: 0 0% 100%;
+
+  /* Семантика */
+  --am-success: 160 84% 39%;         /* emerald-500 */
+  --am-success-surface: 152 81% 96%;
+  --am-warning: 38 92% 50%;          /* amber-500 */
+  --am-warning-surface: 48 96% 89%;
+  --am-danger: 0 84% 60%;            /* red-500 */
+  --am-danger-surface: 0 86% 97%;
+  --am-info: 217 91% 60%;            /* blue-500 */
+  --am-info-surface: 214 100% 97%;
+
+  /* Нейтральные (текст, фоны, границы) */
+  --am-bg:           0 0% 100%;
+  --am-surface:      210 40% 98%;
+  --am-surface-2:    214 32% 91%;
+  --am-border:       214 32% 91%;
+  --am-border-strong:215 25% 82%;
+  --am-text-strong:  222 47% 11%;
+  --am-text:         215 25% 27%;
+  --am-text-muted:   215 16% 47%;
+  --am-text-subtle:  215 20% 65%;
+
+  /* Размеры (одна шкала) */
+  --am-radius-sm: 6px;
+  --am-radius:    8px;
+  --am-radius-lg: 12px;
+  --am-radius-xl: 16px;
+
+  /* Тени */
+  --am-shadow-sm: 0 1px 2px 0 rgb(15 23 42 / 0.05);
+  --am-shadow:    0 1px 3px 0 rgb(15 23 42 / 0.08), 0 1px 2px -1px rgb(15 23 42 / 0.06);
+  --am-shadow-lg: 0 10px 15px -3px rgb(15 23 42 / 0.08), 0 4px 6px -4px rgb(15 23 42 / 0.04);
+
+  /* Высоты контролов (единая шкала) */
+  --am-h-xs:  28px;
+  --am-h-sm:  32px;
+  --am-h-md:  40px;   /* default — форма, поле */
+  --am-h-lg:  44px;   /* primary action */
+
+  /* Spacing */
+  --am-gap-sm: 8px;
+  --am-gap:    12px;
+  --am-gap-md: 16px;
+  --am-gap-lg: 24px;
+
+  /* Easing curves — кастомные, как у Emil Kowalski.
+     Дефолтные ease-out/ease-in из CSS слишком слабые — теряют punch. */
+  --am-ease-out:    cubic-bezier(0.23, 1, 0.32, 1);
+  --am-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --am-ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@theme inline {
+  --color-am-bg: hsl(var(--am-bg));
+  --color-am-brand: hsl(var(--am-brand));
+  --color-am-brand-hover: hsl(var(--am-brand-hover));
+  --color-am-brand-surface: hsl(var(--am-brand-surface));
+  --color-am-border: hsl(var(--am-border));
+  --color-am-border-strong: hsl(var(--am-border-strong));
+  --color-am-success: hsl(var(--am-success));
+  --color-am-success-surface: hsl(var(--am-success-surface));
+  --color-am-warning: hsl(var(--am-warning));
+  --color-am-warning-surface: hsl(var(--am-warning-surface));
+  --color-am-danger: hsl(var(--am-danger));
+  --color-am-danger-surface: hsl(var(--am-danger-surface));
+  --color-am-info: hsl(var(--am-info));
+  --color-am-info-surface: hsl(var(--am-info-surface));
+  --color-am-surface: hsl(var(--am-surface));
+  --color-am-surface-2: hsl(var(--am-surface-2));
+  --color-am-text-strong: hsl(var(--am-text-strong));
+  --color-am-text: hsl(var(--am-text));
+  --color-am-text-muted: hsl(var(--am-text-muted));
+  --color-am-text-subtle: hsl(var(--am-text-subtle));
+}
+
+/* Единые стили контролов */
+.am-control {
+  height: var(--am-h-md);
+  border-radius: var(--am-radius);
+  border: 1px solid hsl(var(--am-border));
+  background: hsl(var(--am-bg));
+  padding: 0 12px;
+  font-size: 14px;
+  color: hsl(var(--am-text-strong));
+  transition:
+    border-color 150ms var(--am-ease-out),
+    box-shadow   150ms var(--am-ease-out),
+    background-color 150ms var(--am-ease-out);
+  width: 100%;
+}
+.am-control:hover:not(:disabled):not([disabled]) {
+  border-color: hsl(var(--am-border-strong));
+}
+.am-control:focus,
+.am-control:focus-within {
+  outline: none;
+  border-color: hsl(var(--am-brand));
+  box-shadow: 0 0 0 3px hsl(var(--am-brand) / 0.15);
+}
+.am-control[disabled],
+.am-control:disabled {
+  background: hsl(var(--am-surface));
+  color: hsl(var(--am-text-subtle));
+  cursor: not-allowed;
+}
+.am-control--error {
+  border-color: hsl(var(--am-danger));
+}
+.am-control--error:focus,
+.am-control--error:focus-within {
+  box-shadow: 0 0 0 3px hsl(var(--am-danger) / 0.15);
+}
+
+/* ── Press feedback (Emil Kowalski) ─────────────────────────────────────
+   Утилита для button-like элементов: при нажатии слегка сжимается.
+   Применять к кнопкам, чипам, presets — НЕ к input-полям. */
+.am-press {
+  transition: transform 160ms var(--am-ease-out), background-color 150ms var(--am-ease-out), border-color 150ms var(--am-ease-out), box-shadow 150ms var(--am-ease-out);
+  transform-origin: center;
+}
+.am-press:not(:disabled):not([disabled]):active {
+  transform: scale(0.97);
+  transition-duration: 80ms;
+}
+
+/* ── Field label highlight on focus-within ───────────────────────────── */
+.am-field:focus-within > label {
+  color: hsl(var(--am-text-strong));
+}
+
+/* ── Faster spinner (perceived performance) ──────────────────────────── */
+@keyframes am-spin {
+  to { transform: rotate(360deg); }
+}
+.am-spin {
+  animation: am-spin 700ms linear infinite;
+}
+
+/* tabular-nums для денежных колонок */
+.am-num { font-variant-numeric: tabular-nums; }
 
 /* ── Print styles — hide chrome, show content only ── */
 @media print {

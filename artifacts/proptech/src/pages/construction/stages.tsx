@@ -301,13 +301,13 @@ function StageDialog({
 						/>
 					</div>
 					<div className="grid grid-cols-2 gap-3">
-						<div>
-							<Label>Статус</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Статус</Label>
 							<Select
 								value={form.status}
 								onValueChange={(v) => set("status", v)}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -319,10 +319,10 @@ function StageDialog({
 								</SelectContent>
 							</Select>
 						</div>
-						<div>
-							<Label>Прогресс (%)</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Прогресс (%)</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								type="number"
 								min="0"
 								max="100"
@@ -330,19 +330,19 @@ function StageDialog({
 								onChange={(e) => set("progress", e.target.value)}
 							/>
 						</div>
-						<div>
-							<Label>Начало</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Начало</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								type="date"
 								value={form.startDate}
 								onChange={(e) => set("startDate", e.target.value)}
 							/>
 						</div>
-						<div>
-							<Label>Окончание</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Окончание</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								type="date"
 								value={form.plannedEndDate}
 								onChange={(e) => set("plannedEndDate", e.target.value)}

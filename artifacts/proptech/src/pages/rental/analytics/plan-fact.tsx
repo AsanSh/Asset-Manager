@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
 	Select,
 	SelectContent,
@@ -7,6 +7,12 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import {
+	MATRIX_TH_CENTER,
+	MATRIX_TH_RIGHT,
+	MATRIX_TH_STICKY_LEFT,
+	MatrixTableFrame,
+} from "@/components/matrix-table-frame";
 import { api } from "@/lib/api";
 
 const MONTHS = [
@@ -168,6 +174,56 @@ export default function PlanFact() {
 	const totalFact = totals.fact.reduce((s, v) => s + v, 0);
 	const totalDelta = totalFact - totalPlan;
 
+	const exportCsv = useCallback(() => {
+		const esc = (v: string | number) => {
+			const s = String(v);
+			if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+			return s;
+		};
+		const header = [
+			"Объект",
+			...MONTHS.flatMap((m) => [`${m} П`, `${m} Ф`]),
+			"Итого П",
+			"Итого Ф",
+			"Δ",
+		];
+		const lines = [header.join(",")];
+		for (const row of rows) {
+			const rPlan = row.plan.reduce((s, v) => s + v, 0);
+			const rFact = row.fact.reduce((s, v) => s + v, 0);
+			lines.push(
+				[
+					row.name,
+					...row.plan.flatMap((p, i) => [p, row.fact[i]]),
+					rPlan,
+					rFact,
+					rFact - rPlan,
+				]
+					.map(esc)
+					.join(","),
+			);
+		}
+		lines.push(
+			[
+				"Итого",
+				...totals.plan.flatMap((p, i) => [p, totals.fact[i]]),
+				totalPlan,
+				totalFact,
+				totalDelta,
+			]
+				.map(esc)
+				.join(","),
+		);
+		const blob = new Blob(["\uFEFF" + lines.join("\n")], {
+			type: "text/csv;charset=utf-8",
+		});
+		const a = document.createElement("a");
+		a.href = URL.createObjectURL(blob);
+		a.download = `plan-fact-${year}.csv`;
+		a.click();
+		URL.revokeObjectURL(a.href);
+	}, [rows, totals, year, totalPlan, totalFact, totalDelta]);
+
 	return (
 		<div className="h-full flex flex-col">
 			<div className="flex items-center justify-between mb-4 flex-shrink-0">
@@ -191,14 +247,19 @@ export default function PlanFact() {
 				</Select>
 			</div>
 
-			<div className="flex-1 overflow-auto border border-gray-200 rounded-lg bg-white">
-				<table className="text-xs border-collapse" style={{ minWidth: "1700px" }}>
+			<MatrixTableFrame
+				title="План / факт по месяцам"
+				maxHeight="calc(100vh - 160px)"
+				className="flex-1 min-h-0"
+				onExportCsv={exportCsv}
+			>
+				<table className="text-xs border-collapse w-full" style={{ minWidth: "1700px" }}>
 					<thead>
 						{/* Row 1: month group headers */}
-						<tr className="bg-gray-200 text-gray-700 font-semibold sticky top-0 z-20">
+						<tr className="sticky top-0 z-20 bg-gray-100/90">
 							<th
 								rowSpan={2}
-								className="text-left py-2 px-3 sticky left-0 bg-gray-200 z-30 border-r border-gray-300 align-bottom"
+								className={`${MATRIX_TH_STICKY_LEFT} text-left align-bottom border-r border-am-border`}
 								style={{ minWidth: "220px", width: "220px" }}
 							>
 								Объект
@@ -211,7 +272,7 @@ export default function PlanFact() {
 									<th
 										key={i}
 										colSpan={2}
-										className={`text-center py-1.5 border-r border-gray-300 ${isCur ? "bg-amber-100 text-amber-800" : ""}`}
+										className={`${MATRIX_TH_CENTER} border-r border-am-border ${isCur ? "bg-amber-100 text-amber-800" : ""}`}
 										style={{ minWidth: "130px" }}
 									>
 										{m.slice(0, 3)} {year.slice(2)}
@@ -220,17 +281,14 @@ export default function PlanFact() {
 							})}
 							<th
 								colSpan={3}
-								className="text-center py-1.5 bg-gray-300 border-r border-gray-400"
+								className={`${MATRIX_TH_CENTER} bg-gray-200/90 border-r border-am-border`}
 								style={{ minWidth: "240px" }}
 							>
 								Итого
 							</th>
 						</tr>
 						{/* Row 2: П / Ф sub-headers */}
-						<tr
-							className="bg-gray-100 text-gray-500 sticky z-20"
-							style={{ top: "33px" }}
-						>
+						<tr className="sticky z-20 bg-gray-50/95" style={{ top: "28px" }}>
 							{MONTHS.map((_, i) => {
 								const isCur =
 									i === curMonth &&
@@ -239,26 +297,26 @@ export default function PlanFact() {
 									<>
 										<th
 											key={`p${i}`}
-											className={`text-right py-1 px-2 border-r border-gray-100 ${isCur ? "bg-amber-50" : ""}`}
+											className={`${MATRIX_TH_RIGHT} border-r border-am-border/60 ${isCur ? "bg-amber-50" : ""}`}
 										>
 											П
 										</th>
 										<th
 											key={`f${i}`}
-											className={`text-right py-1 px-2 border-r border-gray-300 ${isCur ? "bg-amber-50" : ""}`}
+											className={`${MATRIX_TH_RIGHT} border-r border-am-border ${isCur ? "bg-amber-50" : ""}`}
 										>
 											Ф
 										</th>
 									</>
 								);
 							})}
-							<th className="text-right py-1 px-2 border-r border-gray-200 bg-gray-200 font-semibold text-gray-600">
+							<th className={`${MATRIX_TH_RIGHT} border-r border-am-border bg-gray-200/90`}>
 								П
 							</th>
-							<th className="text-right py-1 px-2 border-r border-gray-200 bg-gray-200 font-semibold text-gray-600">
+							<th className={`${MATRIX_TH_RIGHT} border-r border-am-border bg-gray-200/90`}>
 								Ф
 							</th>
-							<th className="text-right py-1 px-2 border-r border-gray-400 bg-gray-200 font-semibold text-gray-600">
+							<th className={`${MATRIX_TH_RIGHT} border-r border-am-border bg-gray-200/90`}>
 								Δ
 							</th>
 						</tr>
@@ -385,7 +443,7 @@ export default function PlanFact() {
 						</tfoot>
 					)}
 				</table>
-			</div>
+			</MatrixTableFrame>
 		</div>
 	);
 }

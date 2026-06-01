@@ -1,6 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit2, Hammer, Phone, Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,15 +20,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { getApiBase } from "@/lib/api-base";
@@ -147,22 +140,22 @@ function WorkerDialog({
 						/>
 					</div>
 					<div className="grid grid-cols-2 gap-3">
-						<div>
-							<Label>Бригада</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Бригада</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								value={form.brigade}
 								onChange={(e) => set("brigade", e.target.value)}
 								placeholder="Бригада #1"
 							/>
 						</div>
-						<div>
-							<Label>Специализация</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Специализация</Label>
 							<Select
 								value={form.specialization}
 								onValueChange={(v) => set("specialization", v)}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue placeholder="Выберите..." />
 								</SelectTrigger>
 								<SelectContent>
@@ -174,21 +167,21 @@ function WorkerDialog({
 								</SelectContent>
 							</Select>
 						</div>
-						<div>
-							<Label>Телефон</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Телефон</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								value={form.phone}
 								onChange={(e) => set("phone", e.target.value)}
 							/>
 						</div>
-						<div>
-							<Label>Статус</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Статус</Label>
 							<Select
 								value={form.status}
 								onValueChange={(v) => set("status", v)}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -197,22 +190,22 @@ function WorkerDialog({
 								</SelectContent>
 							</Select>
 						</div>
-						<div>
-							<Label>Ставка/день (KGS)</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Ставка/день (KGS)</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								type="number"
 								value={form.dailyRate}
 								onChange={(e) => set("dailyRate", e.target.value)}
 							/>
 						</div>
-						<div>
-							<Label>Проект</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Проект</Label>
 							<Select
 								value={form.projectId}
 								onValueChange={(v) => set("projectId", v)}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue placeholder="Не назначен" />
 								</SelectTrigger>
 								<SelectContent>
@@ -261,8 +254,6 @@ export default function ConstructionWorkers() {
 	const qc = useQueryClient();
 	const { toast } = useToast();
 	const [dialog, setDialog] = useState<Worker | null | "new">(null);
-	const [search, setSearch] = useState("");
-
 	const { data: projects = [] } = useQuery<Project[]>({
 		queryKey: ["construction-projects"],
 		queryFn: () => api.get("/construction/projects/all").then((r) => r.data),
@@ -272,12 +263,6 @@ export default function ConstructionWorkers() {
 		queryFn: () => api.get("/construction/workers").then((r) => r.data),
 	});
 
-	const filtered = workers.filter(
-		(w) =>
-			!search ||
-			w.fullName.toLowerCase().includes(search.toLowerCase()) ||
-			w.brigade?.toLowerCase().includes(search.toLowerCase()),
-	);
 	const projectMap = Object.fromEntries(projects.map((p) => [p.id, p.name]));
 
 	const handleDelete = async (id: number) => {
@@ -289,6 +274,124 @@ export default function ConstructionWorkers() {
 		toast({ title: "Удалено" });
 		qc.invalidateQueries({ queryKey: ["construction-workers"] });
 	};
+
+	const columns = useMemo<ColumnDef<Worker, unknown>[]>(
+		() => [
+			{
+				id: "fullName",
+				header: "Рабочий",
+				size: 200,
+				minSize: 140,
+				maxSize: 360,
+				accessorFn: (row) => row.fullName,
+				meta: { exportLabel: "Рабочий", grow: true },
+				cell: ({ row }) => (
+					<div className="flex items-center gap-2.5 min-w-0">
+						<div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 text-xs font-bold shrink-0">
+							{row.original.fullName.charAt(0)}
+						</div>
+						<div className="min-w-0">
+							<p className="font-medium text-sm truncate" title={row.original.fullName}>
+								{row.original.fullName}
+							</p>
+							{row.original.phone && (
+								<div className="flex items-center gap-1 text-xs text-am-text-muted">
+									<Phone className="w-3 h-3 shrink-0" />
+									<span className="truncate">{row.original.phone}</span>
+								</div>
+							)}
+						</div>
+					</div>
+				),
+			},
+			{
+				id: "brigade",
+				header: "Бригада",
+				size: 140,
+				minSize: 100,
+				maxSize: 280,
+				accessorFn: (row) => row.brigade || "",
+				meta: { exportLabel: "Бригада", grow: true },
+				cell: ({ row }) => row.original.brigade || "—",
+			},
+			{
+				id: "specialization",
+				header: "Специализация",
+				size: 130,
+				accessorFn: (row) => row.specialization || "",
+				meta: { exportLabel: "Специализация" },
+				cell: ({ row }) => row.original.specialization || "—",
+			},
+			{
+				id: "project",
+				header: "Проект",
+				size: 140,
+				accessorFn: (row) => (row.projectId ? projectMap[row.projectId] : "") || "",
+				meta: { exportLabel: "Проект" },
+				cell: ({ row }) =>
+					row.original.projectId ? projectMap[row.original.projectId] || "—" : "—",
+			},
+			{
+				id: "dailyRate",
+				header: "Ставка/день",
+				size: 120,
+				accessorFn: (row) => parseFloat(row.dailyRate || "0"),
+				meta: { exportLabel: "Ставка/день", align: "right", financeAmount: true },
+				cell: ({ row }) =>
+					row.original.dailyRate
+						? `${parseFloat(row.original.dailyRate).toLocaleString("ru-KG")} сом`
+						: "—",
+			},
+			{
+				id: "status",
+				header: "Статус",
+				size: 100,
+				accessorKey: "status",
+				meta: { exportLabel: "Статус" },
+				cell: ({ row }) => (
+					<Badge
+						className={
+							row.original.status === "active"
+								? "bg-emerald-100 text-emerald-800"
+								: "bg-gray-100 text-gray-700"
+						}
+						variant="secondary"
+					>
+						{row.original.status === "active" ? "Активен" : "Неактивен"}
+					</Badge>
+				),
+			},
+			{
+				id: "actions",
+				header: "",
+				size: 80,
+				enableSorting: false,
+				enableResizing: false,
+				meta: { align: "center" },
+				cell: ({ row }) => (
+					<div className="flex gap-1 justify-center">
+						<button
+							type="button"
+							onClick={() => setDialog(row.original)}
+							className="text-am-text-subtle hover:text-am-text-strong p-1"
+							title="Редактировать"
+						>
+							<Edit2 className="w-3.5 h-3.5" />
+						</button>
+						<button
+							type="button"
+							onClick={() => handleDelete(row.original.id)}
+							className="text-am-text-subtle hover:text-rose-600 p-1"
+							title="Удалить"
+						>
+							<Trash2 className="w-3.5 h-3.5" />
+						</button>
+					</div>
+				),
+			},
+		],
+		[projectMap],
+	);
 
 	return (
 		<div className="space-y-6">
@@ -338,121 +441,21 @@ export default function ConstructionWorkers() {
 				))}
 			</div>
 
-			<div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-				<div className="p-4 border-b border-gray-100">
-					<Input
-						placeholder="Поиск по ФИО или бригаде..."
-						value={search}
-						onChange={(e) => setSearch(e.target.value)}
-						className="max-w-sm"
-					/>
-				</div>
-				<Table>
-					<TableHeader>
-						<TableRow className="bg-gray-50">
-							<TableHead>Рабочий</TableHead>
-							<TableHead>Бригада</TableHead>
-							<TableHead>Специализация</TableHead>
-							<TableHead>Проект</TableHead>
-							<TableHead className="text-right">Ставка/день</TableHead>
-							<TableHead>Статус</TableHead>
-							<TableHead className="text-center">Действия</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isLoading ? (
-							Array.from({ length: 4 }).map((_, i) => (
-								<TableRow key={i}>
-									{Array.from({ length: 7 }).map((_, j) => (
-										<TableCell key={j}>
-											<Skeleton className="h-4 w-full" />
-										</TableCell>
-									))}
-								</TableRow>
-							))
-						) : filtered.length === 0 ? (
-							<TableRow>
-								<TableCell
-									colSpan={7}
-									className="text-center py-12 text-gray-400"
-								>
-									<Hammer className="w-10 h-10 mx-auto mb-2 opacity-20" />
-									<p>Рабочих нет</p>
-								</TableCell>
-							</TableRow>
-						) : (
-							filtered.map((w) => (
-								<TableRow key={w.id} className="hover:bg-gray-50">
-									<TableCell>
-										<div className="flex items-center gap-2.5">
-											<div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 text-xs font-bold flex-shrink-0">
-												{w.fullName.charAt(0)}
-											</div>
-											<div>
-												<p className="font-medium text-sm text-gray-900">
-													{w.fullName}
-												</p>
-												{w.phone && (
-													<div className="flex items-center gap-1 text-xs text-gray-400">
-														<Phone className="w-3 h-3" />
-														{w.phone}
-													</div>
-												)}
-											</div>
-										</div>
-									</TableCell>
-									<TableCell className="text-sm text-gray-600">
-										{w.brigade || "—"}
-									</TableCell>
-									<TableCell className="text-sm text-gray-600">
-										{w.specialization || "—"}
-									</TableCell>
-									<TableCell className="text-sm text-gray-500">
-										{w.projectId ? projectMap[w.projectId] || "—" : "—"}
-									</TableCell>
-									<TableCell className="text-right text-sm font-medium text-gray-800">
-										{w.dailyRate
-											? `${parseFloat(w.dailyRate).toLocaleString("ru-KG")} сом`
-											: "—"}
-									</TableCell>
-									<TableCell>
-										<Badge
-											className={
-												w.status === "active"
-													? "bg-emerald-100 text-emerald-800"
-													: "bg-gray-100 text-gray-700"
-											}
-											variant="secondary"
-										>
-											{w.status === "active" ? "Активен" : "Неактивен"}
-										</Badge>
-									</TableCell>
-									<TableCell>
-										<div className="flex gap-1 justify-center">
-											<Button
-												size="sm"
-												variant="ghost"
-												className="h-7 w-7 p-0"
-												onClick={() => setDialog(w)}
-											>
-												<Edit2 className="w-3.5 h-3.5 text-gray-400" />
-											</Button>
-											<Button
-												size="sm"
-												variant="ghost"
-												className="h-7 w-7 p-0"
-												onClick={() => handleDelete(w.id)}
-											>
-												<Trash2 className="w-3.5 h-3.5 text-gray-400 hover:text-rose-600" />
-											</Button>
-										</div>
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</div>
+			<DataTable
+				tableId="construction-workers"
+				columns={columns}
+				data={workers}
+				isLoading={isLoading}
+				enableSearch
+				searchPlaceholder="Поиск по ФИО или бригаде…"
+				initialSorting={[{ id: "fullName", desc: false }]}
+				emptyState={
+					<div className="flex flex-col items-center gap-2 py-8 text-am-text-muted">
+						<Hammer className="w-10 h-10 opacity-30" />
+						<p>Рабочих нет</p>
+					</div>
+				}
+			/>
 
 			<WorkerDialog
 				worker={dialog}

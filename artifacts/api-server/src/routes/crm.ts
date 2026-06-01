@@ -12,12 +12,160 @@ import {
   activityLogTable,
   constructionUnitsTable,
   notificationsTable,
+  moduleSettingsTable,
 } from "../lib/db";
 
 import { requireAuth, requireRole, AuthenticatedRequest } from "../middleware/auth";
 import { requireTenantCompany } from "../middleware/tenant";
+import crypto from "crypto";
+import {
+  upsertLeadFromIntake,
+  parseInstagramSettings,
+  serializeInstagramSettings,
+  generateWebhookKey,
+  generateVerifyToken,
+  verifyMetaHub,
+  verifyMetaSignature,
+  processInstagramWebhook,
+} from "../lib/crm-intake";
 
 const router: ReturnType<typeof Router> = Router();
+
+const CRM_INTAKE_MODULE = "crm_intake";
+const CRM_INSTAGRAM_MODULE = "crm_instagram";
+
+async function findInstagramByWebhookKey(webhookKey: string) {
+  const rows = await db
+    .select()
+    .from(moduleSettingsTable)
+    .where(eq(moduleSettingsTable.moduleKey, CRM_INSTAGRAM_MODULE));
+  for (const row of rows) {
+    const s = parseInstagramSettings(row.settings);
+    if (s.webhookKey === webhookKey) {
+      return { companyId: row.companyId, settings: s, rowId: row.id };
+    }
+  }
+  return null;
+}
+
+function parseIntakeSettings(raw: string | null | undefined): { token?: string } {
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw) as { token?: string };
+  } catch {
+    return {};
+  }
+}
+
+function generateIntakeToken(): string {
+  return crypto.randomBytes(24).toString("hex");
+}
+
+// POST /crm/leads/intake — публичный приём лидов (webhook соцсетей)
+router.post("/crm/leads/intake", async (req, res): Promise<void> => {
+  const token = String(req.headers["x-crm-intake-token"] ?? "");
+  if (!token) {
+    res.status(401).json({ error: "X-Crm-Intake-Token required" });
+    return;
+  }
+
+  const rows = await db
+    .select()
+    .from(moduleSettingsTable)
+    .where(eq(moduleSettingsTable.moduleKey, CRM_INTAKE_MODULE));
+
+  const match = rows.find((r) => parseIntakeSettings(r.settings).token === token);
+  if (!match) {
+    res.status(401).json({ error: "Invalid intake token" });
+    return;
+  }
+
+  const companyId = match.companyId;
+  const {
+    fullName,
+    phone,
+    email,
+    channel,
+    projectId,
+    externalId,
+    notes,
+    propertyType,
+    budget,
+    source,
+  } = req.body ?? {};
+
+  if (!fullName || typeof fullName !== "string") {
+    res.status(400).json({ error: "fullName required" });
+    return;
+  }
+
+  const parsedProjectId =
+    projectId != null && projectId !== "" ? parseInt(String(projectId), 10) : null;
+
+  const { lead, deduplicated } = await upsertLeadFromIntake(companyId, {
+    fullName,
+    phone,
+    email,
+    source: source ? String(source) : "social",
+    channel: channel ? String(channel) : null,
+    projectId: Number.isFinite(parsedProjectId) ? parsedProjectId : null,
+    externalId: externalId ? String(externalId) : null,
+    propertyType: propertyType ? String(propertyType) : null,
+    budget: budget != null ? String(budget) : null,
+    notes: notes ? String(notes) : null,
+  });
+
+  if (!deduplicated) {
+    await logCrmOp(companyId, undefined, "crm_lead", lead.id, "create",
+      `Intake лид: ${fullName} (${channel ?? "—"})`, lead);
+  }
+
+  res.status(deduplicated ? 200 : 201).json({ ...lead, deduplicated });
+});
+
+// GET /crm/webhooks/instagram/:webhookKey — верификация Meta (hub.challenge)
+router.get("/crm/webhooks/instagram/:webhookKey", async (req, res): Promise<void> => {
+  const webhookKey = String(req.params.webhookKey ?? "");
+  const match = await findInstagramByWebhookKey(webhookKey);
+  if (!match?.settings.verifyToken) {
+    res.status(404).send("Not found");
+    return;
+  }
+  const challenge = verifyMetaHub(req.query as Record<string, unknown>, match.settings.verifyToken);
+  if (challenge) {
+    res.status(200).send(challenge);
+    return;
+  }
+  res.status(403).send("Forbidden");
+});
+
+// POST /crm/webhooks/instagram/:webhookKey — события Instagram / Lead Ads
+router.post("/crm/webhooks/instagram/:webhookKey", async (req, res): Promise<void> => {
+  const webhookKey = String(req.params.webhookKey ?? "");
+  const match = await findInstagramByWebhookKey(webhookKey);
+  if (!match) {
+    res.status(404).json({ error: "Webhook not found" });
+    return;
+  }
+
+  const { settings, companyId } = match;
+  const rawBody = (req as { rawBody?: Buffer }).rawBody;
+  const sig = req.headers["x-hub-signature-256"] as string | undefined;
+  if (settings.appSecret && rawBody) {
+    if (!verifyMetaSignature(rawBody, sig, settings.appSecret)) {
+      res.status(401).json({ error: "Invalid signature" });
+      return;
+    }
+  }
+
+  try {
+    const result = await processInstagramWebhook(req.body, settings, companyId);
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    console.error("[instagram webhook]", e);
+    res.status(500).json({ error: "Webhook processing failed" });
+  }
+});
 
 router.use(requireAuth, requireTenantCompany);
 
@@ -50,12 +198,13 @@ async function logCrmOp(
 
 // GET /crm/leads - List leads with filters
 router.get("/crm/leads", async (req: AuthenticatedRequest, res): Promise<void> => {
-  const { status, source, assignedTo } = req.query as Record<string, string | undefined>;
+  const { status, source, assignedTo, channel } = req.query as Record<string, string | undefined>;
   const conditions: SQL[] = [];
 
   conditions.push(eq(crmLeadsTable.companyId, req.scopedCompanyId!));
   if (status) conditions.push(eq(crmLeadsTable.status, status));
   if (source) conditions.push(eq(crmLeadsTable.source, source));
+  if (channel) conditions.push(eq(crmLeadsTable.channel, channel));
   if (assignedTo) conditions.push(eq(crmLeadsTable.assignedUserId, parseInt(assignedTo, 10)));
 
   const leads = await db.select().from(crmLeadsTable)
@@ -78,13 +227,17 @@ router.get("/crm/leads", async (req: AuthenticatedRequest, res): Promise<void> =
 // POST /crm/leads - Create lead
 router.post("/crm/leads", async (req: AuthenticatedRequest, res): Promise<void> => {
   const {
-    fullName, phone, email, source, status, propertyType, budget, currency, notes, assignedUserId
+    fullName, phone, email, source, status, propertyType, budget, currency, notes, assignedUserId,
+    channel, projectId, externalId,
   } = req.body;
 
   if (!fullName) {
     res.status(400).json({ error: "fullName required" });
     return;
   }
+
+  const parsedProjectId =
+    projectId != null && projectId !== "" ? parseInt(String(projectId), 10) : null;
 
   const [lead] = await db.insert(crmLeadsTable).values({
     companyId: req.scopedCompanyId!,
@@ -97,6 +250,9 @@ router.post("/crm/leads", async (req: AuthenticatedRequest, res): Promise<void> 
     budget,
     currency: currency || "KGS",
     notes,
+    channel: channel ? String(channel) : null,
+    projectId: Number.isFinite(parsedProjectId) ? parsedProjectId : null,
+    externalId: externalId ? String(externalId) : null,
     assignedUserId: assignedUserId ? parseInt(String(assignedUserId), 10) : null,
     createdBy: req.userId,
   }).returning();
@@ -111,7 +267,8 @@ router.post("/crm/leads", async (req: AuthenticatedRequest, res): Promise<void> 
 router.patch("/crm/leads/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
   const {
-    fullName, phone, email, source, status, propertyType, budget, currency, notes, assignedUserId, lastContactDate
+    fullName, phone, email, source, status, propertyType, budget, currency, notes, assignedUserId, lastContactDate,
+    channel, projectId, externalId,
   } = req.body;
 
   const conditions: SQL[] = [eq(crmLeadsTable.id, id)];
@@ -135,6 +292,12 @@ router.patch("/crm/leads/:id", async (req: AuthenticatedRequest, res): Promise<v
   if (notes !== undefined) updates.notes = notes;
   if (assignedUserId !== undefined) updates.assignedUserId = assignedUserId ? parseInt(String(assignedUserId), 10) : null;
   if (lastContactDate !== undefined) updates.lastContactDate = lastContactDate;
+  if (channel !== undefined) updates.channel = channel ? String(channel) : null;
+  if (projectId !== undefined) {
+    const pid = projectId != null && projectId !== "" ? parseInt(String(projectId), 10) : null;
+    updates.projectId = Number.isFinite(pid) ? pid : null;
+  }
+  if (externalId !== undefined) updates.externalId = externalId ? String(externalId) : null;
 
   const [lead] = await db.update(crmLeadsTable)
     .set(updates)
@@ -147,6 +310,176 @@ router.patch("/crm/leads/:id", async (req: AuthenticatedRequest, res): Promise<v
   }
 
   res.json(lead);
+});
+
+// GET /crm/settings/intake — токен webhook для intake
+router.get("/crm/settings/intake", requireRole("admin", "company_admin", "owner"), async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
+  const [existing] = await db
+    .select()
+    .from(moduleSettingsTable)
+    .where(
+      and(
+        eq(moduleSettingsTable.companyId, companyId),
+        eq(moduleSettingsTable.moduleKey, CRM_INTAKE_MODULE),
+      ),
+    );
+
+  const token = parseIntakeSettings(existing?.settings).token ?? null;
+  const apiBase = process.env.API_PUBLIC_URL ?? "https://api-server-rho-six.vercel.app";
+  res.json({
+    token,
+    webhookUrl: `${apiBase}/crm/leads/intake`,
+    enabled: !!existing?.isEnabled,
+  });
+});
+
+// PUT /crm/settings/intake — сгенерировать/сохранить токен
+router.put("/crm/settings/intake", requireRole("admin", "company_admin", "owner"), async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
+  const regenerate = req.body?.regenerate === true;
+
+  const [existing] = await db
+    .select()
+    .from(moduleSettingsTable)
+    .where(
+      and(
+        eq(moduleSettingsTable.companyId, companyId),
+        eq(moduleSettingsTable.moduleKey, CRM_INTAKE_MODULE),
+      ),
+    );
+
+  let token = parseIntakeSettings(existing?.settings).token;
+  if (!token || regenerate) {
+    token = generateIntakeToken();
+  }
+
+  const settings = JSON.stringify({ token });
+  if (existing) {
+    await db
+      .update(moduleSettingsTable)
+      .set({ settings, isEnabled: true, enabledAt: new Date() })
+      .where(eq(moduleSettingsTable.id, existing.id));
+  } else {
+    await db.insert(moduleSettingsTable).values({
+      companyId,
+      moduleKey: CRM_INTAKE_MODULE,
+      isEnabled: true,
+      enabledAt: new Date(),
+      settings,
+    });
+  }
+
+  const apiBase = process.env.API_PUBLIC_URL ?? "https://api-server-rho-six.vercel.app";
+  res.json({
+    token,
+    webhookUrl: `${apiBase}/crm/leads/intake`,
+    enabled: true,
+  });
+});
+
+function instagramStatus(settings: ReturnType<typeof parseInstagramSettings>) {
+  if (settings.accessToken && settings.webhookKey && settings.verifyToken) return "connected";
+  if (settings.webhookKey && settings.verifyToken) return "webhook_ready";
+  return "pending";
+}
+
+// GET /crm/settings/instagram
+router.get("/crm/settings/instagram", requireRole("admin", "company_admin", "owner", "sales_manager"), async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
+  const apiBase = process.env.API_PUBLIC_URL ?? "https://api-server-rho-six.vercel.app";
+
+  const [existing] = await db
+    .select()
+    .from(moduleSettingsTable)
+    .where(
+      and(
+        eq(moduleSettingsTable.companyId, companyId),
+        eq(moduleSettingsTable.moduleKey, CRM_INSTAGRAM_MODULE),
+      ),
+    );
+
+  const settings = parseInstagramSettings(existing?.settings);
+  const webhookKey = settings.webhookKey ?? null;
+
+  res.json({
+    ...settings,
+    accessToken: settings.accessToken ? "••••••••" : null,
+    appSecret: settings.appSecret ? "••••••••" : null,
+    webhookUrl: webhookKey ? `${apiBase}/crm/webhooks/instagram/${webhookKey}` : null,
+    status: instagramStatus(settings),
+    hasAccessToken: !!settings.accessToken,
+    hasAppSecret: !!settings.appSecret,
+  });
+});
+
+// PUT /crm/settings/instagram
+router.put("/crm/settings/instagram", requireRole("admin", "company_admin", "owner"), async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
+  const apiBase = process.env.API_PUBLIC_URL ?? "https://api-server-rho-six.vercel.app";
+  const body = req.body ?? {};
+
+  const [existing] = await db
+    .select()
+    .from(moduleSettingsTable)
+    .where(
+      and(
+        eq(moduleSettingsTable.companyId, companyId),
+        eq(moduleSettingsTable.moduleKey, CRM_INSTAGRAM_MODULE),
+      ),
+    );
+
+  const prev = parseInstagramSettings(existing?.settings);
+  const regenerateWebhook = body.regenerateWebhook === true;
+  const regenerateVerify = body.regenerateVerifyToken === true;
+
+  const next = {
+    webhookKey: regenerateWebhook || !prev.webhookKey ? generateWebhookKey() : prev.webhookKey,
+    verifyToken: regenerateVerify || !prev.verifyToken ? generateVerifyToken() : prev.verifyToken,
+    pageId: body.pageId !== undefined ? String(body.pageId || "") : (prev.pageId ?? ""),
+    instagramAccountId:
+      body.instagramAccountId !== undefined
+        ? String(body.instagramAccountId || "")
+        : (prev.instagramAccountId ?? ""),
+    defaultProjectId:
+      body.defaultProjectId !== undefined && body.defaultProjectId !== ""
+        ? parseInt(String(body.defaultProjectId), 10)
+        : (prev.defaultProjectId ?? null),
+    accessToken:
+      body.accessToken && body.accessToken !== "••••••••"
+        ? String(body.accessToken)
+        : (prev.accessToken ?? ""),
+    appSecret:
+      body.appSecret && body.appSecret !== "••••••••"
+        ? String(body.appSecret)
+        : (prev.appSecret ?? ""),
+  };
+
+  const settingsJson = serializeInstagramSettings(next);
+  if (existing) {
+    await db
+      .update(moduleSettingsTable)
+      .set({ settings: settingsJson, isEnabled: true, enabledAt: new Date() })
+      .where(eq(moduleSettingsTable.id, existing.id));
+  } else {
+    await db.insert(moduleSettingsTable).values({
+      companyId,
+      moduleKey: CRM_INSTAGRAM_MODULE,
+      isEnabled: true,
+      enabledAt: new Date(),
+      settings: settingsJson,
+    });
+  }
+
+  res.json({
+    ...next,
+    accessToken: next.accessToken ? "••••••••" : null,
+    appSecret: next.appSecret ? "••••••••" : null,
+    webhookUrl: `${apiBase}/crm/webhooks/instagram/${next.webhookKey}`,
+    status: instagramStatus(next),
+    hasAccessToken: !!next.accessToken,
+    hasAppSecret: !!next.appSecret,
+  });
 });
 
 // PATCH /crm/leads/:id/status - Change status (shortcut endpoint)

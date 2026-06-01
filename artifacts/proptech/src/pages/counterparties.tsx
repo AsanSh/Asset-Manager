@@ -1,7 +1,9 @@
 import { getApiErrorMessage } from "@/lib/api-error";
 import { useQueryClient } from "@tanstack/react-query";
-import { Briefcase, Edit2, Plus, Search, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Briefcase, Edit2, Plus, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table";
 import { useSearch } from "wouter";
 import {
 	type Counterparty,
@@ -39,15 +41,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -192,13 +185,13 @@ function CounterpartyDialog({
 				</DialogHeader>
 				<form onSubmit={handleSubmit} className="space-y-4">
 					<div className="grid grid-cols-2 gap-3">
-						<div>
-							<Label>Тип *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Тип *</Label>
 							<Select
 								value={formData.type}
 								onValueChange={(v) => setFormData({ ...formData, type: v })}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -207,13 +200,13 @@ function CounterpartyDialog({
 								</SelectContent>
 							</Select>
 						</div>
-						<div>
-							<Label>Категория *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Категория *</Label>
 							<Select
 								value={formData.category}
 								onValueChange={(v) => setFormData({ ...formData, category: v })}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -250,8 +243,8 @@ function CounterpartyDialog({
 					</div>
 
 					<div className="grid grid-cols-2 gap-3">
-						<div>
-							<Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">
 								{formData.type === "company" ? "ИНН (ОГРН)" : "ИНН (ИИН)"}
 							</Label>
 							<Input
@@ -260,18 +253,18 @@ function CounterpartyDialog({
 									setFormData({ ...formData, iin: e.target.value })
 								}
 								placeholder="12345678901234"
-								className="mt-1"
+								className="mt-auto"
 							/>
 						</div>
-						<div>
-							<Label>Телефон</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Телефон</Label>
 							<Input
 								value={formData.phone}
 								onChange={(e) =>
 									setFormData({ ...formData, phone: e.target.value })
 								}
 								placeholder="+996 700 000 000"
-								className="mt-1"
+								className="mt-auto"
 							/>
 						</div>
 					</div>
@@ -328,11 +321,9 @@ function CounterpartyDialog({
 
 export default function Counterparties() {
 	const searchString = useSearch();
-	const [search, setSearch] = useState("");
 	const [categoryFilter, setCategoryFilter] = useState<string>("all");
 	const [typeFilter, setTypeFilter] = useState<string>("all");
 	const { data: counterparties, isLoading } = useListCounterparties({
-		search: search || undefined,
 		type: typeFilter !== "all" ? typeFilter : undefined,
 	});
 	const deleteMutation = useDeleteCounterparty();
@@ -379,6 +370,118 @@ export default function Counterparties() {
 		return (cp as any).category === categoryFilter;
 	});
 
+	const columns = useMemo<ColumnDef<Counterparty, unknown>[]>(
+		() => [
+			{
+				accessorKey: "fullName",
+				header: "ФИО / Наименование",
+				size: 200,
+				meta: { exportLabel: "ФИО / Наименование", pinned: "left" },
+				cell: ({ row }) => (
+					<span className="font-medium text-gray-900">
+						{row.original.fullName}
+					</span>
+				),
+			},
+			{
+				id: "category",
+				header: "Категория",
+				size: 120,
+				accessorFn: (row) => (row as any).category || "other",
+				meta: { exportLabel: "Категория" },
+				cell: ({ row }) => {
+					const cat = (row.original as any).category;
+					return (
+						<Badge
+							className={cn(
+								"text-xs",
+								CATEGORY_COLORS[cat] || CATEGORY_COLORS.other,
+							)}
+							variant="secondary"
+						>
+							{CATEGORY_LABELS[cat] || cat || "—"}
+						</Badge>
+					);
+				},
+			},
+			{
+				accessorKey: "type",
+				header: "Тип",
+				size: 100,
+				meta: { exportLabel: "Тип" },
+				cell: ({ row }) => (
+					<span className="text-xs text-gray-500">
+						{TYPE_LABELS[row.original.type] || row.original.type}
+					</span>
+				),
+			},
+			{
+				accessorKey: "iin",
+				header: "ИНН",
+				size: 130,
+				meta: { exportLabel: "ИНН" },
+				cell: ({ row }) => (
+					<span className="text-gray-500">{row.original.iin || "—"}</span>
+				),
+			},
+			{
+				accessorKey: "phone",
+				header: "Телефон",
+				size: 130,
+				meta: { exportLabel: "Телефон" },
+				cell: ({ row }) => (
+					<span className="text-gray-600">{row.original.phone || "—"}</span>
+				),
+			},
+			{
+				accessorKey: "email",
+				header: "Почта",
+				size: 160,
+				meta: { exportLabel: "Email" },
+				cell: ({ row }) => (
+					<span className="text-gray-500 text-sm">
+						{row.original.email || "—"}
+					</span>
+				),
+			},
+			{
+				id: "__actions",
+				header: "",
+				size: 80,
+				enableSorting: false,
+				cell: ({ row }) => {
+					const cp = row.original;
+					return (
+						<div
+							className="flex gap-1"
+							onClick={(e) => e.stopPropagation()}
+						>
+							<Button
+								variant="ghost"
+								size="icon"
+								onClick={() => {
+									setSelectedCP(cp);
+									setDialogOpen(true);
+								}}
+							>
+								<Edit2 className="w-4 h-4" />
+							</Button>
+							<Button
+								variant="ghost"
+								size="icon"
+								className="text-rose-600 hover:text-rose-700"
+								onClick={() => setDeleteId(cp.id)}
+							>
+								<Trash2 className="w-4 h-4" />
+							</Button>
+						</div>
+					);
+				},
+			},
+		],
+		[],
+	);
+
 	// Count by category
 	const countByCategory = counterpartiesArray.reduce(
 		(acc, cp) => {
@@ -411,157 +514,49 @@ export default function Counterparties() {
 				</Button>
 			</div>
 
-			{/* Category tabs */}
-			<div className="flex gap-1 flex-wrap border-b border-gray-200">
-				{CATEGORIES.map((cat) => {
-					const count =
-						cat.key === "all"
-							? counterpartiesArray.length
-							: countByCategory[cat.key] || 0;
-					return (
-						<button
-							key={cat.key}
-							onClick={() => setCategoryFilter(cat.key)}
-							className={cn(
-								"px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
-								categoryFilter === cat.key
-									? "border-blue-600 text-blue-700"
-									: "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300",
-							)}
-						>
-							{cat.label}
-							<span
-								className={cn(
-									"ml-1.5 text-xs px-1.5 py-0.5 rounded-full",
-									categoryFilter === cat.key
-										? "bg-blue-100 text-blue-700"
-										: "bg-gray-100 text-gray-700",
-								)}
-							>
-								{count}
-							</span>
-						</button>
-					);
-				})}
-			</div>
-
-			{/* Search + type filter */}
-			<div className="flex gap-3">
-				<div className="relative flex-1">
-					<Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-					<Input
-						placeholder="Поиск по имени, телефону, ИНН..."
-						value={search}
-						onChange={(e) => setSearch(e.target.value)}
-						className="pl-9"
-					/>
-				</div>
-				<Select value={typeFilter} onValueChange={setTypeFilter}>
-					<SelectTrigger className="w-44">
-						<SelectValue placeholder="Все типы" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="all">Все типы</SelectItem>
-						<SelectItem value="individual">Физические лица</SelectItem>
-						<SelectItem value="company">Юридические лица</SelectItem>
-					</SelectContent>
-				</Select>
-			</div>
-
-			{/* Table */}
-			<div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-				<Table>
-					<TableHeader>
-						<TableRow className="bg-gray-50">
-							<TableHead>ФИО / Наименование</TableHead>
-							<TableHead>Категория</TableHead>
-							<TableHead>Тип</TableHead>
-							<TableHead>ИНН</TableHead>
-							<TableHead>Телефон</TableHead>
-							<TableHead>Email</TableHead>
-							<TableHead className="w-20"></TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isLoading ? (
-							Array.from({ length: 4 }).map((_, i) => (
-								<TableRow key={i}>
-									{Array.from({ length: 7 }).map((_, j) => (
-										<TableCell key={j}>
-											<Skeleton className="h-4 w-full" />
-										</TableCell>
-									))}
-								</TableRow>
-							))
-						) : !filtered.length ? (
-							<TableRow>
-								<TableCell colSpan={7} className="text-center py-12">
-									<Briefcase className="w-8 h-8 text-gray-200 mx-auto mb-2" />
-									<p className="text-gray-400">Контрагенты не найдены</p>
-								</TableCell>
-							</TableRow>
-						) : (
-							filtered.map((cp) => (
-								<TableRow key={cp.id} className="hover:bg-gray-50">
-									<TableCell className="font-medium text-gray-900">
-										{cp.fullName}
-									</TableCell>
-									<TableCell>
-										<Badge
-											className={cn(
-												"text-xs",
-												CATEGORY_COLORS[(cp as any).category] ||
-													CATEGORY_COLORS.other,
-											)}
-											variant="secondary"
-										>
-											{CATEGORY_LABELS[(cp as any).category] ||
-												(cp as any).category ||
-												"—"}
-										</Badge>
-									</TableCell>
-									<TableCell>
-										<span className="text-xs text-gray-500">
-											{TYPE_LABELS[cp.type] || cp.type}
-										</span>
-									</TableCell>
-									<TableCell className="text-gray-500">
-										{cp.iin || "—"}
-									</TableCell>
-									<TableCell className="text-gray-600">
-										{cp.phone || "—"}
-									</TableCell>
-									<TableCell className="text-gray-500 text-sm">
-										{cp.email || "—"}
-									</TableCell>
-									<TableCell>
-										<div className="flex gap-1">
-											<Button
-												variant="ghost"
-												size="icon"
-												onClick={() => {
-													setSelectedCP(cp);
-													setDialogOpen(true);
-												}}
-											>
-												<Edit2 className="w-4 h-4" />
-											</Button>
-											<Button
-												variant="ghost"
-												size="icon"
-												className="text-rose-600 hover:text-rose-700"
-												onClick={() => setDeleteId(cp.id)}
-											>
-												<Trash2 className="w-4 h-4" />
-											</Button>
-										</div>
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</div>
+			<DataTable
+				tableId="counterparties"
+				columns={columns}
+				data={filtered}
+				isLoading={isLoading}
+				enableSearch
+				searchPlaceholder="Поиск по имени, телефону, ИНН..."
+				toolbar={
+					<>
+						<Select value={categoryFilter} onValueChange={setCategoryFilter}>
+							<SelectTrigger className="w-44">
+								<SelectValue placeholder="Категория" />
+							</SelectTrigger>
+							<SelectContent>
+								{CATEGORIES.map((cat) => (
+									<SelectItem key={cat.key} value={cat.key}>
+										{cat.label}
+										{cat.key !== "all"
+											? ` (${countByCategory[cat.key] || 0})`
+											: ` (${counterpartiesArray.length})`}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+						<Select value={typeFilter} onValueChange={setTypeFilter}>
+							<SelectTrigger className="w-44">
+								<SelectValue placeholder="Все типы" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">Все типы</SelectItem>
+								<SelectItem value="individual">Физические лица</SelectItem>
+								<SelectItem value="company">Юридические лица</SelectItem>
+							</SelectContent>
+						</Select>
+					</>
+				}
+				emptyState={
+					<div className="flex flex-col items-center gap-2">
+						<Briefcase className="w-8 h-8 text-gray-200" />
+						<p className="text-gray-400">Контрагенты не найдены</p>
+					</div>
+				}
+			/>
 
 			<CounterpartyDialog
 				open={dialogOpen}

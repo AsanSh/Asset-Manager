@@ -13,6 +13,12 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import {
+	MATRIX_TH_CENTER,
+	MATRIX_TH_RIGHT,
+	MATRIX_TH_STICKY_LEFT,
+	MatrixTableFrame,
+} from "@/components/matrix-table-frame";
 import { api } from "@/lib/api";
 import { getListLeaseContractsQueryKey, getListTenantsQueryKey } from "@/lib/rental-query-keys";
 
@@ -222,7 +228,7 @@ export default function RentalForecast() {
 						</span>
 					</div>
 					<p className="text-xl font-bold text-blue-600">
-						{fmtKGS(totalExpected)} KGS
+						{fmtKGS(totalExpected)} сом
 					</p>
 				</div>
 				<div className="bg-white border rounded-xl p-4">
@@ -266,30 +272,65 @@ export default function RentalForecast() {
 				))}
 			</div>
 
-			{/* Horizontal table */}
-			<div className="bg-white border rounded-xl overflow-auto shadow-sm">
-				<table className="text-sm w-full min-w-max">
+			<MatrixTableFrame
+				title="Матрица по месяцам"
+				maxHeight="calc(100vh - 320px)"
+				onExportCsv={() => {
+					const esc = (v: string) =>
+						/[",\n;]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+					const header = [
+						"Арендатор",
+						"Объект",
+						...cols.map((c) => c.label),
+						"Итого",
+					].join(";");
+					const lines = rows.map((row) => {
+						const name =
+							row.tenant?.name ||
+							row.tenant?.fullName ||
+							`Дог. #${row.contract.id}`;
+						const addr =
+							row.contract.propertyAddress || `Договор #${row.contract.id}`;
+						const vals = cols.map((c) =>
+							String(row.cells[c.key]?.charged || 0),
+						);
+						const total = cols.reduce(
+							(s, col) => s + (row.cells[col.key]?.charged || 0),
+							0,
+						);
+						return [name, addr, ...vals, String(total)].map(esc).join(";");
+					});
+					const blob = new Blob(["\uFEFF" + [header, ...lines].join("\n")], {
+						type: "text/csv;charset=utf-8",
+					});
+					const a = document.createElement("a");
+					a.href = URL.createObjectURL(blob);
+					a.download = "prognoz-postuplenij.csv";
+					a.click();
+				}}
+			>
+				<table className="text-sm w-full min-w-max border-collapse">
 					<thead>
-						<tr className="bg-gray-50 border-b">
-							<th className="text-left p-3 font-semibold text-gray-700 sticky left-0 bg-gray-50 min-w-[180px]">
+						<tr className="border-b border-am-border">
+							<th
+								className={`${MATRIX_TH_STICKY_LEFT} text-left min-w-[180px]`}
+							>
 								Арендатор / Объект
 							</th>
 							{cols.map((col) => (
 								<th
 									key={col.key}
-									className={`text-center p-3 font-medium min-w-[110px] ${headerStyle(col.key)}`}
+									className={`${MATRIX_TH_CENTER} min-w-[110px] ${headerStyle(col.key)}`}
 								>
 									{col.label}
 									{col.key === todayKey && (
-										<div className="text-[10px] text-blue-500 font-normal">
+										<div className="text-[10px] text-blue-500 font-normal normal-case tracking-normal">
 											текущий
 										</div>
 									)}
 								</th>
 							))}
-							<th className="text-right p-3 font-semibold text-gray-700 min-w-[100px]">
-								Итого
-							</th>
+							<th className={`${MATRIX_TH_RIGHT} min-w-[100px]`}>Итого</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -388,7 +429,7 @@ export default function RentalForecast() {
 						</tfoot>
 					)}
 				</table>
-			</div>
+			</MatrixTableFrame>
 		</div>
 	);
 }

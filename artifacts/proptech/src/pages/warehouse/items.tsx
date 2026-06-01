@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Pencil, Plus, Search, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { AlertTriangle, Package, Pencil, Plus, Trash2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -28,15 +30,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
@@ -148,9 +141,10 @@ function ItemDialog({ open, onClose, item }: ItemDialogProps) {
 				</DialogHeader>
 				<form onSubmit={handleSubmit} className="space-y-4">
 					<div className="grid grid-cols-2 gap-4">
-						<div className="col-span-2">
-							<Label>Наименование *</Label>
+						<div className="col-span-2 flex flex-col">
+							<Label className="leading-tight mb-1.5">Наименование *</Label>
 							<Input
+								className="mt-auto"
 								value={formData.name}
 								onChange={(e) =>
 									setFormData({ ...formData, name: e.target.value })
@@ -159,9 +153,10 @@ function ItemDialog({ open, onClose, item }: ItemDialogProps) {
 								required
 							/>
 						</div>
-						<div>
-							<Label>Категория *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Категория *</Label>
 							<Input
+								className="mt-auto"
 								value={formData.category}
 								onChange={(e) =>
 									setFormData({ ...formData, category: e.target.value })
@@ -170,13 +165,13 @@ function ItemDialog({ open, onClose, item }: ItemDialogProps) {
 								required
 							/>
 						</div>
-						<div>
-							<Label>Единица измерения *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Единица измерения *</Label>
 							<Select
 								value={formData.unit}
 								onValueChange={(v) => setFormData({ ...formData, unit: v })}
 							>
-								<SelectTrigger>
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -193,9 +188,10 @@ function ItemDialog({ open, onClose, item }: ItemDialogProps) {
 					</div>
 
 					<div className="grid grid-cols-3 gap-4">
-						<div>
-							<Label>Текущий остаток *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Текущий остаток *</Label>
 							<Input
+								className="mt-auto"
 								type="number"
 								step="0.01"
 								value={formData.currentStock}
@@ -205,9 +201,10 @@ function ItemDialog({ open, onClose, item }: ItemDialogProps) {
 								required
 							/>
 						</div>
-						<div>
-							<Label>Минимум</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Минимум</Label>
 							<Input
+								className="mt-auto"
 								type="number"
 								step="0.01"
 								value={formData.minStock}
@@ -216,9 +213,10 @@ function ItemDialog({ open, onClose, item }: ItemDialogProps) {
 								}
 							/>
 						</div>
-						<div>
-							<Label>Максимум</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Максимум</Label>
 							<Input
+								className="mt-auto"
 								type="number"
 								step="0.01"
 								value={formData.maxStock}
@@ -230,9 +228,10 @@ function ItemDialog({ open, onClose, item }: ItemDialogProps) {
 					</div>
 
 					<div className="grid grid-cols-3 gap-4">
-						<div className="col-span-2">
-							<Label>Цена за единицу *</Label>
+						<div className="col-span-2 flex flex-col">
+							<Label className="leading-tight mb-1.5">Цена за единицу *</Label>
 							<Input
+								className="mt-auto"
 								type="number"
 								step="0.01"
 								value={formData.unitPrice}
@@ -242,13 +241,13 @@ function ItemDialog({ open, onClose, item }: ItemDialogProps) {
 								required
 							/>
 						</div>
-						<div>
-							<Label>Валюта</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Валюта</Label>
 							<Select
 								value={formData.currency}
 								onValueChange={(v) => setFormData({ ...formData, currency: v })}
 							>
-								<SelectTrigger>
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -272,9 +271,10 @@ function ItemDialog({ open, onClose, item }: ItemDialogProps) {
 					</div>
 
 					<div className="grid grid-cols-2 gap-4">
-						<div>
-							<Label>Артикул (SKU)</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Артикул (SKU)</Label>
 							<Input
+								className="mt-auto"
 								value={formData.sku}
 								onChange={(e) =>
 									setFormData({ ...formData, sku: e.target.value })
@@ -282,9 +282,10 @@ function ItemDialog({ open, onClose, item }: ItemDialogProps) {
 								placeholder="SKU-12345"
 							/>
 						</div>
-						<div>
-							<Label>Штрихкод</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Штрихкод</Label>
 							<Input
+								className="mt-auto"
 								value={formData.barcode}
 								onChange={(e) =>
 									setFormData({ ...formData, barcode: e.target.value })
@@ -351,7 +352,6 @@ export default function WarehouseItems() {
 		item: null,
 	});
 
-	const [search, setSearch] = useState("");
 	const [categoryFilter, setCategoryFilter] = useState("all");
 	const [stockFilter, setStockFilter] = useState("all");
 
@@ -376,12 +376,6 @@ export default function WarehouseItems() {
 	).sort();
 
 	const filteredItems = itemsArray.filter((item) => {
-		const matchesSearch =
-			search === "" ||
-			item.name.toLowerCase().includes(search.toLowerCase()) ||
-			item.sku?.toLowerCase().includes(search.toLowerCase()) ||
-			item.barcode?.toLowerCase().includes(search.toLowerCase());
-
 		const matchesCategory =
 			categoryFilter === "all" || item.category === categoryFilter;
 
@@ -390,8 +384,148 @@ export default function WarehouseItems() {
 			(stockFilter === "low" && item.currentStock < item.minStock) ||
 			(stockFilter === "in_stock" && item.currentStock >= item.minStock);
 
-		return matchesSearch && matchesCategory && matchesStock;
+		return matchesCategory && matchesStock;
 	});
+
+	const columns = useMemo<ColumnDef<WarehouseItem, unknown>[]>(
+		() => [
+			{
+				accessorKey: "name",
+				header: "Наименование",
+				size: 220,
+				meta: { exportLabel: "Наименование" },
+				cell: ({ row }) => {
+					const item = row.original;
+					return (
+						<div>
+							<div className="flex items-center gap-2">
+								<span className="font-medium">{item.name}</span>
+								{item.currentStock < item.minStock && (
+									<Badge variant="destructive" className="gap-1">
+										<AlertTriangle className="h-3 w-3" />
+										Низкий
+									</Badge>
+								)}
+							</div>
+							{item.sku && (
+								<div className="text-xs text-muted-foreground">
+									SKU: {item.sku}
+								</div>
+							)}
+						</div>
+					);
+				},
+			},
+			{
+				accessorKey: "category",
+				header: "Категория",
+				size: 120,
+				meta: { exportLabel: "Категория" },
+				cell: ({ row }) => (
+					<Badge variant="outline">{row.original.category}</Badge>
+				),
+			},
+			{
+				id: "currentStock",
+				header: "Остаток",
+				size: 110,
+				accessorFn: (row) => row.currentStock,
+				meta: { exportLabel: "Остаток", align: "right" },
+				cell: ({ row }) => {
+					const item = row.original;
+					return (
+						<span
+							className={
+								item.currentStock < item.minStock
+									? "font-mono text-rose-600 font-semibold"
+									: "font-mono"
+							}
+						>
+							{formatNumber(item.currentStock)} {item.unit}
+						</span>
+					);
+				},
+			},
+			{
+				id: "minMax",
+				header: "Мин/Макс",
+				size: 100,
+				accessorFn: (row) => row.minStock,
+				meta: { exportLabel: "Мин/Макс", align: "right" },
+				cell: ({ row }) => (
+					<span className="font-mono text-sm text-muted-foreground">
+						{formatNumber(row.original.minStock)} /{" "}
+						{formatNumber(row.original.maxStock)}
+					</span>
+				),
+			},
+			{
+				id: "unitPrice",
+				header: "Цена",
+				size: 110,
+				accessorFn: (row) => row.unitPrice,
+				meta: { exportLabel: "Цена (сом)", align: "right" },
+				cell: ({ row }) => (
+					<span className="font-mono font-medium">
+						{formatCurrency(row.original.unitPrice, row.original.currency)}
+					</span>
+				),
+			},
+			{
+				accessorKey: "supplier",
+				header: "Поставщик",
+				size: 140,
+				meta: { exportLabel: "Поставщик" },
+				cell: ({ row }) => (
+					<span className="text-sm">{row.original.supplier}</span>
+				),
+			},
+			{
+				accessorKey: "location",
+				header: "Место",
+				size: 100,
+				meta: { exportLabel: "Место" },
+				cell: ({ row }) => (
+					<span className="text-sm">{row.original.location || "—"}</span>
+				),
+			},
+			{
+				id: "__actions",
+				header: "",
+				size: 90,
+				enableSorting: false,
+				meta: { align: "right" },
+				cell: ({ row }) => {
+					const item = row.original;
+					return (
+						<div
+							className="flex justify-end gap-2"
+							onClick={(e) => e.stopPropagation()}
+						>
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={() => {
+									setEditItem(item);
+									setDialogOpen(true);
+								}}
+							>
+								<Pencil className="h-4 w-4" />
+							</Button>
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={() => setDeleteDialog({ open: true, item })}
+							>
+								<Trash2 className="h-4 w-4 text-rose-600" />
+							</Button>
+						</div>
+					);
+				},
+			},
+		],
+		[],
+	);
 
 	return (
 		<div className="p-6 space-y-4">
@@ -413,152 +547,51 @@ export default function WarehouseItems() {
 				</Button>
 			</div>
 
-			{/* Filters */}
-			<div className="flex flex-wrap gap-3">
-				<div className="flex-1 min-w-[200px] max-w-sm">
-					<div className="relative">
-						<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-						<Input
-							placeholder="Поиск по названию, SKU, штрихкоду..."
-							value={search}
-							onChange={(e) => setSearch(e.target.value)}
-							className="pl-9"
-						/>
+			<DataTable
+				tableId="warehouse-items"
+				columns={columns}
+				data={filteredItems}
+				isLoading={isLoading}
+				enableSearch
+				searchPlaceholder="Поиск по названию, SKU, штрихкоду..."
+				toolbar={
+					<>
+						<Select value={categoryFilter} onValueChange={setCategoryFilter}>
+							<SelectTrigger className="w-[200px]">
+								<SelectValue placeholder="Категория" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">Все категории</SelectItem>
+								{categories.map((cat) => (
+									<SelectItem key={cat} value={cat}>
+										{cat}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+						<Select value={stockFilter} onValueChange={setStockFilter}>
+							<SelectTrigger className="w-[180px]">
+								<SelectValue placeholder="Остаток" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">Все</SelectItem>
+								<SelectItem value="in_stock">В наличии</SelectItem>
+								<SelectItem value="low">Низкий остаток</SelectItem>
+							</SelectContent>
+						</Select>
+					</>
+				}
+				emptyState={
+					<div className="flex flex-col items-center gap-2 text-muted-foreground">
+						<Package className="h-8 w-8 opacity-30" />
+						<span>
+							{categoryFilter !== "all" || stockFilter !== "all"
+								? "Ничего не найдено"
+								: "Нет товаров на складе"}
+						</span>
 					</div>
-				</div>
-				<Select value={categoryFilter} onValueChange={setCategoryFilter}>
-					<SelectTrigger className="w-[200px]">
-						<SelectValue placeholder="Категория" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="all">Все категории</SelectItem>
-						{categories.map((cat) => (
-							<SelectItem key={cat} value={cat}>
-								{cat}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-				<Select value={stockFilter} onValueChange={setStockFilter}>
-					<SelectTrigger className="w-[180px]">
-						<SelectValue placeholder="Остаток" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="all">Все</SelectItem>
-						<SelectItem value="in_stock">В наличии</SelectItem>
-						<SelectItem value="low">Низкий остаток</SelectItem>
-					</SelectContent>
-				</Select>
-			</div>
-
-			{/* Table */}
-			<div className="rounded-md border">
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead>Наименование</TableHead>
-							<TableHead>Категория</TableHead>
-							<TableHead className="text-right">Остаток</TableHead>
-							<TableHead className="text-right">Мин/Макс</TableHead>
-							<TableHead className="text-right">Цена</TableHead>
-							<TableHead>Поставщик</TableHead>
-							<TableHead>Место</TableHead>
-							<TableHead className="text-right">Действия</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isLoading ? (
-							Array.from({ length: 5 }).map((_, i) => (
-								<TableRow key={i}>
-									{Array.from({ length: 8 }).map((_, j) => (
-										<TableCell key={j}>
-											<Skeleton className="h-4 w-full" />
-										</TableCell>
-									))}
-								</TableRow>
-							))
-						) : !filteredItems.length ? (
-							<TableRow>
-								<TableCell
-									colSpan={8}
-									className="text-center text-muted-foreground py-8"
-								>
-									{search || categoryFilter !== "all" || stockFilter !== "all"
-										? "Ничего не найдено"
-										: "Нет товаров на складе"}
-								</TableCell>
-							</TableRow>
-						) : (
-							filteredItems.map((item) => (
-								<TableRow key={item.id}>
-									<TableCell>
-										<div className="flex items-center gap-2">
-											<span className="font-medium">{item.name}</span>
-											{item.currentStock < item.minStock && (
-												<Badge variant="destructive" className="gap-1">
-													<AlertTriangle className="h-3 w-3" />
-													Низкий
-												</Badge>
-											)}
-										</div>
-										{item.sku && (
-											<div className="text-xs text-muted-foreground">
-												SKU: {item.sku}
-											</div>
-										)}
-									</TableCell>
-									<TableCell>
-										<Badge variant="outline">{item.category}</Badge>
-									</TableCell>
-									<TableCell className="text-right">
-										<span
-											className={
-												item.currentStock < item.minStock
-													? "text-rose-600 font-semibold"
-													: ""
-											}
-										>
-											{formatNumber(item.currentStock)} {item.unit}
-										</span>
-									</TableCell>
-									<TableCell className="text-right text-sm text-muted-foreground">
-										{formatNumber(item.minStock)} /{" "}
-										{formatNumber(item.maxStock)}
-									</TableCell>
-									<TableCell className="text-right font-medium">
-										{formatCurrency(item.unitPrice, item.currency)}
-									</TableCell>
-									<TableCell className="text-sm">{item.supplier}</TableCell>
-									<TableCell className="text-sm">
-										{item.location || "—"}
-									</TableCell>
-									<TableCell className="text-right">
-										<div className="flex justify-end gap-2">
-											<Button
-												variant="ghost"
-												size="sm"
-												onClick={() => {
-													setEditItem(item);
-													setDialogOpen(true);
-												}}
-											>
-												<Pencil className="h-4 w-4" />
-											</Button>
-											<Button
-												variant="ghost"
-												size="sm"
-												onClick={() => setDeleteDialog({ open: true, item })}
-											>
-												<Trash2 className="h-4 w-4 text-rose-600" />
-											</Button>
-										</div>
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</div>
+				}
+			/>
 
 			<ItemDialog
 				open={dialogOpen}

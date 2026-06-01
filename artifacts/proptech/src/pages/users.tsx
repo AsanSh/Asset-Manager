@@ -1,6 +1,8 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Edit2, Eye, EyeOff, KeyRound, Plus, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table";
 import {
 	type CreateUserBodyRole,
 	type UpdateUserBodyRole,
@@ -22,15 +24,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import {
 	RoleSelect,
@@ -127,6 +120,101 @@ export default function Users() {
 		}
 	};
 
+	const rows = Array.isArray(users) ? users : [];
+
+	const columns = useMemo<ColumnDef<User, unknown>[]>(
+		() => [
+			{
+				id: "name",
+				header: "ФИО",
+				size: 180,
+				minSize: 120,
+				maxSize: 280,
+				accessorFn: (row) => `${row.firstName || ""} ${row.lastName || ""}`.trim(),
+				meta: { exportLabel: "ФИО", grow: true },
+				cell: ({ row }) => (
+					<span className="font-medium">
+						{row.original.firstName} {row.original.lastName}
+					</span>
+				),
+			},
+			{
+				id: "email",
+				header: "Почта",
+				size: 200,
+				minSize: 140,
+				maxSize: 320,
+				accessorKey: "email",
+				meta: { exportLabel: "Почта", grow: true },
+				cell: ({ row }) => (
+					<span className="text-muted-foreground truncate block" title={row.original.email}>
+						{row.original.email}
+					</span>
+				),
+			},
+			{
+				id: "role",
+				header: "Роль",
+				size: 140,
+				accessorKey: "role",
+				meta: { exportLabel: "Роль" },
+				cell: ({ row }) => (
+					<Badge variant="outline">{displayRole(row.original.role)}</Badge>
+				),
+			},
+			{
+				id: "status",
+				header: "Статус",
+				size: 110,
+				accessorFn: (row) => (row.isActive ? "active" : "blocked"),
+				meta: { exportLabel: "Статус" },
+				cell: ({ row }) => (
+					<Badge variant={row.original.isActive ? "default" : "secondary"}>
+						{row.original.isActive ? "Активен" : "Заблокирован"}
+					</Badge>
+				),
+			},
+			{
+				id: "actions",
+				header: "",
+				size: 120,
+				enableSorting: false,
+				enableResizing: false,
+				meta: { align: "right" },
+				cell: ({ row }) => (
+					<div className="flex justify-end gap-0.5">
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={() => handlePasswordReset(row.original)}
+							title="Сбросить пароль"
+						>
+							<KeyRound className="h-4 w-4" />
+						</Button>
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={() => handleOpenEdit(row.original)}
+							title="Редактировать"
+						>
+							<Edit2 className="h-4 w-4" />
+						</Button>
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={() => handleDelete(row.original.id)}
+							className="text-destructive"
+							title="Удалить"
+						>
+							<Trash2 className="h-4 w-4" />
+						</Button>
+					</div>
+				),
+			},
+		],
+		[customRoles],
+	);
+
 	return (
 		<div className="space-y-6">
 			<div className="flex items-center justify-between">
@@ -142,99 +230,18 @@ export default function Users() {
 				</Button>
 			</div>
 
-			<div className="border rounded-md bg-card">
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead>ФИО</TableHead>
-							<TableHead>Email</TableHead>
-							<TableHead>Роль</TableHead>
-							<TableHead>Статус</TableHead>
-							<TableHead className="text-right">Действия</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isLoading ? (
-							Array.from({ length: 5 }).map((_, i) => (
-								<TableRow key={i}>
-									<TableCell>
-										<Skeleton className="h-5 w-32" />
-									</TableCell>
-									<TableCell>
-										<Skeleton className="h-5 w-40" />
-									</TableCell>
-									<TableCell>
-										<Skeleton className="h-5 w-24" />
-									</TableCell>
-									<TableCell>
-										<Skeleton className="h-5 w-20" />
-									</TableCell>
-									<TableCell className="text-right">
-										<Skeleton className="h-8 w-8 inline-block" />
-									</TableCell>
-								</TableRow>
-							))
-						) : !users || users.length === 0 ? (
-							<TableRow>
-								<TableCell
-									colSpan={5}
-									className="text-center py-8 text-muted-foreground"
-								>
-									Сотрудники не найдены
-								</TableCell>
-							</TableRow>
-						) : (
-							(Array.isArray(users) ? users : []).map((user) => (
-								<TableRow key={user.id}>
-									<TableCell className="font-medium">
-										{user.firstName} {user.lastName}
-									</TableCell>
-									<TableCell className="text-muted-foreground">
-										{user.email}
-									</TableCell>
-									<TableCell>
-										<Badge variant="outline">
-											{displayRole(user.role)}
-										</Badge>
-									</TableCell>
-									<TableCell>
-										<Badge variant={user.isActive ? "default" : "secondary"}>
-											{user.isActive ? "Активен" : "Заблокирован"}
-										</Badge>
-									</TableCell>
-									<TableCell className="text-right">
-										<Button
-											variant="ghost"
-											size="icon"
-											onClick={() => handlePasswordReset(user)}
-											title="Сбросить пароль"
-										>
-											<KeyRound className="h-4 w-4" />
-										</Button>
-										<Button
-											variant="ghost"
-											size="icon"
-											onClick={() => handleOpenEdit(user)}
-											title="Редактировать"
-										>
-											<Edit2 className="h-4 w-4" />
-										</Button>
-										<Button
-											variant="ghost"
-											size="icon"
-											onClick={() => handleDelete(user.id)}
-											className="text-destructive"
-											title="Удалить"
-										>
-											<Trash2 className="h-4 w-4" />
-										</Button>
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</div>
+			<DataTable
+				tableId="directory-users"
+				columns={columns}
+				data={rows}
+				isLoading={isLoading}
+				enableSearch
+				searchPlaceholder="Поиск по ФИО или почте…"
+				initialSorting={[{ id: "name", desc: false }]}
+				emptyState={
+					<p className="py-8 text-center text-muted-foreground">Сотрудники не найдены</p>
+				}
+			/>
 
 			<UserDialog
 				open={isDialogOpen}
@@ -358,9 +365,10 @@ function UserDialog({
 				</DialogHeader>
 				<form onSubmit={handleSubmit} className="space-y-4 pt-2">
 					<div className="grid grid-cols-2 gap-3">
-						<div className="space-y-1.5">
-							<Label>Имя *</Label>
+						<div className="space-y-1.5 flex flex-col">
+							<Label className="leading-tight mb-1.5">Имя *</Label>
 							<Input
+								className="mt-auto"
 								required
 								value={formData.firstName}
 								onChange={(e) =>
@@ -369,9 +377,10 @@ function UserDialog({
 								placeholder="Айбек"
 							/>
 						</div>
-						<div className="space-y-1.5">
-							<Label>Фамилия *</Label>
+						<div className="space-y-1.5 flex flex-col">
+							<Label className="leading-tight mb-1.5">Фамилия *</Label>
 							<Input
+								className="mt-auto"
 								required
 								value={formData.lastName}
 								onChange={(e) =>

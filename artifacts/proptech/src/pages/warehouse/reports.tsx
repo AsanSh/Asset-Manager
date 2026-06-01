@@ -89,12 +89,12 @@ export default function WarehouseReports() {
 				<CardContent className="pt-6 space-y-4">
 					<PeriodPicker value={period} onChange={setPeriod} />
 					<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-						<div className="space-y-2">
-							<label className="text-sm font-medium text-gray-700">
+						<div className="space-y-2 flex flex-col">
+							<label className="text-sm font-medium text-gray-700 leading-tight mb-1.5">
 								Тип отчёта
 							</label>
 							<Select value={reportType} onValueChange={setReportType}>
-								<SelectTrigger>
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>

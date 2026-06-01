@@ -184,13 +184,13 @@ function BudgetDialog({
 				</DialogHeader>
 				<form onSubmit={handleSubmit} className="space-y-3">
 					<div className="grid grid-cols-2 gap-3">
-						<div>
-							<Label>Проект *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Проект *</Label>
 							<Select
 								value={form.projectId}
 								onValueChange={(v) => set("projectId", v)}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -202,13 +202,13 @@ function BudgetDialog({
 								</SelectContent>
 							</Select>
 						</div>
-						<div>
-							<Label>Этап</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Этап</Label>
 							<Select
 								value={form.stageId}
 								onValueChange={(v) => set("stageId", v)}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue placeholder="Весь проект" />
 								</SelectTrigger>
 								<SelectContent>
@@ -221,13 +221,13 @@ function BudgetDialog({
 								</SelectContent>
 							</Select>
 						</div>
-						<div>
-							<Label>Категория *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Категория *</Label>
 							<Select
 								value={form.category}
 								onValueChange={(v) => set("category", v)}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -239,32 +239,32 @@ function BudgetDialog({
 								</SelectContent>
 							</Select>
 						</div>
-						<div>
-							<Label>Название статьи *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Название статьи *</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								value={form.name}
 								onChange={(e) => set("name", e.target.value)}
 								required
 							/>
 						</div>
-						<div>
-							<Label>Плановая сумма</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Плановая сумма</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								type="number"
 								min="0"
 								value={form.plannedAmount}
 								onChange={(e) => set("plannedAmount", e.target.value)}
 							/>
 						</div>
-						<div>
-							<Label>Валюта</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Валюта</Label>
 							<Select
 								value={form.currency}
 								onValueChange={(v) => set("currency", v)}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>

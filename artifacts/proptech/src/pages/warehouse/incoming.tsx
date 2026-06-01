@@ -1,6 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search } from "lucide-react";
-import { useState } from "react";
+import { ArrowDownCircle, Plus } from "lucide-react";
+import { useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table";
 import { defaultPeriod, inPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,15 +21,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 
@@ -231,9 +224,10 @@ function IncomingDialog({ open, onClose }: IncomingDialogProps) {
 					)}
 
 					<div className="grid grid-cols-2 gap-4">
-						<div>
-							<Label>Количество *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Количество *</Label>
 							<Input
+								className="mt-auto"
 								type="number"
 								step="0.01"
 								value={formData.quantity}
@@ -244,9 +238,10 @@ function IncomingDialog({ open, onClose }: IncomingDialogProps) {
 								required
 							/>
 						</div>
-						<div>
-							<Label>Цена за единицу *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Цена за единицу *</Label>
 							<Input
+								className="mt-auto"
 								type="number"
 								step="0.01"
 								value={formData.unitPrice}
@@ -335,23 +330,94 @@ export default function IncomingOperations() {
 	const operationsArray = Array.isArray(operations) ? operations : [];
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod());
-	const [search, setSearch] = useState("");
 
-	const filteredOperations = operationsArray.filter((op) => {
-		if (!inPeriod(op.date, period)) return false;
-		if (
-			search !== "" &&
-			!op.itemName.toLowerCase().includes(search.toLowerCase()) &&
-			!op.documentNumber?.toLowerCase().includes(search.toLowerCase()) &&
-			!op.supplierName?.toLowerCase().includes(search.toLowerCase())
-		)
-			return false;
-		return true;
-	});
+	const filteredOperations = operationsArray.filter((op) =>
+		inPeriod(op.date, period),
+	);
 
 	const totalAmount = filteredOperations.reduce(
 		(sum, op) => sum + op.totalPrice,
 		0,
+	);
+
+	const columns = useMemo<ColumnDef<IncomingOperation, unknown>[]>(
+		() => [
+			{
+				id: "date",
+				header: "Дата",
+				size: 110,
+				accessorFn: (row) => row.date,
+				meta: { exportLabel: "Дата", pinned: "left" },
+				cell: ({ row }) => formatDate(row.original.date),
+			},
+			{
+				accessorKey: "itemName",
+				header: "Товар",
+				size: 180,
+				meta: { exportLabel: "Товар" },
+				cell: ({ row }) => (
+					<span className="font-medium">{row.original.itemName}</span>
+				),
+			},
+			{
+				id: "quantity",
+				header: "Количество",
+				size: 110,
+				accessorFn: (row) => row.quantity,
+				meta: { exportLabel: "Количество", align: "right" },
+				cell: ({ row }) => (
+					<span className="font-mono">
+						{formatNumber(row.original.quantity)}
+					</span>
+				),
+			},
+			{
+				id: "unitPrice",
+				header: "Цена",
+				size: 120,
+				accessorFn: (row) => row.unitPrice,
+				meta: { exportLabel: "Цена", align: "right" },
+				cell: ({ row }) => (
+					<span className="font-mono text-gray-700">
+						{formatCurrency(row.original.unitPrice, row.original.currency)}
+					</span>
+				),
+			},
+			{
+				id: "totalPrice",
+				header: "Сумма",
+				size: 130,
+				accessorFn: (row) => row.totalPrice,
+				meta: { exportLabel: "Сумма (сом)", align: "right" },
+				cell: ({ row }) => (
+					<span className="font-mono font-semibold text-emerald-700">
+						{formatCurrency(row.original.totalPrice, row.original.currency)}
+					</span>
+				),
+			},
+			{
+				id: "supplierName",
+				header: "Поставщик",
+				size: 150,
+				accessorFn: (row) => row.supplierName || "—",
+				meta: { exportLabel: "Поставщик" },
+				cell: ({ row }) => row.original.supplierName || "—",
+			},
+			{
+				id: "documentNumber",
+				header: "Документ",
+				size: 120,
+				accessorFn: (row) => row.documentNumber || "",
+				meta: { exportLabel: "Документ" },
+				cell: ({ row }) =>
+					row.original.documentNumber ? (
+						<Badge variant="outline">{row.original.documentNumber}</Badge>
+					) : (
+						<span className="text-muted-foreground">—</span>
+					),
+			},
+		],
+		[],
 	);
 
 	return (
@@ -369,19 +435,7 @@ export default function IncomingOperations() {
 				</Button>
 			</div>
 
-			{/* Filters */}
-			<div className="space-y-2">
-				<PeriodPicker value={period} onChange={setPeriod} />
-				<div className="relative max-w-sm">
-					<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-					<Input
-						placeholder="Поиск по товару, документу, поставщику..."
-						value={search}
-						onChange={(e) => setSearch(e.target.value)}
-						className="pl-9"
-					/>
-				</div>
-			</div>
+			<PeriodPicker value={period} onChange={setPeriod} />
 
 			{/* Summary */}
 			{filteredOperations.length > 0 && (
@@ -395,68 +449,33 @@ export default function IncomingOperations() {
 				</div>
 			)}
 
-			{/* Table */}
-			<div className="rounded-md border">
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead>Дата</TableHead>
-							<TableHead>Товар</TableHead>
-							<TableHead className="text-right">Количество</TableHead>
-							<TableHead className="text-right">Цена</TableHead>
-							<TableHead className="text-right">Сумма</TableHead>
-							<TableHead>Поставщик</TableHead>
-							<TableHead>Документ</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isLoading ? (
-							Array.from({ length: 5 }).map((_, i) => (
-								<TableRow key={i}>
-									{Array.from({ length: 7 }).map((_, j) => (
-										<TableCell key={j}>
-											<Skeleton className="h-4 w-full" />
-										</TableCell>
-									))}
-								</TableRow>
-							))
-						) : !filteredOperations.length ? (
-							<TableRow>
-								<TableCell
-									colSpan={7}
-									className="text-center text-muted-foreground py-8"
-								>
-									{search ? "Ничего не найдено" : "Нет операций прихода"}
-								</TableCell>
-							</TableRow>
-						) : (
-							filteredOperations.map((op) => (
-								<TableRow key={op.id}>
-									<TableCell>{formatDate(op.date)}</TableCell>
-									<TableCell className="font-medium">{op.itemName}</TableCell>
-									<TableCell className="text-right">
-										{formatNumber(op.quantity)}
-									</TableCell>
-									<TableCell className="text-right">
-										{formatCurrency(op.unitPrice, op.currency)}
-									</TableCell>
-									<TableCell className="text-right font-semibold">
-										{formatCurrency(op.totalPrice, op.currency)}
-									</TableCell>
-									<TableCell>{op.supplierName || "—"}</TableCell>
-									<TableCell>
-										{op.documentNumber ? (
-											<Badge variant="outline">{op.documentNumber}</Badge>
-										) : (
-											<span className="text-muted-foreground">—</span>
-										)}
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</div>
+			<DataTable
+				tableId="warehouse-incoming"
+				columns={columns}
+				data={filteredOperations}
+				isLoading={isLoading}
+				enableSearch
+				searchPlaceholder="Поиск по товару, документу, поставщику..."
+				initialSorting={[{ id: "date", desc: true }]}
+				emptyState={
+					<div className="flex flex-col items-center gap-2 text-muted-foreground">
+						<ArrowDownCircle className="h-8 w-8 opacity-30" />
+						<span>Нет операций прихода</span>
+					</div>
+				}
+				footer={
+					filteredOperations.length > 0 ? (
+						<div className="flex justify-end gap-8 px-4 py-2 text-sm font-semibold border-t bg-gray-50">
+							<span className="text-gray-600">
+								Итого ({filteredOperations.length}):
+							</span>
+							<span className="font-mono text-emerald-700">
+								{formatCurrency(totalAmount)}
+							</span>
+						</div>
+					) : undefined
+				}
+			/>
 
 			<IncomingDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
 		</div>

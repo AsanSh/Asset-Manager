@@ -4,10 +4,11 @@ import {
 	Eye,
 	FileText,
 	Plus,
-	Search,
 	Trash2,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table";
 import { defaultPeriod, inPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
 import {
 	AlertDialog,
@@ -36,7 +37,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
 	Table,
 	TableBody,
@@ -197,8 +197,8 @@ function ContractDialog({
 					</div>
 
 					<div className="grid grid-cols-2 gap-3">
-						<div>
-							<Label>ID Клиента *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">ID Клиента *</Label>
 							<Input
 								type="number"
 								value={formData.clientId}
@@ -207,11 +207,11 @@ function ContractDialog({
 								}
 								placeholder="1"
 								required
-								className="mt-1"
+								className="mt-auto"
 							/>
 						</div>
-						<div>
-							<Label>ID Объекта *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">ID Объекта *</Label>
 							<Input
 								type="number"
 								value={formData.propertyId}
@@ -220,14 +220,14 @@ function ContractDialog({
 								}
 								placeholder="1"
 								required
-								className="mt-1"
+								className="mt-auto"
 							/>
 						</div>
 					</div>
 
 					<div className="grid grid-cols-2 gap-3">
-						<div>
-							<Label>Сумма *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Сумма *</Label>
 							<Input
 								type="number"
 								value={formData.totalAmount}
@@ -236,16 +236,16 @@ function ContractDialog({
 								}
 								placeholder="15000000"
 								required
-								className="mt-1"
+								className="mt-auto"
 							/>
 						</div>
-						<div>
-							<Label>Валюта *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Валюта *</Label>
 							<Select
 								value={formData.currency}
 								onValueChange={(v) => setFormData({ ...formData, currency: v })}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -260,26 +260,26 @@ function ContractDialog({
 					</div>
 
 					<div className="grid grid-cols-2 gap-3">
-						<div>
-							<Label>Дата подписания</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Дата подписания</Label>
 							<Input
 								type="date"
 								value={formData.signDate}
 								onChange={(e) =>
 									setFormData({ ...formData, signDate: e.target.value })
 								}
-								className="mt-1"
+								className="mt-auto"
 							/>
 						</div>
-						<div>
-							<Label>Дата регистрации</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Дата регистрации</Label>
 							<Input
 								type="date"
 								value={formData.registrationDate}
 								onChange={(e) =>
 									setFormData({ ...formData, registrationDate: e.target.value })
 								}
-								className="mt-1"
+								className="mt-auto"
 							/>
 						</div>
 					</div>
@@ -384,7 +384,6 @@ function PaymentScheduleDialog({
 export default function SalesContracts() {
 	const [contracts, setContracts] = useState<SalesContract[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
-	const [search, setSearch] = useState("");
 	const [statusFilter, setStatusFilter] = useState<string>("all");
 	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod());
 
@@ -404,7 +403,6 @@ export default function SalesContracts() {
 		try {
 			setIsLoading(true);
 			const params: Record<string, string | undefined> = {
-				search: search || undefined,
 				status: statusFilter !== "all" ? statusFilter : undefined,
 			};
 			const response = await api.get<SalesContract[]>("/crm/sales-contracts", {
@@ -425,7 +423,7 @@ export default function SalesContracts() {
 
 	useEffect(() => {
 		loadContracts();
-	}, [search, statusFilter]);
+	}, [statusFilter]);
 
 	const handleDelete = async () => {
 		if (!deleteId) return;
@@ -443,14 +441,14 @@ export default function SalesContracts() {
 		setDeleteId(null);
 	};
 
-	const handleGenerateContract = (_contractId: number) => {
+	const handleGenerateContract = useCallback((_contractId: number) => {
 		toast({
 			title: "Генерация договора",
 			description: "Функция генерации документа будет реализована позже",
 		});
-	};
+	}, [toast]);
 
-	const getStatusBadge = (status: string) => {
+	const getStatusBadge = useCallback((status: string) => {
 		const opt = STATUS_OPTIONS.find((s) => s.value === status);
 		return (
 			<Badge
@@ -460,7 +458,133 @@ export default function SalesContracts() {
 				{opt?.label || status}
 			</Badge>
 		);
-	};
+	}, []);
+
+	const columns = useMemo<ColumnDef<SalesContract, unknown>[]>(
+		() => [
+			{
+				accessorKey: "contractNumber",
+				header: "Номер договора",
+				size: 150,
+				meta: { exportLabel: "Номер договора", pinned: "left" },
+				cell: ({ row }) => (
+					<span className="font-medium">{row.original.contractNumber}</span>
+				),
+			},
+			{
+				id: "client",
+				header: "Клиент",
+				size: 160,
+				accessorFn: (row) => row.clientName || `Клиент #${row.clientId}`,
+				meta: { exportLabel: "Клиент" },
+				cell: ({ row }) =>
+					row.original.clientName || `Клиент #${row.original.clientId}`,
+			},
+			{
+				id: "property",
+				header: "Объект",
+				size: 160,
+				accessorFn: (row) => row.propertyName || `Объект #${row.propertyId}`,
+				meta: { exportLabel: "Объект" },
+				cell: ({ row }) =>
+					row.original.propertyName || `Объект #${row.original.propertyId}`,
+			},
+			{
+				id: "totalAmount",
+				header: "Сумма",
+				size: 130,
+				accessorFn: (row) => row.totalAmount,
+				meta: { exportLabel: "Сумма", align: "right" },
+				cell: ({ row }) => (
+					<span className="font-mono font-medium">
+						{formatCurrency(row.original.totalAmount, row.original.currency)}
+					</span>
+				),
+			},
+			{
+				id: "signDate",
+				header: "Дата подписания",
+				size: 130,
+				accessorFn: (row) => row.signDate || "",
+				meta: { exportLabel: "Дата подписания" },
+				cell: ({ row }) =>
+					row.original.signDate
+						? new Date(row.original.signDate).toLocaleDateString("ru-KG")
+						: "—",
+			},
+			{
+				id: "registrationDate",
+				header: "Дата регистрации",
+				size: 130,
+				accessorFn: (row) => row.registrationDate || "",
+				meta: { exportLabel: "Дата регистрации" },
+				cell: ({ row }) =>
+					row.original.registrationDate
+						? new Date(row.original.registrationDate).toLocaleDateString("ru-KG")
+						: "—",
+			},
+			{
+				id: "status",
+				header: "Статус",
+				size: 130,
+				accessorKey: "status",
+				meta: { exportLabel: "Статус" },
+				cell: ({ row }) => getStatusBadge(row.original.status),
+			},
+			{
+				id: "actions",
+				header: "",
+				size: 140,
+				enableSorting: false,
+				meta: { align: "right" },
+				cell: ({ row }) => (
+					<div className="flex gap-1 justify-end">
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={() => {
+								setSelectedContract(row.original);
+								setDialogOpen(true);
+							}}
+							title="Редактировать"
+						>
+							<Edit2 className="w-4 h-4" />
+						</Button>
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={() => {
+								setSelectedContract(row.original);
+								setScheduleDialogOpen(true);
+							}}
+							title="График платежей"
+						>
+							<Eye className="w-4 h-4" />
+						</Button>
+						<Button
+							variant="ghost"
+							size="icon"
+							className="text-blue-600 hover:text-blue-700"
+							onClick={() => handleGenerateContract(row.original.id)}
+							title="Сгенерировать документ"
+						>
+							<Download className="w-4 h-4" />
+						</Button>
+						<Button
+							variant="ghost"
+							size="icon"
+							className="text-rose-600 hover:text-rose-700"
+							onClick={() => setDeleteId(row.original.id)}
+							title="Удалить"
+						>
+							<Trash2 className="w-4 h-4" />
+						</Button>
+					</div>
+				),
+			},
+		],
+		[getStatusBadge, handleGenerateContract],
+	);
 
 	return (
 		<div className="space-y-5">
@@ -483,146 +607,40 @@ export default function SalesContracts() {
 				</Button>
 			</div>
 
-			{/* Filters */}
 			<div className="space-y-3">
-			<PeriodPicker value={period} onChange={setPeriod} />
-			<div className="flex gap-3">
-				<div className="relative flex-1">
-					<Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-					<Input
-						placeholder="Поиск по номеру, клиенту..."
-						value={search}
-						onChange={(e) => setSearch(e.target.value)}
-						className="pl-9"
-					/>
-				</div>
-				<Select value={statusFilter} onValueChange={setStatusFilter}>
-					<SelectTrigger className="w-44">
-						<SelectValue placeholder="Все статусы" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="all">Все статусы</SelectItem>
-						{STATUS_OPTIONS.map((opt) => (
-							<SelectItem key={opt.value} value={opt.value}>
-								{opt.label}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-			</div>
+				<PeriodPicker value={period} onChange={setPeriod} />
 			</div>
 
-			{/* Table */}
-			<div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-				<Table>
-					<TableHeader>
-						<TableRow className="bg-gray-50">
-							<TableHead>Номер договора</TableHead>
-							<TableHead>Клиент</TableHead>
-							<TableHead>Объект</TableHead>
-							<TableHead>Сумма</TableHead>
-							<TableHead>Дата подписания</TableHead>
-							<TableHead>Дата регистрации</TableHead>
-							<TableHead>Статус</TableHead>
-							<TableHead className="w-40"></TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isLoading ? (
-							Array.from({ length: 5 }).map((_, i) => (
-								<TableRow key={i}>
-									{Array.from({ length: 8 }).map((_, j) => (
-										<TableCell key={j}>
-											<Skeleton className="h-4 w-full" />
-										</TableCell>
-									))}
-								</TableRow>
-							))
-						) : !filteredContracts.length ? (
-							<TableRow>
-								<TableCell colSpan={8} className="text-center py-12">
-									<FileText className="w-8 h-8 text-gray-200 mx-auto mb-2" />
-									<p className="text-gray-400">Договоры не найдены</p>
-								</TableCell>
-							</TableRow>
-						) : (
-							filteredContracts.map((contract) => (
-								<TableRow key={contract.id} className="hover:bg-gray-50">
-									<TableCell className="font-medium text-gray-900">
-										{contract.contractNumber}
-									</TableCell>
-									<TableCell className="text-gray-700">
-										{contract.clientName || `Клиент #${contract.clientId}`}
-									</TableCell>
-									<TableCell className="text-sm text-gray-600">
-										{contract.propertyName || `Объект #${contract.propertyId}`}
-									</TableCell>
-									<TableCell className="font-medium">
-										{formatCurrency(contract.totalAmount, contract.currency)}
-									</TableCell>
-									<TableCell className="text-sm text-gray-600">
-										{contract.signDate
-											? new Date(contract.signDate).toLocaleDateString("ru-RU")
-											: "—"}
-									</TableCell>
-									<TableCell className="text-sm text-gray-600">
-										{contract.registrationDate
-											? new Date(contract.registrationDate).toLocaleDateString(
-													"ru-RU",
-												)
-											: "—"}
-									</TableCell>
-									<TableCell>{getStatusBadge(contract.status)}</TableCell>
-									<TableCell>
-										<div className="flex gap-1">
-											<Button
-												variant="ghost"
-												size="icon"
-												onClick={() => {
-													setSelectedContract(contract);
-													setDialogOpen(true);
-												}}
-												title="Редактировать"
-											>
-												<Edit2 className="w-4 h-4" />
-											</Button>
-											<Button
-												variant="ghost"
-												size="icon"
-												onClick={() => {
-													setSelectedContract(contract);
-													setScheduleDialogOpen(true);
-												}}
-												title="График платежей"
-											>
-												<Eye className="w-4 h-4" />
-											</Button>
-											<Button
-												variant="ghost"
-												size="icon"
-												className="text-blue-600 hover:text-blue-700"
-												onClick={() => handleGenerateContract(contract.id)}
-												title="Сгенерировать документ"
-											>
-												<Download className="w-4 h-4" />
-											</Button>
-											<Button
-												variant="ghost"
-												size="icon"
-												className="text-rose-600 hover:text-rose-700"
-												onClick={() => setDeleteId(contract.id)}
-												title="Удалить"
-											>
-												<Trash2 className="w-4 h-4" />
-											</Button>
-										</div>
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</div>
+			<DataTable
+				tableId="crm-sales-contracts"
+				columns={columns}
+				data={filteredContracts}
+				isLoading={isLoading}
+				enableSearch
+				searchPlaceholder="Поиск по номеру, клиенту, объекту…"
+				initialSorting={[{ id: "signDate", desc: true }]}
+				toolbar={
+					<Select value={statusFilter} onValueChange={setStatusFilter}>
+						<SelectTrigger className="w-44 h-8">
+							<SelectValue placeholder="Все статусы" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="all">Все статусы</SelectItem>
+							{STATUS_OPTIONS.map((opt) => (
+								<SelectItem key={opt.value} value={opt.value}>
+									{opt.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				}
+				emptyState={
+					<div className="flex flex-col items-center gap-2 text-muted-foreground py-8">
+						<FileText className="w-8 h-8 opacity-30" />
+						<span>Договоры не найдены</span>
+					</div>
+				}
+			/>
 
 			<ContractDialog
 				open={dialogOpen}

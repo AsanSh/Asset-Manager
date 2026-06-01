@@ -7,7 +7,16 @@ import {
   activityLogTable,
 } from "../lib/db";
 
-import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
+import { requireAuth, requireRole, AuthenticatedRequest } from "../middleware/auth";
+import {
+  addRentalCustomTemplate,
+  deleteRentalCustomTemplate,
+  deleteRentalDocumentTemplateFile,
+  getRentalDocumentTemplateFile,
+  getRentalDocumentTemplatesList,
+  isValidTemplateId,
+  uploadRentalDocumentTemplate,
+} from "../lib/rental-document-templates";
 import { requireTenantCompany } from "../middleware/tenant";
 import {
   BANK_ACCOUNT_MODULE,
@@ -1327,5 +1336,102 @@ router.post("/rental/statements/generate", async (req: AuthenticatedRequest, res
 
   res.json({ ...stmt, unitNumber: prop.unitNumber });
 });
+
+// ---------- DOCUMENT TEMPLATES ----------
+
+const DOC_TEMPLATE_ADMIN_ROLES = ["admin", "company_admin", "owner"] as const;
+
+router.get("/rental/document-templates", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const list = await getRentalDocumentTemplatesList(req.scopedCompanyId!);
+  res.json(list);
+});
+
+router.get("/rental/document-templates/:templateId/download", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const templateId = String(req.params.templateId ?? "");
+  if (!isValidTemplateId(templateId)) {
+    res.status(400).json({ error: "Некорректный идентификатор шаблона" });
+    return;
+  }
+  const file = await getRentalDocumentTemplateFile(req.scopedCompanyId!, templateId);
+  if (!file) {
+    res.status(404).json({ error: "Файл шаблона не загружен" });
+    return;
+  }
+  res.json({
+    fileName: file.fileName,
+    mimeType: file.mimeType,
+    dataBase64: file.dataBase64,
+    uploadedAt: file.uploadedAt,
+  });
+});
+
+router.put(
+  "/rental/document-templates/:templateId",
+  requireRole(...DOC_TEMPLATE_ADMIN_ROLES),
+  async (req: AuthenticatedRequest, res): Promise<void> => {
+    const templateId = String(req.params.templateId ?? "");
+    if (!isValidTemplateId(templateId)) {
+      res.status(400).json({ error: "Некорректный идентификатор шаблона" });
+      return;
+    }
+    const result = await uploadRentalDocumentTemplate(req.scopedCompanyId!, templateId, req.body);
+    if (result.error) {
+      res.status(400).json({ error: result.error });
+      return;
+    }
+    res.json({ ok: true, file: result.summary });
+  },
+);
+
+router.delete(
+  "/rental/document-templates/:templateId/file",
+  requireRole(...DOC_TEMPLATE_ADMIN_ROLES),
+  async (req: AuthenticatedRequest, res): Promise<void> => {
+    const templateId = String(req.params.templateId ?? "");
+    if (!isValidTemplateId(templateId)) {
+      res.status(400).json({ error: "Некорректный идентификатор шаблона" });
+      return;
+    }
+    const ok = await deleteRentalDocumentTemplateFile(req.scopedCompanyId!, templateId);
+    if (!ok) {
+      res.status(404).json({ error: "Файл шаблона не найден" });
+      return;
+    }
+    res.json({ ok: true });
+  },
+);
+
+router.post(
+  "/rental/document-templates/custom",
+  requireRole(...DOC_TEMPLATE_ADMIN_ROLES),
+  async (req: AuthenticatedRequest, res): Promise<void> => {
+    const label = String(req.body?.label ?? "").trim();
+    const desc = String(req.body?.desc ?? "").trim();
+    if (!label) {
+      res.status(400).json({ error: "Введите название шаблона" });
+      return;
+    }
+    const item = await addRentalCustomTemplate(req.scopedCompanyId!, label, desc);
+    res.status(201).json(item);
+  },
+);
+
+router.delete(
+  "/rental/document-templates/custom/:templateId",
+  requireRole(...DOC_TEMPLATE_ADMIN_ROLES),
+  async (req: AuthenticatedRequest, res): Promise<void> => {
+    const templateId = String(req.params.templateId ?? "");
+    if (!templateId.startsWith("custom_")) {
+      res.status(400).json({ error: "Можно удалить только пользовательский шаблон" });
+      return;
+    }
+    const ok = await deleteRentalCustomTemplate(req.scopedCompanyId!, templateId);
+    if (!ok) {
+      res.status(404).json({ error: "Шаблон не найден" });
+      return;
+    }
+    res.json({ ok: true });
+  },
+);
 
 export default router;

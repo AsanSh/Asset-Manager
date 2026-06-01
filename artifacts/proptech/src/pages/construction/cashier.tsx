@@ -7,8 +7,10 @@ import {
 	Search,
 	User,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
+import { DataTable } from "@/components/data-table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -151,6 +153,70 @@ export default function ConstructionCashier() {
 			? parseFloat(paymentForm.amount || "0")
 			: parseFloat(paymentForm.amount || "0") *
 				parseFloat(paymentForm.exchangeRate || "1");
+
+	const paymentColumns = useMemo<ColumnDef<any, unknown>[]>(
+		() => [
+			{
+				accessorKey: "date",
+				header: "Дата",
+				size: 120,
+				meta: { exportLabel: "Дата" },
+				cell: ({ row }) => (
+					<span className="text-gray-600">{row.original.date}</span>
+				),
+			},
+			{
+				id: "contract",
+				header: "Договор",
+				size: 200,
+				accessorFn: (row: any) => {
+					const c = contracts.find((x: any) => x.id === row.contractId);
+					return c?.contractNumber || `#${row.contractId}`;
+				},
+				meta: { exportLabel: "Договор" },
+				cell: ({ row }) => {
+					const op = row.original;
+					const c = contracts.find((x: any) => x.id === op.contractId);
+					return (
+						<div>
+							<div className="font-mono text-xs text-amber-600">
+								{c?.contractNumber || `#${op.contractId}`}
+							</div>
+							<div className="text-xs text-gray-400">{c?.buyerName}</div>
+						</div>
+					);
+				},
+			},
+			{
+				accessorKey: "description",
+				header: "Описание",
+				size: 320,
+				meta: { exportLabel: "Описание" },
+				cell: ({ row }) => {
+					const op = row.original;
+					return (
+						<span className="text-gray-600 text-xs">
+							{op.description}
+							{op.notes ? ` · ${op.notes}` : ""}
+						</span>
+					);
+				},
+			},
+			{
+				id: "amount",
+				header: "Сумма",
+				size: 140,
+				accessorFn: (row: any) => parseFloat(row.amount || "0"),
+				meta: { exportLabel: "Сумма (сом)", align: "right" },
+				cell: ({ row }) => (
+					<span className="font-mono font-medium text-emerald-600">
+						{fmt(row.original.amount)} {row.original.currency}
+					</span>
+				),
+			},
+		],
+		[contracts],
+	);
 
 	return (
 		<div>
@@ -360,26 +426,26 @@ export default function ConstructionCashier() {
 							)}
 
 							<div className="grid grid-cols-3 gap-3">
-								<div>
-									<Label className="text-xs">Сумма *</Label>
+								<div className="flex flex-col">
+									<Label className="text-xs leading-tight mb-1.5">Сумма *</Label>
 									<Input
 										type="number"
 										value={paymentForm.amount}
 										onChange={(e) =>
 											setPaymentForm((f) => ({ ...f, amount: e.target.value }))
 										}
-										className="mt-1 h-8 text-sm"
+										className="mt-auto h-8 text-sm"
 									/>
 								</div>
-								<div>
-									<Label className="text-xs">Валюта</Label>
+								<div className="flex flex-col">
+									<Label className="text-xs leading-tight mb-1.5">Валюта</Label>
 									<Select
 										value={paymentForm.currency}
 										onValueChange={(v) =>
 											setPaymentForm((f) => ({ ...f, currency: v }))
 										}
 									>
-										<SelectTrigger className="mt-1 h-8 text-sm">
+										<SelectTrigger className="mt-auto h-8 text-sm">
 											<SelectValue />
 										</SelectTrigger>
 										<SelectContent>
@@ -392,8 +458,8 @@ export default function ConstructionCashier() {
 									</Select>
 								</div>
 								{paymentForm.currency !== "KGS" && (
-									<div>
-										<Label className="text-xs">Курс</Label>
+									<div className="flex flex-col">
+										<Label className="text-xs leading-tight mb-1.5">Курс</Label>
 										<Input
 											type="number"
 											value={paymentForm.exchangeRate}
@@ -403,7 +469,7 @@ export default function ConstructionCashier() {
 													exchangeRate: e.target.value,
 												}))
 											}
-											className="mt-1 h-8 text-sm"
+											className="mt-auto h-8 text-sm"
 										/>
 									</div>
 								)}
@@ -416,15 +482,15 @@ export default function ConstructionCashier() {
 							)}
 
 							<div className="grid grid-cols-2 gap-3">
-								<div>
-									<Label className="text-xs">Способ оплаты</Label>
+								<div className="flex flex-col">
+									<Label className="text-xs leading-tight mb-1.5">Способ оплаты</Label>
 									<Select
 										value={paymentForm.paymentMethod}
 										onValueChange={(v) =>
 											setPaymentForm((f) => ({ ...f, paymentMethod: v }))
 										}
 									>
-										<SelectTrigger className="mt-1 h-8 text-sm">
+										<SelectTrigger className="mt-auto h-8 text-sm">
 											<SelectValue />
 										</SelectTrigger>
 										<SelectContent>
@@ -434,15 +500,15 @@ export default function ConstructionCashier() {
 										</SelectContent>
 									</Select>
 								</div>
-								<div>
-									<Label className="text-xs">Счёт зачисления *</Label>
+								<div className="flex flex-col">
+									<Label className="text-xs leading-tight mb-1.5">Счёт зачисления *</Label>
 									<Select
 										value={paymentForm.accountId}
 										onValueChange={(v) =>
 											setPaymentForm((f) => ({ ...f, accountId: v }))
 										}
 									>
-										<SelectTrigger className="mt-1 h-8 text-sm">
+										<SelectTrigger className="mt-auto h-8 text-sm">
 											<SelectValue placeholder="Выберите счёт" />
 										</SelectTrigger>
 										<SelectContent>
@@ -500,8 +566,8 @@ export default function ConstructionCashier() {
 				</div>
 			</div>
 
-			<div className="mt-8 bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-				<div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+			<div className="mt-8 space-y-3">
+				<div className="flex items-center justify-between">
 					<div>
 						<div className="text-sm font-semibold text-gray-900">
 							Принятые платежи
@@ -514,60 +580,13 @@ export default function ConstructionCashier() {
 						{contractPayments.length} записей
 					</span>
 				</div>
-				{contractPayments.length === 0 ? (
-					<div className="text-center py-10 text-gray-400 text-sm">
-						Платежей пока нет
-					</div>
-				) : (
-					<table className="w-full text-sm">
-						<thead>
-							<tr className="bg-gray-50 border-b border-gray-100">
-								<th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">
-									Дата
-								</th>
-								<th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">
-									Договор
-								</th>
-								<th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">
-									Описание
-								</th>
-								<th className="text-right px-4 py-2 text-xs font-semibold text-gray-500">
-									Сумма
-								</th>
-							</tr>
-						</thead>
-						<tbody>
-							{contractPayments.map((op: any) => {
-								const c = contracts.find(
-									(x: any) => x.id === op.contractId,
-								);
-								return (
-									<tr
-										key={op.id}
-										className="border-b border-gray-50 hover:bg-gray-50/50"
-									>
-										<td className="px-4 py-2.5 text-gray-600">{op.date}</td>
-										<td className="px-4 py-2.5">
-											<div className="font-mono text-xs text-amber-600">
-												{c?.contractNumber || `#${op.contractId}`}
-											</div>
-											<div className="text-xs text-gray-400">
-												{c?.buyerName}
-											</div>
-										</td>
-										<td className="px-4 py-2.5 text-gray-600 text-xs max-w-xs truncate">
-											{op.description}
-											{op.notes ? ` · ${op.notes}` : ""}
-										</td>
-										<td className="px-4 py-2.5 text-right font-mono font-medium text-emerald-600">
-											{fmt(op.amount)} {op.currency}
-										</td>
-									</tr>
-								);
-							})}
-						</tbody>
-					</table>
-				)}
+				<DataTable
+					tableId="construction-cashier"
+					columns={paymentColumns}
+					data={contractPayments}
+					initialSorting={[{ id: "date", desc: true }]}
+					emptyState="Платежей пока нет"
+				/>
 			</div>
 		</div>
 	);

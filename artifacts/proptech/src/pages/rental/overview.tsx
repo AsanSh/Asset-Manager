@@ -2,6 +2,7 @@ import { ChevronDown, ChevronUp, Columns, ChevronsUpDown, Download, Pencil, Chec
 import { useMemo, useState } from "react";
 import { useListLeaseContracts, useListProperties } from "@/api-client";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { MATRIX_TH, MatrixTableFrame } from "@/components/matrix-table-frame";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
@@ -238,35 +239,51 @@ export default function RentalOverview() {
 						)}
 					</p>
 				</div>
-				<div className="flex items-center gap-2">
+			</div>
+
+			<MatrixTableFrame
+				title="Сводная таблица"
+				maxHeight="calc(100vh - 200px)"
+				onExportCsv={exportCsv}
+				toolbar={
 					<Popover>
 						<PopoverTrigger asChild>
-							<button className="inline-flex items-center gap-1.5 h-8 px-3 rounded border border-gray-200 bg-white text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+							<button
+								type="button"
+								className="inline-flex items-center gap-1.5 h-8 px-3 rounded border border-am-border bg-am-surface text-xs font-medium text-am-text-muted hover:bg-gray-50 transition-colors"
+							>
 								<Columns className="w-3.5 h-3.5" />
 								Столбцы
 							</button>
 						</PopoverTrigger>
 						<PopoverContent className="w-52 p-2" align="end">
-							<p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5 px-1">Столбцы</p>
+							<p className="text-[10px] font-semibold text-am-text-muted uppercase tracking-wide mb-1.5 px-1">
+								Столбцы
+							</p>
 							{COLUMNS.map((col) => (
-								<label key={col.key} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-50 cursor-pointer">
-									<input type="checkbox" checked={visibleCols.has(col.key)} onChange={() => toggleCol(col.key)} className="w-3.5 h-3.5 accent-blue-600" />
+								<label
+									key={col.key}
+									className="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-50 cursor-pointer"
+								>
+									<input
+										type="checkbox"
+										checked={visibleCols.has(col.key)}
+										onChange={() => toggleCol(col.key)}
+										className="w-3.5 h-3.5 accent-blue-600"
+									/>
 									<span className="text-xs text-gray-700">{col.label}</span>
 								</label>
 							))}
 						</PopoverContent>
 					</Popover>
-
-					<button onClick={exportCsv} className="inline-flex items-center gap-1.5 h-8 px-3 rounded border border-gray-200 bg-white text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-						<Download className="w-3.5 h-3.5" />
-						CSV
-					</button>
-				</div>
-			</div>
-
-			{/* Excel table */}
-			<div className="overflow-auto border border-gray-300 rounded-sm" style={{ maxHeight: "calc(100vh - 200px)" }}>
-				<table className="text-xs border-collapse" style={{ minWidth: visibleDefs.reduce((s, c) => s + (c.width ?? 100), 50) + "px" }}>
+				}
+			>
+				<table
+					className="text-xs border-collapse w-full"
+					style={{
+						minWidth: visibleDefs.reduce((s, c) => s + (c.width ?? 100), 50) + "px",
+					}}
+				>
 					<thead className="sticky top-0 z-20">
 						{/* Column letters */}
 						<tr>
@@ -279,12 +296,16 @@ export default function RentalOverview() {
 						</tr>
 						{/* Header labels */}
 						<tr>
-							<th className="border border-gray-300 bg-[#E8EAED] text-center text-gray-500 font-semibold py-1.5 px-2 select-none sticky left-0 z-10 text-[11px]">#</th>
+							<th
+								className={`border border-gray-300 ${MATRIX_TH} text-center sticky left-0 z-10 bg-gray-50/95`}
+							>
+								#
+							</th>
 							{visibleDefs.map((col) => (
 								<th
 									key={col.key}
 									onClick={() => handleSort(col.key)}
-									className="border border-gray-300 bg-[#E8EAED] text-left py-1.5 px-2 font-semibold text-gray-700 cursor-pointer select-none hover:bg-[#d8dde3] transition-colors whitespace-nowrap text-[11px]"
+									className={`border border-gray-300 ${MATRIX_TH} text-left cursor-pointer select-none hover:bg-gray-100 transition-colors`}
 								>
 									<span className="inline-flex items-center gap-1">
 										{col.label}
@@ -432,7 +453,7 @@ export default function RentalOverview() {
 						</tfoot>
 					)}
 				</table>
-			</div>
+			</MatrixTableFrame>
 
 			<p className="text-[11px] text-gray-400">
 				* Рыночная стоимость вводится вручную прямо в ячейке · ROI = Ежемес. взнос ÷ Рын. стоимость × 100%

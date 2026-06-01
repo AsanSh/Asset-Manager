@@ -38,7 +38,7 @@ const SYSTEM_ROLE_MODULES: Record<string, ModuleId[] | "all"> = {
 	company_admin: "all",
 	admin: "all",
 	rental_manager: ["rental"],
-	sales_manager: ["construction", "proptech"],
+	sales_manager: ["proptech"],
 	finance: ["consolidated", "rental", "construction"],
 	staff: ["consolidated"],
 	pto: ["construction"],
@@ -58,7 +58,7 @@ const PERMISSION_PREFIX_TO_MODULE: Record<string, ModuleId> = {
 
 const DEFAULT_HOME: Record<string, string> = {
 	rental_manager: "/rental/dashboard",
-	sales_manager: "/construction/dashboard",
+	sales_manager: "/crm/dashboard",
 	finance: "/dashboard",
 	staff: "/dashboard",
 	company_admin: "/dashboard",

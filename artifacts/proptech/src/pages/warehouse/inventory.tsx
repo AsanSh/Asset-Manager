@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, ClipboardList, Eye, Plus } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +14,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
 	Table,
 	TableBody,
@@ -414,6 +415,83 @@ export default function InventoryChecks() {
 		inventory: null,
 	});
 
+	const columns = useMemo<ColumnDef<Inventory, unknown>[]>(
+		() => [
+			{
+				id: "inventoryDate",
+				header: "Дата",
+				size: 110,
+				accessorFn: (row) => row.inventoryDate,
+				meta: { exportLabel: "Дата", pinned: "left" },
+				cell: ({ row }) => formatDate(row.original.inventoryDate),
+			},
+			{
+				accessorKey: "conductedBy",
+				header: "Проводит",
+				size: 160,
+				meta: { exportLabel: "Проводит" },
+				cell: ({ row }) => (
+					<span className="font-medium">{row.original.conductedBy}</span>
+				),
+			},
+			{
+				id: "status",
+				header: "Статус",
+				size: 130,
+				accessorKey: "status",
+				meta: { exportLabel: "Статус" },
+				cell: ({ row }) => (
+					<Badge
+						className={statusColors[row.original.status]}
+						variant="secondary"
+					>
+						{statusLabels[row.original.status]}
+					</Badge>
+				),
+			},
+			{
+				id: "completedDate",
+				header: "Завершена",
+				size: 110,
+				accessorFn: (row) => row.completedDate || "",
+				meta: { exportLabel: "Завершена" },
+				cell: ({ row }) =>
+					row.original.completedDate
+						? formatDate(row.original.completedDate)
+						: "—",
+			},
+			{
+				accessorKey: "note",
+				header: "Примечание",
+				size: 180,
+				meta: { exportLabel: "Примечание" },
+				cell: ({ row }) => (
+					<span className="text-sm">{row.original.note || "—"}</span>
+				),
+			},
+			{
+				id: "actions",
+				header: "",
+				size: 120,
+				enableSorting: false,
+				meta: { exportLabel: "Действия", align: "right" },
+				cell: ({ row }) => (
+					<Button
+						variant="ghost"
+						size="sm"
+						onClick={() =>
+							setViewDialog({ open: true, inventory: row.original })
+						}
+					>
+						<Eye className="h-4 w-4 mr-2" />
+						{row.original.status === "in_progress" ? "Провести" : "Просмотр"}
+					</Button>
+				),
+			},
+		],
+		[],
+	);
+
 	return (
 		<div className="p-6 space-y-4">
 			<div className="flex justify-between items-center">
@@ -469,80 +547,16 @@ export default function InventoryChecks() {
 				</Card>
 			</div>
 
-			{/* Table */}
-			<div className="rounded-md border">
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead>Дата</TableHead>
-							<TableHead>Проводит</TableHead>
-							<TableHead>Статус</TableHead>
-							<TableHead>Завершена</TableHead>
-							<TableHead>Примечание</TableHead>
-							<TableHead className="text-right">Действия</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isLoading ? (
-							Array.from({ length: 5 }).map((_, i) => (
-								<TableRow key={i}>
-									{Array.from({ length: 6 }).map((_, j) => (
-										<TableCell key={j}>
-											<Skeleton className="h-4 w-full" />
-										</TableCell>
-									))}
-								</TableRow>
-							))
-						) : !inventoriesArray.length ? (
-							<TableRow>
-								<TableCell
-									colSpan={6}
-									className="text-center text-muted-foreground py-8"
-								>
-									Нет инвентаризаций
-								</TableCell>
-							</TableRow>
-						) : (
-							inventoriesArray.map((inventory) => (
-								<TableRow key={inventory.id}>
-									<TableCell>{formatDate(inventory.inventoryDate)}</TableCell>
-									<TableCell className="font-medium">
-										{inventory.conductedBy}
-									</TableCell>
-									<TableCell>
-										<Badge
-											className={statusColors[inventory.status]}
-											variant="secondary"
-										>
-											{statusLabels[inventory.status]}
-										</Badge>
-									</TableCell>
-									<TableCell>
-										{inventory.completedDate
-											? formatDate(inventory.completedDate)
-											: "—"}
-									</TableCell>
-									<TableCell className="text-sm">
-										{inventory.note || "—"}
-									</TableCell>
-									<TableCell className="text-right">
-										<Button
-											variant="ghost"
-											size="sm"
-											onClick={() => setViewDialog({ open: true, inventory })}
-										>
-											<Eye className="h-4 w-4 mr-2" />
-											{inventory.status === "in_progress"
-												? "Провести"
-												: "Просмотр"}
-										</Button>
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</div>
+			<DataTable
+				tableId="warehouse-inventory"
+				columns={columns}
+				data={inventoriesArray}
+				isLoading={isLoading}
+				enableSearch
+				searchPlaceholder="Поиск по ответственному, примечанию…"
+				initialSorting={[{ id: "inventoryDate", desc: true }]}
+				emptyState="Нет инвентаризаций"
+			/>
 
 			<CreateInventoryDialog
 				open={createDialogOpen}

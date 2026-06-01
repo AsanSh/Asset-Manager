@@ -1,6 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit2, Package, Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,15 +20,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { getApiBase } from "@/lib/api-base";
@@ -162,22 +155,22 @@ function MaterialDialog({
 				</DialogHeader>
 				<form onSubmit={handleSubmit} className="space-y-3">
 					<div className="grid grid-cols-2 gap-3">
-						<div className="col-span-2">
-							<Label>Название *</Label>
+						<div className="col-span-2 flex flex-col">
+							<Label className="leading-tight mb-1.5">Название *</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								value={form.name}
 								onChange={(e) => set("name", e.target.value)}
 								required
 							/>
 						</div>
-						<div>
-							<Label>Категория</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Категория</Label>
 							<Select
 								value={form.category}
 								onValueChange={(v) => set("category", v)}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -189,13 +182,13 @@ function MaterialDialog({
 								</SelectContent>
 							</Select>
 						</div>
-						<div>
-							<Label>Проект</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Проект</Label>
 							<Select
 								value={form.projectId}
 								onValueChange={(v) => set("projectId", v)}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue placeholder="Не указан" />
 								</SelectTrigger>
 								<SelectContent>
@@ -208,10 +201,10 @@ function MaterialDialog({
 								</SelectContent>
 							</Select>
 						</div>
-						<div>
-							<Label>Ед. измерения</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Ед. измерения</Label>
 							<Select value={form.unit} onValueChange={(v) => set("unit", v)}>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -223,10 +216,10 @@ function MaterialDialog({
 								</SelectContent>
 							</Select>
 						</div>
-						<div>
-							<Label>Количество</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Количество</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								type="number"
 								min="0"
 								step="0.001"
@@ -234,23 +227,23 @@ function MaterialDialog({
 								onChange={(e) => set("quantity", e.target.value)}
 							/>
 						</div>
-						<div>
-							<Label>Цена за ед.</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Цена за ед.</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								type="number"
 								min="0"
 								value={form.unitPrice}
 								onChange={(e) => set("unitPrice", e.target.value)}
 							/>
 						</div>
-						<div>
-							<Label>Статус</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Статус</Label>
 							<Select
 								value={form.status}
 								onValueChange={(v) => set("status", v)}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -315,8 +308,6 @@ export default function ConstructionMaterials() {
 	const { toast } = useToast();
 	const [dialog, setDialog] = useState<Material | null | "new">(null);
 	const [projectFilter, setProjectFilter] = useState("all");
-	const [search, setSearch] = useState("");
-
 	const { data: projects = [] } = useQuery<Project[]>({
 		queryKey: ["construction-projects"],
 		queryFn: () => api.get("/construction/projects/all").then((r) => r.data),
@@ -332,12 +323,6 @@ export default function ConstructionMaterials() {
 				.then((r) => r.data),
 	});
 
-	const filtered = materials.filter(
-		(m) =>
-			!search ||
-			m.name.toLowerCase().includes(search.toLowerCase()) ||
-			m.category?.toLowerCase().includes(search.toLowerCase()),
-	);
 	const totalCost = materials.reduce(
 		(s, m) => s + parseFloat(m.totalPrice || "0"),
 		0,
@@ -352,6 +337,115 @@ export default function ConstructionMaterials() {
 		toast({ title: "Удалено" });
 		qc.invalidateQueries({ queryKey: ["construction-materials"] });
 	};
+
+	const columns = useMemo<ColumnDef<Material, unknown>[]>(
+		() => [
+			{
+				id: "name",
+				header: "Материал",
+				size: 200,
+				minSize: 140,
+				maxSize: 400,
+				accessorKey: "name",
+				meta: { exportLabel: "Материал", grow: true },
+				cell: ({ row }) => (
+					<span className="font-medium truncate block" title={row.original.name}>
+						{row.original.name}
+					</span>
+				),
+			},
+			{
+				id: "category",
+				header: "Категория",
+				size: 130,
+				accessorFn: (row) => row.category || "",
+				meta: { exportLabel: "Категория" },
+				cell: ({ row }) => (
+					<Badge variant="secondary" className="text-[10px] bg-amber-50 text-amber-700">
+						{row.original.category || "—"}
+					</Badge>
+				),
+			},
+			{
+				id: "quantity",
+				header: "Кол-во",
+				size: 100,
+				accessorFn: (row) => parseFloat(row.quantity || "0"),
+				meta: { exportLabel: "Кол-во", align: "right" },
+				cell: ({ row }) => (
+					<span className="tabular-nums">
+						{fmtNum(row.original.quantity)} {row.original.unit}
+					</span>
+				),
+			},
+			{
+				id: "unitPrice",
+				header: "Цена за ед.",
+				size: 110,
+				accessorFn: (row) => parseFloat(row.unitPrice || "0"),
+				meta: { exportLabel: "Цена за ед.", align: "right", financeAmount: true },
+				cell: ({ row }) => (
+					<span className="tabular-nums">{fmtNum(row.original.unitPrice)} сом</span>
+				),
+			},
+			{
+				id: "totalPrice",
+				header: "Итого",
+				size: 110,
+				accessorFn: (row) => parseFloat(row.totalPrice || "0"),
+				meta: { exportLabel: "Итого", align: "right", financeAmount: true },
+				cell: ({ row }) => (
+					<span className="tabular-nums font-semibold">
+						{fmtNum(row.original.totalPrice)} сом
+					</span>
+				),
+			},
+			{
+				id: "status",
+				header: "Статус",
+				size: 120,
+				accessorKey: "status",
+				meta: { exportLabel: "Статус" },
+				cell: ({ row }) => (
+					<Badge
+						variant="secondary"
+						className={STATUS_CFG[row.original.status]?.color || ""}
+					>
+						{STATUS_CFG[row.original.status]?.label || row.original.status}
+					</Badge>
+				),
+			},
+			{
+				id: "actions",
+				header: "",
+				size: 80,
+				enableSorting: false,
+				enableResizing: false,
+				meta: { align: "center" },
+				cell: ({ row }) => (
+					<div className="flex gap-1 justify-center">
+						<button
+							type="button"
+							onClick={() => setDialog(row.original)}
+							className="text-am-text-subtle hover:text-am-text-strong p-1"
+							title="Редактировать"
+						>
+							<Edit2 className="w-3.5 h-3.5" />
+						</button>
+						<button
+							type="button"
+							onClick={() => handleDelete(row.original.id)}
+							className="text-am-text-subtle hover:text-rose-600 p-1"
+							title="Удалить"
+						>
+							<Trash2 className="w-3.5 h-3.5" />
+						</button>
+					</div>
+				),
+			},
+		],
+		[],
+	);
 
 	return (
 		<div className="space-y-6">
@@ -409,105 +503,21 @@ export default function ConstructionMaterials() {
 				))}
 			</div>
 
-			<div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-				<div className="p-4 border-b border-gray-100">
-					<Input
-						placeholder="Поиск по названию или категории..."
-						value={search}
-						onChange={(e) => setSearch(e.target.value)}
-						className="max-w-sm"
-					/>
-				</div>
-				<Table>
-					<TableHeader>
-						<TableRow className="bg-gray-50">
-							<TableHead>Материал</TableHead>
-							<TableHead>Категория</TableHead>
-							<TableHead className="text-right">Кол-во</TableHead>
-							<TableHead className="text-right">Цена за ед.</TableHead>
-							<TableHead className="text-right">Итого</TableHead>
-							<TableHead>Статус</TableHead>
-							<TableHead className="text-center">Действия</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isLoading ? (
-							Array.from({ length: 4 }).map((_, i) => (
-								<TableRow key={i}>
-									{Array.from({ length: 7 }).map((_, j) => (
-										<TableCell key={j}>
-											<Skeleton className="h-4 w-full" />
-										</TableCell>
-									))}
-								</TableRow>
-							))
-						) : filtered.length === 0 ? (
-							<TableRow>
-								<TableCell
-									colSpan={7}
-									className="text-center py-12 text-gray-400"
-								>
-									<Package className="w-10 h-10 mx-auto mb-2 opacity-20" />
-									<p>Материалов нет</p>
-								</TableCell>
-							</TableRow>
-						) : (
-							filtered.map((m) => (
-								<TableRow key={m.id} className="hover:bg-gray-50">
-									<TableCell className="font-medium text-sm text-gray-900">
-										{m.name}
-									</TableCell>
-									<TableCell>
-										<Badge
-											variant="secondary"
-											className="text-[10px] bg-amber-50 text-amber-700"
-										>
-											{m.category || "—"}
-										</Badge>
-									</TableCell>
-									<TableCell className="text-right text-sm text-gray-600">
-										{fmtNum(m.quantity)} {m.unit}
-									</TableCell>
-									<TableCell className="text-right text-sm text-gray-600">
-										{fmtNum(m.unitPrice)} сом
-									</TableCell>
-									<TableCell className="text-right text-sm font-semibold text-gray-800">
-										{fmtNum(m.totalPrice)} сом
-									</TableCell>
-									<TableCell>
-										<Badge
-											variant="secondary"
-											className={STATUS_CFG[m.status]?.color || ""}
-										>
-											{STATUS_CFG[m.status]?.label || m.status}
-										</Badge>
-									</TableCell>
-									<TableCell>
-										<div className="flex gap-1 justify-center">
-											<Button
-												size="sm"
-												variant="ghost"
-												className="h-7 w-7 p-0"
-												onClick={() => setDialog(m)}
-											>
-												<Edit2 className="w-3.5 h-3.5 text-gray-400" />
-											</Button>
-											<Button
-												size="sm"
-												variant="ghost"
-												className="h-7 w-7 p-0"
-												onClick={() => handleDelete(m.id)}
-											>
-												<Trash2 className="w-3.5 h-3.5 text-gray-400 hover:text-rose-600" />
-											</Button>
-										</div>
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</div>
+			<DataTable
+				tableId="construction-materials"
+				columns={columns}
+				data={materials}
+				isLoading={isLoading}
+				enableSearch
+				searchPlaceholder="Поиск по названию или категории…"
+				initialSorting={[{ id: "name", desc: false }]}
+				emptyState={
+					<div className="flex flex-col items-center gap-2 py-8 text-am-text-muted">
+						<Package className="w-10 h-10 opacity-30" />
+						<p>Материалов нет</p>
+					</div>
+				}
+			/>
 
 			<MaterialDialog
 				material={dialog}

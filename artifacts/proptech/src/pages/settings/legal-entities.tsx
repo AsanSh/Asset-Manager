@@ -166,8 +166,8 @@ function LegalEntityDialog({ open, onClose, entity }: LegalEntityDialogProps) {
 				</DialogHeader>
 				<form onSubmit={handleSubmit} className="space-y-4">
 					<div className="grid grid-cols-2 gap-4">
-						<div>
-							<Label>Название *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Название *</Label>
 							<Input
 								value={formData.name}
 								onChange={(e) =>
@@ -175,43 +175,43 @@ function LegalEntityDialog({ open, onClose, entity }: LegalEntityDialogProps) {
 								}
 								placeholder="ОсОО Компания"
 								required
-								className="mt-1"
+								className="mt-auto"
 							/>
 						</div>
-						<div>
-							<Label>Полное наименование</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Полное наименование</Label>
 							<Input
 								value={formData.fullLegalName}
 								onChange={(e) =>
 									setFormData({ ...formData, fullLegalName: e.target.value })
 								}
 								placeholder="Общество с ограниченной ответственностью..."
-								className="mt-1"
+								className="mt-auto"
 							/>
 						</div>
 					</div>
 
 					<div className="grid grid-cols-2 gap-4">
-						<div>
-							<Label>ИНН/ИНО</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">ИНН/ИНО</Label>
 							<Input
 								value={formData.inn}
 								onChange={(e) =>
 									setFormData({ ...formData, inn: e.target.value })
 								}
 								placeholder="12345678901234"
-								className="mt-1"
+								className="mt-auto"
 							/>
 						</div>
-						<div>
-							<Label>Телефон</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Телефон</Label>
 							<Input
 								value={formData.phone}
 								onChange={(e) =>
 									setFormData({ ...formData, phone: e.target.value })
 								}
 								placeholder="+996 700 000 000"
-								className="mt-1"
+								className="mt-auto"
 							/>
 						</div>
 					</div>
@@ -242,26 +242,26 @@ function LegalEntityDialog({ open, onClose, entity }: LegalEntityDialogProps) {
 					</div>
 
 					<div className="grid grid-cols-2 gap-4">
-						<div>
-							<Label>Директор</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Директор</Label>
 							<Input
 								value={formData.directorName}
 								onChange={(e) =>
 									setFormData({ ...formData, directorName: e.target.value })
 								}
 								placeholder="Иванов И.И."
-								className="mt-1"
+								className="mt-auto"
 							/>
 						</div>
-						<div>
-							<Label>Главный бухгалтер</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Главный бухгалтер</Label>
 							<Input
 								value={formData.accountant}
 								onChange={(e) =>
 									setFormData({ ...formData, accountant: e.target.value })
 								}
 								placeholder="Петрова П.П."
-								className="mt-1"
+								className="mt-auto"
 							/>
 						</div>
 					</div>

@@ -168,34 +168,34 @@ function PeriodForm({
 				/>
 			</div>
 			<div className="grid grid-cols-2 gap-3">
-				<div>
-					<Label className="text-xs text-gray-600 mb-1.5 block">
+				<div className="flex flex-col">
+					<Label className="text-xs text-gray-600 mb-1.5 block leading-tight">
 						Дата начала *
 					</Label>
 					<Input
 						type="date"
 						value={form.startDate}
 						onChange={(e) => set("startDate", e.target.value)}
-						className="h-9"
+						className="mt-auto h-9"
 					/>
 				</div>
-				<div>
-					<Label className="text-xs text-gray-600 mb-1.5 block">
+				<div className="flex flex-col">
+					<Label className="text-xs text-gray-600 mb-1.5 block leading-tight">
 						Дата окончания *
 					</Label>
 					<Input
 						type="date"
 						value={form.endDate}
 						onChange={(e) => set("endDate", e.target.value)}
-						className="h-9"
+						className="mt-auto h-9"
 					/>
 				</div>
 			</div>
 			<div className="grid grid-cols-2 gap-3">
-				<div>
-					<Label className="text-xs text-gray-600 mb-1.5 block">Модуль</Label>
+				<div className="flex flex-col">
+					<Label className="text-xs text-gray-600 mb-1.5 block leading-tight">Модуль</Label>
 					<Select value={form.module} onValueChange={(v) => set("module", v)}>
-						<SelectTrigger className="h-9">
+						<SelectTrigger className="mt-auto h-9">
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
@@ -207,10 +207,10 @@ function PeriodForm({
 						</SelectContent>
 					</Select>
 				</div>
-				<div>
-					<Label className="text-xs text-gray-600 mb-1.5 block">Статус</Label>
+				<div className="flex flex-col">
+					<Label className="text-xs text-gray-600 mb-1.5 block leading-tight">Статус</Label>
 					<Select value={form.status} onValueChange={(v) => set("status", v)}>
-						<SelectTrigger className="h-9">
+						<SelectTrigger className="mt-auto h-9">
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>

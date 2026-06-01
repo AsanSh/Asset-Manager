@@ -18,6 +18,10 @@
     { "idx": 13, "version": "7", "when": 1779890000000, "tag": "0013_idempotency_and_unit_lock", "breakpoints": true },
     { "idx": 14, "version": "7", "when": 1779900000000, "tag": "0014_audit_diff", "breakpoints": true },
     { "idx": 15, "version": "7", "when": 1779910000000, "tag": "0015_indexes_and_isolation", "breakpoints": true },
-    { "idx": 16, "version": "7", "when": 1779920000000, "tag": "0016_warehouse_expense_marketplace", "breakpoints": true }
+    { "idx": 16, "version": "7", "when": 1779920000000, "tag": "0016_warehouse_expense_marketplace", "breakpoints": true },
+    { "idx": 17, "version": "7", "when": 1779930000000, "tag": "0017_finance_reconciliation", "breakpoints": true },
+    { "idx": 18, "version": "7", "when": 1779940000000, "tag": "0018_payroll", "breakpoints": true },
+    { "idx": 19, "version": "7", "when": 1779950000000, "tag": "0019_crm_lead_intake", "breakpoints": true },
+    { "idx": 20, "version": "7", "when": 1779960000000, "tag": "0020_supply_and_global_catalog", "breakpoints": true }
   ]
 }

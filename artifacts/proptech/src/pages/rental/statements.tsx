@@ -9,14 +9,11 @@ import {
 	X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
 import { useListProperties } from "@/api-client";
+import { DataTable } from "@/components/data-table";
 import { defaultPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
 import { KpiCard, KpiRow } from "@/components/kpi-card";
-import { RentalExcelTable, type RentalExcelColumn } from "@/components/rental/rental-excel-table";
-import { RentalViewModeToggle } from "@/components/rental/rental-view-mode-toggle";
-import { useRentalViewMode } from "@/hooks/use-rental-view-mode";
-import { useSortable } from "@/lib/use-sortable";
-import { SortHead } from "@/components/sort-head";
 import { Button } from "@/components/ui/button";
 import {
 	Select,
@@ -26,14 +23,6 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { getApiBase } from "@/lib/api-base";
@@ -121,7 +110,6 @@ export default function OwnerStatements() {
 	const [isGenerating, setIsGenerating] = useState(false);
 	const [selectedStatement, setSelectedStatement] =
 		useState<OwnerStatement | null>(null);
-	const [viewMode, setViewMode] = useRentalViewMode("statements");
 	const { data: properties } = useListProperties();
 	const propertiesArray = Array.isArray(properties) ? properties : [];
 	const { toast } = useToast();
@@ -153,9 +141,115 @@ export default function OwnerStatements() {
 			})),
 		[statementsArray],
 	);
-	const { sorted: sortedStatements, sortKey, sortDir, toggle } = useSortable(
-		enrichedStatements,
-		"period",
+	type EnrichedStatement = (typeof enrichedStatements)[number];
+
+	const tableColumns = useMemo<ColumnDef<EnrichedStatement, unknown>[]>(
+		() => [
+			{
+				id: "propertyLabel",
+				header: "Объект",
+				size: 140,
+				accessorFn: (row) => row.propertyLabel,
+				meta: { exportLabel: "Объект", pinned: "left" },
+				cell: ({ row }) => (
+					<span className="font-medium">{row.original.propertyLabel}</span>
+				),
+			},
+			{
+				id: "period",
+				header: "Период",
+				size: 120,
+				accessorFn: (row) => row.period,
+				meta: { exportLabel: "Период" },
+				cell: ({ row }) => row.original.periodLabel,
+			},
+			{
+				id: "rentCharged",
+				header: "Начислено",
+				size: 120,
+				accessorFn: (row) => row.chargedNum,
+				meta: { exportLabel: "Начислено", align: "right" },
+				cell: ({ row }) => (
+					<span className="font-mono text-blue-600 font-medium">
+						{fmtKGS(row.original.chargedNum)}
+					</span>
+				),
+			},
+			{
+				id: "rentReceived",
+				header: "Собрано",
+				size: 130,
+				accessorFn: (row) => row.receivedNum,
+				meta: { exportLabel: "Собрано", align: "right" },
+				cell: ({ row }) => (
+					<span>
+						<span className="font-mono text-emerald-600 font-medium">
+							{fmtKGS(row.original.receivedNum)}
+						</span>
+						<span className="text-muted-foreground ml-1 text-xs">
+							{row.original.collectionPct}%
+						</span>
+					</span>
+				),
+			},
+			{
+				id: "expenses",
+				header: "Расходы",
+				size: 110,
+				accessorFn: (row) => row.expensesNum,
+				meta: { exportLabel: "Расходы", align: "right" },
+				cell: ({ row }) => (
+					<span className="font-mono text-rose-600">
+						{fmtKGS(row.original.expensesNum)}
+					</span>
+				),
+			},
+			{
+				id: "netIncome",
+				header: "Чистый доход",
+				size: 130,
+				accessorFn: (row) => row.netNum,
+				meta: { exportLabel: "Чистый доход", align: "right" },
+				cell: ({ row }) => (
+					<span
+						className={`font-mono font-semibold ${row.original.netNum >= 0 ? "text-emerald-700" : "text-rose-600"}`}
+					>
+						{row.original.netNum >= 0 ? "+" : ""}
+						{fmtKGS(row.original.netNum)}
+					</span>
+				),
+			},
+			{
+				id: "generatedAt",
+				header: "Сформирован",
+				size: 110,
+				accessorFn: (row) => row.generatedAt,
+				meta: { exportLabel: "Сформирован" },
+				cell: ({ row }) =>
+					new Date(row.original.generatedAt).toLocaleDateString("ru-KG"),
+			},
+			{
+				id: "actions",
+				header: "",
+				size: 80,
+				enableSorting: false,
+				meta: { align: "center" },
+				cell: ({ row }) => (
+					<Button
+						variant="ghost"
+						size="sm"
+						onClick={(e) => {
+							e.stopPropagation();
+							setSelectedStatement(row.original);
+						}}
+						className="gap-1 text-xs"
+					>
+						<FileText className="w-3.5 h-3.5" /> Акт
+					</Button>
+				),
+			},
+		],
+		[],
 	);
 
 	const { data: expenses = [] } = useQuery<any[]>({
@@ -206,47 +300,6 @@ export default function OwnerStatements() {
 		0,
 	);
 
-	const statementColumns: RentalExcelColumn<(typeof enrichedStatements)[number]>[] = [
-		{ key: "propertyLabel", label: "Объект", width: 140, render: (r) => r.propertyLabel },
-		{ key: "period", label: "Период", width: 110, render: (r) => r.periodLabel },
-		{ key: "rentCharged", label: "Начислено", width: 110, align: "right", render: (r) => fmtKGS(r.chargedNum) },
-		{
-			key: "rentReceived", label: "Собрано", width: 120, align: "right",
-			render: (r) => (
-				<span>
-					<span className="text-emerald-700">{fmtKGS(r.receivedNum)}</span>
-					<span className="text-gray-400 ml-1 text-[10px]">{r.collectionPct}%</span>
-				</span>
-			),
-		},
-		{ key: "expenses", label: "Расходы", width: 100, align: "right", render: (r) => <span className="text-rose-600">{fmtKGS(r.expensesNum)}</span> },
-		{
-			key: "netIncome", label: "Чистый доход", width: 120, align: "right",
-			render: (r) => (
-				<span className={r.netNum >= 0 ? "text-emerald-700 font-medium" : "text-rose-600 font-medium"}>
-					{r.netNum >= 0 ? "+" : ""}
-					{fmtKGS(r.netNum)}
-				</span>
-			),
-		},
-		{
-			key: "generatedAt", label: "Сформирован", width: 100,
-			render: (r) => new Date(r.generatedAt).toLocaleDateString("ru-KG"),
-		},
-		{
-			key: "actions", label: "", width: 70, sortable: false, align: "center",
-			render: (r) => (
-				<button
-					type="button"
-					onClick={() => setSelectedStatement(r)}
-					className="text-blue-600 hover:text-blue-800 text-[10px] font-medium"
-				>
-					Акт
-				</button>
-			),
-		},
-	];
-
 	return (
 		<div className="space-y-3">
 			<KpiRow>
@@ -273,7 +326,6 @@ export default function OwnerStatements() {
 						Ежемесячные отчёты о доходах и расходах по объектам
 					</p>
 				</div>
-				<RentalViewModeToggle mode={viewMode} onChange={setViewMode} />
 			</div>
 
 			{/* Unified filters + generate row */}
@@ -318,125 +370,49 @@ export default function OwnerStatements() {
 				)}
 			</div>
 
-			{viewMode === "report" ? (
-				isLoading ? (
-					<div className="bg-white rounded-xl border border-gray-200 p-6">
-						{Array.from({ length: 4 }).map((_, i) => (
-							<Skeleton key={i} className="h-8 w-full mb-2" />
-						))}
-					</div>
-				) : (
-					<RentalExcelTable
-						columns={statementColumns}
-						rows={sortedStatements}
-						sortKey={sortKey}
-						sortDir={sortDir}
-						onSort={toggle}
-						emptyMessage="Актов не найдено. Выберите объект и нажмите «Сформировать акт»."
-						rowKey={(r) => r.id}
-						footer={statementsArray.length > 0 ? [
-							{ colSpan: 2, content: `Итого: ${statementsArray.length}` },
-							{ content: fmtKGS(totalCharged), align: "right" },
-							{ content: fmtKGS(totalReceived), align: "right" },
-							{ content: fmtKGS(totalExpenses), align: "right" },
-							{ content: `${totalNet >= 0 ? "+" : ""}${fmtKGS(totalNet)}`, align: "right", className: totalNet >= 0 ? "text-emerald-700" : "text-rose-600" },
-							{ colSpan: 2, content: "" },
-						] : undefined}
-					/>
-				)
-			) : (
-			<div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-				<Table>
-					<TableHeader>
-						<TableRow className="bg-gray-50">
-							<SortHead label="Объект" sortKey="propertyId" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
-							<SortHead label="Период" sortKey="period" currentKey={sortKey} dir={sortDir} onToggle={toggle} />
-							<SortHead label="Начислено" sortKey="totalCharged" currentKey={sortKey} dir={sortDir} onToggle={toggle} className="text-right" />
-							<SortHead label="Собрано" sortKey="totalReceived" currentKey={sortKey} dir={sortDir} onToggle={toggle} className="text-right" />
-							<SortHead label="Расходы" sortKey="totalExpenses" currentKey={sortKey} dir={sortDir} onToggle={toggle} className="text-right" />
-							<SortHead label="Чистый доход" sortKey="netIncome" currentKey={sortKey} dir={sortDir} onToggle={toggle} className="text-right" />
-							<TableHead>Сформирован</TableHead>
-							<TableHead></TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isLoading ? (
-							Array.from({ length: 4 }).map((_, i) => (
-								<TableRow key={i}>
-									{Array.from({ length: 8 }).map((_, j) => (
-										<TableCell key={j}>
-											<Skeleton className="h-4 w-full" />
-										</TableCell>
-									))}
-								</TableRow>
-							))
-						) : !statementsArray.length ? (
-							<TableRow>
-								<TableCell
-									colSpan={8}
-									className="text-center text-gray-400 py-14 text-sm"
+			<DataTable
+					tableId="rental-statements"
+					columns={tableColumns}
+					data={enrichedStatements}
+					isLoading={isLoading}
+					enableSearch
+					searchPlaceholder="Поиск по объекту, периоду…"
+					initialSorting={[{ id: "period", desc: true }]}
+					onRowClick={(row) => setSelectedStatement(row)}
+					emptyState={
+						<div className="flex flex-col items-center gap-2 text-muted-foreground py-8">
+							<FileText className="w-10 h-10 opacity-20" />
+							<span>
+								Актов не найдено. Выберите объект и нажмите «Сформировать акт».
+							</span>
+						</div>
+					}
+					footer={
+						statementsArray.length > 0 ? (
+							<tr className="bg-gray-50 font-semibold border-t-2">
+								<td colSpan={2} className="px-3 py-2 text-sm text-gray-600">
+									Итого: {statementsArray.length}
+								</td>
+								<td className="px-3 py-2 font-mono text-right text-blue-600">
+									{fmtKGS(totalCharged)}
+								</td>
+								<td className="px-3 py-2 font-mono text-right text-emerald-600">
+									{fmtKGS(totalReceived)}
+								</td>
+								<td className="px-3 py-2 font-mono text-right text-rose-600">
+									{fmtKGS(totalExpenses)}
+								</td>
+								<td
+									className={`px-3 py-2 font-mono text-right ${totalNet >= 0 ? "text-emerald-700" : "text-rose-600"}`}
 								>
-									<FileText className="w-10 h-10 mx-auto mb-2 opacity-20" />
-									Актов не найдено. Выберите объект и нажмите «Сформировать
-									акт».
-								</TableCell>
-							</TableRow>
-						) : (
-							sortedStatements.map((s) => (
-									<TableRow
-										key={s.id}
-										className="hover:bg-blue-50/30 cursor-pointer"
-										onClick={() => setSelectedStatement(s)}
-									>
-										<TableCell className="font-medium">
-											{s.propertyLabel}
-										</TableCell>
-										<TableCell className="text-gray-600">
-											{s.periodLabel}
-										</TableCell>
-										<TableCell className="text-right text-blue-600 font-medium">
-											{fmtKGS(s.chargedNum)}
-										</TableCell>
-										<TableCell className="text-right">
-											<span className="text-emerald-600 font-medium">
-												{fmtKGS(s.receivedNum)}
-											</span>
-											<span className="text-xs text-gray-400 ml-1">
-												{s.collectionPct}%
-											</span>
-										</TableCell>
-										<TableCell className="text-right text-rose-600">
-											{fmtKGS(s.expensesNum)}
-										</TableCell>
-										<TableCell
-											className={`text-right font-semibold ${s.netNum >= 0 ? "text-emerald-700" : "text-rose-600"}`}
-										>
-											{s.netNum >= 0 ? "+" : ""}
-											{fmtKGS(s.netNum)}
-										</TableCell>
-										<TableCell className="text-xs text-gray-400">
-											{new Date(s.generatedAt).toLocaleDateString("ru-KG")}
-										</TableCell>
-										<TableCell>
-											<Button
-												variant="ghost"
-												size="sm"
-												onClick={(e) => {
-													e.stopPropagation();
-													setSelectedStatement(s);
-												}}
-												className="gap-1 text-xs"
-											>
-												<FileText className="w-3.5 h-3.5" /> Акт
-											</Button>
-										</TableCell>
-									</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</div>
-			)}
+									{totalNet >= 0 ? "+" : ""}
+									{fmtKGS(totalNet)}
+								</td>
+								<td colSpan={2} />
+							</tr>
+						) : undefined
+					}
+				/>
 
 			{/* Reconciliation act modal */}
 			{selectedStatement && (

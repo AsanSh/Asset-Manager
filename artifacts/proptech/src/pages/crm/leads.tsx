@@ -2,11 +2,15 @@ import {
 	CheckCircle2,
 	Edit2,
 	Plus,
-	Search,
+	Rss,
 	Trash2,
 	UserPlus,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
+import { Link } from "wouter";
+import { DataTable } from "@/components/data-table";
 import { defaultPeriod, inPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
 import {
 	AlertDialog,
@@ -35,15 +39,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
+
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
@@ -59,6 +55,9 @@ interface Lead {
 	propertyType?: string;
 	budget?: number;
 	notes?: string;
+	channel?: string | null;
+	projectId?: number | null;
+	externalId?: string | null;
 	assignedUserId?: number;
 	assignedUserName?: string;
 	leadDate: string;
@@ -104,6 +103,15 @@ const PROPERTY_TYPES = [
 	{ value: "land", label: "Земля" },
 ];
 
+const CHANNEL_OPTIONS = [
+	{ value: "instagram", label: "Instagram" },
+	{ value: "facebook", label: "Facebook" },
+	{ value: "telegram", label: "Telegram" },
+	{ value: "whatsapp", label: "WhatsApp" },
+	{ value: "tiktok", label: "TikTok" },
+	{ value: "other", label: "Другое" },
+];
+
 interface LeadDialogProps {
 	open: boolean;
 	onClose: () => void;
@@ -114,6 +122,11 @@ interface LeadDialogProps {
 function LeadDialog({ open, onClose, lead, onSuccess }: LeadDialogProps) {
 	const { toast } = useToast();
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const { data: projects = [] } = useQuery({
+		queryKey: ["construction-projects"],
+		queryFn: () => api.get("/construction/projects/all").then((r) => r.data),
+		enabled: open,
+	});
 	const [formData, setFormData] = useState({
 		fullName: "",
 		phone: "",
@@ -123,6 +136,9 @@ function LeadDialog({ open, onClose, lead, onSuccess }: LeadDialogProps) {
 		propertyType: "",
 		budget: "",
 		notes: "",
+		channel: "",
+		projectId: "",
+		externalId: "",
 		leadDate: new Date().toISOString().split("T")[0],
 	});
 
@@ -137,6 +153,9 @@ function LeadDialog({ open, onClose, lead, onSuccess }: LeadDialogProps) {
 				propertyType: lead.propertyType || "",
 				budget: lead.budget ? String(lead.budget) : "",
 				notes: lead.notes || "",
+				channel: lead.channel || "",
+				projectId: lead.projectId ? String(lead.projectId) : "",
+				externalId: lead.externalId || "",
 				leadDate: lead.leadDate
 					? lead.leadDate.split("T")[0]
 					: new Date().toISOString().split("T")[0],
@@ -151,6 +170,9 @@ function LeadDialog({ open, onClose, lead, onSuccess }: LeadDialogProps) {
 				propertyType: "",
 				budget: "",
 				notes: "",
+				channel: "",
+				projectId: "",
+				externalId: "",
 				leadDate: new Date().toISOString().split("T")[0],
 			});
 		}
@@ -169,6 +191,9 @@ function LeadDialog({ open, onClose, lead, onSuccess }: LeadDialogProps) {
 				propertyType: formData.propertyType || null,
 				budget: formData.budget ? parseFloat(formData.budget) : null,
 				notes: formData.notes || null,
+				channel: formData.channel || null,
+				projectId: formData.projectId ? Number(formData.projectId) : null,
+				externalId: formData.externalId || null,
 				leadDate: formData.leadDate,
 			};
 
@@ -215,8 +240,8 @@ function LeadDialog({ open, onClose, lead, onSuccess }: LeadDialogProps) {
 					</div>
 
 					<div className="grid grid-cols-2 gap-3">
-						<div>
-							<Label>Телефон *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Телефон *</Label>
 							<Input
 								value={formData.phone}
 								onChange={(e) =>
@@ -224,11 +249,11 @@ function LeadDialog({ open, onClose, lead, onSuccess }: LeadDialogProps) {
 								}
 								placeholder="+996 700 000 000"
 								required
-								className="mt-1"
+								className="mt-auto"
 							/>
 						</div>
-						<div>
-							<Label>Email</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Email</Label>
 							<Input
 								type="email"
 								value={formData.email}
@@ -236,19 +261,19 @@ function LeadDialog({ open, onClose, lead, onSuccess }: LeadDialogProps) {
 									setFormData({ ...formData, email: e.target.value })
 								}
 								placeholder="example@mail.kg"
-								className="mt-1"
+								className="mt-auto"
 							/>
 						</div>
 					</div>
 
 					<div className="grid grid-cols-2 gap-3">
-						<div>
-							<Label>Источник *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Источник *</Label>
 							<Select
 								value={formData.source}
 								onValueChange={(v) => setFormData({ ...formData, source: v })}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -260,13 +285,13 @@ function LeadDialog({ open, onClose, lead, onSuccess }: LeadDialogProps) {
 								</SelectContent>
 							</Select>
 						</div>
-						<div>
-							<Label>Статус *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Статус *</Label>
 							<Select
 								value={formData.status}
 								onValueChange={(v) => setFormData({ ...formData, status: v })}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -281,15 +306,15 @@ function LeadDialog({ open, onClose, lead, onSuccess }: LeadDialogProps) {
 					</div>
 
 					<div className="grid grid-cols-2 gap-3">
-						<div>
-							<Label>Тип недвижимости</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Тип недвижимости</Label>
 							<Select
 								value={formData.propertyType}
 								onValueChange={(v) =>
 									setFormData({ ...formData, propertyType: v })
 								}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue placeholder="Выберите" />
 								</SelectTrigger>
 								<SelectContent>
@@ -301,8 +326,8 @@ function LeadDialog({ open, onClose, lead, onSuccess }: LeadDialogProps) {
 								</SelectContent>
 							</Select>
 						</div>
-						<div>
-							<Label>Бюджет (KGS)</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Бюджет (сом)</Label>
 							<Input
 								type="number"
 								value={formData.budget}
@@ -310,7 +335,63 @@ function LeadDialog({ open, onClose, lead, onSuccess }: LeadDialogProps) {
 									setFormData({ ...formData, budget: e.target.value })
 								}
 								placeholder="5000000"
-								className="mt-1"
+								className="mt-auto"
+							/>
+						</div>
+					</div>
+
+					<div className="grid grid-cols-2 gap-3">
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Канал (соцсети)</Label>
+							<Select
+								value={formData.channel || "none"}
+								onValueChange={(v) =>
+									setFormData({ ...formData, channel: v === "none" ? "" : v })
+								}
+							>
+								<SelectTrigger className="mt-auto">
+									<SelectValue placeholder="—" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="none">—</SelectItem>
+									{CHANNEL_OPTIONS.map((opt) => (
+										<SelectItem key={opt.value} value={opt.value}>
+											{opt.label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Проект</Label>
+							<Select
+								value={formData.projectId || "none"}
+								onValueChange={(v) =>
+									setFormData({ ...formData, projectId: v === "none" ? "" : v })
+								}
+							>
+								<SelectTrigger className="mt-auto">
+									<SelectValue placeholder="—" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="none">—</SelectItem>
+									{projects.map((p: { id: number; name: string }) => (
+										<SelectItem key={p.id} value={String(p.id)}>
+											{p.name}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+						<div className="flex flex-col col-span-2">
+							<Label className="leading-tight mb-1.5">External ID</Label>
+							<Input
+								className="mt-auto font-mono text-xs"
+								value={formData.externalId}
+								onChange={(e) =>
+									setFormData({ ...formData, externalId: e.target.value })
+								}
+								placeholder="ID сообщения во внешней системе"
 							/>
 						</div>
 					</div>
@@ -358,7 +439,6 @@ function LeadDialog({ open, onClose, lead, onSuccess }: LeadDialogProps) {
 export default function Leads() {
 	const [leads, setLeads] = useState<Lead[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
-	const [search, setSearch] = useState("");
 	const [statusFilter, setStatusFilter] = useState<string>("all");
 	const [sourceFilter, setSourceFilter] = useState<string>("all");
 	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod());
@@ -376,7 +456,6 @@ export default function Leads() {
 		try {
 			setIsLoading(true);
 			const params: Record<string, string | undefined> = {
-				search: search || undefined,
 				status: statusFilter !== "all" ? statusFilter : undefined,
 				source: sourceFilter !== "all" ? sourceFilter : undefined,
 			};
@@ -396,7 +475,7 @@ export default function Leads() {
 
 	useEffect(() => {
 		loadLeads();
-	}, [search, statusFilter, sourceFilter]);
+	}, [statusFilter, sourceFilter]);
 
 	const handleDelete = async () => {
 		if (!deleteId) return;
@@ -442,6 +521,147 @@ export default function Leads() {
 		);
 	};
 
+	const columns = useMemo<ColumnDef<Lead, unknown>[]>(
+		() => [
+			{
+				accessorKey: "fullName",
+				header: "ФИО",
+				size: 180,
+				meta: { exportLabel: "ФИО", pinned: "left" },
+				cell: ({ row }) => (
+					<span className="font-medium text-gray-900">{row.original.fullName}</span>
+				),
+			},
+			{
+				accessorKey: "phone",
+				header: "Телефон",
+				size: 130,
+				meta: { exportLabel: "Телефон" },
+			},
+			{
+				accessorKey: "email",
+				header: "Почта",
+				size: 160,
+				meta: { exportLabel: "Email" },
+				cell: ({ row }) => (
+					<span className="text-gray-500 text-sm">{row.original.email || "—"}</span>
+				),
+			},
+			{
+				id: "channel",
+				header: "Канал",
+				size: 110,
+				accessorFn: (row) => row.channel || "",
+				meta: { exportLabel: "Канал" },
+				cell: ({ row }) => {
+					const ch = row.original.channel;
+					if (!ch) return "—";
+					return CHANNEL_OPTIONS.find((c) => c.value === ch)?.label ?? ch;
+				},
+			},
+			{
+				id: "source",
+				header: "Источник",
+				size: 110,
+				accessorKey: "source",
+				meta: { exportLabel: "Источник" },
+				cell: ({ row }) =>
+					SOURCE_OPTIONS.find((s) => s.value === row.original.source)?.label ||
+					row.original.source,
+			},
+			{
+				id: "status",
+				header: "Статус",
+				size: 130,
+				accessorKey: "status",
+				meta: { exportLabel: "Статус" },
+				cell: ({ row }) => getStatusBadge(row.original.status),
+			},
+			{
+				id: "propertyType",
+				header: "Тип недвиж.",
+				size: 120,
+				accessorKey: "propertyType",
+				meta: { exportLabel: "Тип недвиж." },
+				cell: ({ row }) =>
+					PROPERTY_TYPES.find((p) => p.value === row.original.propertyType)?.label ||
+					row.original.propertyType ||
+					"—",
+			},
+			{
+				id: "budget",
+				header: "Бюджет",
+				size: 120,
+				accessorFn: (row) => parseFloat(String(row.budget ?? "0")),
+				meta: { exportLabel: "Бюджет (сом)", align: "right" },
+				cell: ({ row }) => (
+					<span className="font-mono text-sm">
+						{row.original.budget
+							? `${Number(row.original.budget).toLocaleString("ru-KG")} сом`
+							: "—"}
+					</span>
+				),
+			},
+			{
+				id: "leadDate",
+				header: "Дата лида",
+				size: 110,
+				accessorFn: (row) => new Date(row.leadDate).getTime(),
+				meta: { exportLabel: "Дата лида" },
+				cell: ({ row }) => (
+					<span className="text-sm text-gray-500">
+						{new Date(row.original.leadDate).toLocaleDateString("ru-RU")}
+					</span>
+				),
+			},
+			{
+				id: "__actions",
+				header: "",
+				size: 100,
+				enableSorting: false,
+				cell: ({ row }) => {
+					const lead = row.original;
+					return (
+						<div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+							<Button
+								variant="ghost"
+								size="icon"
+								onClick={() => {
+									setSelectedLead(lead);
+									setDialogOpen(true);
+								}}
+								title="Редактировать"
+							>
+								<Edit2 className="w-4 h-4" />
+							</Button>
+							{lead.status === "qualified" && (
+								<Button
+									variant="ghost"
+									size="icon"
+									className="text-emerald-600 hover:text-emerald-700"
+									onClick={() => setConvertId(lead.id)}
+									title="Конвертировать в клиента"
+								>
+									<CheckCircle2 className="w-4 h-4" />
+								</Button>
+							)}
+							<Button
+								variant="ghost"
+								size="icon"
+								className="text-rose-600 hover:text-rose-700"
+								onClick={() => setDeleteId(lead.id)}
+								title="Удалить"
+							>
+								<Trash2 className="w-4 h-4" />
+							</Button>
+						</div>
+					);
+				},
+			},
+		],
+		[],
+	);
+
 	return (
 		<div className="space-y-5">
 			<div className="flex justify-between items-start">
@@ -453,158 +673,75 @@ export default function Leads() {
 						Управление потенциальными клиентами
 					</p>
 				</div>
-				<Button
-					onClick={() => {
-						setSelectedLead(undefined);
-						setDialogOpen(true);
-					}}
-				>
-					<Plus className="w-4 h-4 mr-2" /> Добавить лид
-				</Button>
-			</div>
-
-			{/* Filters */}
-			<PeriodPicker value={period} onChange={setPeriod} />
-			<div className="flex gap-3">
-				<div className="relative flex-1">
-					<Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-					<Input
-						placeholder="Поиск по имени, телефону, email..."
-						value={search}
-						onChange={(e) => setSearch(e.target.value)}
-						className="pl-9"
-					/>
+				<div className="flex gap-2">
+					<Link href="/crm/leads/intake">
+						<Button variant="outline" className="gap-2">
+							<Rss className="w-4 h-4" /> Приём лидов
+						</Button>
+					</Link>
+					<Button
+						onClick={() => {
+							setSelectedLead(undefined);
+							setDialogOpen(true);
+						}}
+					>
+						<Plus className="w-4 h-4 mr-2" /> Добавить лид
+					</Button>
 				</div>
-				<Select value={statusFilter} onValueChange={setStatusFilter}>
-					<SelectTrigger className="w-44">
-						<SelectValue placeholder="Все статусы" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="all">Все статусы</SelectItem>
-						{STATUS_OPTIONS.map((opt) => (
-							<SelectItem key={opt.value} value={opt.value}>
-								{opt.label}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-				<Select value={sourceFilter} onValueChange={setSourceFilter}>
-					<SelectTrigger className="w-44">
-						<SelectValue placeholder="Все источники" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="all">Все источники</SelectItem>
-						{SOURCE_OPTIONS.map((opt) => (
-							<SelectItem key={opt.value} value={opt.value}>
-								{opt.label}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
 			</div>
 
-			{/* Table */}
-			<div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-				<Table>
-					<TableHeader>
-						<TableRow className="bg-gray-50">
-							<TableHead>ФИО</TableHead>
-							<TableHead>Телефон</TableHead>
-							<TableHead>Email</TableHead>
-							<TableHead>Источник</TableHead>
-							<TableHead>Статус</TableHead>
-							<TableHead>Тип недвиж.</TableHead>
-							<TableHead>Бюджет</TableHead>
-							<TableHead>Дата лида</TableHead>
-							<TableHead className="w-32"></TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isLoading ? (
-							Array.from({ length: 5 }).map((_, i) => (
-								<TableRow key={i}>
-									{Array.from({ length: 9 }).map((_, j) => (
-										<TableCell key={j}>
-											<Skeleton className="h-4 w-full" />
-										</TableCell>
-									))}
-								</TableRow>
-							))
-						) : !filteredLeads.length ? (
-							<TableRow>
-								<TableCell colSpan={9} className="text-center py-12">
-									<UserPlus className="w-8 h-8 text-gray-200 mx-auto mb-2" />
-									<p className="text-gray-400">Лиды не найдены</p>
-								</TableCell>
-							</TableRow>
-						) : (
-							filteredLeads.map((lead) => (
-								<TableRow key={lead.id} className="hover:bg-gray-50">
-									<TableCell className="font-medium text-gray-900">
-										{lead.fullName}
-									</TableCell>
-									<TableCell className="text-gray-600">{lead.phone}</TableCell>
-									<TableCell className="text-gray-500 text-sm">
-										{lead.email || "—"}
-									</TableCell>
-									<TableCell className="text-sm">
-										{SOURCE_OPTIONS.find((s) => s.value === lead.source)
-											?.label || lead.source}
-									</TableCell>
-									<TableCell>{getStatusBadge(lead.status)}</TableCell>
-									<TableCell className="text-sm">
-										{PROPERTY_TYPES.find((p) => p.value === lead.propertyType)
-											?.label ||
-											lead.propertyType ||
-											"—"}
-									</TableCell>
-									<TableCell className="text-sm">
-										{lead.budget ? `${lead.budget.toLocaleString()} с` : "—"}
-									</TableCell>
-									<TableCell className="text-sm text-gray-500">
-										{new Date(lead.leadDate).toLocaleDateString("ru-RU")}
-									</TableCell>
-									<TableCell>
-										<div className="flex gap-1">
-											<Button
-												variant="ghost"
-												size="icon"
-												onClick={() => {
-													setSelectedLead(lead);
-													setDialogOpen(true);
-												}}
-												title="Редактировать"
-											>
-												<Edit2 className="w-4 h-4" />
-											</Button>
-											{lead.status === "qualified" && (
-												<Button
-													variant="ghost"
-													size="icon"
-													className="text-emerald-600 hover:text-emerald-700"
-													onClick={() => setConvertId(lead.id)}
-													title="Конвертировать в клиента"
-												>
-													<CheckCircle2 className="w-4 h-4" />
-												</Button>
-											)}
-											<Button
-												variant="ghost"
-												size="icon"
-												className="text-rose-600 hover:text-rose-700"
-												onClick={() => setDeleteId(lead.id)}
-												title="Удалить"
-											>
-												<Trash2 className="w-4 h-4" />
-											</Button>
-										</div>
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</div>
+			<PeriodPicker value={period} onChange={setPeriod} />
+
+			<DataTable
+				tableId="crm-leads"
+				columns={columns}
+				data={filteredLeads}
+				isLoading={isLoading}
+				enableSearch
+				searchPlaceholder="Поиск по имени, телефону, email…"
+				initialSorting={[{ id: "leadDate", desc: true }]}
+				toolbar={
+					<div className="flex gap-2 flex-wrap">
+						<Select value={statusFilter} onValueChange={setStatusFilter}>
+							<SelectTrigger className="w-44 h-8">
+								<SelectValue placeholder="Все статусы" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">Все статусы</SelectItem>
+								{STATUS_OPTIONS.map((opt) => (
+									<SelectItem key={opt.value} value={opt.value}>
+										{opt.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+						<Select value={sourceFilter} onValueChange={setSourceFilter}>
+							<SelectTrigger className="w-44 h-8">
+								<SelectValue placeholder="Все источники" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">Все источники</SelectItem>
+								{SOURCE_OPTIONS.map((opt) => (
+									<SelectItem key={opt.value} value={opt.value}>
+										{opt.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</div>
+				}
+				onRowClick={(lead) => {
+					setSelectedLead(lead);
+					setDialogOpen(true);
+				}}
+				rowClassName={() => "cursor-pointer hover:bg-gray-50"}
+				emptyState={
+					<div className="flex flex-col items-center gap-2">
+						<UserPlus className="w-8 h-8 text-gray-200" />
+						<span className="text-gray-400">Лиды не найдены</span>
+					</div>
+				}
+			/>
 
 			<LeadDialog
 				open={dialogOpen}

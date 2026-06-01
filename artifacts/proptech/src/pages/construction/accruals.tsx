@@ -12,7 +12,9 @@ import {
 	RotateCcw,
 } from "lucide-react";
 import { Fragment, useEffect, useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
+import { DataTable } from "@/components/data-table";
 import {
 	AlertDialog,
 	AlertDialogCancel,
@@ -424,13 +426,13 @@ function AcceptPaymentDialog({
 					</div>
 
 					<div className="grid grid-cols-2 gap-3">
-						<div>
-							<Label>Способ оплаты</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Способ оплаты</Label>
 							<Select
 								value={paymentMethod}
 								onValueChange={setPaymentMethod}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -440,13 +442,13 @@ function AcceptPaymentDialog({
 								</SelectContent>
 							</Select>
 						</div>
-						<div>
-							<Label>Дата</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Дата</Label>
 							<Input
 								type="date"
 								value={date}
 								onChange={(e) => setDate(e.target.value)}
-								className="mt-1"
+								className="mt-auto"
 							/>
 						</div>
 					</div>
@@ -666,6 +668,188 @@ export default function ConstructionAccruals() {
 		[enriched, payTarget],
 	);
 
+	const listColumns = useMemo<ColumnDef<any, unknown>[]>(
+		() => [
+			{
+				accessorKey: "installmentNumber",
+				header: "№",
+				size: 60,
+				meta: { exportLabel: "№" },
+				cell: ({ row }) => (
+					<span className="text-gray-500 text-xs">
+						{row.original.installmentNumber}
+					</span>
+				),
+			},
+			{
+				id: "contract",
+				header: "Договор / Покупатель",
+				size: 220,
+				accessorFn: (row: any) => row.contractNumber || `#${row.contractId}`,
+				meta: { exportLabel: "Договор / Покупатель" },
+				cell: ({ row }) => {
+					const a = row.original;
+					return (
+						<div>
+							<div className="font-medium text-gray-900 text-xs font-mono">
+								{a.contractNumber || `#${a.contractId}`}
+							</div>
+							<div className="text-xs text-gray-400">{a.buyerName}</div>
+						</div>
+					);
+				},
+			},
+			{
+				accessorKey: "dueDate",
+				header: "Срок / период",
+				size: 160,
+				meta: { exportLabel: "Срок / период" },
+				cell: ({ row }) => {
+					const a = row.original;
+					const overdue = a.isOverdue && a.status !== "paid";
+					return (
+						<div>
+							<div
+								className={
+									overdue ? "text-rose-600 font-medium" : "text-gray-600"
+								}
+							>
+								{a.dueDate}
+							</div>
+							{a.paymentPeriod && (
+								<div className="text-xs text-blue-600">
+									{PERIOD_LABELS[a.paymentPeriod]}
+								</div>
+							)}
+							{overdue && (
+								<div className="text-xs text-rose-600">
+									{Math.ceil(
+										(Date.now() - new Date(a.dueDate).getTime()) / 86400000,
+									)}{" "}
+									дн. просрочки
+								</div>
+							)}
+						</div>
+					);
+				},
+			},
+			{
+				id: "status",
+				header: "Статус",
+				size: 130,
+				accessorFn: (row: any) => {
+					const statusKey =
+						row.isOverdue && row.status !== "paid" ? "overdue" : row.status;
+					return STATUS_CONFIG[statusKey]?.label || row.status;
+				},
+				meta: { exportLabel: "Статус" },
+				cell: ({ row }) => {
+					const a = row.original;
+					const statusKey =
+						a.isOverdue && a.status !== "paid" ? "overdue" : a.status;
+					const sc = STATUS_CONFIG[statusKey] || STATUS_CONFIG.pending;
+					const Icon = sc.icon;
+					return (
+						<Badge variant="outline" className={`${sc.color} text-xs`}>
+							<Icon className="w-3 h-3 mr-1" />
+							{sc.label}
+						</Badge>
+					);
+				},
+			},
+			{
+				id: "amount",
+				header: "Начислено",
+				size: 130,
+				accessorFn: (row: any) => parseFloat(row.amount || "0"),
+				meta: { exportLabel: "Начислено (сом)", align: "right" },
+				cell: ({ row }) => (
+					<span className="font-mono font-medium">
+						{fmt(row.original.amount)} {row.original.currency}
+					</span>
+				),
+			},
+			{
+				id: "paidAmount",
+				header: "Оплачено",
+				size: 120,
+				accessorFn: (row: any) => parseFloat(row.paidAmount || "0"),
+				meta: { exportLabel: "Оплачено (сом)", align: "right" },
+				cell: ({ row }) => {
+					const a = row.original;
+					const pct =
+						parseFloat(a.amount) > 0
+							? Math.round(
+									(parseFloat(a.paidAmount || "0") / parseFloat(a.amount)) * 100,
+								)
+							: 0;
+					return (
+						<div>
+							<div className="font-mono text-emerald-600">
+								{fmt(a.paidAmount)}
+							</div>
+							<div className="w-16 ml-auto mt-1 h-1 bg-gray-100 rounded-full overflow-hidden">
+								<div
+									className="h-full bg-emerald-400 rounded-full"
+									style={{ width: `${pct}%` }}
+								/>
+							</div>
+						</div>
+					);
+				},
+			},
+			{
+				id: "remainingAmount",
+				header: "Остаток",
+				size: 120,
+				accessorFn: (row: any) => parseFloat(row.remainingAmount || "0"),
+				meta: { exportLabel: "Остаток (сом)", align: "right" },
+				cell: ({ row }) => (
+					<span className="font-mono font-bold text-amber-600">
+						{fmt(row.original.remainingAmount)}
+					</span>
+				),
+			},
+			{
+				id: "__actions",
+				header: "",
+				size: 120,
+				enableSorting: false,
+				cell: ({ row }) => {
+					const a = row.original;
+					const hasPayment = parseFloat(a.paidAmount || "0") > 0;
+					const canAccept = remainingAmount(a) > 0;
+					return (
+						<div className="flex flex-col gap-1 items-end">
+							{canAccept && (
+								<Button
+									size="sm"
+									variant="outline"
+									className="h-7 text-xs"
+									onClick={() => setPayTarget(a)}
+								>
+									Оплачен
+								</Button>
+							)}
+							{hasPayment && (
+								<Button
+									size="sm"
+									variant="ghost"
+									className="h-7 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+									onClick={() => setCancelTarget(a)}
+								>
+									<RotateCcw className="w-3 h-3 mr-1" />
+									Отменить
+								</Button>
+							)}
+						</div>
+					);
+				},
+			},
+		],
+		[],
+	);
+
 	return (
 		<div>
 			<div className="mb-6">
@@ -845,8 +1029,8 @@ export default function ConstructionAccruals() {
 				</div>
 			)}
 
-			<div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-				{viewMode === "counterparties" ? (
+			{viewMode === "counterparties" ? (
+				<div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
 					<table className="w-full text-sm">
 						<thead>
 							<tr className="bg-gray-50 border-b border-gray-100">
@@ -974,63 +1158,25 @@ export default function ConstructionAccruals() {
 							)}
 						</tbody>
 					</table>
-				) : (
-					<table className="w-full text-sm">
-						<thead>
-							<tr className="bg-gray-50 border-b border-gray-100">
-								<th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">
-									№
-								</th>
-								<th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">
-									Договор / Покупатель
-								</th>
-								<th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">
-									Срок / период
-								</th>
-								<th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">
-									Статус
-								</th>
-								<th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">
-									Начислено
-								</th>
-								<th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">
-									Оплачено
-								</th>
-								<th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">
-									Остаток
-								</th>
-								<th className="px-4 py-3" />
-							</tr>
-						</thead>
-						<tbody>
-							{isLoading ? (
-								<tr>
-									<td colSpan={8} className="text-center py-12 text-gray-400">
-										Загрузка...
-									</td>
-								</tr>
-							) : filtered.length === 0 ? (
-								<tr>
-									<td colSpan={8} className="text-center py-12 text-gray-400">
-										<ListOrdered className="w-10 h-10 mx-auto mb-2 text-gray-200" />
-										Нет платежей за выбранный период
-									</td>
-								</tr>
-							) : (
-								filtered.map((a) => (
-									<PaymentRow
-										key={a.id}
-										a={a}
-										contract={contractById.get(a.contractId)}
-										onPay={setPayTarget}
-										onCancel={setCancelTarget}
-									/>
-								))
-							)}
-						</tbody>
-					</table>
-				)}
-			</div>
+				</div>
+			) : (
+				<DataTable
+					tableId="construction-accruals"
+					columns={listColumns}
+					data={filtered}
+					isLoading={isLoading}
+					initialSorting={[{ id: "dueDate", desc: true }]}
+					rowClassName={(a: any) =>
+						a.isOverdue && a.status !== "paid" ? "bg-rose-50/30" : ""
+					}
+					emptyState={
+						<div className="flex flex-col items-center gap-2">
+							<ListOrdered className="w-10 h-10 text-gray-200" />
+							<span>Нет платежей за выбранный период</span>
+						</div>
+					}
+				/>
+			)}
 
 			<AcceptPaymentDialog
 				accrual={payTarget}

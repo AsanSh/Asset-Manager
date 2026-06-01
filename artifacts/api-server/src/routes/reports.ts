@@ -1,11 +1,17 @@
 import { Router } from "express";
-import { eq, and, SQL, gte, lte, sql } from "drizzle-orm";
+import { eq, and, SQL, sql } from "drizzle-orm";
 import {
   db, leaseContractsTable, accrualsTable, paymentsTable,
   tenantsTable, propertiesTable, expensesTable, paymentAllocationsTable
 } from "../lib/db";
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
 import { requireTenantCompany } from "../middleware/tenant";
+import {
+  buildAllDirectionReports,
+  buildCounterpartyDashboard,
+  buildDirectionReport,
+  isDirectionKey,
+} from "../lib/direction-reports";
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -244,6 +250,33 @@ router.get("/reports/counterparties", async (req: AuthenticatedRequest, res): Pr
   }));
 
   res.json(result);
+});
+
+// GET /reports/counterparty-dashboard — BI-дашборд по контрагентам
+router.get("/reports/counterparty-dashboard", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const { from, to, direction } = req.query as Record<string, string | undefined>;
+  const directionFilter = direction && isDirectionKey(direction) ? direction : undefined;
+  const dashboard = await buildCounterpartyDashboard(req.scopedCompanyId!, from, to, directionFilter);
+  res.json(dashboard);
+});
+
+// GET /reports/directions — сводка по всем направлениям
+router.get("/reports/directions", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const { from, to } = req.query as Record<string, string | undefined>;
+  const reports = await buildAllDirectionReports(req.scopedCompanyId!, from, to);
+  res.json(reports);
+});
+
+// GET /reports/directions/:direction — отчёт по одному направлению
+router.get("/reports/directions/:direction", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const direction = String(req.params.direction ?? "");
+  if (!isDirectionKey(direction)) {
+    res.status(400).json({ error: "Направление: rental, sales, contractors, suppliers" });
+    return;
+  }
+  const { from, to } = req.query as Record<string, string | undefined>;
+  const report = await buildDirectionReport(direction, req.scopedCompanyId!, from, to);
+  res.json(report);
 });
 
 export default router;

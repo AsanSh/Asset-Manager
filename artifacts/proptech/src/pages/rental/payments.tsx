@@ -15,7 +15,6 @@ import {
 	AlertCircle,
 	Banknote,
 	Building2,
-	ChevronDown,
 	CreditCard,
 	Plus,
 	Receipt,
@@ -23,12 +22,13 @@ import {
 	Undo2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { Field, FormGrid } from "@/components/am/Field";
+import { MoneyInput } from "@/components/am/MoneyInput";
+import { PageShell } from "@/components/am/PageShell";
+import { Tablo } from "@/components/am/Tablo";
 import { defaultPeriod, inPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
 import { KpiCard, KpiRow } from "@/components/kpi-card";
-import { RentalExcelTable, type RentalExcelColumn } from "@/components/rental/rental-excel-table";
-import { RentalViewModeToggle } from "@/components/rental/rental-view-mode-toggle";
-import { useRentalViewMode } from "@/hooks/use-rental-view-mode";
-import { useSortable } from "@/lib/use-sortable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,7 +38,6 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
 	Select,
 	SelectContent,
@@ -47,14 +46,6 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/lib/api-error";
 import { RentalQueryState } from "@/components/rental/rental-query-state";
@@ -256,8 +247,7 @@ function PaymentDialog({ open, onClose }: PaymentDialogProps) {
 					</DialogTitle>
 				</DialogHeader>
 				<form onSubmit={handleSubmit} className="space-y-4">
-					<div>
-						<Label>Договор аренды *</Label>
+					<Field label="Договор аренды" required>
 						<Select
 							value={formData.leaseContractId}
 							onValueChange={(v) => {
@@ -265,7 +255,7 @@ function PaymentDialog({ open, onClose }: PaymentDialogProps) {
 								setManualAllocations({});
 							}}
 						>
-							<SelectTrigger className="mt-1">
+							<SelectTrigger>
 								<SelectValue placeholder="Выберите договор" />
 							</SelectTrigger>
 							<SelectContent>
@@ -277,7 +267,7 @@ function PaymentDialog({ open, onClose }: PaymentDialogProps) {
 								))}
 							</SelectContent>
 						</Select>
-					</div>
+					</Field>
 
 					{openAccrualsArray.length > 0 && (
 						<div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
@@ -306,84 +296,56 @@ function PaymentDialog({ open, onClose }: PaymentDialogProps) {
 						</div>
 					)}
 
-					<div className="grid grid-cols-3 gap-3">
-						<div className="col-span-2">
-							<Label>Сумма *</Label>
-							<Input
-								type="number"
-								step="0.01"
+					<FormGrid>
+						<Field label="Сумма" required className="col-span-8">
+							<MoneyInput
 								value={formData.amount}
-								onChange={(e) =>
-									setFormData({ ...formData, amount: e.target.value })
-								}
-								placeholder="150000"
-								required
-								className="mt-1"
+								onChange={(v) => setFormData({ ...formData, amount: v })}
+								currency={formData.currency as "KGS" | "USD"}
+								onCurrencyChange={(v) => setFormData({ ...formData, currency: v })}
+								placeholder="150 000"
 							/>
-						</div>
-						<div>
-							<Label>Валюта</Label>
-							<Select
-								value={formData.currency}
-								onValueChange={(v) => setFormData({ ...formData, currency: v })}
-							>
-								<SelectTrigger className="mt-1">
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="KGS">Сом</SelectItem>
-									<SelectItem value="USD">USD</SelectItem>
-								</SelectContent>
-							</Select>
-						</div>
-					</div>
-
-					<div className="grid grid-cols-2 gap-3">
-						<div>
-							<Label>Дата платежа *</Label>
+						</Field>
+						<Field label="Дата платежа" required className="col-span-4">
 							<Input
 								type="date"
+								className="am-control"
 								value={formData.paymentDate}
 								onChange={(e) =>
 									setFormData({ ...formData, paymentDate: e.target.value })
 								}
 								required
-								className="mt-1"
 							/>
-						</div>
-						<div>
-							<Label>Способ оплаты</Label>
+						</Field>
+						<Field label="Способ оплаты" className="col-span-6">
 							<Select
 								value={formData.paymentMethod}
 								onValueChange={(v) =>
 									setFormData({ ...formData, paymentMethod: v })
 								}
 							>
-								<SelectTrigger className="mt-1">
+								<SelectTrigger>
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
 									<SelectItem value="cash">Наличные</SelectItem>
-									<SelectItem value="bank_transfer">
-										Банковский перевод
-									</SelectItem>
+									<SelectItem value="bank_transfer">Банковский перевод</SelectItem>
 									<SelectItem value="card">Карта</SelectItem>
 									<SelectItem value="online">Онлайн</SelectItem>
 									<SelectItem value="other">Другое</SelectItem>
 								</SelectContent>
 							</Select>
-						</div>
-					</div>
+						</Field>
+					</FormGrid>
 
-					<div>
-						<Label>Расчётный счёт *</Label>
+					<Field label="Расчётный счёт" required>
 						<Select
 							value={formData.accountId}
 							onValueChange={(v) =>
 								setFormData({ ...formData, accountId: v })
 							}
 						>
-							<SelectTrigger className={`mt-1 ${!formData.accountId ? "border-rose-300" : ""}`}>
+							<SelectTrigger className={!formData.accountId ? "border-rose-300" : ""}>
 								<SelectValue placeholder="Выберите счёт *" />
 							</SelectTrigger>
 							<SelectContent>
@@ -398,7 +360,7 @@ function PaymentDialog({ open, onClose }: PaymentDialogProps) {
 								)}
 							</SelectContent>
 						</Select>
-					</div>
+					</Field>
 
 					{/* Allocation mode */}
 					{openAccrualsArray.length > 0 && paymentAmount > 0 && (
@@ -497,17 +459,16 @@ function PaymentDialog({ open, onClose }: PaymentDialogProps) {
 						</div>
 					)}
 
-					<div>
-						<Label>Примечание</Label>
+					<Field label="Примечание">
 						<Input
+							className="am-control"
 							value={formData.note}
 							onChange={(e) =>
 								setFormData({ ...formData, note: e.target.value })
 							}
 							placeholder="Оплата за апрель 2026"
-							className="mt-1"
 						/>
-					</div>
+					</Field>
 
 					<div className="flex justify-end gap-2 pt-2">
 						<Button
@@ -539,10 +500,7 @@ export default function Payments() {
 	const qc = useQueryClient();
 	const { toast } = useToast();
 	const [dialogOpen, setDialogOpen] = useState(false);
-	const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod());
-	const [viewMode, setViewMode] = useRentalViewMode("payments");
-
 	const handleCancel = async (payment: any) => {
 		if (!confirm(`Отменить платёж ${fmtCurrency(payment.amount)} от ${formatDate(payment.paymentDate)}? Начисление будет восстановлено.`)) return;
 		try {
@@ -558,15 +516,6 @@ export default function Payments() {
 		} catch {
 			toast({ title: "Ошибка", description: "Не удалось отменить платёж", variant: "destructive" });
 		}
-	};
-
-	const toggleGroup = (key: string) => {
-		setExpandedGroups((prev) => {
-			const next = new Set(prev);
-			if (next.has(key)) next.delete(key);
-			else next.add(key);
-			return next;
-		});
 	};
 
 	const { data: payments, isLoading, isError, error, refetch } = useQuery<any[]>({
@@ -613,203 +562,150 @@ export default function Payments() {
 			})),
 		[filteredPayments, leaseInfo],
 	);
-	const { sorted: sortedPayments, sortKey, sortDir, toggle } = useSortable(
-		enrichedPayments,
-		"paymentDate",
-	);
+	type EnrichedPayment = (typeof enrichedPayments)[number];
 
-	const grouped = useMemo(() => {
-		const map = new Map<string, any[]>();
-		for (const p of filteredPayments) {
-			const key = leaseInfo[p.leaseContractId]?.projectName || "Без проекта";
-			if (!map.has(key)) map.set(key, []);
-			map.get(key)?.push(p);
-		}
-		return map;
-	}, [filteredPayments, leaseInfo]);
-
-	const paymentColumns: RentalExcelColumn<(typeof enrichedPayments)[number]>[] = useMemo(
+	const tableColumns = useMemo<ColumnDef<EnrichedPayment, unknown>[]>(
 		() => [
-		{ key: "projectName", label: "Объект", width: 140, render: (r) => r.projectName },
-		{ key: "contractLabel", label: "Договор", width: 180, render: (r) => r.contractLabel },
-		{ key: "paymentDate", label: "Дата", width: 100, render: (r) => formatDate(r.paymentDate) },
-		{ key: "amount", label: "Сумма", width: 120, align: "right", render: (r) => fmtCurrency(r.amount) },
-		{
-			key: "paymentMethod", label: "Способ", width: 110,
-			render: (r) => r.paymentMethod ? methodLabels[r.paymentMethod] || r.paymentMethod : "—",
-		},
-		{ key: "note", label: "Примечание", width: 160, sortable: false, render: (r) => r.note || "—" },
-		{
-			key: "actions",
-			label: "",
-			width: 44,
-			align: "center",
-			sortable: false,
-			resizable: false,
-			render: (r) => (
-				<button
-					type="button"
-					title="Отменить платёж"
-					onClick={() => handleCancel(r)}
-					className="inline-flex items-center justify-center w-7 h-7 rounded-md text-gray-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-				>
-					<Undo2 className="w-3.5 h-3.5" />
-				</button>
-			),
-		},
-	],
+			{
+				id: "projectName",
+				header: "Объект",
+				size: 140,
+				accessorFn: (row) => row.projectName,
+				meta: { exportLabel: "Объект", pinned: "left" },
+				cell: ({ row }) => row.original.projectName,
+			},
+			{
+				id: "contractLabel",
+				header: "Договор",
+				size: 280,
+				minSize: 140,
+				maxSize: 720,
+				accessorFn: (row) => row.contractLabel,
+				meta: { exportLabel: "Договор", grow: true },
+				cell: ({ row }) => row.original.contractLabel,
+			},
+			{
+				id: "paymentDate",
+				header: "Дата",
+				size: 110,
+				accessorFn: (row) => row.paymentDate,
+				meta: { exportLabel: "Дата", pinned: "left" },
+				cell: ({ row }) => formatDate(row.original.paymentDate),
+			},
+			{
+				id: "amount",
+				header: "Сумма",
+				size: 120,
+				accessorFn: (row) => parseFloat(String(row.amount || "0")),
+				meta: { exportLabel: "Сумма", align: "right" },
+				cell: ({ row }) => (
+					<span className="font-mono font-semibold text-emerald-600">
+						{fmtCurrency(row.original.amount)}
+					</span>
+				),
+			},
+			{
+				id: "paymentMethod",
+				header: "Способ",
+				size: 120,
+				accessorFn: (row) => row.paymentMethod || "",
+				meta: { exportLabel: "Способ" },
+				cell: ({ row }) =>
+					row.original.paymentMethod ? (
+						<Badge variant="outline" className="text-xs">
+							{methodLabels[row.original.paymentMethod] || row.original.paymentMethod}
+						</Badge>
+					) : (
+						"—"
+					),
+			},
+			{
+				id: "note",
+				header: "Примечание",
+				size: 160,
+				accessorFn: (row) => row.note || "",
+				meta: { exportLabel: "Примечание" },
+				cell: ({ row }) => row.original.note || "—",
+			},
+			{
+				id: "actions",
+				header: "",
+				size: 50,
+				enableSorting: false,
+				enableResizing: false,
+				meta: { align: "center" },
+				cell: ({ row }) => (
+					<button
+						type="button"
+						title="Отменить платёж"
+						onClick={() => handleCancel(row.original)}
+						className="inline-flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-rose-600 hover:bg-rose-50"
+					>
+						<Undo2 className="w-3.5 h-3.5" />
+					</button>
+				),
+			},
+		],
 		[handleCancel],
 	);
 
 	return (
-		<div className="space-y-3">
-			<KpiRow>
-				<KpiCard variant="strip" label="Платежей" value={filteredPayments.length} sub="за период" icon={Receipt} color="blue" loading={isLoading} />
-				<KpiCard variant="strip" label="Получено" value={fmtCurrency(totalPaid)} sub="за период" icon={TrendingUp} color="green" loading={isLoading} />
-				<KpiCard variant="strip" label="Объектов" value={new Set(enrichedPayments.map((p) => p.projectName)).size} sub="с платежами" icon={Building2} color="purple" loading={isLoading} />
-				<KpiCard variant="strip" label="Средний платёж" value={filteredPayments.length ? fmtCurrency(totalPaid / filteredPayments.length) : "—"} sub="за период" icon={Banknote} color="yellow" loading={isLoading} />
-			</KpiRow>
-
-			<div className="flex justify-between items-start flex-wrap gap-3">
-				<div>
-					<h1 className="text-2xl font-bold text-gray-900">Платежи</h1>
-					<p className="text-sm text-gray-500 mt-1">
-						История поступивших платежей
-					</p>
-				</div>
-				<div className="flex items-center gap-2 flex-wrap">
-					<RentalViewModeToggle mode={viewMode} onChange={setViewMode} />
-					<Button onClick={() => setDialogOpen(true)}>
-						<Plus className="w-4 h-4 mr-2" /> Зарегистрировать
-					</Button>
-				</div>
-			</div>
-
-			<div className="flex items-center justify-between flex-wrap gap-2">
-				<PeriodPicker value={period} onChange={setPeriod} />
-				<p className="text-xs text-gray-500">{sortedPayments.length} записей</p>
-			</div>
-
+		<PageShell.List
+			title="Платежи"
+			subtitle="История поступивших платежей"
+			primaryAction={
+				<Button onClick={() => setDialogOpen(true)} className="bg-am-brand hover:bg-am-brand-hover">
+					<Plus className="w-4 h-4 mr-2" /> Зарегистрировать
+				</Button>
+			}
+			kpis={
+				<KpiRow>
+					<KpiCard variant="strip" label="Платежей" value={filteredPayments.length} sub="за период" icon={Receipt} color="blue" loading={isLoading} />
+					<KpiCard variant="strip" label="Получено" value={fmtCurrency(totalPaid)} sub="за период" icon={TrendingUp} color="green" loading={isLoading} />
+					<KpiCard variant="strip" label="Объектов" value={new Set(enrichedPayments.map((p) => p.projectName)).size} sub="с платежами" icon={Building2} color="purple" loading={isLoading} />
+					<KpiCard variant="strip" label="Средний платёж" value={filteredPayments.length ? fmtCurrency(totalPaid / filteredPayments.length) : "—"} sub="за период" icon={Banknote} color="yellow" loading={isLoading} />
+				</KpiRow>
+			}
+			filters={
+				<>
+					<PeriodPicker value={period} onChange={setPeriod} />
+					<p className="text-xs text-am-text-muted ml-auto">{enrichedPayments.length} записей</p>
+				</>
+			}
+		>
 			<RentalQueryState isLoading={isLoading} isError={isError} error={error} onRetry={() => refetch()}>
-			{!filteredPayments.length ? (
-				<div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">
-					<CreditCard className="w-8 h-8 mx-auto mb-2 opacity-30" />
-					<p className="text-sm">Платежи не найдены</p>
-				</div>
-			) : viewMode === "report" ? (
-				<RentalExcelTable
-					columns={paymentColumns}
-					rows={sortedPayments}
-					sortKey={sortKey}
-					sortDir={sortDir}
-					onSort={toggle}
-					emptyMessage="Платежи не найдены"
-					rowKey={(r) => r.id}
-					footer={[
-						{ colSpan: 3, content: `Итого: ${filteredPayments.length}` },
-						{ content: fmtCurrency(totalPaid), align: "right" },
-						{ colSpan: 3, content: "" },
-					]}
+				<Tablo
+					tableId="rental-payments"
+					columns={tableColumns}
+					data={enrichedPayments}
+					isLoading={isLoading}
+					enableSearch
+					searchPlaceholder="Поиск по объекту, договору…"
+					initialSorting={[{ id: "paymentDate", desc: true }]}
+					meta={`${enrichedPayments.length} записей`}
+					emptyState={
+						<div className="flex flex-col items-center gap-2 py-8 text-am-text-muted">
+							<CreditCard className="w-8 h-8 opacity-30" />
+							<p className="text-sm">Платежи не найдены</p>
+						</div>
+					}
+					footer={
+						filteredPayments.length > 0 ? (
+							<tr className="bg-am-surface font-semibold border-t border-am-border">
+								<td colSpan={3} className="px-3 py-2 text-sm text-am-text-muted">
+									Итого: {filteredPayments.length}
+								</td>
+								<td className="px-3 py-2 font-mono text-right text-emerald-700">
+									{fmtCurrency(totalPaid)}
+								</td>
+								<td colSpan={3} />
+							</tr>
+						) : undefined
+					}
 				/>
-			) : (
-				<div className="space-y-3">
-					{Array.from(grouped.entries()).map(([projectName, rows]) => {
-						const rowsArray = Array.isArray(rows) ? rows : [];
-						const groupTotal = rowsArray.reduce(
-							(s: number, p: any) => s + (parseFloat(p.amount) || 0),
-							0,
-						);
-						const isExpanded = expandedGroups.has(projectName);
-						return (
-							<div
-								key={projectName}
-								className="bg-white rounded-xl border border-gray-200 overflow-hidden"
-							>
-								<button
-									type="button"
-									className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
-									onClick={() => toggleGroup(projectName)}
-								>
-									<div className="flex items-center gap-2">
-										<ChevronDown
-											className={cn(
-												"w-4 h-4 text-gray-400 transition-transform duration-200",
-												!isExpanded && "-rotate-90",
-											)}
-										/>
-										<Building2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-										<span className="font-semibold text-gray-800 text-sm">
-											{projectName}
-										</span>
-										<span className="text-gray-400 text-xs">
-											· {rowsArray.length} платежей
-										</span>
-									</div>
-									<span className="text-sm font-bold text-emerald-600">
-										{fmtCurrency(groupTotal)}
-									</span>
-								</button>
-
-								{isExpanded && (
-									<Table>
-										<TableHeader>
-											<TableRow className="bg-gray-50/50">
-												<TableHead>Договор</TableHead>
-												<TableHead>Дата</TableHead>
-												<TableHead>Сумма</TableHead>
-												<TableHead>Способ оплаты</TableHead>
-												<TableHead>Примечание</TableHead>
-												<TableHead className="text-center w-16"></TableHead>
-											</TableRow>
-										</TableHeader>
-										<TableBody>
-											{rowsArray.map((payment: any) => (
-												<TableRow key={payment.id} className="hover:bg-gray-50">
-													<TableCell className="text-sm text-gray-700">
-														{leaseInfo[payment.leaseContractId]?.label ||
-															`Договор #${payment.leaseContractId}`}
-													</TableCell>
-													<TableCell className="text-gray-600">
-														{formatDate(payment.paymentDate)}
-													</TableCell>
-													<TableCell className="font-semibold text-emerald-600">
-														{fmtCurrency(payment.amount)}
-													</TableCell>
-													<TableCell>
-														<Badge variant="outline" className="text-xs">
-															{payment.paymentMethod
-																? methodLabels[payment.paymentMethod] ||
-																	payment.paymentMethod
-																: "—"}
-														</Badge>
-													</TableCell>
-													<TableCell className="text-gray-500 text-sm">
-														{payment.note || "—"}
-													</TableCell>
-													<TableCell className="text-center">
-														<Button
-															size="sm"
-															variant="ghost"
-															className="h-7 w-7 p-0 text-gray-400 hover:text-rose-600"
-															title="Отменить платёж"
-															onClick={() => handleCancel(payment)}
-														>
-															<Undo2 className="w-3.5 h-3.5" />
-														</Button>
-													</TableCell>
-												</TableRow>
-											))}
-										</TableBody>
-									</Table>
-								)}
-							</div>
-						);
-					})}
-				</div>
-			)}
 			</RentalQueryState>
 
 			<PaymentDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
-		</div>
+		</PageShell.List>
 	);
 }

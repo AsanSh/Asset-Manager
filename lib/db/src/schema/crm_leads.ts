@@ -15,6 +15,11 @@ export const crmLeadsTable = pgTable("crm_leads", {
   currency: text("currency").default("KGS"),
   notes: text("notes"),
   assignedUserId: integer("assigned_user_id"),
+  /** Канал приёма: instagram, facebook, telegram, whatsapp, tiktok, … */
+  channel: text("channel"),
+  projectId: integer("project_id"),
+  /** ID сообщения/лида во внешней системе — для дедупликации intake */
+  externalId: text("external_id"),
   createdBy: integer("created_by"),
   leadDate: timestamp("lead_date", { withTimezone: true }).notNull().defaultNow(),
   lastContactDate: timestamp("last_contact_date", { withTimezone: true }),

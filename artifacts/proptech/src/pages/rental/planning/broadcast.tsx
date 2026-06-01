@@ -157,12 +157,12 @@ export default function RentalBroadcast() {
 					<div className="bg-white border rounded-lg p-5">
 						<h3 className="font-semibold text-gray-800 mb-4">Получатели</h3>
 						<div className="grid grid-cols-2 gap-3">
-							<div>
-								<Label className="text-sm font-medium mb-1.5 block">
+							<div className="flex flex-col">
+								<Label className="text-sm font-medium mb-1.5 block leading-tight">
 									Аудитория
 								</Label>
 								<Select value={type} onValueChange={setType}>
-									<SelectTrigger>
+									<SelectTrigger className="mt-auto">
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>
@@ -172,12 +172,12 @@ export default function RentalBroadcast() {
 									</SelectContent>
 								</Select>
 							</div>
-							<div>
-								<Label className="text-sm font-medium mb-1.5 block">
+							<div className="flex flex-col">
+								<Label className="text-sm font-medium mb-1.5 block leading-tight">
 									Канал
 								</Label>
 								<Select value={channel} onValueChange={setChannel}>
-									<SelectTrigger>
+									<SelectTrigger className="mt-auto">
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>

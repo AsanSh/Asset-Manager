@@ -209,18 +209,18 @@ export default function PlatformAdminCompanyDetail() {
 							/>
 						</div>
 						<div className="grid grid-cols-2 gap-3">
-							<div>
-								<Label>БИН</Label>
+							<div className="flex flex-col">
+								<Label className="leading-tight mb-1.5">БИН</Label>
 								<Input
-									className="mt-1"
+									className="mt-auto"
 									value={form.bin}
 									onChange={(e) => setForm((f) => ({ ...f, bin: e.target.value }))}
 								/>
 							</div>
-							<div>
-								<Label>Телефон</Label>
+							<div className="flex flex-col">
+								<Label className="leading-tight mb-1.5">Телефон</Label>
 								<Input
-									className="mt-1"
+									className="mt-auto"
 									value={form.phone}
 									onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
 								/>

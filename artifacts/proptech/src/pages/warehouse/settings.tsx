@@ -33,23 +33,25 @@ export default function WarehouseSettings() {
 				</CardHeader>
 				<CardContent className="space-y-6">
 					<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-						<div className="space-y-2">
-							<Label>Название склада</Label>
+						<div className="space-y-2 flex flex-col">
+							<Label className="leading-tight mb-1.5">Название склада</Label>
 							<Input
+								className="mt-auto"
 								placeholder="Центральный склад"
 								defaultValue="Центральный склад"
 							/>
 						</div>
 
-						<div className="space-y-2">
-							<Label>Адрес</Label>
+						<div className="space-y-2 flex flex-col">
+							<Label className="leading-tight mb-1.5">Адрес</Label>
 							<Input placeholder="г. Бишкек, ул. Промышленная 15" />
+								className="mt-auto"
 						</div>
 
-						<div className="space-y-2">
-							<Label>Ответственный</Label>
+						<div className="space-y-2 flex flex-col">
+							<Label className="leading-tight mb-1.5">Ответственный</Label>
 							<Select defaultValue="petrov">
-								<SelectTrigger>
+								<SelectTrigger className="mt-auto">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -59,9 +61,10 @@ export default function WarehouseSettings() {
 							</Select>
 						</div>
 
-						<div className="space-y-2">
-							<Label>Телефон склада</Label>
+						<div className="space-y-2 flex flex-col">
+							<Label className="leading-tight mb-1.5">Телефон склада</Label>
 							<Input placeholder="+996 555 123 456" />
+								className="mt-auto"
 						</div>
 					</div>
 				</CardContent>
@@ -190,21 +193,25 @@ export default function WarehouseSettings() {
 				</CardHeader>
 				<CardContent className="space-y-4">
 					<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-						<div className="space-y-2">
-							<Label>Цемент (% от максимума)</Label>
+						<div className="space-y-2 flex flex-col">
+							<Label className="leading-tight mb-1.5">Цемент (% от максимума)</Label>
 							<Input type="number" defaultValue="20" />
+								className="mt-auto"
 						</div>
-						<div className="space-y-2">
-							<Label>Арматура (% от максимума)</Label>
+						<div className="space-y-2 flex flex-col">
+							<Label className="leading-tight mb-1.5">Арматура (% от максимума)</Label>
 							<Input type="number" defaultValue="15" />
+								className="mt-auto"
 						</div>
-						<div className="space-y-2">
-							<Label>Кирпич (% от максимума)</Label>
+						<div className="space-y-2 flex flex-col">
+							<Label className="leading-tight mb-1.5">Кирпич (% от максимума)</Label>
 							<Input type="number" defaultValue="25" />
+								className="mt-auto"
 						</div>
-						<div className="space-y-2">
-							<Label>Песок (% от максимума)</Label>
+						<div className="space-y-2 flex flex-col">
+							<Label className="leading-tight mb-1.5">Песок (% от максимума)</Label>
 							<Input type="number" defaultValue="30" />
+								className="mt-auto"
 						</div>
 					</div>
 				</CardContent>

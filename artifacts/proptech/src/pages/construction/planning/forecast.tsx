@@ -1,5 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Calendar, } from "lucide-react";
+import { useMemo } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table";
 import { api } from "@/lib/api";
 
 function fmtFull(n: any) {
@@ -54,6 +57,78 @@ export default function ConstructionForecast() {
 	);
 	const maxMonthly = Math.max(...monthsSorted.map(([, v]) => v.total), 1);
 	const totalForecast = monthsSorted.reduce((s, [, v]) => s + v.total, 0);
+
+	const columns = useMemo<ColumnDef<any, unknown>[]>(
+		() => [
+			{
+				id: "contract",
+				header: "Договор",
+				size: 140,
+				accessorFn: (row: any) => {
+					const c = contracts.find((x: any) => x.id === row.contractId);
+					return c?.contractNumber || `#${row.contractId}`;
+				},
+				meta: { exportLabel: "Договор" },
+				cell: ({ row }) => {
+					const c = contracts.find((x: any) => x.id === row.original.contractId);
+					return (
+						<span className="font-mono text-xs font-medium text-amber-600">
+							{c?.contractNumber || `#${row.original.contractId}`}
+						</span>
+					);
+				},
+			},
+			{
+				id: "buyer",
+				header: "Покупатель",
+				size: 200,
+				accessorFn: (row: any) =>
+					contracts.find((x: any) => x.id === row.contractId)?.buyerName || "—",
+				meta: { exportLabel: "Покупатель" },
+				cell: ({ getValue }) => (
+					<span className="text-gray-600">{getValue() as string}</span>
+				),
+			},
+			{
+				accessorKey: "dueDate",
+				header: "Дата платежа",
+				size: 140,
+				meta: { exportLabel: "Дата платежа" },
+				cell: ({ row }) => {
+					const isOvd = new Date(row.original.dueDate) < new Date();
+					return (
+						<span
+							className={isOvd ? "text-rose-600 font-medium" : "text-gray-600"}
+						>
+							{row.original.dueDate}
+						</span>
+					);
+				},
+			},
+			{
+				accessorKey: "installmentNumber",
+				header: "№ платежа",
+				size: 100,
+				meta: { exportLabel: "№ платежа" },
+				cell: ({ row }) => (
+					<span className="text-gray-400">#{row.original.installmentNumber}</span>
+				),
+			},
+			{
+				id: "amount",
+				header: "Сумма",
+				size: 140,
+				accessorFn: (row: any) => parseFloat(row.remainingAmount || "0"),
+				meta: { exportLabel: "Сумма (сом)", align: "right" },
+				cell: ({ row }) => (
+					<span className="font-mono font-bold text-blue-600">
+						{fmtFull(row.original.remainingAmount)}
+					</span>
+				),
+			},
+		],
+		[contracts],
+	);
 
 	return (
 		<div>
@@ -141,61 +216,21 @@ export default function ConstructionForecast() {
 				)}
 			</div>
 
-			<div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-				<table className="w-full text-sm">
-					<thead>
-						<tr className="bg-gray-50 border-b border-gray-100">
-							<th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">
-								Договор
-							</th>
-							<th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">
-								Покупатель
-							</th>
-							<th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">
-								Дата платежа
-							</th>
-							<th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">
-								№ платежа
-							</th>
-							<th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">
-								Сумма
-							</th>
-						</tr>
-					</thead>
-					<tbody>
-						{pending.slice(0, 30).map((a: any) => {
-							const contract = contracts.find(
-								(c: any) => c.id === a.contractId,
-							);
-							const isOvd = new Date(a.dueDate) < new Date();
-							return (
-								<tr
-									key={a.id}
-									className={`border-b border-gray-50 hover:bg-gray-50/50 ${isOvd ? "bg-rose-50/30" : ""}`}
-								>
-									<td className="px-4 py-2.5 font-mono text-xs font-medium text-amber-600">
-										{contract?.contractNumber || `#${a.contractId}`}
-									</td>
-									<td className="px-4 py-2.5 text-gray-600">
-										{contract?.buyerName || "—"}
-									</td>
-									<td
-										className={`px-4 py-2.5 ${isOvd ? "text-rose-600 font-medium" : "text-gray-600"}`}
-									>
-										{a.dueDate}
-									</td>
-									<td className="px-4 py-2.5 text-gray-400">
-										#{a.installmentNumber}
-									</td>
-									<td className="px-4 py-2.5 text-right font-mono font-bold text-blue-600">
-										{fmtFull(a.remainingAmount)}
-									</td>
-								</tr>
-							);
-						})}
-					</tbody>
-				</table>
-			</div>
+			<DataTable
+				tableId="construction-forecast"
+				columns={columns}
+				data={pending.slice(0, 30)}
+				initialSorting={[{ id: "dueDate", desc: false }]}
+				rowClassName={(a: any) =>
+					new Date(a.dueDate) < new Date() ? "bg-rose-50/30" : ""
+				}
+				emptyState={
+					<div className="flex flex-col items-center gap-2">
+						<Calendar className="w-10 h-10 text-gray-200" />
+						<span>Нет данных. Создайте договоры и сформируйте графики.</span>
+					</div>
+				}
+			/>
 		</div>
 	);
 }

@@ -217,9 +217,10 @@ export default function PlatformAdminMarketplace() {
 							/>
 						</div>
 						<div className="grid grid-cols-2 gap-3">
-							<div>
-								<Label>Цена (сом)</Label>
+							<div className="flex flex-col">
+								<Label className="leading-tight mb-1.5">Цена (сом)</Label>
 								<Input
+									className="mt-auto"
 									type="number"
 									value={form.unitPrice}
 									onChange={(e) =>
@@ -227,9 +228,10 @@ export default function PlatformAdminMarketplace() {
 									}
 								/>
 							</div>
-							<div>
-								<Label>Единица</Label>
+							<div className="flex flex-col">
+								<Label className="leading-tight mb-1.5">Единица</Label>
 								<Input
+									className="mt-auto"
 									value={form.unit}
 									onChange={(e) => setForm({ ...form, unit: e.target.value })}
 								/>

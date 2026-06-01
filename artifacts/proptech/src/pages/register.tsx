@@ -275,8 +275,8 @@ export default function Register() {
 										/>
 									</div>
 									<div className="grid grid-cols-2 gap-3">
-										<div>
-											<Label className="text-sm font-medium text-gray-700">
+										<div className="flex flex-col">
+											<Label className="text-sm font-medium text-gray-700 leading-tight mb-1.5">
 												ИНН / ИНО
 											</Label>
 											<Input
@@ -286,8 +286,8 @@ export default function Register() {
 												className="mt-1.5 h-11 rounded-xl border-gray-200 bg-gray-50 focus:bg-white"
 											/>
 										</div>
-										<div>
-											<Label className="text-sm font-medium text-gray-700">
+										<div className="flex flex-col">
+											<Label className="text-sm font-medium text-gray-700 leading-tight mb-1.5">
 												Телефон
 											</Label>
 											<Input
@@ -349,8 +349,8 @@ export default function Register() {
 								</div>
 								<form onSubmit={handleSubmit} className="space-y-4">
 									<div className="grid grid-cols-2 gap-3">
-										<div>
-											<Label className="text-sm font-medium text-gray-700">
+										<div className="flex flex-col">
+											<Label className="text-sm font-medium text-gray-700 leading-tight mb-1.5">
 												Имя *
 											</Label>
 											<Input
@@ -361,8 +361,8 @@ export default function Register() {
 												className="mt-1.5 h-11 rounded-xl border-gray-200 bg-gray-50 focus:bg-white"
 											/>
 										</div>
-										<div>
-											<Label className="text-sm font-medium text-gray-700">
+										<div className="flex flex-col">
+											<Label className="text-sm font-medium text-gray-700 leading-tight mb-1.5">
 												Фамилия *
 											</Label>
 											<Input

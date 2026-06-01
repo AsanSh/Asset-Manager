@@ -3,6 +3,7 @@ import { eq, and, SQL } from "drizzle-orm";
 import { db, rolesTable } from "../lib/db";
 import { requireAuth, requireRole, AuthenticatedRequest } from "../middleware/auth";
 import { requireTenantCompany } from "../middleware/tenant";
+import { ensureDefaultCompanyRoles } from "../lib/settings-catalog-sync";
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -12,13 +13,13 @@ router.use(requireAuth, requireTenantCompany);
 router.get("/roles",
   async (req: AuthenticatedRequest, res): Promise<void> => {
     try {
-      const conditions: SQL[] = [];
-      conditions.push(eq(rolesTable.companyId, req.scopedCompanyId!));
+      const companyId = req.scopedCompanyId!;
+      await ensureDefaultCompanyRoles(companyId);
 
       const rows = await db
         .select()
         .from(rolesTable)
-        .where(conditions.length ? and(...conditions) : undefined)
+        .where(eq(rolesTable.companyId, companyId))
         .orderBy(rolesTable.createdAt);
 
       res.json(rows);

@@ -292,14 +292,14 @@ function LeaseFormFields({
 		<div className="space-y-3">
 			{/* Объект и Арендатор */}
 			<div className="grid grid-cols-2 gap-3">
-				<div>
-					<Label>Объект {mode === "create" && "*"}</Label>
+				<div className="flex flex-col">
+					<Label className="leading-tight mb-1.5">Объект {mode === "create" && "*"}</Label>
 					<Select
 						value={form.propertyId}
 						onValueChange={(v) => setForm({ ...form, propertyId: v })}
 						disabled={mode === "edit"}
 					>
-						<SelectTrigger>
+						<SelectTrigger className="mt-auto">
 							<SelectValue placeholder="Выберите объект" />
 						</SelectTrigger>
 						<SelectContent>
@@ -311,14 +311,14 @@ function LeaseFormFields({
 						</SelectContent>
 					</Select>
 				</div>
-				<div>
-					<Label>Арендатор {mode === "create" && "*"}</Label>
+				<div className="flex flex-col">
+					<Label className="leading-tight mb-1.5">Арендатор {mode === "create" && "*"}</Label>
 					<Select
 						value={form.tenantId}
 						onValueChange={(v) => setForm({ ...form, tenantId: v })}
 						disabled={mode === "edit"}
 					>
-						<SelectTrigger>
+						<SelectTrigger className="mt-auto">
 							<SelectValue placeholder="Выберите арендатора" />
 						</SelectTrigger>
 						<SelectContent>
@@ -349,8 +349,8 @@ function LeaseFormFields({
 					Даты договора
 				</p>
 				<div className="grid grid-cols-2 gap-3">
-					<div>
-						<Label className="text-sm">
+					<div className="flex flex-col">
+						<Label className="text-sm leading-tight mb-1.5">
 							Начало начислений <span className="text-destructive">*</span>
 						</Label>
 						<Input
@@ -358,18 +358,18 @@ function LeaseFormFields({
 							value={form.startDate}
 							onChange={f("startDate")}
 							required
-							className="mt-1"
+							className="mt-auto"
 						/>
 					</div>
-					<div>
-						<Label className="text-sm text-muted-foreground">
+					<div className="flex flex-col">
+						<Label className="text-sm text-muted-foreground leading-tight mb-1.5">
 							Завершение договора
 						</Label>
 						<Input
 							type="date"
 							value={form.endDate}
 							onChange={f("endDate")}
-							className="mt-1"
+							className="mt-auto"
 						/>
 					</div>
 				</div>
@@ -388,9 +388,10 @@ function LeaseFormFields({
 
 			{/* Сумма */}
 			<div className="grid grid-cols-3 gap-3">
-				<div className="col-span-2">
-					<Label>Сумма аренды в месяц *</Label>
+				<div className="col-span-2 flex flex-col">
+					<Label className="leading-tight mb-1.5">Сумма аренды в месяц *</Label>
 					<Input
+						className="mt-auto"
 						type="number"
 						value={form.rentAmount}
 						onChange={f("rentAmount")}
@@ -399,13 +400,13 @@ function LeaseFormFields({
 						min={0}
 					/>
 				</div>
-				<div>
-					<Label>Валюта</Label>
+				<div className="flex flex-col">
+					<Label className="leading-tight mb-1.5">Валюта</Label>
 					<Select
 						value={form.currency}
 						onValueChange={(v) => setForm({ ...form, currency: v })}
 					>
-						<SelectTrigger>
+						<SelectTrigger className="mt-auto">
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
@@ -425,21 +426,23 @@ function LeaseFormFields({
 			/>
 
 			<div className="grid grid-cols-2 gap-3">
-				<div>
-					<Label>Депозит</Label>
+				<div className="flex flex-col">
+					<Label className="leading-tight mb-1.5">Депозит</Label>
 					<Input
+						className="mt-auto"
 						type="number"
 						value={form.depositAmount}
 						onChange={f("depositAmount")}
 						placeholder="300 000"
 					/>
 				</div>
-				<div>
-					<Label>
+				<div className="flex flex-col">
+					<Label className="leading-tight mb-1.5">
 						День начисления
 						<span className="text-muted-foreground text-xs ml-1">(1–31)</span>
 					</Label>
 					<Input
+						className="mt-auto"
 						type="number"
 						min={1}
 						max={31}

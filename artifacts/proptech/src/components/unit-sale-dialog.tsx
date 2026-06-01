@@ -58,7 +58,7 @@ export function UnitSaleDialog({
 	onSaved,
 }: Props) {
 	const { toast } = useToast();
-	const [, setLocation] = useLocation();
+	const [location, setLocation] = useLocation();
 	const [loading, setLoading] = useState(false);
 	const [flexible, setFlexible] = useState(false);
 	const [schedule, setSchedule] = useState<ScheduleRow[]>([]);
@@ -176,8 +176,11 @@ export function UnitSaleDialog({
 			});
 			onSaved();
 			onClose();
+			const contractsBase = location.startsWith("/crm")
+				? "/crm/contracts-sales"
+				: "/construction/contracts-sales";
 			setLocation(
-				`/construction/contracts-sales?highlight=${data.contract.id}&status=review`,
+				`${contractsBase}?highlight=${data.contract.id}&status=review`,
 			);
 		} catch (err: unknown) {
 			toast({
@@ -208,19 +211,19 @@ export function UnitSaleDialog({
 
 				<form onSubmit={handleSubmit} className="space-y-5">
 					<div className="grid grid-cols-2 gap-3">
-						<div>
-							<Label>ФИО покупателя *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">ФИО покупателя *</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								value={form.buyerName}
 								onChange={(e) => set("buyerName", e.target.value)}
 								required
 							/>
 						</div>
-						<div>
-							<Label>Телефон</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Телефон</Label>
 							<Input
-								className="mt-1"
+								className="mt-auto"
 								value={form.buyerPhone}
 								onChange={(e) => set("buyerPhone", e.target.value)}
 								placeholder="+996 ..."
@@ -229,41 +232,41 @@ export function UnitSaleDialog({
 					</div>
 
 					<div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-						<div>
-							<Label>Сумма договора *</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Сумма договора *</Label>
 							<Input
 								type="number"
-								className="mt-1"
+								className="mt-auto"
 								value={form.totalAmount}
 								onChange={(e) => set("totalAmount", e.target.value)}
 								required
 							/>
 						</div>
-						<div>
-							<Label>Первоначальный взнос</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Первоначальный взнос</Label>
 							<Input
 								type="number"
-								className="mt-1"
+								className="mt-auto"
 								value={form.downPayment}
 								onChange={(e) => set("downPayment", e.target.value)}
 							/>
 						</div>
-						<div>
-							<Label>Рассрочка (мес.)</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Рассрочка (мес.)</Label>
 							<Input
 								type="number"
 								min="0"
-								className="mt-1"
+								className="mt-auto"
 								value={form.installmentMonths}
 								onChange={(e) => set("installmentMonths", e.target.value)}
 								disabled={flexible}
 							/>
 						</div>
-						<div>
-							<Label>Дата договора</Label>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">Дата договора</Label>
 							<Input
 								type="date"
-								className="mt-1"
+								className="mt-auto"
 								value={form.contractDate}
 								onChange={(e) => set("contractDate", e.target.value)}
 							/>

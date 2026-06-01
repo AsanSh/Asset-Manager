@@ -4,6 +4,7 @@ import { Redirect, Route, Switch, Router as WouterRouter, useLocation } from "wo
 import { Layout } from "@/components/layout";
 import { PlatformAdminLayout } from "@/components/platform-admin-layout";
 import { Toaster } from "@/components/ui/toaster";
+import { SonnerToaster } from "@/components/ui/sonner-toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { useModuleAccess } from "@/hooks/use-module-access";
@@ -65,6 +66,8 @@ import ConstructionCashier from "@/pages/construction/cashier";
 import ConstructionChess from "@/pages/construction/chess";
 import ConstructionContractors from "@/pages/construction/contractors";
 import ConstructionContractsSales from "@/pages/construction/contracts-sales";
+import ConstructionReconciliation from "@/pages/construction/reconciliation";
+import ConstructionPayroll from "@/pages/construction/payroll";
 import ConstructionCounterparties from "@/pages/construction/counterparties";
 import ConstructionDashboard from "@/pages/construction/dashboard";
 import ConstructionEmployees from "@/pages/construction/employees";
@@ -88,6 +91,8 @@ import CrmClients from "@/pages/crm/clients";
 // CRM/PropTech module
 import CrmDashboard from "@/pages/crm/dashboard";
 import CrmDeals from "@/pages/crm/deals";
+import CrmEmployees from "@/pages/crm/employees";
+import CrmLeadIntake from "@/pages/crm/lead-intake";
 import CrmLeads from "@/pages/crm/leads";
 import CrmSalesContracts from "@/pages/crm/sales-contracts";
 import CrmSalesProperties from "@/pages/crm/sales-properties";
@@ -137,7 +142,9 @@ import CashflowReport from "@/pages/reports/CashflowReport";
 import DebtReport from "@/pages/reports/DebtReport";
 import PaymentsReport from "@/pages/reports/PaymentsReport";
 import RentalSummaryReport from "@/pages/reports/RentalSummaryReport";
+import DirectionReports from "@/pages/reports/DirectionReports";
 import Settings from "@/pages/settings";
+import DesignSystemShowcase from "@/pages/design-system";
 import SettingsCategories from "@/pages/settings/categories";
 import SettingsLegal from "@/pages/settings/legal-entities";
 import SettingsPeriods from "@/pages/settings/periods";
@@ -159,6 +166,7 @@ import WarehouseOrders from "@/pages/warehouse/orders";
 import WarehouseOutgoing from "@/pages/warehouse/outgoing";
 import WarehouseReports from "@/pages/warehouse/reports";
 import WarehouseRequests from "@/pages/warehouse/requests";
+import WarehouseSupplyApprovals from "@/pages/warehouse/approvals";
 import WarehouseMarketplace from "@/pages/warehouse/marketplace";
 import WarehouseSettings from "@/pages/warehouse/settings";
 import WarehouseSuppliers from "@/pages/warehouse/suppliers";
@@ -332,8 +340,14 @@ function Router() {
 			<Route path="/settings">
 				<ProtectedRoute component={Settings} />
 			</Route>
+			<Route path="/design-system">
+				<ProtectedRoute component={DesignSystemShowcase} />
+			</Route>
 			<Route path="/reports/debt">
 				<ProtectedRoute component={DebtReport} />
+			</Route>
+			<Route path="/reports/directions">
+				<ProtectedRoute component={DirectionReports} />
 			</Route>
 			<Route path="/reports/rental">
 				<ProtectedRoute component={RentalSummaryReport} />
@@ -456,6 +470,12 @@ function Router() {
 			<Route path="/construction/accounts">
 				<ProtectedRoute component={ConstructionAccounts} />
 			</Route>
+			<Route path="/construction/reconciliation">
+				<ProtectedRoute component={ConstructionReconciliation} />
+			</Route>
+			<Route path="/construction/payroll">
+				<ProtectedRoute component={ConstructionPayroll} />
+			</Route>
 			<Route path="/construction/analytics/cashflow">
 				<ProtectedRoute component={ConstructionCashflow} />
 			</Route>
@@ -509,11 +529,20 @@ function Router() {
 			</Route>
 
 			{/* ── CRM / Продажи ── */}
+			<Route path="/crm/chess">
+				<ProtectedRoute component={ConstructionChess} />
+			</Route>
 			<Route path="/crm/dashboard">
 				<ProtectedRoute component={CrmDashboard} />
 			</Route>
+			<Route path="/crm/leads/intake">
+				<ProtectedRoute component={CrmLeadIntake} />
+			</Route>
 			<Route path="/crm/leads">
 				<ProtectedRoute component={CrmLeads} />
+			</Route>
+			<Route path="/crm/employees">
+				<ProtectedRoute component={CrmEmployees} />
 			</Route>
 			<Route path="/crm/clients">
 				<ProtectedRoute component={CrmClients} />
@@ -526,6 +555,9 @@ function Router() {
 			</Route>
 			<Route path="/crm/sales-properties">
 				<ProtectedRoute component={CrmSalesProperties} />
+			</Route>
+			<Route path="/crm/contracts-sales">
+				<ProtectedRoute component={ConstructionContractsSales} />
 			</Route>
 
 			{/* Редиректы с proptech на crm */}
@@ -602,6 +634,9 @@ function Router() {
 			<Route path="/warehouse/requests">
 				<ProtectedRoute component={WarehouseRequests} />
 			</Route>
+			<Route path="/warehouse/approvals">
+				<ProtectedRoute component={WarehouseSupplyApprovals} />
+			</Route>
 			<Route path="/warehouse/incoming">
 				<ProtectedRoute component={WarehouseIncoming} />
 			</Route>
@@ -664,6 +699,7 @@ function App() {
 						<Router />
 					</WouterRouter>
 					<Toaster />
+					<SonnerToaster />
 				</AuthProvider>
 			</TooltipProvider>
 		</QueryClientProvider>

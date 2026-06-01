@@ -2,7 +2,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
 	Check,
 	ChevronDown,
-	Coins,
 	Eye,
 	EyeOff,
 	Key,
@@ -212,25 +211,13 @@ export default function UserProfileDropdown() {
 						{/* Actions */}
 						<div className="py-1">
 							{showSystemSettings && (
-								<>
-									<button
-										onClick={openSystemSettings}
-										className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 text-sm text-gray-700 transition-colors"
-									>
-										<Settings className="w-4 h-4 text-gray-400" />
-										Настройки системы
-									</button>
-									<button
-										onClick={() => {
-											setOpen(false);
-											navigate("/settings/categories");
-										}}
-										className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 text-sm text-gray-700 transition-colors"
-									>
-										<Coins className="w-4 h-4 text-gray-400" />
-										Статьи операций
-									</button>
-								</>
+								<button
+									onClick={openSystemSettings}
+									className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 text-sm text-gray-700 transition-colors"
+								>
+									<Settings className="w-4 h-4 text-gray-400" />
+									Настройки системы
+								</button>
 							)}
 							<button
 								onClick={openProfile}
