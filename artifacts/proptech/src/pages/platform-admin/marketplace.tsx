@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, FileSpreadsheet, Package, Plus, Upload } from "lucide-react";
+import { Download, FileSpreadsheet, Package, Plus, Upload, UserPlus } from "lucide-react";
 import { useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,6 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
 import {
 	Table,
 	TableBody,
@@ -31,7 +30,6 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/lib/api-error";
 import { api } from "@/lib/api";
@@ -40,9 +38,18 @@ import { downloadMarketplacePriceTemplate } from "@/lib/marketplace-price-templa
 type Supplier = {
 	id: number;
 	name: string;
+	supplierType?: string;
 	code?: string | null;
 	phone?: string | null;
+	email?: string | null;
 	isActive: boolean;
+	portalUser?: {
+		id: number;
+		firstName: string;
+		lastName: string;
+		phone?: string | null;
+		email?: string | null;
+	} | null;
 };
 
 type Product = {
@@ -87,7 +94,25 @@ type ParseResponse = {
 	previewTruncated?: boolean;
 };
 
-const emptySupplier = { name: "", code: "", phone: "" };
+const emptySupplier = {
+	name: "",
+	code: "",
+	phone: "",
+	email: "",
+	supplierType: "seller" as "seller" | "distributor",
+};
+const emptyPortalAccount = {
+	firstName: "",
+	lastName: "",
+	phone: "",
+	email: "",
+	password: "",
+};
+
+const SUPPLIER_TYPE_LABEL: Record<string, string> = {
+	seller: "Продавец",
+	distributor: "Дистрибьютор",
+};
 const emptyProduct = {
 	name: "",
 	unitPrice: "",
@@ -114,6 +139,9 @@ export default function PlatformAdminMarketplace() {
 
 	const [supplierDialog, setSupplierDialog] = useState(false);
 	const [supplierForm, setSupplierForm] = useState(emptySupplier);
+	const [portalDialog, setPortalDialog] = useState(false);
+	const [portalSupplier, setPortalSupplier] = useState<Supplier | null>(null);
+	const [portalForm, setPortalForm] = useState(emptyPortalAccount);
 	const [productDialog, setProductDialog] = useState(false);
 	const [productForm, setProductForm] = useState(emptyProduct);
 
@@ -168,6 +196,30 @@ export default function PlatformAdminMarketplace() {
 			toast({ title: "Поставщик добавлен" });
 			setSupplierDialog(false);
 			setSupplierForm(emptySupplier);
+			qc.invalidateQueries({ queryKey: ["platform-marketplace-suppliers"] });
+		},
+		onError: (e) =>
+			toast({
+				title: "Ошибка",
+				description: getApiErrorMessage(e),
+				variant: "destructive",
+			}),
+	});
+
+	const createPortalMut = useMutation({
+		mutationFn: () =>
+			api.post(
+				`/platform-admin/marketplace/suppliers/${portalSupplier!.id}/portal-account`,
+				portalForm,
+			),
+		onSuccess: (res) => {
+			const d = res.data as { created: boolean; loginUrl: string; portalUrl: string };
+			toast({
+				title: d.created ? "Аккаунт создан" : "Аккаунт уже был",
+				description: `Вход: ${d.loginUrl} → портал ${d.portalUrl}`,
+			});
+			setPortalDialog(false);
+			setPortalForm(emptyPortalAccount);
 			qc.invalidateQueries({ queryKey: ["platform-marketplace-suppliers"] });
 		},
 		onError: (e) =>
@@ -517,21 +569,62 @@ export default function PlatformAdminMarketplace() {
 								<TableHeader>
 									<TableRow>
 										<TableHead>Название</TableHead>
+										<TableHead>Тип</TableHead>
 										<TableHead>Код</TableHead>
 										<TableHead>Телефон</TableHead>
+										<TableHead>Аккаунт</TableHead>
 										<TableHead>Статус</TableHead>
+										<TableHead />
 									</TableRow>
 								</TableHeader>
 								<TableBody>
 									{suppliers.map((s) => (
 										<TableRow key={s.id}>
 											<TableCell className="font-medium">{s.name}</TableCell>
+											<TableCell>
+												<Badge variant="outline">
+													{SUPPLIER_TYPE_LABEL[s.supplierType || "seller"]}
+												</Badge>
+											</TableCell>
 											<TableCell>{s.code || "—"}</TableCell>
 											<TableCell>{s.phone || "—"}</TableCell>
+											<TableCell className="text-xs text-muted-foreground">
+												{s.portalUser
+													? `${s.portalUser.firstName} ${s.portalUser.lastName}${
+															s.portalUser.phone
+																? ` · ${s.portalUser.phone}`
+																: s.portalUser.email
+																	? ` · ${s.portalUser.email}`
+																	: ""
+														}`
+													: "—"}
+											</TableCell>
 											<TableCell>
 												<Badge variant={s.isActive ? "default" : "secondary"}>
 													{s.isActive ? "Активен" : "Выкл"}
 												</Badge>
+											</TableCell>
+											<TableCell>
+												{!s.portalUser && (
+													<Button
+														size="sm"
+														variant="outline"
+														onClick={() => {
+															setPortalSupplier(s);
+															setPortalForm({
+																...emptyPortalAccount,
+																firstName: s.name.split(" ")[0] || "",
+																lastName: s.name.split(" ").slice(1).join(" ") || "Поставщик",
+																phone: s.phone || "",
+																email: s.email || "",
+															});
+															setPortalDialog(true);
+														}}
+													>
+														<UserPlus className="w-3.5 h-3.5 mr-1" />
+														Портал
+													</Button>
+												)}
 											</TableCell>
 										</TableRow>
 									))}
@@ -608,7 +701,33 @@ export default function PlatformAdminMarketplace() {
 							/>
 						</div>
 						<div>
-							<Label>Телефон</Label>
+							<Label>Тип</Label>
+							<Select
+								value={supplierForm.supplierType}
+								onValueChange={(v: "seller" | "distributor") =>
+									setSupplierForm({ ...supplierForm, supplierType: v })
+								}
+							>
+								<SelectTrigger>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="seller">Продавец</SelectItem>
+									<SelectItem value="distributor">Дистрибьютор</SelectItem>
+								</SelectContent>
+							</Select>
+						</div>
+						<div>
+							<Label>Email (для входа)</Label>
+							<Input
+								value={supplierForm.email}
+								onChange={(e) =>
+									setSupplierForm({ ...supplierForm, email: e.target.value })
+								}
+							/>
+						</div>
+						<div>
+							<Label>Телефон (OTP-вход)</Label>
 							<Input
 								value={supplierForm.phone}
 								onChange={(e) =>
@@ -622,6 +741,81 @@ export default function PlatformAdminMarketplace() {
 							onClick={() => createSupplierMut.mutate()}
 						>
 							Сохранить
+						</Button>
+					</div>
+				</DialogContent>
+			</Dialog>
+
+			<Dialog open={portalDialog} onOpenChange={setPortalDialog}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>
+							Аккаунт портала — {portalSupplier?.name}
+						</DialogTitle>
+					</DialogHeader>
+					<div className="space-y-3">
+						<p className="text-xs text-muted-foreground">
+							Телефон → вход через /portal-login (SMS). Email + пароль → обычный /login.
+						</p>
+						<div className="grid grid-cols-2 gap-3">
+							<div>
+								<Label>Имя</Label>
+								<Input
+									value={portalForm.firstName}
+									onChange={(e) =>
+										setPortalForm({ ...portalForm, firstName: e.target.value })
+									}
+								/>
+							</div>
+							<div>
+								<Label>Фамилия</Label>
+								<Input
+									value={portalForm.lastName}
+									onChange={(e) =>
+										setPortalForm({ ...portalForm, lastName: e.target.value })
+									}
+								/>
+							</div>
+						</div>
+						<div>
+							<Label>Телефон</Label>
+							<Input
+								value={portalForm.phone}
+								onChange={(e) =>
+									setPortalForm({ ...portalForm, phone: e.target.value })
+								}
+							/>
+						</div>
+						<div>
+							<Label>Email</Label>
+							<Input
+								value={portalForm.email}
+								onChange={(e) =>
+									setPortalForm({ ...portalForm, email: e.target.value })
+								}
+							/>
+						</div>
+						<div>
+							<Label>Пароль (опц., мин. 12 символов)</Label>
+							<Input
+								type="password"
+								value={portalForm.password}
+								onChange={(e) =>
+									setPortalForm({ ...portalForm, password: e.target.value })
+								}
+							/>
+						</div>
+						<Button
+							className="w-full"
+							disabled={
+								!portalForm.firstName.trim() ||
+								!portalForm.lastName.trim() ||
+								(!portalForm.phone.trim() && !portalForm.email.trim()) ||
+								createPortalMut.isPending
+							}
+							onClick={() => createPortalMut.mutate()}
+						>
+							Создать аккаунт
 						</Button>
 					</div>
 				</DialogContent>

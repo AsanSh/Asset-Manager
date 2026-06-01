@@ -6,6 +6,8 @@ import { z } from "zod/v4";
 export const marketplaceSuppliersTable = pgTable("marketplace_suppliers", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
+  /** seller = продавец, distributor = дистрибьютор */
+  supplierType: text("supplier_type").notNull().default("seller"),
   code: text("code"),
   phone: text("phone"),
   email: text("email"),

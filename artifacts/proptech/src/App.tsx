@@ -105,6 +105,7 @@ import InvestorPortal from "@/pages/portal/investor";
 import TenantPortal from "@/pages/portal/tenant";
 import ContractorPortal from "@/pages/portal/contractor";
 import SupplierPortal from "@/pages/portal/supplier";
+import MarketplaceSupplierPortal from "@/pages/portal/marketplace-supplier";
 import BuyerPortal from "@/pages/portal/buyer";
 import Properties from "@/pages/properties";
 import Register from "@/pages/register";
@@ -202,6 +203,7 @@ function ProtectedRoute({ component: Component, ...rest }: any) {
 	if (role === "tenant") return <Redirect to="/tenant-portal" />;
 	if (role === "contractor") return <Redirect to="/contractor-portal" />;
 	if (role === "supplier") return <Redirect to="/supplier-portal" />;
+	if (role === "marketplace_supplier") return <Redirect to="/marketplace-supplier-portal" />;
 	if (role === "buyer") return <Redirect to="/buyer-portal" />;
 	if (role === "super_admin") return <Redirect to="/platform-admin" />;
 
@@ -227,6 +229,7 @@ function HomeRedirect() {
 	if (role === "tenant") return <Redirect to="/tenant-portal" />;
 	if (role === "contractor") return <Redirect to="/contractor-portal" />;
 	if (role === "supplier") return <Redirect to="/supplier-portal" />;
+	if (role === "marketplace_supplier") return <Redirect to="/marketplace-supplier-portal" />;
 	if (role === "buyer") return <Redirect to="/buyer-portal" />;
 	if (role === "super_admin") return <Redirect to="/platform-admin" />;
 	return <Redirect to={homePath} />;
@@ -279,6 +282,9 @@ function Router() {
 			</Route>
 			<Route path="/supplier-portal">
 				<PortalRoute component={SupplierPortal} />
+			</Route>
+			<Route path="/marketplace-supplier-portal">
+				<PortalRoute component={MarketplaceSupplierPortal} />
 			</Route>
 			<Route path="/buyer-portal">
 				<PortalRoute component={BuyerPortal} />

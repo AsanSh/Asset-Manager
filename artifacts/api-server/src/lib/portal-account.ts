@@ -4,14 +4,20 @@ import { normalizePhone } from "./otp";
 
 /** Опциональные параметры для создания портального аккаунта. */
 export interface CreatePortalAccountInput {
-  companyId: number;
-  role: "tenant" | "buyer" | "contractor" | "supplier" | "investor";
+  companyId?: number | null;
+  role: "tenant" | "buyer" | "contractor" | "supplier" | "investor" | "marketplace_supplier";
   firstName: string;
   lastName: string;
   phone?: string | null;
   email?: string | null;
   /** Идентификатор связанной сущности (tenantId, buyerId, contractorId, supplierId, investorId). */
-  linkedEntityKey: "linkedTenantId" | "linkedBuyerId" | "linkedContractorId" | "linkedSupplierId" | "linkedInvestorId";
+  linkedEntityKey:
+    | "linkedTenantId"
+    | "linkedBuyerId"
+    | "linkedContractorId"
+    | "linkedSupplierId"
+    | "linkedInvestorId"
+    | "linkedMarketplaceSupplierId";
   linkedEntityId: number;
 }
 
@@ -55,7 +61,7 @@ export async function createPortalUser(input: CreatePortalAccountInput): Promise
   }
 
   const insertValues: Record<string, unknown> = {
-    companyId,
+    companyId: role === "marketplace_supplier" ? null : companyId,
     firstName: firstName.trim(),
     lastName: lastName.trim(),
     role,

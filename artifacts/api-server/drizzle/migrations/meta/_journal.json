@@ -23,6 +23,7 @@
     { "idx": 18, "version": "7", "when": 1779940000000, "tag": "0018_payroll", "breakpoints": true },
     { "idx": 19, "version": "7", "when": 1779950000000, "tag": "0019_crm_lead_intake", "breakpoints": true },
     { "idx": 20, "version": "7", "when": 1779960000000, "tag": "0020_supply_and_global_catalog", "breakpoints": true },
-    { "idx": 21, "version": "7", "when": 1779970000000, "tag": "0021_marketplace_suppliers_import", "breakpoints": true }
+    { "idx": 21, "version": "7", "when": 1779970000000, "tag": "0021_marketplace_suppliers_import", "breakpoints": true },
+    { "idx": 22, "version": "7", "when": 1779980000000, "tag": "0022_marketplace_supplier_type_portal", "breakpoints": true }
   ]
 }

@@ -15,6 +15,7 @@ export const usersTable = pgTable("users", {
   linkedTenantId: integer("linked_tenant_id"),
   linkedContractorId: integer("linked_contractor_id"),
   linkedSupplierId: integer("linked_supplier_id"),
+  linkedMarketplaceSupplierId: integer("linked_marketplace_supplier_id"),
   linkedBuyerId: integer("linked_buyer_id"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

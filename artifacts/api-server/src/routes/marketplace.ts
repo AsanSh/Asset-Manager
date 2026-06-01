@@ -60,6 +60,7 @@ router.get("/marketplace/suppliers", async (_req: AuthenticatedRequest, res): Pr
       id: marketplaceSuppliersTable.id,
       name: marketplaceSuppliersTable.name,
       code: marketplaceSuppliersTable.code,
+      supplierType: marketplaceSuppliersTable.supplierType,
     })
     .from(marketplaceSuppliersTable)
     .where(eq(marketplaceSuppliersTable.isActive, true))
