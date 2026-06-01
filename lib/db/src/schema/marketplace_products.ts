@@ -1,10 +1,16 @@
 import { pgTable, text, serial, timestamp, integer, numeric, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { marketplaceSuppliersTable } from "./marketplace_suppliers";
 
 /** Каталог материалов платформы (B2B-маркетплейс). Без company_id — общий для всех компаний. */
 export const marketplaceProductsTable = pgTable("marketplace_products", {
   id: serial("id").primaryKey(),
+  supplierId: integer("supplier_id").references(() => marketplaceSuppliersTable.id, {
+    onDelete: "set null",
+  }),
+  sku: text("sku"),
+  lastImportId: integer("last_import_id"),
   name: text("name").notNull(),
   category: text("category").notNull().default("materials"),
   unit: text("unit").notNull().default("шт"),

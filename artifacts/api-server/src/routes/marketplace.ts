@@ -3,6 +3,7 @@ import { and, desc, eq } from "drizzle-orm";
 import {
   db,
   marketplaceProductsTable,
+  marketplaceSuppliersTable,
   marketplaceOrdersTable,
   constructionProjectsTable,
 } from "../lib/db";
@@ -14,13 +15,56 @@ const router: ReturnType<typeof Router> = Router();
 router.use(requireAuth, requireTenantCompany);
 
 /** Каталог материалов платформы (активные позиции) */
-router.get("/marketplace/products", async (_req: AuthenticatedRequest, res): Promise<void> => {
-  const products = await db
-    .select()
+router.get("/marketplace/products", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const supplierId = req.query.supplierId
+    ? parseInt(String(req.query.supplierId), 10)
+    : null;
+  const q = db
+    .select({
+      id: marketplaceProductsTable.id,
+      supplierId: marketplaceProductsTable.supplierId,
+      supplierName: marketplaceSuppliersTable.name,
+      sku: marketplaceProductsTable.sku,
+      name: marketplaceProductsTable.name,
+      category: marketplaceProductsTable.category,
+      unit: marketplaceProductsTable.unit,
+      unitPrice: marketplaceProductsTable.unitPrice,
+      currency: marketplaceProductsTable.currency,
+      description: marketplaceProductsTable.description,
+      minOrderQty: marketplaceProductsTable.minOrderQty,
+      stockAvailable: marketplaceProductsTable.stockAvailable,
+      isActive: marketplaceProductsTable.isActive,
+      sortOrder: marketplaceProductsTable.sortOrder,
+    })
     .from(marketplaceProductsTable)
-    .where(eq(marketplaceProductsTable.isActive, true))
+    .leftJoin(
+      marketplaceSuppliersTable,
+      eq(marketplaceProductsTable.supplierId, marketplaceSuppliersTable.id),
+    )
+    .where(
+      supplierId
+        ? and(
+            eq(marketplaceProductsTable.isActive, true),
+            eq(marketplaceProductsTable.supplierId, supplierId),
+          )
+        : eq(marketplaceProductsTable.isActive, true),
+    )
     .orderBy(marketplaceProductsTable.sortOrder, marketplaceProductsTable.name);
-  res.json(products);
+  res.json(await q);
+});
+
+/** Список поставщиков для фильтра витрины */
+router.get("/marketplace/suppliers", async (_req: AuthenticatedRequest, res): Promise<void> => {
+  const rows = await db
+    .select({
+      id: marketplaceSuppliersTable.id,
+      name: marketplaceSuppliersTable.name,
+      code: marketplaceSuppliersTable.code,
+    })
+    .from(marketplaceSuppliersTable)
+    .where(eq(marketplaceSuppliersTable.isActive, true))
+    .orderBy(marketplaceSuppliersTable.name);
+  res.json(rows);
 });
 
 /** Заявки текущей компании */

@@ -26,8 +26,13 @@ import { getApiErrorMessage } from "@/lib/api-error";
 import { api } from "@/lib/api";
 import { unwrapList } from "@/lib/unwrap-list";
 
+type MarketplaceSupplier = { id: number; name: string; code?: string | null };
+
 type MarketplaceProduct = {
 	id: number;
+	supplierId?: number | null;
+	supplierName?: string | null;
+	sku?: string | null;
 	name: string;
 	category: string;
 	unit: string;
@@ -71,11 +76,23 @@ export default function WarehouseMarketplace() {
 	const [qty, setQty] = useState("");
 	const [projectId, setProjectId] = useState("");
 	const [notes, setNotes] = useState("");
+	const [supplierFilter, setSupplierFilter] = useState<string>("all");
+
+	const { data: suppliers = [] } = useQuery({
+		queryKey: ["marketplace-suppliers"],
+		queryFn: () =>
+			api.get<MarketplaceSupplier[]>("/marketplace/suppliers").then((r) => r.data),
+	});
 
 	const { data: products, isLoading: loadingProducts } = useQuery({
-		queryKey: ["marketplace-products"],
-		queryFn: () =>
-			api.get<MarketplaceProduct[]>("/marketplace/products").then((r) => r.data),
+		queryKey: ["marketplace-products", supplierFilter],
+		queryFn: () => {
+			const params =
+				supplierFilter !== "all" ? { supplierId: supplierFilter } : undefined;
+			return api
+				.get<MarketplaceProduct[]>("/marketplace/products", { params })
+				.then((r) => r.data);
+		},
 	});
 
 	const { data: orders, isLoading: loadingOrders } = useQuery({
@@ -126,10 +143,27 @@ export default function WarehouseMarketplace() {
 			</div>
 
 			<section>
-				<h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-					<Package className="w-5 h-5" />
-					Каталог
-				</h2>
+				<div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+					<h2 className="text-lg font-semibold flex items-center gap-2">
+						<Package className="w-5 h-5" />
+						Каталог
+					</h2>
+					{suppliers.length > 0 && (
+						<Select value={supplierFilter} onValueChange={setSupplierFilter}>
+							<SelectTrigger className="w-56">
+								<SelectValue placeholder="Все поставщики" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">Все поставщики</SelectItem>
+								{suppliers.map((s) => (
+									<SelectItem key={s.id} value={String(s.id)}>
+										{s.name}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					)}
+				</div>
 				{loadingProducts ? (
 					<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 						{[1, 2, 3].map((i) => (
@@ -145,10 +179,16 @@ export default function WarehouseMarketplace() {
 						{products.map((p) => (
 							<Card key={p.id} className="p-4 flex flex-col gap-3">
 								<div>
-									<Badge variant="secondary" className="mb-2">
-										{p.category}
-									</Badge>
+									<div className="flex flex-wrap gap-1 mb-2">
+										{p.supplierName && (
+											<Badge variant="outline">{p.supplierName}</Badge>
+										)}
+										<Badge variant="secondary">{p.category}</Badge>
+									</div>
 									<h3 className="font-semibold text-gray-900">{p.name}</h3>
+									{p.sku && (
+										<p className="text-xs text-gray-400 mt-0.5">Арт. {p.sku}</p>
+									)}
 									{p.description && (
 										<p className="text-sm text-gray-500 mt-1 line-clamp-2">
 											{p.description}
