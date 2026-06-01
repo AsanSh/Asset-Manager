@@ -26,3 +26,7 @@ For trivial one-line fixes, skip the plan.
 ## Dead code
 
 If you notice unrelated dead code while editing: mention it — do not delete unless the user asked.
+
+## Данные пользователей
+
+Не удалять записи из `users` (и связанные `sessions`) при правках — см. `project-safety.mdc` → «ПОЛЬЗОВАТЕЛИ». Только `UPDATE`/`INSERT` с явным `WHERE`.

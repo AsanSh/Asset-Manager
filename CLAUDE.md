@@ -7,7 +7,7 @@ Project instructions for AI agents in this repo.
 | Topic | File |
 |-------|------|
 | Assumptions, success criteria, dead code | [.cursor/rules/agent-execution.mdc](.cursor/rules/agent-execution.mdc) |
-| DB, auth, migrations, destructive ops | [.cursor/rules/project-safety.mdc](.cursor/rules/project-safety.mdc) |
+| DB, auth, migrations, destructive ops, **не удалять users** | [.cursor/rules/project-safety.mdc](.cursor/rules/project-safety.mdc) |
 | Simplicity, surgical diffs, scope | Cursor **user rules** (global) |
 
 Do not duplicate those guidelines here.

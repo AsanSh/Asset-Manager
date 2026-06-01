@@ -9,6 +9,21 @@ alwaysApply: true
 - NEVER run destructive migrations without explicit confirmation
 - NEVER seed/reset database in production environment
 - NEVER delete existing users, sessions, or auth records
+
+## ПОЛЬЗОВАТЕЛИ (users) — НИКОГДА НЕ УДАЛЯТЬ
+При любых правках (код, SQL, скрипты, seed, Neon/Vercel, «почистить БД») **запрещено**:
+- `DELETE FROM users` / `TRUNCATE users` / `DROP TABLE users`
+- удалять строки пользователей «для порядка», при откате миграции, при смене роли или пароля
+- пересоздавать prod через seed/reset, если это затронет существующих пользователей
+
+**Разрешено без отдельного запроса:**
+- `UPDATE users` (пароль, роль, `is_active`, профиль) — только целевые строки, с `WHERE`
+- `INSERT` нового пользователя, если явно нужен (например, новый super_admin)
+- деактивация: `is_active = false`, не физическое удаление
+
+**Скрипты и ops** (`scripts/`, Neon MCP, drizzle): только `SELECT` / `UPDATE` / `INSERT` по users; при сомнении — спросить, не удалять.
+
+**Миграции:** не `DROP` таблицу `users` и не `DELETE` из неё; только `ALTER TABLE … ADD COLUMN IF NOT EXISTS`.
 - When modifying schema — use ALTER TABLE, not DROP + CREATE
 - Always create a backup strategy before any migration
 - If migration could lose data — STOP and ask user first
