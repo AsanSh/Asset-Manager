@@ -8,6 +8,7 @@ import {
 	Circle,
 	Clock,
 	Edit2,
+	FilePlus2,
 	Flag,
 	Inbox,
 	LayoutGrid,
@@ -509,7 +510,7 @@ function Avatar({ name, size = "sm" }: { name: string; size?: "sm" | "md" }) {
 }
 
 function TaskCard({
-	task, userMap, projectMap, stageLabelText, contractorMap, salesContractMap, supplyRequestMap, onEdit, onDelete, onStatusChange,
+	task, userMap, projectMap, stageLabelText, contractorMap, salesContractMap, supplyRequestMap, onEdit, onDelete, onStatusChange, onQuickSupplyRequest, onQuickSalesContract,
 }: {
 	task: Task;
 	userMap: Record<number, ApiUser>;
@@ -521,6 +522,8 @@ function TaskCard({
 	onEdit: (t: Task) => void;
 	onDelete: (id: number) => void;
 	onStatusChange: (task: Task, status: string) => void;
+	onQuickSupplyRequest: (task: Task) => void;
+	onQuickSalesContract: (task: Task) => void;
 }) {
 	const [, navigate] = useLocation();
 	const statusOpt = STATUS_OPTS.find((s) => s.value === task.status);
@@ -592,6 +595,32 @@ function TaskCard({
 					>
 						<Edit2 className="w-3.5 h-3.5" />
 					</button>
+					{!task.supplyRequestId && (
+						<button
+							type="button"
+							onClick={(e) => {
+								e.stopPropagation();
+								onQuickSupplyRequest(task);
+							}}
+							className="text-gray-300 hover:text-teal-600"
+							title="Создать заявку снабжения"
+						>
+							<FilePlus2 className="w-3.5 h-3.5" />
+						</button>
+					)}
+					{!task.salesContractId && (
+						<button
+							type="button"
+							onClick={(e) => {
+								e.stopPropagation();
+								onQuickSalesContract(task);
+							}}
+							className="text-gray-300 hover:text-cyan-700"
+							title="Создать черновик договора"
+						>
+							<FilePlus2 className="w-3.5 h-3.5" />
+						</button>
+					)}
 					<button
 						type="button"
 						onClick={(e) => {
@@ -1223,6 +1252,28 @@ export default function ConstructionTasks() {
 		qc.invalidateQueries({ queryKey: ["construction-tasks"] });
 	};
 
+	const handleQuickSupplyRequest = async (task: Task) => {
+		try {
+			await api.post(`/construction/tasks/${task.id}/quick-supply-request`);
+			toast({ title: "Заявка снабжения создана и привязана к задаче" });
+			qc.invalidateQueries({ queryKey: ["construction-tasks"] });
+			qc.invalidateQueries({ queryKey: ["supply-requests-all"] });
+		} catch {
+			toast({ title: "Не удалось создать заявку снабжения", variant: "destructive" });
+		}
+	};
+
+	const handleQuickSalesContract = async (task: Task) => {
+		try {
+			await api.post(`/construction/tasks/${task.id}/quick-sales-contract`);
+			toast({ title: "Черновик договора создан и привязан к задаче" });
+			qc.invalidateQueries({ queryKey: ["construction-tasks"] });
+			qc.invalidateQueries({ queryKey: ["construction-sales-contracts"] });
+		} catch {
+			toast({ title: "Не удалось создать черновик договора", variant: "destructive" });
+		}
+	};
+
 	const doneCount = filteredTasks.filter((t) => t.status === "done").length;
 	const overdueCount = filteredTasks.filter((t) => t.dueDate && t.status !== "done" && new Date(t.dueDate) < new Date()).length;
 	const totalComments = filteredTasks.reduce((sum, t) => sum + Number(t.commentCount ?? 0), 0);
@@ -1429,6 +1480,8 @@ export default function ConstructionTasks() {
 											onEdit={setDialog}
 											onDelete={handleDelete}
 											onStatusChange={handleStatusChange}
+											onQuickSupplyRequest={handleQuickSupplyRequest}
+											onQuickSalesContract={handleQuickSalesContract}
 										/>
 									))}
 									{col.tasks.length === 0 && (

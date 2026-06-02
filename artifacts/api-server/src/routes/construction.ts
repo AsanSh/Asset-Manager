@@ -22,6 +22,7 @@ import {
   usersTable,
   constructionTaskDependenciesTable,
   supplyRequestsTable,
+  supplyRequestItemsTable,
 } from "../lib/db";
 import { sendTaskAssignedEmail } from "../lib/email";
 import { logTaskActivity, taskFieldChanges } from "../lib/construction-task-work";
@@ -1013,6 +1014,125 @@ router.patch("/tasks/:id", async (req: AuthenticatedRequest, res): Promise<void>
   }
 
   res.json(row);
+});
+
+router.post("/tasks/:id/quick-supply-request", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid task id" });
+    return;
+  }
+  const [task] = await db.select().from(constructionTasksTable).where(and(
+    eq(constructionTasksTable.id, id),
+    eq(constructionTasksTable.companyId, req.scopedCompanyId!),
+  ));
+  if (!task) {
+    res.status(404).json({ error: "Задача не найдена" });
+    return;
+  }
+
+  const [request] = await db.insert(supplyRequestsTable).values({
+    companyId: req.scopedCompanyId!,
+    projectId: task.projectId,
+    constructionStageId: task.stageId ?? null,
+    requestedBy: req.userId!,
+    status: "pending",
+    priority: task.priority === "critical" || task.priority === "high" ? "high" : "normal",
+    neededByDate: task.dueDate ?? null,
+    notes: `Создано из задачи #${task.id}: ${task.title}`,
+  }).returning();
+
+  if (!request) {
+    res.status(500).json({ error: "Не удалось создать заявку снабжения" });
+    return;
+  }
+
+  await db.insert(supplyRequestItemsTable).values({
+    requestId: request.id,
+    customName: task.title,
+    quantity: "1",
+    unit: "шт",
+    notes: task.description ?? null,
+  }).catch(() => {});
+
+  const [updatedTask] = await db.update(constructionTasksTable)
+    .set({ supplyRequestId: request.id })
+    .where(and(
+      eq(constructionTasksTable.id, id),
+      eq(constructionTasksTable.companyId, req.scopedCompanyId!),
+    ))
+    .returning();
+
+  await logTaskActivity({
+    companyId: req.scopedCompanyId!,
+    taskId: id,
+    userId: req.userId!,
+    action: "linked_supply_request",
+    newValue: String(request.id),
+  });
+
+  res.status(201).json({ request, task: updatedTask ?? task });
+});
+
+router.post("/tasks/:id/quick-sales-contract", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid task id" });
+    return;
+  }
+  const [task] = await db.select().from(constructionTasksTable).where(and(
+    eq(constructionTasksTable.id, id),
+    eq(constructionTasksTable.companyId, req.scopedCompanyId!),
+  ));
+  if (!task) {
+    res.status(404).json({ error: "Задача не найдена" });
+    return;
+  }
+
+  const [countRow] = await db.select({ cnt: sql<number>`count(*)` })
+    .from(constructionSalesContractsTable)
+    .where(eq(constructionSalesContractsTable.companyId, req.scopedCompanyId!));
+  const num = (Number(countRow?.cnt ?? 0) + 1).toString().padStart(4, "0");
+  const contractNumber = `ДКП-${new Date().getFullYear()}-${num}`;
+
+  const [contract] = await db.insert(constructionSalesContractsTable).values({
+    companyId: req.scopedCompanyId!,
+    projectId: task.projectId,
+    contractNumber,
+    status: "draft",
+    totalAmount: "0",
+    downPayment: "0",
+    remainingAmount: "0",
+    paidAmount: "0",
+    installmentMonths: 0,
+    currency: "KGS",
+    contractDate: new Date().toISOString().slice(0, 10),
+    buyerName: `Черновик из задачи #${task.id}`,
+    notes: task.title,
+  }).returning();
+
+  if (!contract) {
+    res.status(500).json({ error: "Не удалось создать черновик договора" });
+    return;
+  }
+
+  const [updatedTask] = await db.update(constructionTasksTable)
+    .set({ salesContractId: contract.id })
+    .where(and(
+      eq(constructionTasksTable.id, id),
+      eq(constructionTasksTable.companyId, req.scopedCompanyId!),
+    ))
+    .returning();
+
+  await logTaskActivity({
+    companyId: req.scopedCompanyId!,
+    taskId: id,
+    userId: req.userId!,
+    action: "linked_sales_contract",
+    newValue: String(contract.id),
+  });
+
+  res.status(201).json({ contract, task: updatedTask ?? task });
 });
 
 // Уведомление + email исполнителю при назначении задачи
