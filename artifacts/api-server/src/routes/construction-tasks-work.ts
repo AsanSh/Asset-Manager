@@ -4,6 +4,7 @@ import {
   db,
   constructionStagesTable,
   constructionTasksTable,
+  constructionTaskDependenciesTable,
   constructionTaskSubtasksTable,
   constructionTaskChecklistItemsTable,
   constructionTaskActivityTable,
@@ -18,11 +19,80 @@ import {
   taskFieldChanges,
 } from "../lib/construction-task-work";
 import { uploadFile } from "../lib/file-storage";
+import { chat } from "../lib/ai";
 import { requireAuth, type AuthenticatedRequest } from "../middleware/auth";
 import { requireTenantCompany } from "../middleware/tenant";
 
 const router = Router();
 router.use(requireAuth, requireTenantCompany);
+
+type TaskRiskActionPlanStep = {
+  title: string;
+  ownerRole: string;
+  slaHours: number;
+  reason: string;
+};
+
+function buildFallbackRiskPlan(input: {
+  hasOverdue: boolean;
+  overdueDays: number;
+  blockedByCount: number;
+  progressPercent: number;
+  checklistDone: number;
+  checklistTotal: number;
+  hasAssignee: boolean;
+}): TaskRiskActionPlanStep[] {
+  const steps: TaskRiskActionPlanStep[] = [];
+  if (!input.hasAssignee) {
+    steps.push({
+      title: "Назначить ответственного по задаче и зафиксировать зону ответственности",
+      ownerRole: "Руководитель проекта",
+      slaHours: 2,
+      reason: "Без исполнителя задача не имеет владельца и теряет контроль сроков.",
+    });
+  }
+  if (input.blockedByCount > 0) {
+    steps.push({
+      title: "Закрыть блокирующие зависимости и согласовать новый критический путь",
+      ownerRole: "Планировщик / PM",
+      slaHours: 8,
+      reason: `Обнаружено блокеров: ${input.blockedByCount}. Пока они не сняты, задача не может ускориться.`,
+    });
+  }
+  if (input.hasOverdue) {
+    steps.push({
+      title: "Провести экспресс-перепланирование и утвердить recovery-план",
+      ownerRole: "PM + Производитель работ",
+      slaHours: 6,
+      reason: `Просрочка ${input.overdueDays} дн. Требуется обновить фактические даты и ресурсы.`,
+    });
+  }
+  if (input.progressPercent < 50) {
+    steps.push({
+      title: "Разбить оставшийся объем на короткие подэтапы с ежедневным контролем",
+      ownerRole: "Прораб",
+      slaHours: 12,
+      reason: "Низкий прогресс увеличивает риск срыва срока, нужен более мелкий план выполнения.",
+    });
+  }
+  if (input.checklistTotal > 0 && input.checklistDone < input.checklistTotal) {
+    steps.push({
+      title: "Закрыть обязательные пункты чек-листа перед переходом к следующему этапу",
+      ownerRole: "Ответственный исполнитель",
+      slaHours: 24,
+      reason: `Выполнено ${input.checklistDone}/${input.checklistTotal} пунктов чек-листа.`,
+    });
+  }
+  if (steps.length === 0) {
+    steps.push({
+      title: "Подтвердить статус без рисков и сохранить текущий темп выполнения",
+      ownerRole: "PM",
+      slaHours: 24,
+      reason: "Критичных рисков не найдено, требуется только плановый контроль.",
+    });
+  }
+  return steps.slice(0, 6);
+}
 
 async function loadTask(companyId: number, taskId: number) {
   const [row] = await db
@@ -474,6 +544,132 @@ router.patch("/tasks/:id/progress-mode", async (req: AuthenticatedRequest, res):
   });
 
   res.json({ ...row, progressPercent: percent });
+});
+
+/** POST /construction/tasks/:id/risk-action-plan */
+router.post("/tasks/:id/risk-action-plan", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const taskId = parseInt(req.params.id as string, 10);
+  const companyId = req.scopedCompanyId!;
+  const task = await loadTask(companyId, taskId);
+  if (!task) {
+    res.status(404).json({ error: "Задача не найдена" });
+    return;
+  }
+
+  const [checklist, dependencies] = await Promise.all([
+    db
+      .select()
+      .from(constructionTaskChecklistItemsTable)
+      .where(
+        and(
+          eq(constructionTaskChecklistItemsTable.taskId, taskId),
+          eq(constructionTaskChecklistItemsTable.companyId, companyId),
+        ),
+      ),
+    db
+      .select()
+      .from(constructionTaskDependenciesTable)
+      .where(
+        and(
+          eq(constructionTaskDependenciesTable.successorTaskId, taskId),
+          eq(constructionTaskDependenciesTable.companyId, companyId),
+        ),
+      ),
+  ]);
+
+  const now = Date.now();
+  const dueDateRaw = task.plannedEndDate ?? task.dueDate ?? null;
+  const dueAt = dueDateRaw ? new Date(String(dueDateRaw)).getTime() : null;
+  const overdueDays =
+    task.status !== "done" && dueAt && Number.isFinite(dueAt)
+      ? Math.max(0, Math.floor((now - dueAt) / (24 * 60 * 60 * 1000)))
+      : 0;
+  const checklistDone = checklist.filter((x) => x.isDone).length;
+  const checklistTotal = checklist.length;
+
+  const riskInput = {
+    hasOverdue: overdueDays > 0,
+    overdueDays,
+    blockedByCount: dependencies.length,
+    progressPercent: Number(task.progressPercent ?? 0),
+    checklistDone,
+    checklistTotal,
+    hasAssignee: Boolean(task.assignedTo),
+  };
+
+  const fallback = buildFallbackRiskPlan(riskInput);
+  const payload = {
+    task: {
+      id: task.id,
+      title: task.title,
+      status: task.status,
+      priority: task.priority,
+      progressPercent: riskInput.progressPercent,
+      dueDate: dueDateRaw,
+      assignedTo: task.assignedTo,
+    },
+    riskSignals: {
+      overdueDays,
+      blockedByCount: riskInput.blockedByCount,
+      checklistDone,
+      checklistTotal,
+    },
+  };
+
+  try {
+    const aiText = await chat(
+      [
+        {
+          role: "user",
+          content: `Сформируй JSON action plan для рисковой строительной задачи.\nДанные:\n${JSON.stringify(payload, null, 2)}\n\nВерни строго JSON: {"summary":string,"riskLevel":"low"|"medium"|"high","steps":[{"title":string,"ownerRole":string,"slaHours":number,"reason":string}]}\nМаксимум 6 шагов, только практичные действия.`,
+        },
+      ],
+      "Ты — руководитель строительного проекта. Предлагай конкретные антикризисные шаги с ответственными и SLA. Никакого markdown, только валидный JSON.",
+      1200,
+    );
+
+    const parsed = JSON.parse(aiText) as {
+      summary?: string;
+      riskLevel?: "low" | "medium" | "high";
+      steps?: TaskRiskActionPlanStep[];
+    };
+    const safeSteps = Array.isArray(parsed.steps)
+      ? parsed.steps
+          .map((s) => ({
+            title: String(s?.title ?? "").trim(),
+            ownerRole: String(s?.ownerRole ?? "").trim(),
+            slaHours: Math.max(1, Math.min(168, Number(s?.slaHours ?? 24) || 24)),
+            reason: String(s?.reason ?? "").trim(),
+          }))
+          .filter((s) => s.title && s.ownerRole && s.reason)
+          .slice(0, 6)
+      : [];
+
+    res.json({
+      source: safeSteps.length > 0 ? "ai" : "fallback",
+      summary:
+        String(parsed.summary ?? "").trim() ||
+        "Сгенерирован план стабилизации по текущим KPI задачи.",
+      riskLevel:
+        parsed.riskLevel && ["low", "medium", "high"].includes(parsed.riskLevel)
+          ? parsed.riskLevel
+          : overdueDays > 0 || dependencies.length > 0
+            ? "high"
+            : Number(task.progressPercent ?? 0) < 50
+              ? "medium"
+              : "low",
+      steps: safeSteps.length > 0 ? safeSteps : fallback,
+      signals: riskInput,
+    });
+  } catch {
+    res.json({
+      source: "fallback",
+      summary: "AI временно недоступен, показан базовый антикризисный план.",
+      riskLevel: overdueDays > 0 || dependencies.length > 0 ? "high" : "medium",
+      steps: fallback,
+      signals: riskInput,
+    });
+  }
 });
 
 // ── TASK OVERDUE NOTIFICATIONS ───────────────────────────────────────────────

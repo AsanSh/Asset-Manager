@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, ArrowLeft, CalendarClock, Link2, Loader2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CalendarClock, Link2, Loader2, Sparkles } from "lucide-react";
 import { useLocation } from "wouter";
 import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -119,6 +119,12 @@ export function TaskDetailPage({ taskId }: { taskId: number }) {
 			await api.patch(`/construction/tasks/${taskId}/progress-mode`, payload);
 		},
 		onSuccess: () => void refetch(),
+	});
+	const generateRiskPlan = useMutation({
+		mutationFn: async () =>
+			api
+				.post(`/construction/tasks/${taskId}/risk-action-plan`)
+				.then((r) => r.data),
 	});
 
 	const task = data?.task;
@@ -282,6 +288,73 @@ export function TaskDetailPage({ taskId }: { taskId: number }) {
 								<div className="flex items-center gap-1 text-gray-500"><Link2 className="w-3 h-3" /> Снабжение</div>
 								<div className="font-medium text-gray-800">{supplyRequestLabel || "Не связано"}</div>
 							</div>
+						</div>
+						<div className="mt-3 rounded border border-amber-200 bg-white p-2.5">
+							<div className="flex items-center justify-between gap-2">
+								<div className="flex items-center gap-1.5">
+									<Sparkles className="w-3.5 h-3.5 text-amber-600" />
+									<p className="text-xs font-semibold text-gray-800">
+										AI-план действий по рискам
+									</p>
+								</div>
+								<Button
+									type="button"
+									size="sm"
+									variant="outline"
+									className="h-7 text-xs"
+									onClick={() => generateRiskPlan.mutate()}
+									disabled={generateRiskPlan.isPending}
+								>
+									{generateRiskPlan.isPending ? "Генерация..." : "Сгенерировать план"}
+								</Button>
+							</div>
+							{generateRiskPlan.data ? (
+								<div className="mt-2 space-y-2">
+									<div className="flex flex-wrap gap-2 items-center">
+										<Badge variant="secondary" className="text-[10px] uppercase tracking-wide">
+											Риск: {String(generateRiskPlan.data?.riskLevel || "medium")}
+										</Badge>
+										<Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+											Источник: {generateRiskPlan.data?.source === "ai" ? "AI" : "Fallback"}
+										</Badge>
+									</div>
+									<p className="text-xs text-gray-700">
+										{String(generateRiskPlan.data?.summary || "")}
+									</p>
+									<div className="space-y-1.5">
+										{Array.isArray(generateRiskPlan.data?.steps) &&
+											generateRiskPlan.data.steps.map(
+												(
+													step: {
+														title?: string;
+														ownerRole?: string;
+														slaHours?: number;
+														reason?: string;
+													},
+													idx: number,
+												) => (
+													<div
+														key={`${idx}-${step.title || "step"}`}
+														className="rounded border border-gray-200 px-2 py-1.5 text-xs"
+													>
+														<p className="font-medium text-gray-900">
+															{idx + 1}. {step.title || "Действие"}
+														</p>
+														<p className="text-gray-600">
+															{step.ownerRole || "Ответственный"} · SLA{" "}
+															{Number(step.slaHours || 24)}ч
+														</p>
+														<p className="text-gray-500">{step.reason || "—"}</p>
+													</div>
+												),
+											)}
+									</div>
+								</div>
+							) : (
+								<p className="mt-2 text-xs text-gray-500">
+									Соберите план прямо из KPI: шаги, ответственные и SLA.
+								</p>
+							)}
 						</div>
 					</section>
 
