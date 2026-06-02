@@ -66,7 +66,7 @@ export default function ConstructionOpsDashboardTab() {
 				<div className="bg-white rounded-xl border p-4">
 					<Flag className="w-4 h-4 text-amber-600 mb-2" />
 					<Link href="/construction/stages" className="text-sm font-medium text-amber-600 hover:underline">
-						Этапы работ →
+						План проекта (WBS) →
 					</Link>
 					<p className="text-xs text-gray-500 mt-2">План / факт</p>
 				</div>

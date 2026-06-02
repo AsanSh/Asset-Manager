@@ -453,6 +453,31 @@ router.post("/stages/reorder", async (req: AuthenticatedRequest, res): Promise<v
     return;
   }
 
+  const parentById = new Map<number, number | null>();
+  for (const item of orderedItems) {
+    const id = parseInt(String(item.id), 10);
+    const parent =
+      item.parentStageId !== undefined
+        ? item.parentStageId != null
+          ? parseInt(String(item.parentStageId), 10)
+          : null
+        : undefined;
+    if (parent !== undefined) parentById.set(id, parent);
+  }
+  for (const [id, parentId] of parentById) {
+    if (parentId == null) continue;
+    const seen = new Set<number>([id]);
+    let cursor: number | null = parentId;
+    while (cursor != null) {
+      if (seen.has(cursor)) {
+        res.status(400).json({ error: "Недопустимая иерархия: циклический родитель" });
+        return;
+      }
+      seen.add(cursor);
+      cursor = parentById.get(cursor) ?? null;
+    }
+  }
+
   await Promise.all(
     orderedItems.map((item, index) =>
       db.update(constructionStagesTable)
