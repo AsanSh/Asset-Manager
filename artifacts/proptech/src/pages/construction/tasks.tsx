@@ -106,6 +106,15 @@ interface Stage {
 	parentStageId?: number | null;
 }
 interface ApiUser { id: number; firstName: string; lastName: string; email: string; }
+interface TaskDependency {
+	id: number;
+	predecessorTaskId: number;
+	successorTaskId: number;
+	dependencyType: "FS" | "SS";
+	lagDays: number;
+}
+
+type TableGroupBy = "none" | "project" | "stage" | "assignee" | "status";
 
 function userName(u: ApiUser) { return `${u.firstName} ${u.lastName}`.trim(); }
 
@@ -560,12 +569,14 @@ function TasksTable({
 	projectMap,
 	stageLabelByTaskId,
 	onRowClick,
+	footer,
 }: {
 	tasks: Task[];
 	userMap: Record<number, ApiUser>;
 	projectMap: Record<number, string>;
 	stageLabelByTaskId: Record<number, string>;
 	onRowClick: (task: Task) => void;
+	footer?: React.ReactNode;
 }) {
 	const columns = useMemo<ColumnDef<Task, unknown>[]>(
 		() => [
@@ -714,6 +725,26 @@ function TasksTable({
 					);
 				},
 			},
+			{
+				id: "overdueDays",
+				header: "Просрочка, дн",
+				meta: { exportLabel: "Просрочка, дн", align: "right" },
+				cell: ({ row }) => {
+					if (!row.original.dueDate || row.original.status === "done") {
+						return <span className="text-xs text-gray-400">0</span>;
+					}
+					const due = new Date(row.original.dueDate);
+					const now = new Date();
+					const diff = Math.floor(
+						(now.getTime() - due.getTime()) / (24 * 60 * 60 * 1000),
+					);
+					return (
+						<span className={`text-xs font-semibold ${diff > 0 ? "text-rose-600" : "text-gray-500"}`}>
+							{Math.max(0, diff)}
+						</span>
+					);
+				},
+			},
 		],
 		[userMap, projectMap, stageLabelByTaskId],
 	);
@@ -730,6 +761,7 @@ function TasksTable({
 					Нет задач по выбранным фильтрам
 				</div>
 			}
+			footer={footer}
 		/>
 	);
 }
@@ -795,10 +827,22 @@ function TasksCalendarView({
 function TasksGanttView({
 	tasks,
 	onTaskClick,
+	dependencies,
 }: {
 	tasks: Task[];
 	onTaskClick: (task: Task) => void;
+	dependencies: TaskDependency[];
 }) {
+	const depsBySuccessor = useMemo(() => {
+		const map = new Map<number, TaskDependency[]>();
+		for (const dep of dependencies) {
+			const arr = map.get(dep.successorTaskId) ?? [];
+			arr.push(dep);
+			map.set(dep.successorTaskId, arr);
+		}
+		return map;
+	}, [dependencies]);
+
 	const bars = useMemo(() => {
 		const withDates = tasks
 			.map((task) => {
@@ -841,6 +885,14 @@ function TasksGanttView({
 							{row.start} → {row.end}
 						</span>
 					</div>
+					{(depsBySuccessor.get(row.task.id)?.length ?? 0) > 0 && (
+						<div className="mb-1 text-[10px] text-indigo-600">
+							Зависимости:{" "}
+							{(depsBySuccessor.get(row.task.id) ?? [])
+								.map((dep) => `#${dep.predecessorTaskId} ${dep.dependencyType}${dep.lagDays ? ` (+${dep.lagDays}д)` : ""}`)
+								.join(", ")}
+						</div>
+					)}
 					<div className="relative h-6 rounded bg-gray-100 overflow-hidden">
 						<div
 							className={`absolute top-0 h-full rounded ${row.task.status === "done" ? "bg-emerald-400" : "bg-blue-400"}`}
@@ -864,6 +916,7 @@ export default function ConstructionTasks() {
 	const [projectFilter, setProjectFilter] = useState("all");
 	const [priorityFilter, setPriorityFilter] = useState("all");
 	const [statusFilter, setStatusFilter] = useState("all");
+	const [tableGroupBy, setTableGroupBy] = useState<TableGroupBy>("none");
 	const [search, setSearch] = useState("");
 	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod("month"));
 	const [viewMode, setViewMode] = useState<"kanban" | "table" | "calendar" | "gantt">("kanban");
@@ -891,6 +944,17 @@ export default function ConstructionTasks() {
 	const { data: allStages = [] } = useQuery<Stage[]>({
 		queryKey: ["construction-stages-all"],
 		queryFn: () => api.get("/construction/stages").then((r) => r.data),
+	});
+	const { data: taskDependencies = [] } = useQuery<TaskDependency[]>({
+		queryKey: ["construction-task-dependencies", projectFilter],
+		queryFn: () =>
+			api
+				.get(
+					projectFilter === "all"
+						? "/construction/tasks/dependencies"
+						: `/construction/tasks/dependencies?projectId=${projectFilter}`,
+				)
+				.then((r) => (Array.isArray(r.data) ? r.data : [])),
 	});
 
 	const userMap = useMemo(
@@ -999,6 +1063,41 @@ export default function ConstructionTasks() {
 
 	const doneCount = filteredTasks.filter((t) => t.status === "done").length;
 	const overdueCount = filteredTasks.filter((t) => t.dueDate && t.status !== "done" && new Date(t.dueDate) < new Date()).length;
+	const totalComments = filteredTasks.reduce((sum, t) => sum + Number(t.commentCount ?? 0), 0);
+	const totalAttachments = filteredTasks.reduce((sum, t) => sum + Number(t.attachmentCount ?? 0), 0);
+	const totalBlocked = filteredTasks.reduce((sum, t) => sum + Number(t.blockedByCount ?? 0), 0);
+
+	const groupedTableData = useMemo(() => {
+		if (tableGroupBy === "none") return [{ key: "all", label: "Все задачи", rows: filteredTasks }];
+		const buckets = new Map<string, Task[]>();
+		for (const task of filteredTasks) {
+			let groupKey = "—";
+			if (tableGroupBy === "project") groupKey = projectMap[task.projectId] || "Без проекта";
+			if (tableGroupBy === "stage") groupKey = stageLabelByTaskId[task.id] || "Без этапа";
+			if (tableGroupBy === "status") {
+				groupKey = STATUS_OPTS.find((s) => s.value === task.status)?.label || task.status;
+			}
+			if (tableGroupBy === "assignee") {
+				const assignee = taskAssignedTo(task);
+				groupKey = assignee ? userName(userMap[assignee] ?? ({ firstName: "Неизвестный", lastName: "", email: "", id: assignee } as ApiUser)) : "Не назначен";
+			}
+			const arr = buckets.get(groupKey) ?? [];
+			arr.push(task);
+			buckets.set(groupKey, arr);
+		}
+		return Array.from(buckets.entries())
+			.map(([label, rows]) => ({ key: label, label, rows }))
+			.sort((a, b) => b.rows.length - a.rows.length);
+	}, [tableGroupBy, filteredTasks, projectMap, stageLabelByTaskId, userMap]);
+
+	const tableFooter = (
+		<tr className="bg-gray-50 border-t border-gray-200">
+			<td colSpan={12} className="px-3 py-2 text-xs text-gray-700 font-medium">
+				Итого: {filteredTasks.length} задач · {doneCount} выполнено · {overdueCount} просрочено ·{" "}
+				{totalComments} комментариев · {totalAttachments} вложений · {totalBlocked} блокеров
+			</td>
+		</tr>
+	);
 
 	return (
 		<div className="space-y-4">
@@ -1077,6 +1176,18 @@ export default function ConstructionTasks() {
 						))}
 					</SelectContent>
 				</Select>
+				{viewMode === "table" && (
+					<Select value={tableGroupBy} onValueChange={(v) => setTableGroupBy(v as TableGroupBy)}>
+						<SelectTrigger className="h-8 text-sm w-44"><SelectValue placeholder="Группировка" /></SelectTrigger>
+						<SelectContent>
+							<SelectItem value="none">Без группировки</SelectItem>
+							<SelectItem value="project">По проекту</SelectItem>
+							<SelectItem value="stage">По этапу</SelectItem>
+							<SelectItem value="assignee">По исполнителю</SelectItem>
+							<SelectItem value="status">По статусу</SelectItem>
+						</SelectContent>
+					</Select>
+				)}
 				<PeriodPicker value={period} onChange={setPeriod} />
 				{(projectFilter !== "all" || priorityFilter !== "all" || statusFilter !== "all" || search) && (
 					<button
@@ -1164,13 +1275,25 @@ export default function ConstructionTasks() {
 					})}
 				</div>
 			) : viewMode === "table" ? (
-				<TasksTable
-					tasks={filteredTasks}
-					userMap={userMap}
-					projectMap={projectMap}
-					stageLabelByTaskId={stageLabelByTaskId}
-					onRowClick={(task) => navigate(`/construction/tasks/${task.id}`)}
-				/>
+				<div className="space-y-3">
+					{groupedTableData.map((group) => (
+						<div key={group.key} className="space-y-1">
+							{tableGroupBy !== "none" && (
+								<div className="text-xs font-semibold text-gray-600">
+									{group.label} · {group.rows.length}
+								</div>
+							)}
+							<TasksTable
+								tasks={group.rows}
+								userMap={userMap}
+								projectMap={projectMap}
+								stageLabelByTaskId={stageLabelByTaskId}
+								onRowClick={(task) => navigate(`/construction/tasks/${task.id}`)}
+								footer={tableGroupBy === "none" ? tableFooter : undefined}
+							/>
+						</div>
+					))}
+				</div>
 			) : viewMode === "calendar" ? (
 				<TasksCalendarView
 					tasks={filteredTasks}
@@ -1180,6 +1303,7 @@ export default function ConstructionTasks() {
 			) : (
 				<TasksGanttView
 					tasks={filteredTasks}
+					dependencies={taskDependencies}
 					onTaskClick={(task) => navigate(`/construction/tasks/${task.id}`)}
 				/>
 			)}
