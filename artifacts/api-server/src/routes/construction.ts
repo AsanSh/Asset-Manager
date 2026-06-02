@@ -21,6 +21,7 @@ import {
   notificationsTable,
   usersTable,
   constructionTaskDependenciesTable,
+  supplyRequestsTable,
 } from "../lib/db";
 import { sendTaskAssignedEmail } from "../lib/email";
 import { logTaskActivity, taskFieldChanges } from "../lib/construction-task-work";
@@ -537,6 +538,21 @@ router.get("/tasks", async (req: AuthenticatedRequest, res): Promise<void> => {
   const commentMap = Object.fromEntries(commentCounts.map((c) => [c.taskId, Number(c.count || 0)]));
   const attachmentMap = Object.fromEntries(attachmentCounts.map((c) => [c.taskId, Number(c.count || 0)]));
   const blockedByMap = Object.fromEntries(blockedByCounts.map((c) => [c.taskId, Number(c.count || 0)]));
+  const stageRows = rows.filter((row) => row.stageId != null);
+  const stageProgressMap = new Map<number, number>();
+  if (stageRows.length > 0) {
+    const byStage = new Map<number, number[]>();
+    for (const row of stageRows) {
+      const sid = Number(row.stageId);
+      const arr = byStage.get(sid) ?? [];
+      arr.push(Number(row.progressPercent ?? 0));
+      byStage.set(sid, arr);
+    }
+    for (const [sid, list] of byStage.entries()) {
+      const avg = list.reduce((sum, value) => sum + value, 0) / Math.max(list.length, 1);
+      stageProgressMap.set(sid, Math.round(avg));
+    }
+  }
 
   res.json(
     rows.map((row) => ({
@@ -544,6 +560,7 @@ router.get("/tasks", async (req: AuthenticatedRequest, res): Promise<void> => {
       commentCount: commentMap[row.id] ?? 0,
       attachmentCount: attachmentMap[row.id] ?? 0,
       blockedByCount: blockedByMap[row.id] ?? 0,
+      stageProgressPercent: row.stageId != null ? (stageProgressMap.get(Number(row.stageId)) ?? 0) : 0,
     })),
   );
 });
@@ -666,6 +683,7 @@ router.post("/tasks", async (req: AuthenticatedRequest, res): Promise<void> => {
   const {
     projectId, stageId, title, description, status, priority, dueDate, estimatedHours, assignedTo,
     plannedStartDate, plannedEndDate, progressMode, progressPercent,
+    contractorId, salesContractId, supplyRequestId,
   } = req.body;
   const parsedProjectId = parseInt(String(projectId), 10);
   const parsedStageId = stageId ? parseInt(String(stageId), 10) : null;
@@ -691,6 +709,54 @@ router.post("/tasks", async (req: AuthenticatedRequest, res): Promise<void> => {
     return;
   }
   const assignedToId = assignedTo ? parseInt(assignedTo) : null;
+  const contractorIdNum = contractorId ? parseInt(String(contractorId), 10) : null;
+  const salesContractIdNum = salesContractId ? parseInt(String(salesContractId), 10) : null;
+  const supplyRequestIdNum = supplyRequestId ? parseInt(String(supplyRequestId), 10) : null;
+
+  if (contractorIdNum) {
+    const [contractor] = await db.select({ id: constructionContractorsTable.id })
+      .from(constructionContractorsTable)
+      .where(and(
+        eq(constructionContractorsTable.id, contractorIdNum),
+        eq(constructionContractorsTable.companyId, req.scopedCompanyId!),
+      ));
+    if (!contractor) {
+      res.status(400).json({ error: "Подрядчик не найден" });
+      return;
+    }
+  }
+  if (salesContractIdNum) {
+    const [salesContract] = await db.select({ id: constructionSalesContractsTable.id, projectId: constructionSalesContractsTable.projectId })
+      .from(constructionSalesContractsTable)
+      .where(and(
+        eq(constructionSalesContractsTable.id, salesContractIdNum),
+        eq(constructionSalesContractsTable.companyId, req.scopedCompanyId!),
+      ));
+    if (!salesContract) {
+      res.status(400).json({ error: "Договор продажи не найден" });
+      return;
+    }
+    if (Number(salesContract.projectId) !== parsedProjectId) {
+      res.status(400).json({ error: "Договор не относится к выбранному проекту" });
+      return;
+    }
+  }
+  if (supplyRequestIdNum) {
+    const [supplyRequest] = await db.select({ id: supplyRequestsTable.id, projectId: supplyRequestsTable.projectId })
+      .from(supplyRequestsTable)
+      .where(and(
+        eq(supplyRequestsTable.id, supplyRequestIdNum),
+        eq(supplyRequestsTable.companyId, req.scopedCompanyId!),
+      ));
+    if (!supplyRequest) {
+      res.status(400).json({ error: "Заявка снабжения не найдена" });
+      return;
+    }
+    if (supplyRequest.projectId != null && Number(supplyRequest.projectId) !== parsedProjectId) {
+      res.status(400).json({ error: "Заявка снабжения не относится к выбранному проекту" });
+      return;
+    }
+  }
   const mode = progressMode || "checklist";
   const [row] = await db.insert(constructionTasksTable).values({
     companyId: req.scopedCompanyId!,
@@ -703,6 +769,9 @@ router.post("/tasks", async (req: AuthenticatedRequest, res): Promise<void> => {
     dueDate: dueDate || null,
     estimatedHours: estimatedHours ? String(estimatedHours) : null,
     assignedTo: assignedToId,
+    contractorId: contractorIdNum,
+    salesContractId: salesContractIdNum,
+    supplyRequestId: supplyRequestIdNum,
     createdBy: req.userId ?? null,
     progressMode: mode,
     progressPercent: progressPercent != null ? Math.min(100, Math.max(0, parseInt(String(progressPercent), 10) || 0)) : 0,
@@ -751,6 +820,7 @@ router.patch("/tasks/:id", async (req: AuthenticatedRequest, res): Promise<void>
   const {
     title, description, status, priority, dueDate, estimatedHours, actualHours, completedAt, assignedTo,
     stageId, plannedStartDate, plannedEndDate, actualStartDate, actualEndDate, progressPercent,
+    contractorId, salesContractId, supplyRequestId,
   } = req.body;
 
   const [prev] = await db.select()
@@ -779,6 +849,60 @@ router.patch("/tasks/:id", async (req: AuthenticatedRequest, res): Promise<void>
   }
 
   const newAssignedTo = assignedTo !== undefined ? (assignedTo ? parseInt(assignedTo) : null) : undefined;
+  const parsedContractorId = contractorId !== undefined
+    ? (contractorId ? parseInt(String(contractorId), 10) : null)
+    : undefined;
+  const parsedSalesContractId = salesContractId !== undefined
+    ? (salesContractId ? parseInt(String(salesContractId), 10) : null)
+    : undefined;
+  const parsedSupplyRequestId = supplyRequestId !== undefined
+    ? (supplyRequestId ? parseInt(String(supplyRequestId), 10) : null)
+    : undefined;
+
+  if (parsedContractorId) {
+    const [contractor] = await db.select({ id: constructionContractorsTable.id })
+      .from(constructionContractorsTable)
+      .where(and(
+        eq(constructionContractorsTable.id, parsedContractorId),
+        eq(constructionContractorsTable.companyId, req.scopedCompanyId!),
+      ));
+    if (!contractor) {
+      res.status(400).json({ error: "Подрядчик не найден" });
+      return;
+    }
+  }
+  if (parsedSalesContractId) {
+    const [salesContract] = await db.select({ id: constructionSalesContractsTable.id, projectId: constructionSalesContractsTable.projectId })
+      .from(constructionSalesContractsTable)
+      .where(and(
+        eq(constructionSalesContractsTable.id, parsedSalesContractId),
+        eq(constructionSalesContractsTable.companyId, req.scopedCompanyId!),
+      ));
+    if (!salesContract) {
+      res.status(400).json({ error: "Договор продажи не найден" });
+      return;
+    }
+    if (Number(salesContract.projectId) !== prev.projectId) {
+      res.status(400).json({ error: "Договор не относится к проекту задачи" });
+      return;
+    }
+  }
+  if (parsedSupplyRequestId) {
+    const [supplyRequest] = await db.select({ id: supplyRequestsTable.id, projectId: supplyRequestsTable.projectId })
+      .from(supplyRequestsTable)
+      .where(and(
+        eq(supplyRequestsTable.id, parsedSupplyRequestId),
+        eq(supplyRequestsTable.companyId, req.scopedCompanyId!),
+      ));
+    if (!supplyRequest) {
+      res.status(400).json({ error: "Заявка снабжения не найдена" });
+      return;
+    }
+    if (supplyRequest.projectId != null && Number(supplyRequest.projectId) !== prev.projectId) {
+      res.status(400).json({ error: "Заявка снабжения не относится к проекту задачи" });
+      return;
+    }
+  }
 
   const patchBody: Record<string, unknown> = {
     title: title !== undefined ? String(title).trim() : undefined,
@@ -790,6 +914,9 @@ router.patch("/tasks/:id", async (req: AuthenticatedRequest, res): Promise<void>
     estimatedHours: estimatedHours !== undefined ? (estimatedHours ? String(estimatedHours) : null) : undefined,
     actualHours: actualHours !== undefined ? (actualHours ? String(actualHours) : null) : undefined,
     assignedTo: newAssignedTo,
+    contractorId: parsedContractorId,
+    salesContractId: parsedSalesContractId,
+    supplyRequestId: parsedSupplyRequestId,
     stageId: stageId !== undefined ? parseInt(String(stageId), 10) : undefined,
     plannedStartDate,
     plannedEndDate,

@@ -87,6 +87,9 @@ interface Task {
 	priority: string;
 	assignedTo?: number | null;
 	createdBy?: number | null;
+	contractorId?: number | null;
+	salesContractId?: number | null;
+	supplyRequestId?: number | null;
 	dueDate?: string | null;
 	estimatedHours?: string | null;
 	progressPercent?: number | null;
@@ -96,9 +99,13 @@ interface Task {
 	commentCount?: number;
 	attachmentCount?: number;
 	blockedByCount?: number;
+	stageProgressPercent?: number;
 	createdAt: string;
 }
 interface Project { id: number; name: string; }
+interface Contractor { id: number; fullName: string; }
+interface SalesContract { id: number; projectId: number; contractNumber?: string | null; buyerName?: string | null; }
+interface SupplyRequest { id: number; projectId?: number | null; status?: string | null; neededByDate?: string | null; }
 interface Stage {
 	id: number;
 	projectId: number;
@@ -152,10 +159,14 @@ function normalizeTask(raw: Record<string, unknown>): Task {
 		assignedTo: raw.assignedTo ?? raw.assigned_to ?? null,
 		createdBy: raw.createdBy ?? raw.created_by ?? null,
 		stageId: raw.stageId ?? raw.stage_id ?? null,
+		contractorId: raw.contractorId ?? raw.contractor_id ?? null,
+		salesContractId: raw.salesContractId ?? raw.sales_contract_id ?? null,
+		supplyRequestId: raw.supplyRequestId ?? raw.supply_request_id ?? null,
 		progressPercent: Number(raw.progressPercent ?? raw.progress_percent ?? 0),
 		commentCount: Number(raw.commentCount ?? raw.comment_count ?? 0),
 		attachmentCount: Number(raw.attachmentCount ?? raw.attachment_count ?? 0),
 		blockedByCount: Number(raw.blockedByCount ?? raw.blocked_by_count ?? 0),
+		stageProgressPercent: Number(raw.stageProgressPercent ?? raw.stage_progress_percent ?? 0),
 	} as unknown as Task;
 }
 
@@ -171,11 +182,14 @@ function stageLabel(stage: Stage, parentMap: Record<number, Stage>): string {
 }
 
 function TaskDialog({
-	task, projects, users, currentUserId, onClose, onSaved,
+	task, projects, users, contractors, salesContracts, supplyRequests, currentUserId, onClose, onSaved,
 }: {
 	task: Task | null | "new";
 	projects: Project[];
 	users: ApiUser[];
+	contractors: Contractor[];
+	salesContracts: SalesContract[];
+	supplyRequests: SupplyRequest[];
 	currentUserId: number | undefined;
 	onClose: () => void;
 	onSaved: () => void;
@@ -196,6 +210,9 @@ function TaskDialog({
 		plannedEndDate: init?.plannedEndDate || "",
 		estimatedHours: init?.estimatedHours || "",
 		assignedTo: String(init?.assignedTo || ""),
+		contractorId: String(init?.contractorId || ""),
+		salesContractId: String(init?.salesContractId || ""),
+		supplyRequestId: String(init?.supplyRequestId || ""),
 	});
 	const [loading, setLoading] = useState(false);
 	const set = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
@@ -232,6 +249,9 @@ function TaskDialog({
 				plannedEndDate: "",
 				estimatedHours: "",
 				assignedTo: currentUserId ? String(currentUserId) : "",
+				contractorId: "",
+				salesContractId: "",
+				supplyRequestId: "",
 			});
 		} else {
 			const t = task as Task;
@@ -247,9 +267,29 @@ function TaskDialog({
 				plannedEndDate: t.plannedEndDate || "",
 				estimatedHours: t.estimatedHours || "",
 				assignedTo: String(t.assignedTo || ""),
+				contractorId: String(t.contractorId || ""),
+				salesContractId: String(t.salesContractId || ""),
+				supplyRequestId: String(t.supplyRequestId || ""),
 			});
 		}
 	}, [task, projects, currentUserId]);
+
+	const availableSalesContracts = useMemo(
+		() =>
+			salesContracts.filter(
+				(c) => String(c.projectId) === form.projectId,
+			),
+		[salesContracts, form.projectId],
+	);
+
+	const availableSupplyRequests = useMemo(
+		() =>
+			supplyRequests.filter(
+				(r) =>
+					r.projectId == null || String(r.projectId) === form.projectId,
+			),
+		[supplyRequests, form.projectId],
+	);
 
 	useEffect(() => {
 		if (task !== "new" || !stages.length || form.stageId) return;
@@ -281,6 +321,9 @@ function TaskDialog({
 						: !isEdit && currentUserId
 							? currentUserId
 							: null,
+					contractorId: form.contractorId ? parseInt(form.contractorId, 10) : null,
+					salesContractId: form.salesContractId ? parseInt(form.salesContractId, 10) : null,
+					supplyRequestId: form.supplyRequestId ? parseInt(form.supplyRequestId, 10) : null,
 				}),
 			});
 			toast({ title: isEdit ? "Задача обновлена" : "Задача добавлена" });
@@ -305,7 +348,13 @@ function TaskDialog({
 						<Select
 							value={form.projectId}
 							onValueChange={(v) => {
-								setForm((p) => ({ ...p, projectId: v, stageId: "" }));
+								setForm((p) => ({
+									...p,
+									projectId: v,
+									stageId: "",
+									salesContractId: "",
+									supplyRequestId: "",
+								}));
 							}}
 						>
 							<SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
@@ -394,6 +443,48 @@ function TaskDialog({
 							</SelectContent>
 						</Select>
 					</div>
+					<div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+						<div>
+							<Label>Подрядчик</Label>
+							<Select value={form.contractorId || "none"} onValueChange={(v) => set("contractorId", v === "none" ? "" : v)}>
+								<SelectTrigger className="mt-1"><SelectValue placeholder="Не связан" /></SelectTrigger>
+								<SelectContent>
+									<SelectItem value="none">— Не связан —</SelectItem>
+									{contractors.map((c) => (
+										<SelectItem key={c.id} value={String(c.id)}>{c.fullName}</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+						<div>
+							<Label>Договор</Label>
+							<Select value={form.salesContractId || "none"} onValueChange={(v) => set("salesContractId", v === "none" ? "" : v)}>
+								<SelectTrigger className="mt-1"><SelectValue placeholder="Не связан" /></SelectTrigger>
+								<SelectContent>
+									<SelectItem value="none">— Не связан —</SelectItem>
+									{availableSalesContracts.map((c) => (
+										<SelectItem key={c.id} value={String(c.id)}>
+											{c.contractNumber || `Договор #${c.id}`} {c.buyerName ? `· ${c.buyerName}` : ""}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+						<div>
+							<Label>Заявка снабжения</Label>
+							<Select value={form.supplyRequestId || "none"} onValueChange={(v) => set("supplyRequestId", v === "none" ? "" : v)}>
+								<SelectTrigger className="mt-1"><SelectValue placeholder="Не связана" /></SelectTrigger>
+								<SelectContent>
+									<SelectItem value="none">— Не связана —</SelectItem>
+									{availableSupplyRequests.map((r) => (
+										<SelectItem key={r.id} value={String(r.id)}>
+											Заявка #{r.id}{r.status ? ` · ${r.status}` : ""}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+					</div>
 					<div className="flex justify-end gap-2 pt-1">
 						<Button type="button" variant="outline" onClick={onClose} disabled={loading}>Отмена</Button>
 						<Button type="submit" className="bg-amber-500 hover:bg-orange-600" disabled={loading}>
@@ -418,12 +509,15 @@ function Avatar({ name, size = "sm" }: { name: string; size?: "sm" | "md" }) {
 }
 
 function TaskCard({
-	task, userMap, projectMap, stageLabelText, onEdit, onDelete, onStatusChange,
+	task, userMap, projectMap, stageLabelText, contractorMap, salesContractMap, supplyRequestMap, onEdit, onDelete, onStatusChange,
 }: {
 	task: Task;
 	userMap: Record<number, ApiUser>;
 	projectMap: Record<number, string>;
 	stageLabelText?: string;
+	contractorMap: Record<number, string>;
+	salesContractMap: Record<number, string>;
+	supplyRequestMap: Record<number, string>;
 	onEdit: (t: Task) => void;
 	onDelete: (id: number) => void;
 	onStatusChange: (task: Task, status: string) => void;
@@ -533,6 +627,21 @@ function TaskCard({
 						{projectMap[task.projectId]}
 					</span>
 				)}
+				{task.contractorId && (
+					<span className="text-[10px] text-purple-600 truncate max-w-[130px]">
+						👷 {contractorMap[Number(task.contractorId)] || `#${task.contractorId}`}
+					</span>
+				)}
+				{task.salesContractId && (
+					<span className="text-[10px] text-cyan-700 truncate max-w-[130px]">
+						📄 {salesContractMap[Number(task.salesContractId)] || `#${task.salesContractId}`}
+					</span>
+				)}
+				{task.supplyRequestId && (
+					<span className="text-[10px] text-teal-700 truncate max-w-[130px]">
+						📦 {supplyRequestMap[Number(task.supplyRequestId)] || `#${task.supplyRequestId}`}
+					</span>
+				)}
 				<span className="text-[10px] font-medium text-gray-600">
 					{Number(task.progressPercent) || 0}%
 				</span>
@@ -568,6 +677,9 @@ function TasksTable({
 	userMap,
 	projectMap,
 	stageLabelByTaskId,
+	contractorMap,
+	salesContractMap,
+	supplyRequestMap,
 	onRowClick,
 	footer,
 }: {
@@ -575,6 +687,9 @@ function TasksTable({
 	userMap: Record<number, ApiUser>;
 	projectMap: Record<number, string>;
 	stageLabelByTaskId: Record<number, string>;
+	contractorMap: Record<number, string>;
+	salesContractMap: Record<number, string>;
+	supplyRequestMap: Record<number, string>;
 	onRowClick: (task: Task) => void;
 	footer?: React.ReactNode;
 }) {
@@ -615,9 +730,12 @@ function TasksTable({
 				header: "Прогресс",
 				meta: { exportLabel: "Прогресс" },
 				cell: ({ row }) => (
-					<span className="text-sm font-medium tabular-nums">
-						{Number(row.original.progressPercent) || 0}%
-					</span>
+					<div className="text-sm font-medium tabular-nums">
+						<div>{Number(row.original.progressPercent) || 0}%</div>
+						<div className="text-[10px] text-gray-400">
+							Этап: {Number(row.original.stageProgressPercent ?? 0)}%
+						</div>
+					</div>
 				),
 			},
 			{
@@ -697,6 +815,23 @@ function TasksTable({
 				},
 			},
 			{
+				id: "links",
+				header: "Связи",
+				meta: { exportLabel: "Связи" },
+				cell: ({ row }) => {
+					const t = row.original;
+					const parts: string[] = [];
+					if (t.contractorId) parts.push(contractorMap[Number(t.contractorId)] || `Подрядчик #${t.contractorId}`);
+					if (t.salesContractId) parts.push(salesContractMap[Number(t.salesContractId)] || `Договор #${t.salesContractId}`);
+					if (t.supplyRequestId) parts.push(supplyRequestMap[Number(t.supplyRequestId)] || `Заявка #${t.supplyRequestId}`);
+					return (
+						<div className="text-xs text-gray-600 max-w-[220px] truncate">
+							{parts.length ? parts.join(" · ") : "—"}
+						</div>
+					);
+				},
+			},
+			{
 				id: "comments",
 				header: "Комментарии",
 				meta: { exportLabel: "Комментарии" },
@@ -746,7 +881,7 @@ function TasksTable({
 				},
 			},
 		],
-		[userMap, projectMap, stageLabelByTaskId],
+		[userMap, projectMap, stageLabelByTaskId, contractorMap, salesContractMap, supplyRequestMap],
 	);
 
 	return (
@@ -945,6 +1080,18 @@ export default function ConstructionTasks() {
 		queryKey: ["construction-stages-all"],
 		queryFn: () => api.get("/construction/stages").then((r) => r.data),
 	});
+	const { data: contractors = [] } = useQuery<Contractor[]>({
+		queryKey: ["construction-contractors-all"],
+		queryFn: () => api.get("/construction/contractors").then((r) => Array.isArray(r.data) ? r.data : []),
+	});
+	const { data: salesContracts = [] } = useQuery<SalesContract[]>({
+		queryKey: ["construction-sales-contracts"],
+		queryFn: () => api.get("/construction/contracts-sales").then((r) => Array.isArray(r.data) ? r.data : []),
+	});
+	const { data: supplyRequests = [] } = useQuery<SupplyRequest[]>({
+		queryKey: ["supply-requests-all"],
+		queryFn: () => api.get("/supply/requests").then((r) => Array.isArray(r.data) ? r.data : []),
+	});
 	const { data: taskDependencies = [] } = useQuery<TaskDependency[]>({
 		queryKey: ["construction-task-dependencies", projectFilter],
 		queryFn: () =>
@@ -964,6 +1111,21 @@ export default function ConstructionTasks() {
 	const projectMap = useMemo(
 		() => Object.fromEntries(projects.map((p) => [p.id, p.name])),
 		[projects],
+	);
+	const contractorMap = useMemo(
+		() => Object.fromEntries(contractors.map((c) => [c.id, c.fullName])),
+		[contractors],
+	);
+	const salesContractMap = useMemo(
+		() =>
+			Object.fromEntries(
+				salesContracts.map((c) => [c.id, c.contractNumber || `Договор #${c.id}`]),
+			),
+		[salesContracts],
+	);
+	const supplyRequestMap = useMemo(
+		() => Object.fromEntries(supplyRequests.map((r) => [r.id, `Заявка #${r.id}`])),
+		[supplyRequests],
 	);
 
 	const stageLabelByTaskId = useMemo(() => {
@@ -1092,7 +1254,7 @@ export default function ConstructionTasks() {
 
 	const tableFooter = (
 		<tr className="bg-gray-50 border-t border-gray-200">
-			<td colSpan={12} className="px-3 py-2 text-xs text-gray-700 font-medium">
+			<td colSpan={20} className="px-3 py-2 text-xs text-gray-700 font-medium">
 				Итого: {filteredTasks.length} задач · {doneCount} выполнено · {overdueCount} просрочено ·{" "}
 				{totalComments} комментариев · {totalAttachments} вложений · {totalBlocked} блокеров
 			</td>
@@ -1261,6 +1423,9 @@ export default function ConstructionTasks() {
 											userMap={userMap}
 											projectMap={projectMap}
 											stageLabelText={stageLabelByTaskId[t.id]}
+											contractorMap={contractorMap}
+											salesContractMap={salesContractMap}
+											supplyRequestMap={supplyRequestMap}
 											onEdit={setDialog}
 											onDelete={handleDelete}
 											onStatusChange={handleStatusChange}
@@ -1288,6 +1453,9 @@ export default function ConstructionTasks() {
 								userMap={userMap}
 								projectMap={projectMap}
 								stageLabelByTaskId={stageLabelByTaskId}
+								contractorMap={contractorMap}
+								salesContractMap={salesContractMap}
+								supplyRequestMap={supplyRequestMap}
 								onRowClick={(task) => navigate(`/construction/tasks/${task.id}`)}
 								footer={tableGroupBy === "none" ? tableFooter : undefined}
 							/>
@@ -1312,6 +1480,9 @@ export default function ConstructionTasks() {
 				task={dialog}
 				projects={projects}
 				users={usersRaw}
+				contractors={contractors}
+				salesContracts={salesContracts}
+				supplyRequests={supplyRequests}
 				currentUserId={currentUserId}
 				onClose={() => setDialog(null)}
 				onSaved={() => qc.invalidateQueries({ queryKey: ["construction-tasks"] })}
