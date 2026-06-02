@@ -175,6 +175,16 @@ function taskTimelineDate(task: Task): string | null {
 	return task.plannedEndDate || task.dueDate || task.createdAt || null;
 }
 
+/** Задача попадает в период, если любая из дат в диапазоне; без дат — не скрываем */
+function taskMatchesPeriod(task: Task, period: PeriodValue): boolean {
+	if (period.preset === "all") return true;
+	const candidates = [task.createdAt, task.dueDate, task.plannedEndDate, task.plannedStartDate].filter(
+		Boolean,
+	) as string[];
+	if (candidates.length === 0) return true;
+	return candidates.some((d) => inPeriod(d, period));
+}
+
 function stageLabel(stage: Stage, parentMap: Record<number, Stage>): string {
 	if (stage.parentStageId && parentMap[stage.parentStageId]) {
 		return `${parentMap[stage.parentStageId].name} → ${stage.name}`;
@@ -310,7 +320,7 @@ function TaskDialog({
 		setLoading(true);
 		try {
 			const url = isEdit ? `${BASE}/construction/tasks/${init?.id}` : `${BASE}/construction/tasks`;
-			await fetch(url, {
+			const res = await fetch(url, {
 				method: isEdit ? "PATCH" : "POST",
 				headers: ah(),
 				body: JSON.stringify({
@@ -327,11 +337,21 @@ function TaskDialog({
 					supplyRequestId: form.supplyRequestId ? parseInt(form.supplyRequestId, 10) : null,
 				}),
 			});
+			if (!res.ok) {
+				const errBody = await res.json().catch(() => ({}));
+				throw new Error(
+					typeof errBody?.error === "string" ? errBody.error : `HTTP ${res.status}`,
+				);
+			}
 			toast({ title: isEdit ? "Задача обновлена" : "Задача добавлена" });
 			onSaved();
 			onClose();
-		} catch {
-			toast({ title: "Ошибка", variant: "destructive" });
+		} catch (err) {
+			toast({
+				title: "Ошибка",
+				description: err instanceof Error ? err.message : undefined,
+				variant: "destructive",
+			});
 		} finally {
 			setLoading(false);
 		}
@@ -1076,13 +1096,13 @@ export default function ConstructionTasks() {
 	const currentUserId = authUser?.id;
 	const me = currentUserId != null ? Number(currentUserId) : null;
 	const [dialog, setDialog] = useState<Task | null | "new">(null);
-	const [activeTab, setActiveTab] = useState<TabId>("mine");
+	const [activeTab, setActiveTab] = useState<TabId>("all");
 	const [projectFilter, setProjectFilter] = useState("all");
 	const [priorityFilter, setPriorityFilter] = useState("all");
 	const [statusFilter, setStatusFilter] = useState("all");
 	const [tableGroupBy, setTableGroupBy] = useState<TableGroupBy>("none");
 	const [search, setSearch] = useState("");
-	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod("month"));
+	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod("all"));
 	const [viewMode, setViewMode] = useState<"kanban" | "table" | "calendar" | "gantt">("kanban");
 	const [, navigate] = useLocation();
 
@@ -1098,12 +1118,22 @@ export default function ConstructionTasks() {
 		queryKey: ["users"],
 		queryFn: () => api.get("/users").then((r) => Array.isArray(r.data) ? r.data : r.data?.data ?? []),
 	});
-	const { data: tasks = [], isLoading } = useQuery<Task[]>({
-		queryKey: ["construction-tasks", period.from, period.to],
-		queryFn: () =>
-			api.get(`/construction/tasks?fromDate=${encodeURIComponent(period.from)}&toDate=${encodeURIComponent(period.to)}`).then((r) =>
-				(Array.isArray(r.data) ? r.data : []).map((t) => normalizeTask(t as Record<string, unknown>)),
-			),
+	const { data: tasks = [], isLoading, isError: tasksError } = useQuery<Task[]>({
+		queryKey: ["construction-tasks", period.preset, period.from, period.to],
+		queryFn: async () => {
+			const params = new URLSearchParams();
+			if (period.preset !== "all") {
+				params.set("fromDate", period.from);
+				params.set("toDate", period.to);
+			}
+			const qs = params.toString();
+			const { data } = await api.get(
+				qs ? `/construction/tasks?${qs}` : "/construction/tasks",
+			);
+			return (Array.isArray(data) ? data : []).map((t) =>
+				normalizeTask(t as Record<string, unknown>),
+			);
+		},
 	});
 	const { data: allStages = [] } = useQuery<Stage[]>({
 		queryKey: ["construction-stages-all"],
@@ -1179,7 +1209,7 @@ export default function ConstructionTasks() {
 			if (priorityFilter !== "all" && t.priority !== priorityFilter) return false;
 			if (statusFilter !== "all" && t.status !== statusFilter) return false;
 			if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false;
-			if (!inPeriod(taskTimelineDate(t), period)) return false;
+			if (!taskMatchesPeriod(t, period)) return false;
 			return true;
 		});
 	};
@@ -1449,7 +1479,11 @@ export default function ConstructionTasks() {
 			</div>
 
 			{/* Content */}
-			{isLoading ? (
+			{tasksError ? (
+				<div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-6 text-sm text-rose-800">
+					Не удалось загрузить задачи. Обновите страницу или проверьте доступ к API.
+				</div>
+			) : isLoading ? (
 				<Skeleton className="h-64 rounded-xl" />
 			) : filteredTasks.length === 0 ? (
 				<EmptyState tab={activeTab} />

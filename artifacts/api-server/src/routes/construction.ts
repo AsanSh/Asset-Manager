@@ -484,7 +484,12 @@ router.get("/tasks", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { projectId, stageId, fromDate, toDate } = req.query;
   const dateFilter =
     fromDate && toDate
-      ? sql`COALESCE(${constructionTasksTable.plannedEndDate}, ${constructionTasksTable.dueDate}, ${constructionTasksTable.createdAt})::date BETWEEN ${String(fromDate)}::date AND ${String(toDate)}::date`
+      ? sql`(
+          ${constructionTasksTable.createdAt}::date BETWEEN ${String(fromDate)}::date AND ${String(toDate)}::date
+          OR (${constructionTasksTable.dueDate} IS NOT NULL AND ${constructionTasksTable.dueDate}::date BETWEEN ${String(fromDate)}::date AND ${String(toDate)}::date)
+          OR (${constructionTasksTable.plannedEndDate} IS NOT NULL AND ${constructionTasksTable.plannedEndDate}::date BETWEEN ${String(fromDate)}::date AND ${String(toDate)}::date)
+          OR (${constructionTasksTable.plannedStartDate} IS NOT NULL AND ${constructionTasksTable.plannedStartDate}::date BETWEEN ${String(fromDate)}::date AND ${String(toDate)}::date)
+        )`
       : undefined;
   const rows = await db.select().from(constructionTasksTable)
     .where(and(
