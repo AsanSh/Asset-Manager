@@ -8,6 +8,9 @@ export interface ConstructionTaskRow {
 	priority: string;
 	assignedTo?: number | null;
 	createdBy?: number | null;
+	contractorId?: number | null;
+	salesContractId?: number | null;
+	supplyRequestId?: number | null;
 	dueDate?: string | null;
 	estimatedHours?: string | null;
 	actualHours?: string | null;

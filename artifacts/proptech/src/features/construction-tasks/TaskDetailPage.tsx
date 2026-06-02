@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CalendarClock, Link2, Loader2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -68,6 +68,30 @@ export function TaskDetailPage({ taskId }: { taskId: number }) {
 				Array.isArray(r.data) ? r.data : r.data?.data ?? [],
 			),
 	});
+	const { data: contractors = [] } = useQuery({
+		queryKey: ["construction-contractors-all"],
+		queryFn: () => api.get("/construction/contractors").then((r) => (Array.isArray(r.data) ? r.data : [])),
+	});
+	const { data: salesContracts = [] } = useQuery({
+		queryKey: ["construction-sales-contracts"],
+		queryFn: () => api.get("/construction/contracts-sales").then((r) => (Array.isArray(r.data) ? r.data : [])),
+	});
+	const { data: supplyRequests = [] } = useQuery({
+		queryKey: ["supply-requests-all"],
+		queryFn: () => api.get("/supply/requests").then((r) => (Array.isArray(r.data) ? r.data : [])),
+	});
+	const { data: dependencies = [] } = useQuery({
+		queryKey: ["construction-task-dependencies-all"],
+		queryFn: () => api.get("/construction/tasks/dependencies").then((r) => (Array.isArray(r.data) ? r.data : [])),
+	});
+	const { data: projectTasks = [] } = useQuery({
+		queryKey: ["construction-tasks-by-project", data?.task?.projectId],
+		queryFn: () =>
+			api
+				.get(`/construction/tasks?projectId=${data?.task?.projectId}`)
+				.then((r) => (Array.isArray(r.data) ? r.data : [])),
+		enabled: Boolean(data?.task?.projectId),
+	});
 
 	const userMap = useMemo(
 		() =>
@@ -111,6 +135,32 @@ export function TaskDetailPage({ taskId }: { taskId: number }) {
 
 	const { subtasks, checklist, activity, comments, stage, parentStage } = data;
 	const progress = Number(task.progressPercent) || 0;
+	const contractorName = task.contractorId
+		? contractors.find((c: { id: number; fullName?: string }) => Number(c.id) === Number(task.contractorId))?.fullName || `#${task.contractorId}`
+		: null;
+	const salesContractLabel = task.salesContractId
+		? salesContracts.find((c: { id: number; contractNumber?: string }) => Number(c.id) === Number(task.salesContractId))?.contractNumber || `#${task.salesContractId}`
+		: null;
+	const supplyRequestLabel = task.supplyRequestId
+		? `#${task.supplyRequestId} ${
+			supplyRequests.find((s: { id: number; status?: string }) => Number(s.id) === Number(task.supplyRequestId))?.status || ""
+		}`.trim()
+		: null;
+	const predecessorIds = dependencies
+		.filter((d: { successorTaskId: number }) => Number(d.successorTaskId) === Number(task.id))
+		.map((d: { predecessorTaskId: number }) => Number(d.predecessorTaskId));
+	const blockingOpenDeps = predecessorIds.filter((pid) => {
+		const maybeTask = projectTasks.find((s: { id: number; status?: string }) => Number(s.id) === pid);
+		if (!maybeTask) return true;
+		return maybeTask.status !== "done";
+	}).length;
+	const dueDate = task.plannedEndDate || task.dueDate || null;
+	const overdueDays = dueDate
+		? Math.max(
+			0,
+			Math.floor((Date.now() - new Date(dueDate).getTime()) / (24 * 60 * 60 * 1000)),
+		)
+		: 0;
 
 	return (
 		<div className="space-y-4 -m-2">
@@ -187,6 +237,51 @@ export function TaskDetailPage({ taskId }: { taskId: number }) {
 						<div>
 							<span className="text-gray-400 text-xs">План часов</span>
 							<p className="font-medium">{task.estimatedHours || "—"}</p>
+						</div>
+					</section>
+
+					<section className="rounded-xl border border-amber-200 bg-amber-50/40 p-3">
+						<div className="flex items-center gap-2 mb-2">
+							<AlertTriangle className="w-4 h-4 text-amber-600" />
+							<p className="text-sm font-semibold text-gray-800">KPI и риски</p>
+						</div>
+						<div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+							<div>
+								<p className="text-gray-500">Прогресс задачи</p>
+								<p className="font-semibold text-gray-900">{progress}%</p>
+							</div>
+							<div>
+								<p className="text-gray-500">Срок</p>
+								<p className="font-semibold text-gray-900">
+									{dueDate ? new Date(dueDate).toLocaleDateString("ru-KG") : "—"}
+								</p>
+							</div>
+							<div>
+								<p className="text-gray-500">Просрочка</p>
+								<p className={`font-semibold ${overdueDays > 0 ? "text-rose-600" : "text-gray-900"}`}>
+									{overdueDays > 0 ? `${overdueDays} дн` : "нет"}
+								</p>
+							</div>
+							<div>
+								<p className="text-gray-500">Блокеры (deps)</p>
+								<p className={`font-semibold ${blockingOpenDeps > 0 ? "text-rose-600" : "text-gray-900"}`}>
+									{blockingOpenDeps}
+								</p>
+							</div>
+						</div>
+						<div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-3 text-xs">
+							<div className="rounded border border-gray-200 bg-white px-2 py-1.5">
+								<div className="flex items-center gap-1 text-gray-500"><Link2 className="w-3 h-3" /> Подрядчик</div>
+								<div className="font-medium text-gray-800">{contractorName || "Не связан"}</div>
+							</div>
+							<div className="rounded border border-gray-200 bg-white px-2 py-1.5">
+								<div className="flex items-center gap-1 text-gray-500"><CalendarClock className="w-3 h-3" /> Договор</div>
+								<div className="font-medium text-gray-800">{salesContractLabel || "Не связан"}</div>
+							</div>
+							<div className="rounded border border-gray-200 bg-white px-2 py-1.5">
+								<div className="flex items-center gap-1 text-gray-500"><Link2 className="w-3 h-3" /> Снабжение</div>
+								<div className="font-medium text-gray-800">{supplyRequestLabel || "Не связано"}</div>
+							</div>
 						</div>
 					</section>
 
