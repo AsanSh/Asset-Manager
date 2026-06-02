@@ -33,6 +33,284 @@ type TaskRiskActionPlanStep = {
   reason: string;
 };
 
+type RiskLevel = "low" | "medium" | "high";
+
+type NextBestAction = TaskRiskActionPlanStep & {
+  stepIndex: number;
+  dueAt: string;
+  urgency: "critical" | "high" | "normal";
+};
+
+type ScheduledSlaStep = TaskRiskActionPlanStep & {
+  stepIndex: number;
+  dueAt: string;
+};
+
+type RiskActionPlanResult = {
+  source: "ai" | "fallback";
+  summary: string;
+  riskLevel: RiskLevel;
+  steps: TaskRiskActionPlanStep[];
+  signals: {
+    hasOverdue: boolean;
+    overdueDays: number;
+    blockedByCount: number;
+    progressPercent: number;
+    checklistDone: number;
+    checklistTotal: number;
+    hasAssignee: boolean;
+  };
+  nextBestAction: NextBestAction | null;
+};
+
+function pickNextBestAction(
+  steps: TaskRiskActionPlanStep[],
+  riskLevel: RiskLevel,
+): NextBestAction | null {
+  if (steps.length === 0) return null;
+  const ranked = steps
+    .map((step, stepIndex) => ({ ...step, stepIndex }))
+    .sort((a, b) => a.slaHours - b.slaHours);
+  const pick = ranked[0];
+  const dueAt = new Date(Date.now() + pick.slaHours * 60 * 60 * 1000).toISOString();
+  const urgency: NextBestAction["urgency"] =
+    riskLevel === "high" && pick.slaHours <= 6
+      ? "critical"
+      : riskLevel !== "low" && pick.slaHours <= 12
+        ? "high"
+        : "normal";
+  return { ...pick, dueAt, urgency };
+}
+
+function normalizePlanSteps(raw: unknown): TaskRiskActionPlanStep[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((s) => ({
+      title: String((s as TaskRiskActionPlanStep)?.title ?? "").trim(),
+      ownerRole: String((s as TaskRiskActionPlanStep)?.ownerRole ?? "").trim(),
+      slaHours: Math.max(1, Math.min(168, Number((s as TaskRiskActionPlanStep)?.slaHours ?? 24) || 24)),
+      reason: String((s as TaskRiskActionPlanStep)?.reason ?? "").trim(),
+    }))
+    .filter((s) => s.title && s.ownerRole && s.reason)
+    .slice(0, 6);
+}
+
+async function generateRiskActionPlanForTask(
+  companyId: number,
+  taskId: number,
+): Promise<RiskActionPlanResult | null> {
+  const task = await loadTask(companyId, taskId);
+  if (!task) return null;
+
+  const [checklist, dependencies] = await Promise.all([
+    db
+      .select()
+      .from(constructionTaskChecklistItemsTable)
+      .where(
+        and(
+          eq(constructionTaskChecklistItemsTable.taskId, taskId),
+          eq(constructionTaskChecklistItemsTable.companyId, companyId),
+        ),
+      ),
+    db
+      .select()
+      .from(constructionTaskDependenciesTable)
+      .where(
+        and(
+          eq(constructionTaskDependenciesTable.successorTaskId, taskId),
+          eq(constructionTaskDependenciesTable.companyId, companyId),
+        ),
+      ),
+  ]);
+
+  const now = Date.now();
+  const dueDateRaw = task.plannedEndDate ?? task.dueDate ?? null;
+  const dueAt = dueDateRaw ? new Date(String(dueDateRaw)).getTime() : null;
+  const overdueDays =
+    task.status !== "done" && dueAt && Number.isFinite(dueAt)
+      ? Math.max(0, Math.floor((now - dueAt) / (24 * 60 * 60 * 1000)))
+      : 0;
+  const checklistDone = checklist.filter((x) => x.isDone).length;
+  const checklistTotal = checklist.length;
+
+  const riskInput = {
+    hasOverdue: overdueDays > 0,
+    overdueDays,
+    blockedByCount: dependencies.length,
+    progressPercent: Number(task.progressPercent ?? 0),
+    checklistDone,
+    checklistTotal,
+    hasAssignee: Boolean(task.assignedTo),
+  };
+
+  const fallback = buildFallbackRiskPlan(riskInput);
+  const payload = {
+    task: {
+      id: task.id,
+      title: task.title,
+      status: task.status,
+      priority: task.priority,
+      progressPercent: riskInput.progressPercent,
+      dueDate: dueDateRaw,
+      assignedTo: task.assignedTo,
+    },
+    riskSignals: {
+      overdueDays,
+      blockedByCount: riskInput.blockedByCount,
+      checklistDone,
+      checklistTotal,
+    },
+  };
+
+  const resolveRiskLevel = (steps: TaskRiskActionPlanStep[], hinted?: string): RiskLevel => {
+    if (hinted && ["low", "medium", "high"].includes(hinted)) return hinted as RiskLevel;
+    if (overdueDays > 0 || dependencies.length > 0) return "high";
+    if (Number(task.progressPercent ?? 0) < 50) return "medium";
+    return "low";
+  };
+
+  try {
+    const aiText = await chat(
+      [
+        {
+          role: "user",
+          content: `Сформируй JSON action plan для рисковой строительной задачи.\nДанные:\n${JSON.stringify(payload, null, 2)}\n\nВерни строго JSON: {"summary":string,"riskLevel":"low"|"medium"|"high","steps":[{"title":string,"ownerRole":string,"slaHours":number,"reason":string}]}\nМаксимум 6 шагов, только практичные действия.`,
+        },
+      ],
+      "Ты — руководитель строительного проекта. Предлагай конкретные антикризисные шаги с ответственными и SLA. Никакого markdown, только валидный JSON.",
+      1200,
+    );
+
+    const parsed = JSON.parse(aiText) as {
+      summary?: string;
+      riskLevel?: RiskLevel;
+      steps?: TaskRiskActionPlanStep[];
+    };
+    const safeSteps = normalizePlanSteps(parsed.steps);
+    const steps = safeSteps.length > 0 ? safeSteps : fallback;
+    const riskLevel = resolveRiskLevel(steps, parsed.riskLevel);
+    return {
+      source: safeSteps.length > 0 ? "ai" : "fallback",
+      summary:
+        String(parsed.summary ?? "").trim() ||
+        "Сгенерирован план стабилизации по текущим KPI задачи.",
+      riskLevel,
+      steps,
+      signals: riskInput,
+      nextBestAction: pickNextBestAction(steps, riskLevel),
+    };
+  } catch {
+    const riskLevel = resolveRiskLevel(fallback);
+    return {
+      source: "fallback",
+      summary: "AI временно недоступен, показан базовый антикризисный план.",
+      riskLevel,
+      steps: fallback,
+      signals: riskInput,
+      nextBestAction: pickNextBestAction(fallback, riskLevel),
+    };
+  }
+}
+
+async function getLatestSlaSchedule(companyId: number, taskId: number) {
+  const [row] = await db
+    .select()
+    .from(constructionTaskActivityTable)
+    .where(
+      and(
+        eq(constructionTaskActivityTable.companyId, companyId),
+        eq(constructionTaskActivityTable.taskId, taskId),
+        eq(constructionTaskActivityTable.action, "risk_plan_reminders_scheduled"),
+      ),
+    )
+    .orderBy(desc(constructionTaskActivityTable.createdAt))
+    .limit(1);
+
+  if (!row?.meta) return null;
+  try {
+    const meta = JSON.parse(String(row.meta)) as { steps?: ScheduledSlaStep[]; scheduledAt?: string };
+    if (!Array.isArray(meta.steps) || meta.steps.length === 0) return null;
+    return meta;
+  } catch {
+    return null;
+  }
+}
+
+async function dispatchSlaReminders(params: {
+  companyId: number;
+  taskId: number;
+  taskTitle: string;
+  assigneeId: number | null;
+  fromUserId: number;
+  steps: ScheduledSlaStep[];
+}): Promise<{ created: number; pending: number; recipientId: number }> {
+  const recipientId = params.assigneeId ?? params.fromUserId;
+  const now = Date.now();
+
+  const existing = await db
+    .select()
+    .from(notificationsTable)
+    .where(
+      and(
+        eq(notificationsTable.companyId, params.companyId),
+        eq(notificationsTable.userId, recipientId),
+        eq(notificationsTable.type, "task_sla_reminder"),
+      ),
+    );
+
+  const notifiedKeys = new Set<string>();
+  for (const n of existing) {
+    if (!n.metadata) continue;
+    try {
+      const parsed = JSON.parse(String(n.metadata));
+      if (Number(parsed?.taskId) === params.taskId) {
+        notifiedKeys.add(`${parsed.stepIndex}:${String(parsed.dueAt).slice(0, 16)}`);
+      }
+    } catch {
+      // ignore malformed metadata
+    }
+  }
+
+  let created = 0;
+  let pending = 0;
+  for (const step of params.steps) {
+    const dueMs = new Date(step.dueAt).getTime();
+    if (!Number.isFinite(dueMs)) continue;
+    if (now < dueMs) {
+      pending += 1;
+      continue;
+    }
+    const dedupeKey = `${step.stepIndex}:${step.dueAt.slice(0, 16)}`;
+    if (notifiedKeys.has(dedupeKey)) continue;
+
+    const overdueHours = Math.max(0, Math.round((now - dueMs) / (60 * 60 * 1000)));
+    await db.insert(notificationsTable).values({
+      companyId: params.companyId,
+      userId: recipientId,
+      fromUserId: params.fromUserId,
+      type: "task_sla_reminder",
+      title: overdueHours > 0
+        ? `SLA просрочен: ${params.taskTitle}`
+        : `SLA шага: ${params.taskTitle}`,
+      body: `${step.title} · ${step.ownerRole} · дедлайн ${new Date(step.dueAt).toLocaleString("ru-KG")}`,
+      message: step.reason,
+      icon: "clock",
+      color: overdueHours > 0 ? "rose" : "amber",
+      link: `/construction/tasks/${params.taskId}`,
+      metadata: JSON.stringify({
+        taskId: params.taskId,
+        stepIndex: step.stepIndex,
+        dueAt: step.dueAt,
+        slaHours: step.slaHours,
+      }),
+    } as any);
+    created += 1;
+    notifiedKeys.add(dedupeKey);
+  }
+
+  return { created, pending, recipientId };
+}
+
 function buildFallbackRiskPlan(input: {
   hasOverdue: boolean;
   overdueDays: number;
@@ -550,126 +828,116 @@ router.patch("/tasks/:id/progress-mode", async (req: AuthenticatedRequest, res):
 router.post("/tasks/:id/risk-action-plan", async (req: AuthenticatedRequest, res): Promise<void> => {
   const taskId = parseInt(req.params.id as string, 10);
   const companyId = req.scopedCompanyId!;
+  const plan = await generateRiskActionPlanForTask(companyId, taskId);
+  if (!plan) {
+    res.status(404).json({ error: "Задача не найдена" });
+    return;
+  }
+  res.json(plan);
+});
+
+/** GET /construction/tasks/:id/next-best-action */
+router.get("/tasks/:id/next-best-action", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const taskId = parseInt(req.params.id as string, 10);
+  const companyId = req.scopedCompanyId!;
+  const plan = await generateRiskActionPlanForTask(companyId, taskId);
+  if (!plan) {
+    res.status(404).json({ error: "Задача не найдена" });
+    return;
+  }
+  res.json({
+    nextBestAction: plan.nextBestAction,
+    riskLevel: plan.riskLevel,
+    summary: plan.summary,
+  });
+});
+
+/** POST /construction/tasks/:id/risk-plan-reminders — планировать SLA-напоминания */
+router.post("/tasks/:id/risk-plan-reminders", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const taskId = parseInt(req.params.id as string, 10);
+  const companyId = req.scopedCompanyId!;
+  const userId = req.userId!;
   const task = await loadTask(companyId, taskId);
   if (!task) {
     res.status(404).json({ error: "Задача не найдена" });
     return;
   }
 
-  const [checklist, dependencies] = await Promise.all([
-    db
-      .select()
-      .from(constructionTaskChecklistItemsTable)
-      .where(
-        and(
-          eq(constructionTaskChecklistItemsTable.taskId, taskId),
-          eq(constructionTaskChecklistItemsTable.companyId, companyId),
-        ),
-      ),
-    db
-      .select()
-      .from(constructionTaskDependenciesTable)
-      .where(
-        and(
-          eq(constructionTaskDependenciesTable.successorTaskId, taskId),
-          eq(constructionTaskDependenciesTable.companyId, companyId),
-        ),
-      ),
-  ]);
-
-  const now = Date.now();
-  const dueDateRaw = task.plannedEndDate ?? task.dueDate ?? null;
-  const dueAt = dueDateRaw ? new Date(String(dueDateRaw)).getTime() : null;
-  const overdueDays =
-    task.status !== "done" && dueAt && Number.isFinite(dueAt)
-      ? Math.max(0, Math.floor((now - dueAt) / (24 * 60 * 60 * 1000)))
-      : 0;
-  const checklistDone = checklist.filter((x) => x.isDone).length;
-  const checklistTotal = checklist.length;
-
-  const riskInput = {
-    hasOverdue: overdueDays > 0,
-    overdueDays,
-    blockedByCount: dependencies.length,
-    progressPercent: Number(task.progressPercent ?? 0),
-    checklistDone,
-    checklistTotal,
-    hasAssignee: Boolean(task.assignedTo),
-  };
-
-  const fallback = buildFallbackRiskPlan(riskInput);
-  const payload = {
-    task: {
-      id: task.id,
-      title: task.title,
-      status: task.status,
-      priority: task.priority,
-      progressPercent: riskInput.progressPercent,
-      dueDate: dueDateRaw,
-      assignedTo: task.assignedTo,
-    },
-    riskSignals: {
-      overdueDays,
-      blockedByCount: riskInput.blockedByCount,
-      checklistDone,
-      checklistTotal,
-    },
-  };
-
-  try {
-    const aiText = await chat(
-      [
-        {
-          role: "user",
-          content: `Сформируй JSON action plan для рисковой строительной задачи.\nДанные:\n${JSON.stringify(payload, null, 2)}\n\nВерни строго JSON: {"summary":string,"riskLevel":"low"|"medium"|"high","steps":[{"title":string,"ownerRole":string,"slaHours":number,"reason":string}]}\nМаксимум 6 шагов, только практичные действия.`,
-        },
-      ],
-      "Ты — руководитель строительного проекта. Предлагай конкретные антикризисные шаги с ответственными и SLA. Никакого markdown, только валидный JSON.",
-      1200,
-    );
-
-    const parsed = JSON.parse(aiText) as {
-      summary?: string;
-      riskLevel?: "low" | "medium" | "high";
-      steps?: TaskRiskActionPlanStep[];
-    };
-    const safeSteps = Array.isArray(parsed.steps)
-      ? parsed.steps
-          .map((s) => ({
-            title: String(s?.title ?? "").trim(),
-            ownerRole: String(s?.ownerRole ?? "").trim(),
-            slaHours: Math.max(1, Math.min(168, Number(s?.slaHours ?? 24) || 24)),
-            reason: String(s?.reason ?? "").trim(),
-          }))
-          .filter((s) => s.title && s.ownerRole && s.reason)
-          .slice(0, 6)
-      : [];
-
-    res.json({
-      source: safeSteps.length > 0 ? "ai" : "fallback",
-      summary:
-        String(parsed.summary ?? "").trim() ||
-        "Сгенерирован план стабилизации по текущим KPI задачи.",
-      riskLevel:
-        parsed.riskLevel && ["low", "medium", "high"].includes(parsed.riskLevel)
-          ? parsed.riskLevel
-          : overdueDays > 0 || dependencies.length > 0
-            ? "high"
-            : Number(task.progressPercent ?? 0) < 50
-              ? "medium"
-              : "low",
-      steps: safeSteps.length > 0 ? safeSteps : fallback,
-      signals: riskInput,
-    });
-  } catch {
-    res.json({
-      source: "fallback",
-      summary: "AI временно недоступен, показан базовый антикризисный план.",
-      riskLevel: overdueDays > 0 || dependencies.length > 0 ? "high" : "medium",
-      steps: fallback,
-      signals: riskInput,
-    });
+  const bodySteps = normalizePlanSteps(req.body?.steps);
+  const plan = bodySteps.length > 0
+    ? null
+    : await generateRiskActionPlanForTask(companyId, taskId);
+  const steps = bodySteps.length > 0 ? bodySteps : plan?.steps ?? [];
+  if (steps.length === 0) {
+    res.status(400).json({ error: "Нет шагов плана для напоминаний" });
+    return;
   }
+
+  const scheduledAt = new Date().toISOString();
+  const scheduledSteps: ScheduledSlaStep[] = steps.map((step, stepIndex) => ({
+    ...step,
+    stepIndex,
+    dueAt: new Date(Date.now() + step.slaHours * 60 * 60 * 1000).toISOString(),
+  }));
+
+  await logTaskActivity({
+    companyId,
+    taskId,
+    userId,
+    action: "risk_plan_reminders_scheduled",
+    meta: { scheduledAt, steps: scheduledSteps },
+  });
+
+  const dispatch = await dispatchSlaReminders({
+    companyId,
+    taskId,
+    taskTitle: task.title,
+    assigneeId: task.assignedTo,
+    fromUserId: userId,
+    steps: scheduledSteps,
+  });
+
+  res.json({
+    scheduled: scheduledSteps.length,
+    scheduledAt,
+    recipientId: dispatch.recipientId,
+    notificationsCreated: dispatch.created,
+    pending: dispatch.pending,
+  });
+});
+
+/** POST /construction/tasks/:id/sla-reminders/check — отправить наступившие SLA-напоминания */
+router.post("/tasks/:id/sla-reminders/check", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const taskId = parseInt(req.params.id as string, 10);
+  const companyId = req.scopedCompanyId!;
+  const userId = req.userId!;
+  const task = await loadTask(companyId, taskId);
+  if (!task) {
+    res.status(404).json({ error: "Задача не найдена" });
+    return;
+  }
+
+  const schedule = await getLatestSlaSchedule(companyId, taskId);
+  if (!schedule?.steps?.length) {
+    res.json({ created: 0, pending: 0, scheduled: 0 });
+    return;
+  }
+
+  const dispatch = await dispatchSlaReminders({
+    companyId,
+    taskId,
+    taskTitle: task.title,
+    assigneeId: task.assignedTo,
+    fromUserId: userId,
+    steps: schedule.steps,
+  });
+
+  res.json({
+    created: dispatch.created,
+    pending: dispatch.pending,
+    scheduled: schedule.steps.length,
+    scheduledAt: schedule.scheduledAt ?? null,
+  });
 });
 
 // ── TASK OVERDUE NOTIFICATIONS ───────────────────────────────────────────────

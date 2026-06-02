@@ -1,5 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, ArrowLeft, CalendarClock, Link2, Loader2, Sparkles } from "lucide-react";
+import {
+	AlertTriangle,
+	ArrowLeft,
+	Bell,
+	CalendarClock,
+	Link2,
+	Loader2,
+	Sparkles,
+	Zap,
+} from "lucide-react";
 import { useLocation } from "wouter";
 import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +26,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
+import { getApiErrorMessage } from "@/lib/api-error";
+import { useToast } from "@/hooks/use-toast";
 import { fetchTaskFull, taskKeys } from "./api";
 import { TaskActivityFeed } from "./components/TaskActivityFeed";
 import { TaskChecklistSection } from "./components/TaskChecklistSection";
@@ -40,6 +51,12 @@ const PRIORITY_LABELS: Record<string, string> = {
 	critical: "Критический",
 };
 
+const NBA_URGENCY_LABELS: Record<string, string> = {
+	critical: "Критично",
+	high: "Высокий",
+	normal: "Обычный",
+};
+
 function stagePath(
 	parent: { name: string } | null,
 	stage: { name: string } | null,
@@ -52,6 +69,7 @@ function stagePath(
 export function TaskDetailPage({ taskId }: { taskId: number }) {
 	const [, navigate] = useLocation();
 	const { user } = useAuth();
+	const { toast } = useToast();
 	const qc = useQueryClient();
 	const [rightTab, setRightTab] = useState<"comments" | "activity">("comments");
 
@@ -126,6 +144,37 @@ export function TaskDetailPage({ taskId }: { taskId: number }) {
 				.post(`/construction/tasks/${taskId}/risk-action-plan`)
 				.then((r) => r.data),
 	});
+	const checkSlaReminders = useMutation({
+		mutationFn: async () =>
+			api
+				.post(`/construction/tasks/${taskId}/sla-reminders/check`)
+				.then((r) => r.data),
+	});
+	const scheduleSlaReminders = useMutation({
+		mutationFn: async (steps: Array<{
+			title: string;
+			ownerRole: string;
+			slaHours: number;
+			reason: string;
+		}>) =>
+			api
+				.post(`/construction/tasks/${taskId}/risk-plan-reminders`, { steps })
+				.then((r) => r.data),
+		onSuccess: (data) => {
+			toast({
+				title: "SLA-напоминания запланированы",
+				description: `Шагов: ${data.scheduled}, отправлено сейчас: ${data.notificationsCreated}, ожидают: ${data.pending}`,
+			});
+			void checkSlaReminders.mutateAsync();
+		},
+		onError: (err) => {
+			toast({
+				title: "Не удалось поставить напоминания",
+				description: getApiErrorMessage(err),
+				variant: "destructive",
+			});
+		},
+	});
 
 	const task = data?.task;
 	const [descDraft, setDescDraft] = useState("");
@@ -134,6 +183,10 @@ export function TaskDetailPage({ taskId }: { taskId: number }) {
 		if (!task) return;
 		setDescDraft(task.description || "");
 	}, [task?.id, task?.description]);
+
+	useEffect(() => {
+		checkSlaReminders.mutate();
+	}, [taskId]);
 
 	if (isLoading || !data || !task) {
 		return <Skeleton className="h-[70vh] rounded-xl" />;
@@ -317,6 +370,59 @@ export function TaskDetailPage({ taskId }: { taskId: number }) {
 										<Badge variant="outline" className="text-[10px] uppercase tracking-wide">
 											Источник: {generateRiskPlan.data?.source === "ai" ? "AI" : "Fallback"}
 										</Badge>
+									</div>
+									{generateRiskPlan.data?.nextBestAction ? (
+										<div className="rounded-lg border border-emerald-200 bg-emerald-50/60 px-2.5 py-2">
+											<div className="flex items-center gap-1.5 mb-1">
+												<Zap className="w-3.5 h-3.5 text-emerald-600" />
+												<p className="text-xs font-semibold text-emerald-900">
+													Следующее лучшее действие
+												</p>
+												<Badge
+													variant="outline"
+													className="text-[10px] border-emerald-300 text-emerald-800"
+												>
+													{NBA_URGENCY_LABELS[
+														String(generateRiskPlan.data.nextBestAction.urgency || "normal")
+													] || "Обычный"}
+												</Badge>
+											</div>
+											<p className="text-xs font-medium text-gray-900">
+												{generateRiskPlan.data.nextBestAction.title}
+											</p>
+											<p className="text-[11px] text-gray-600 mt-0.5">
+												{generateRiskPlan.data.nextBestAction.ownerRole} · SLA{" "}
+												{Number(generateRiskPlan.data.nextBestAction.slaHours || 24)}ч · до{" "}
+												{new Date(
+													String(generateRiskPlan.data.nextBestAction.dueAt),
+												).toLocaleString("ru-KG")}
+											</p>
+											<p className="text-[11px] text-gray-500 mt-0.5">
+												{generateRiskPlan.data.nextBestAction.reason}
+											</p>
+										</div>
+									) : null}
+									<div className="flex flex-wrap gap-2">
+										<Button
+											type="button"
+											size="sm"
+											variant="secondary"
+											className="h-7 text-xs gap-1"
+											disabled={
+												scheduleSlaReminders.isPending ||
+												!Array.isArray(generateRiskPlan.data?.steps) ||
+												generateRiskPlan.data.steps.length === 0
+											}
+											onClick={() => {
+												if (!Array.isArray(generateRiskPlan.data?.steps)) return;
+												scheduleSlaReminders.mutate(generateRiskPlan.data.steps);
+											}}
+										>
+											<Bell className="w-3 h-3" />
+											{scheduleSlaReminders.isPending
+												? "Планируем..."
+												: "Поставить SLA-напоминания"}
+										</Button>
 									</div>
 									<p className="text-xs text-gray-700">
 										{String(generateRiskPlan.data?.summary || "")}
