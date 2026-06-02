@@ -1103,7 +1103,7 @@ export default function ConstructionTasks() {
 	const [tableGroupBy, setTableGroupBy] = useState<TableGroupBy>("none");
 	const [search, setSearch] = useState("");
 	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod("all"));
-	const [viewMode, setViewMode] = useState<"kanban" | "table" | "calendar" | "gantt">("kanban");
+	const [viewMode, setViewMode] = useState<"kanban" | "table" | "calendar" | "gantt">("calendar");
 	const [, navigate] = useLocation();
 
 	useEffect(() => {
