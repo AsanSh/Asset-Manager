@@ -9,6 +9,7 @@ import {
   constructionTaskActivityTable,
   constructionTaskAttachmentsTable,
   constructionTaskPhotosTable,
+  notificationsTable,
   taskCommentsTable,
 } from "../lib/db";
 import {
@@ -473,6 +474,83 @@ router.patch("/tasks/:id/progress-mode", async (req: AuthenticatedRequest, res):
   });
 
   res.json({ ...row, progressPercent: percent });
+});
+
+// ── TASK OVERDUE NOTIFICATIONS ───────────────────────────────────────────────
+
+router.post("/tasks/overdue/check", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
+  const userId = req.userId!;
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+
+  const overdue = await db
+    .select()
+    .from(constructionTasksTable)
+    .where(
+      and(
+        eq(constructionTasksTable.companyId, companyId),
+        eq(constructionTasksTable.assignedTo, userId),
+      ),
+    );
+
+  const overdueTasks = overdue.filter(
+    (t) =>
+      t.status !== "done" &&
+      !!t.dueDate &&
+      new Date(String(t.dueDate)) < now,
+  );
+
+  if (overdueTasks.length === 0) {
+    res.json({ created: 0, totalOverdue: 0 });
+    return;
+  }
+
+  const existing = await db
+    .select()
+    .from(notificationsTable)
+    .where(
+      and(
+        eq(notificationsTable.companyId, companyId),
+        eq(notificationsTable.userId, userId),
+        eq(notificationsTable.type, "task_overdue"),
+      ),
+    );
+
+  const notifiedToday = new Set<number>();
+  for (const n of existing) {
+    if (!n.metadata || !n.createdAt) continue;
+    const createdDate = new Date(n.createdAt).toISOString().slice(0, 10);
+    if (createdDate !== today) continue;
+    try {
+      const parsed = JSON.parse(String(n.metadata));
+      const taskId = Number(parsed?.taskId);
+      if (Number.isFinite(taskId)) notifiedToday.add(taskId);
+    } catch {
+      // ignore malformed metadata
+    }
+  }
+
+  let created = 0;
+  for (const task of overdueTasks) {
+    if (notifiedToday.has(task.id)) continue;
+    await db.insert(notificationsTable).values({
+      companyId,
+      userId,
+      fromUserId: userId,
+      type: "task_overdue",
+      title: `Просрочена задача: ${task.title}`,
+      body: `Срок истёк: ${task.dueDate}`,
+      message: `Срок истёк: ${task.dueDate}`,
+      icon: "alert-circle",
+      color: "rose",
+      link: `/construction/tasks/${task.id}`,
+      metadata: JSON.stringify({ taskId: task.id, dueDate: task.dueDate }),
+    } as any);
+    created += 1;
+  }
+
+  res.json({ created, totalOverdue: overdueTasks.length });
 });
 
 // ── TASK PHOTOS ──────────────────────────────────────────────────────────────

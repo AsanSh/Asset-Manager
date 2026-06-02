@@ -58,6 +58,8 @@ export interface TaskComment {
 	content: string;
 	commentType: string;
 	parentCommentId?: number | null;
+	mentions?: string | null;
+	attachmentIds?: string | null;
 	createdAt: string;
 }
 

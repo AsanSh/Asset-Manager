@@ -6,6 +6,7 @@ import {
   constructionProjectsTable,
   constructionStagesTable,
   constructionTasksTable,
+  constructionTaskAttachmentsTable,
   constructionWorkersTable,
   constructionContractorsTable,
   constructionContractorSpecializationsTable,
@@ -24,6 +25,7 @@ import { sendTaskAssignedEmail } from "../lib/email";
 import { logTaskActivity, taskFieldChanges } from "../lib/construction-task-work";
 import { constructionSalesContractsTable } from "../lib/db";
 import { ensureCounterpartyWithRole } from "../lib/counterparty-sync";
+import { uploadFile } from "../lib/file-storage";
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
 import { requireTenantCompany } from "../middleware/tenant";
 import { sendServerError } from "../lib/http-errors";
@@ -665,6 +667,52 @@ router.patch("/tasks/:id", async (req: AuthenticatedRequest, res): Promise<void>
     });
   }
 
+  const notifyRecipients = [row?.assignedTo, row?.createdBy].filter((v): v is number => typeof v === "number");
+  if (row && status !== undefined && String(status) !== String(prev.status)) {
+    await notifyTaskEvent({
+      companyId: req.scopedCompanyId!,
+      taskId: row.id,
+      fromUserId: req.userId!,
+      recipientIds: notifyRecipients,
+      type: "task_status_changed",
+      title: `Статус задачи изменён: ${row.title}`,
+      body: `${String(prev.status)} → ${String(status)}`,
+      color: "blue",
+      metadata: { taskId: row.id, from: prev.status, to: status },
+    });
+  }
+  if (row && dueDate !== undefined && String(dueDate || "") !== String(prev.dueDate || "")) {
+    await notifyTaskEvent({
+      companyId: req.scopedCompanyId!,
+      taskId: row.id,
+      fromUserId: req.userId!,
+      recipientIds: notifyRecipients,
+      type: "task_due_date_changed",
+      title: `Срок задачи изменён: ${row.title}`,
+      body: `Новый срок: ${dueDate || "без срока"}`,
+      color: "amber",
+      metadata: { taskId: row.id, previousDueDate: prev.dueDate, dueDate },
+    });
+  }
+  if (
+    row &&
+    row.status !== "done" &&
+    row.dueDate &&
+    new Date(row.dueDate) < new Date()
+  ) {
+    await notifyTaskEvent({
+      companyId: req.scopedCompanyId!,
+      taskId: row.id,
+      fromUserId: req.userId!,
+      recipientIds: notifyRecipients,
+      type: "task_overdue",
+      title: `Задача просрочена: ${row.title}`,
+      body: `Срок истёк: ${row.dueDate}`,
+      color: "rose",
+      metadata: { taskId: row.id, dueDate: row.dueDate },
+    });
+  }
+
   // Если назначение изменилось — уведомить нового исполнителя
   if (
     row && newAssignedTo !== undefined && newAssignedTo !== null &&
@@ -737,6 +785,43 @@ async function notifyTaskAssigned(params: {
     }
   } catch {
     // не валим основной запрос, если уведомление не отправилось
+  }
+}
+
+async function notifyTaskEvent(params: {
+  companyId: number;
+  taskId: number;
+  fromUserId: number;
+  recipientIds: number[];
+  type: string;
+  title: string;
+  body?: string | null;
+  color?: string;
+  metadata?: Record<string, unknown>;
+}): Promise<void> {
+  const { companyId, taskId, fromUserId, recipientIds, type, title, body, color, metadata } = params;
+  const unique = Array.from(new Set(recipientIds.filter((id) => Number.isFinite(id) && id !== fromUserId)));
+  if (unique.length === 0) return;
+  try {
+    await Promise.all(
+      unique.map((userId) =>
+        db.insert(notificationsTable).values({
+          companyId,
+          userId,
+          fromUserId,
+          type,
+          title,
+          body: body || null,
+          message: body || null,
+          icon: "clipboard-list",
+          color: color || "blue",
+          link: `/construction/tasks/${taskId}`,
+          metadata: metadata ? JSON.stringify(metadata) : null,
+        } as any),
+      ),
+    );
+  } catch {
+    // уведомления не должны ломать основной сценарий
   }
 }
 
@@ -1848,7 +1933,19 @@ router.post("/tasks/:id/comments", async (req: AuthenticatedRequest, res): Promi
     res.status(400).json({ error: "Invalid task id" });
     return;
   }
-  const { content, commentType } = req.body;
+  const {
+    content,
+    commentType,
+    parentCommentId,
+    mentions,
+    attachments,
+  } = req.body as {
+    content: string;
+    commentType?: string;
+    parentCommentId?: number | null;
+    mentions?: number[];
+    attachments?: Array<{ fileName: string; mimeType: string; base64: string }>;
+  };
   if (!content || typeof content !== "string" || !content.trim()) {
     res.status(400).json({ error: "Пустой комментарий" });
     return;
@@ -1890,12 +1987,70 @@ router.post("/tasks/:id/comments", async (req: AuthenticatedRequest, res): Promi
     }
   }
 
+  const [taskForComment] = await db.select()
+    .from(constructionTasksTable)
+    .where(and(
+      eq(constructionTasksTable.id, taskId),
+      eq(constructionTasksTable.companyId, req.scopedCompanyId!),
+    ));
+  if (!taskForComment) {
+    res.status(404).json({ error: "Задача не найдена" });
+    return;
+  }
+
+  const mentionIds = Array.isArray(mentions)
+    ? Array.from(
+      new Set(
+        mentions
+          .map((m) => Number(m))
+          .filter((m) => Number.isFinite(m) && m > 0),
+      ),
+    )
+    : [];
+
+  const uploadedAttachmentIds: number[] = [];
+  if (Array.isArray(attachments) && attachments.length > 0) {
+    for (const file of attachments.slice(0, 5)) {
+      if (!file?.fileName || !file?.mimeType || !file?.base64) continue;
+      const uploaded = await uploadFile({
+        fileName: String(file.fileName),
+        mimeType: String(file.mimeType),
+        base64: String(file.base64),
+        pathname: `construction-tasks/${req.scopedCompanyId!}/${taskId}/comments`,
+      });
+      if (uploaded.storage !== "blob") {
+        res.status(500).json({
+          error:
+            "Blob-хранилище не настроено. Пожалуйста, включите BLOB_READ_WRITE_TOKEN в Vercel env.",
+        });
+        return;
+      }
+      const raw = Buffer.from(String(file.base64), "base64");
+      const [attachment] = await db.insert(constructionTaskAttachmentsTable).values({
+        companyId: req.scopedCompanyId!,
+        taskId,
+        uploadedBy: req.userId!,
+        docType: String(file.mimeType).startsWith("image/") ? "photo" : "other",
+        fileUrl: uploaded.url,
+        fileName: String(file.fileName),
+        mimeType: String(file.mimeType),
+        fileSize: BigInt(raw.length),
+      }).returning();
+      if (attachment?.id) uploadedAttachmentIds.push(attachment.id);
+    }
+  }
+
   const [comment] = await db.insert(taskCommentsTable).values({
     companyId: req.scopedCompanyId!,
     taskId,
     userId: req.userId!,
     content: trimmed,
     commentType: type,
+    parentCommentId: parentCommentId ? Number(parentCommentId) : null,
+    mentions: mentionIds.length ? JSON.stringify(mentionIds) : null,
+    attachmentIds: uploadedAttachmentIds.length
+      ? JSON.stringify(uploadedAttachmentIds)
+      : null,
   }).returning();
 
   // Изменение статуса задачи в зависимости от типа
@@ -1910,6 +2065,44 @@ router.post("/tasks/:id/comments", async (req: AuthenticatedRequest, res): Promi
         eq(constructionTasksTable.companyId, req.scopedCompanyId!),
       ));
   }
+
+  await logTaskActivity({
+    companyId: req.scopedCompanyId!,
+    taskId,
+    userId: req.userId!,
+    action: "comment_added",
+    newValue: type,
+    meta: {
+      commentId: comment.id,
+      mentions: mentionIds,
+      attachmentIds: uploadedAttachmentIds,
+      parentCommentId: parentCommentId ?? null,
+    },
+  });
+
+  const recipients = [
+    taskForComment.createdBy,
+    taskForComment.assignedTo,
+    ...mentionIds,
+  ].filter((v): v is number => typeof v === "number");
+
+  await notifyTaskEvent({
+    companyId: req.scopedCompanyId!,
+    taskId,
+    fromUserId: req.userId!,
+    recipientIds: recipients,
+    type: mentionIds.length > 0 ? "task_comment_mention" : "task_comment",
+    title: mentionIds.length > 0
+      ? `Вас упомянули в задаче: ${taskForComment.title}`
+      : `Новый комментарий по задаче: ${taskForComment.title}`,
+    body: trimmed.slice(0, 220),
+    color: "blue",
+    metadata: {
+      taskId,
+      commentId: comment.id,
+      mentions: mentionIds,
+    },
+  });
 
   res.status(201).json(comment);
 });

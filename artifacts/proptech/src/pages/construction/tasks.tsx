@@ -707,6 +707,10 @@ export default function ConstructionTasks() {
 	const [viewMode, setViewMode] = useState<"kanban" | "table">("kanban");
 	const [, navigate] = useLocation();
 
+	useEffect(() => {
+		void api.post("/construction/tasks/overdue/check").catch(() => {});
+	}, []);
+
 	const { data: projects = [] } = useQuery<Project[]>({
 		queryKey: ["construction-projects"],
 		queryFn: () => api.get("/construction/projects/all").then((r) => r.data),

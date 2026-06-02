@@ -27,6 +27,7 @@
     { "idx": 22, "version": "7", "when": 1779980000000, "tag": "0022_marketplace_supplier_type_portal", "breakpoints": true },
     { "idx": 23, "version": "7", "when": 1779990000000, "tag": "0023_user_table_views", "breakpoints": true },
     { "idx": 24, "version": "7", "when": 1780000000000, "tag": "0024_construction_work_management", "breakpoints": true },
-    { "idx": 25, "version": "7", "when": 1780005000000, "tag": "0025_construction_task_photos_attachments", "breakpoints": true }
+    { "idx": 25, "version": "7", "when": 1780005000000, "tag": "0025_construction_task_photos_attachments", "breakpoints": true },
+    { "idx": 26, "version": "7", "when": 1780010000000, "tag": "0026_task_comments_mentions_attachments", "breakpoints": true }
   ]
 }

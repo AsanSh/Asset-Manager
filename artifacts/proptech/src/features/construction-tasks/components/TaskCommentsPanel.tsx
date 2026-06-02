@@ -1,5 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import {
+	Paperclip,
+	Reply,
 	CheckCircle2,
 	CornerDownLeft,
 	MessageSquare,
@@ -8,6 +10,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { taskKeys } from "../api";
@@ -20,12 +23,16 @@ function userName(u?: { firstName: string; lastName: string }) {
 
 function ChatBubble({
 	comment,
+	replyTarget,
 	user,
 	isMe,
+	onReply,
 }: {
 	comment: TaskComment;
+	replyTarget?: TaskComment;
 	user?: { firstName: string; lastName: string };
 	isMe: boolean;
+	onReply: (comment: TaskComment) => void;
 }) {
 	if (comment.commentType === "status_change") {
 		return (
@@ -47,6 +54,11 @@ function ChatBubble({
 			</div>
 			<div className={`max-w-[85%] ${isMe ? "text-right" : ""}`}>
 				<span className="text-[10px] text-gray-400 block mb-0.5">{name}</span>
+				{replyTarget && (
+					<div className="text-[10px] text-gray-500 mb-1">
+						↳ Ответ на: {replyTarget.content.slice(0, 60)}
+					</div>
+				)}
 				<div
 					className={`px-3 py-2 rounded-2xl text-sm inline-block ${
 						isMe
@@ -55,6 +67,16 @@ function ChatBubble({
 					}`}
 				>
 					{comment.content}
+				</div>
+				<div className={`mt-1 ${isMe ? "text-right" : "text-left"}`}>
+					<button
+						type="button"
+						className="inline-flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-700"
+						onClick={() => onReply(comment)}
+					>
+						<Reply className="w-3 h-3" />
+						Ответить
+					</button>
 				</div>
 			</div>
 		</div>
@@ -78,6 +100,9 @@ export function TaskCommentsPanel({
 	const [text, setText] = useState("");
 	const [sendType, setSendType] = useState<"message" | "result" | "return">("message");
 	const [sending, setSending] = useState(false);
+	const [replyTo, setReplyTo] = useState<TaskComment | null>(null);
+	const [files, setFiles] = useState<File[]>([]);
+	const fileInputRef = useRef<HTMLInputElement>(null);
 
 	const isCreator = currentUserId != null && Number(task.createdBy) === currentUserId;
 	const isAssignee =
@@ -87,16 +112,60 @@ export function TaskCommentsPanel({
 		bottomRef.current?.scrollIntoView({ behavior: "smooth" });
 	}, [comments]);
 
+	const extractMentionIdsFromText = (value: string): number[] => {
+		const names = Object.entries(userMap).map(([id, u]) => ({
+			id: Number(id),
+			full: `${u.firstName} ${u.lastName}`.trim().toLowerCase(),
+			first: u.firstName.toLowerCase(),
+			last: u.lastName.toLowerCase(),
+		}));
+		const mentionMatches = Array.from(value.matchAll(/@([\p{L}\d_.\- ]{2,60})/gu));
+		const ids = new Set<number>();
+		for (const m of mentionMatches) {
+			const token = m[1].trim().toLowerCase();
+			const hit = names.find(
+				(n) => n.full === token || n.first === token || n.last === token,
+			);
+			if (hit) ids.add(hit.id);
+		}
+		return Array.from(ids);
+	};
+
+	const fileToBase64 = async (file: File): Promise<string> =>
+		new Promise((resolve, reject) => {
+			const reader = new FileReader();
+			reader.onload = () => {
+				const result = reader.result as string;
+				resolve(result.includes(",") ? result.split(",")[1] : result);
+			};
+			reader.onerror = () => reject(new Error("Не удалось прочитать файл"));
+			reader.readAsDataURL(file);
+		});
+
 	const sendMessage = async () => {
 		if (!text.trim()) return;
 		setSending(true);
 		try {
+			const mentionIds = extractMentionIdsFromText(text);
+			const attachmentPayload = await Promise.all(
+				files.slice(0, 5).map(async (f) => ({
+					fileName: f.name,
+					mimeType: f.type || "application/octet-stream",
+					base64: await fileToBase64(f),
+				})),
+			);
 			await api.post(`/construction/tasks/${task.id}/comments`, {
 				content: text.trim(),
 				commentType: sendType,
+				parentCommentId: replyTo?.id ?? null,
+				mentions: mentionIds,
+				attachments: attachmentPayload,
 			});
 			setText("");
 			setSendType("message");
+			setReplyTo(null);
+			setFiles([]);
+			if (fileInputRef.current) fileInputRef.current.value = "";
 			qc.invalidateQueries({ queryKey: taskKeys.full(task.id) });
 			qc.invalidateQueries({ queryKey: taskKeys.all });
 		} catch {
@@ -119,8 +188,14 @@ export function TaskCommentsPanel({
 						<ChatBubble
 							key={c.id}
 							comment={c}
+							replyTarget={
+								c.parentCommentId
+									? comments.find((r) => r.id === c.parentCommentId)
+									: undefined
+							}
 							user={userMap[c.userId]}
 							isMe={c.userId === currentUserId}
+							onReply={setReplyTo}
 						/>
 					))
 				)}
@@ -156,6 +231,17 @@ export function TaskCommentsPanel({
 						})}
 				</div>
 				<div className="flex gap-2 items-end">
+					<input
+						ref={fileInputRef}
+						type="file"
+						multiple
+						accept=".pdf,.dwg,.xlsx,.xls,.docx,.doc,image/*"
+						className="hidden"
+						onChange={(e) => {
+							const picked = Array.from(e.target.files ?? []);
+							setFiles((prev) => [...prev, ...picked].slice(0, 5));
+						}}
+					/>
 					<textarea
 						className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none min-h-[40px] focus:outline-none focus:ring-2 focus:ring-amber-300"
 						placeholder="Комментарий..."
@@ -171,6 +257,14 @@ export function TaskCommentsPanel({
 					/>
 					<Button
 						type="button"
+						variant="outline"
+						className="h-10 w-10 p-0 rounded-xl"
+						onClick={() => fileInputRef.current?.click()}
+					>
+						<Paperclip className="w-4 h-4" />
+					</Button>
+					<Button
+						type="button"
 						onClick={() => void sendMessage()}
 						disabled={!text.trim() || sending}
 						className="bg-amber-500 hover:bg-orange-600 h-10 w-10 p-0 rounded-xl"
@@ -182,6 +276,30 @@ export function TaskCommentsPanel({
 						)}
 					</Button>
 				</div>
+				{replyTo && (
+					<div className="text-[11px] text-gray-500">
+						Ответ на: {replyTo.content.slice(0, 80)}{" "}
+						<button
+							type="button"
+							className="text-amber-600 hover:underline"
+							onClick={() => setReplyTo(null)}
+						>
+							Отменить
+						</button>
+					</div>
+				)}
+				{files.length > 0 && (
+					<div className="flex flex-wrap gap-1.5">
+						{files.map((f, idx) => (
+							<Badge key={`${f.name}-${idx}`} variant="secondary" className="text-[10px]">
+								{f.name}
+							</Badge>
+						))}
+					</div>
+				)}
+				<p className="text-[10px] text-gray-400">
+					Поддержка @упоминаний: используйте формат @Имя Фамилия
+				</p>
 			</div>
 		</div>
 	);
