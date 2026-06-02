@@ -20,6 +20,11 @@ import {
 } from "../lib/construction-task-work";
 import { uploadFile } from "../lib/file-storage";
 import { chat } from "../lib/ai";
+import {
+  dispatchSlaReminders,
+  getLatestSlaSchedule,
+  type ScheduledSlaStep,
+} from "../lib/task-sla-reminders";
 import { requireAuth, type AuthenticatedRequest } from "../middleware/auth";
 import { requireTenantCompany } from "../middleware/tenant";
 
@@ -39,11 +44,6 @@ type NextBestAction = TaskRiskActionPlanStep & {
   stepIndex: number;
   dueAt: string;
   urgency: "critical" | "high" | "normal";
-};
-
-type ScheduledSlaStep = TaskRiskActionPlanStep & {
-  stepIndex: number;
-  dueAt: string;
 };
 
 type RiskActionPlanResult = {
@@ -210,105 +210,6 @@ async function generateRiskActionPlanForTask(
       nextBestAction: pickNextBestAction(fallback, riskLevel),
     };
   }
-}
-
-async function getLatestSlaSchedule(companyId: number, taskId: number) {
-  const [row] = await db
-    .select()
-    .from(constructionTaskActivityTable)
-    .where(
-      and(
-        eq(constructionTaskActivityTable.companyId, companyId),
-        eq(constructionTaskActivityTable.taskId, taskId),
-        eq(constructionTaskActivityTable.action, "risk_plan_reminders_scheduled"),
-      ),
-    )
-    .orderBy(desc(constructionTaskActivityTable.createdAt))
-    .limit(1);
-
-  if (!row?.meta) return null;
-  try {
-    const meta = JSON.parse(String(row.meta)) as { steps?: ScheduledSlaStep[]; scheduledAt?: string };
-    if (!Array.isArray(meta.steps) || meta.steps.length === 0) return null;
-    return meta;
-  } catch {
-    return null;
-  }
-}
-
-async function dispatchSlaReminders(params: {
-  companyId: number;
-  taskId: number;
-  taskTitle: string;
-  assigneeId: number | null;
-  fromUserId: number;
-  steps: ScheduledSlaStep[];
-}): Promise<{ created: number; pending: number; recipientId: number }> {
-  const recipientId = params.assigneeId ?? params.fromUserId;
-  const now = Date.now();
-
-  const existing = await db
-    .select()
-    .from(notificationsTable)
-    .where(
-      and(
-        eq(notificationsTable.companyId, params.companyId),
-        eq(notificationsTable.userId, recipientId),
-        eq(notificationsTable.type, "task_sla_reminder"),
-      ),
-    );
-
-  const notifiedKeys = new Set<string>();
-  for (const n of existing) {
-    if (!n.metadata) continue;
-    try {
-      const parsed = JSON.parse(String(n.metadata));
-      if (Number(parsed?.taskId) === params.taskId) {
-        notifiedKeys.add(`${parsed.stepIndex}:${String(parsed.dueAt).slice(0, 16)}`);
-      }
-    } catch {
-      // ignore malformed metadata
-    }
-  }
-
-  let created = 0;
-  let pending = 0;
-  for (const step of params.steps) {
-    const dueMs = new Date(step.dueAt).getTime();
-    if (!Number.isFinite(dueMs)) continue;
-    if (now < dueMs) {
-      pending += 1;
-      continue;
-    }
-    const dedupeKey = `${step.stepIndex}:${step.dueAt.slice(0, 16)}`;
-    if (notifiedKeys.has(dedupeKey)) continue;
-
-    const overdueHours = Math.max(0, Math.round((now - dueMs) / (60 * 60 * 1000)));
-    await db.insert(notificationsTable).values({
-      companyId: params.companyId,
-      userId: recipientId,
-      fromUserId: params.fromUserId,
-      type: "task_sla_reminder",
-      title: overdueHours > 0
-        ? `SLA просрочен: ${params.taskTitle}`
-        : `SLA шага: ${params.taskTitle}`,
-      body: `${step.title} · ${step.ownerRole} · дедлайн ${new Date(step.dueAt).toLocaleString("ru-KG")}`,
-      message: step.reason,
-      icon: "clock",
-      color: overdueHours > 0 ? "rose" : "amber",
-      link: `/construction/tasks/${params.taskId}`,
-      metadata: JSON.stringify({
-        taskId: params.taskId,
-        stepIndex: step.stepIndex,
-        dueAt: step.dueAt,
-        slaHours: step.slaHours,
-      }),
-    } as any);
-    created += 1;
-    notifiedKeys.add(dedupeKey);
-  }
-
-  return { created, pending, recipientId };
 }
 
 function buildFallbackRiskPlan(input: {

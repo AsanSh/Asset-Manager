@@ -4,6 +4,7 @@ import helmet from "helmet";
 import { sql } from "drizzle-orm";
 import pinoHttp from "pino-http";
 import router from "./routes";
+import cronRouter from "./routes/cron";
 import { logger } from "./lib/logger";
 import { db } from "./lib/db";
 import { runMigrations } from "./lib/migrate";
@@ -109,6 +110,9 @@ app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 
 // XSS Protection - sanitize inputs
 app.use(xssProtection);
+
+// Vercel Cron (Bearer CRON_SECRET) — до rate limit
+app.use(cronRouter);
 
 // Apply rate limiters
 app.use("/auth/login", authLimiter);

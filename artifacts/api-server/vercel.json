@@ -4,6 +4,12 @@
   "installCommand": "npm install",
   "buildCommand": "node -e \"require('fs').accessSync('dist/index.mjs')\"",
   "rewrites": [{ "source": "/(.*)", "destination": "/api" }],
+  "crons": [
+    {
+      "path": "/cron/sla-reminders",
+      "schedule": "0 4 * * *"
+    }
+  ],
   "functions": {
     "api/index.ts": {
       "maxDuration": 120,
