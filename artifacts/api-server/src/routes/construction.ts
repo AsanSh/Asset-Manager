@@ -21,6 +21,7 @@ import {
   usersTable,
 } from "../lib/db";
 import { sendTaskAssignedEmail } from "../lib/email";
+import { logTaskActivity, taskFieldChanges } from "../lib/construction-task-work";
 import { constructionSalesContractsTable } from "../lib/db";
 import { ensureCounterpartyWithRole } from "../lib/counterparty-sync";
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
@@ -506,19 +507,62 @@ router.get("/tasks/:id", async (req: AuthenticatedRequest, res): Promise<void> =
 });
 
 router.post("/tasks", async (req: AuthenticatedRequest, res): Promise<void> => {
-  const { projectId, stageId, title, description, status, priority, dueDate, estimatedHours, assignedTo } = req.body;
+  const {
+    projectId, stageId, title, description, status, priority, dueDate, estimatedHours, assignedTo,
+    plannedStartDate, plannedEndDate, progressMode, progressPercent,
+  } = req.body;
+  const parsedProjectId = parseInt(String(projectId), 10);
+  const parsedStageId = stageId ? parseInt(String(stageId), 10) : null;
+  if (!Number.isFinite(parsedProjectId)) {
+    res.status(400).json({ error: "Укажите проект" });
+    return;
+  }
+  if (!parsedStageId || !Number.isFinite(parsedStageId)) {
+    res.status(400).json({ error: "Укажите этап или подэтап строительства" });
+    return;
+  }
+  const [stageRow] = await db.select().from(constructionStagesTable).where(and(
+    eq(constructionStagesTable.id, parsedStageId),
+    eq(constructionStagesTable.companyId, req.scopedCompanyId!),
+    eq(constructionStagesTable.projectId, parsedProjectId),
+  ));
+  if (!stageRow) {
+    res.status(400).json({ error: "Этап не найден или не относится к проекту" });
+    return;
+  }
+  if (!title || typeof title !== "string" || !title.trim()) {
+    res.status(400).json({ error: "Укажите название задачи" });
+    return;
+  }
   const assignedToId = assignedTo ? parseInt(assignedTo) : null;
+  const mode = progressMode || "checklist";
   const [row] = await db.insert(constructionTasksTable).values({
-    companyId: req.scopedCompanyId!, projectId, stageId: stageId || null, title, description,
-    status: status || "todo", priority: priority || "medium",
+    companyId: req.scopedCompanyId!,
+    projectId: parsedProjectId,
+    stageId: parsedStageId,
+    title: title.trim(),
+    description,
+    status: status || "todo",
+    priority: priority || "medium",
     dueDate: dueDate || null,
     estimatedHours: estimatedHours ? String(estimatedHours) : null,
     assignedTo: assignedToId,
     createdBy: req.userId ?? null,
+    progressMode: mode,
+    progressPercent: progressPercent != null ? Math.min(100, Math.max(0, parseInt(String(progressPercent), 10) || 0)) : 0,
+    plannedStartDate: plannedStartDate || null,
+    plannedEndDate: plannedEndDate || null,
+    workType: "construction",
   }).returning();
 
-  // Автоматический комментарий-системное сообщение о создании задачи
   if (row.id) {
+    await logTaskActivity({
+      companyId: req.scopedCompanyId!,
+      taskId: row.id,
+      userId: req.userId!,
+      action: "task_created",
+      newValue: row.title,
+    });
     await db.insert(taskCommentsTable).values({
       companyId: req.scopedCompanyId!,
       taskId: row.id,
@@ -548,22 +592,78 @@ router.post("/tasks", async (req: AuthenticatedRequest, res): Promise<void> => {
 
 router.patch("/tasks/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
-  const { title, description, status, priority, dueDate, estimatedHours, actualHours, completedAt, assignedTo } = req.body;
+  const {
+    title, description, status, priority, dueDate, estimatedHours, actualHours, completedAt, assignedTo,
+    stageId, plannedStartDate, plannedEndDate, actualStartDate, actualEndDate, progressPercent,
+  } = req.body;
 
-  // Текущая задача (для сравнения assignedTo)
   const [prev] = await db.select()
     .from(constructionTasksTable)
     .where(and(eq(constructionTasksTable.id, id), eq(constructionTasksTable.companyId, req.scopedCompanyId!)));
+  if (!prev) {
+    res.status(404).json({ error: "Задача не найдена" });
+    return;
+  }
+
+  if (stageId !== undefined) {
+    const parsedStageId = parseInt(String(stageId), 10);
+    if (!Number.isFinite(parsedStageId)) {
+      res.status(400).json({ error: "Укажите этап" });
+      return;
+    }
+    const [stageRow] = await db.select().from(constructionStagesTable).where(and(
+      eq(constructionStagesTable.id, parsedStageId),
+      eq(constructionStagesTable.companyId, req.scopedCompanyId!),
+      eq(constructionStagesTable.projectId, prev.projectId),
+    ));
+    if (!stageRow) {
+      res.status(400).json({ error: "Этап не найден" });
+      return;
+    }
+  }
 
   const newAssignedTo = assignedTo !== undefined ? (assignedTo ? parseInt(assignedTo) : null) : undefined;
 
+  const patchBody: Record<string, unknown> = {
+    title: title !== undefined ? String(title).trim() : undefined,
+    description,
+    status,
+    priority,
+    dueDate,
+    completedAt,
+    estimatedHours: estimatedHours !== undefined ? (estimatedHours ? String(estimatedHours) : null) : undefined,
+    actualHours: actualHours !== undefined ? (actualHours ? String(actualHours) : null) : undefined,
+    assignedTo: newAssignedTo,
+    stageId: stageId !== undefined ? parseInt(String(stageId), 10) : undefined,
+    plannedStartDate,
+    plannedEndDate,
+    actualStartDate,
+    actualEndDate,
+    progressPercent: progressPercent !== undefined
+      ? Math.min(100, Math.max(0, parseInt(String(progressPercent), 10) || 0))
+      : undefined,
+  };
+  const setFields = Object.fromEntries(
+    Object.entries(patchBody).filter(([, v]) => v !== undefined),
+  );
+
   const [row] = await db.update(constructionTasksTable)
-    .set({ title, description, status, priority, dueDate, completedAt,
-      estimatedHours: estimatedHours ? String(estimatedHours) : null,
-      actualHours: actualHours ? String(actualHours) : null,
-      assignedTo: newAssignedTo })
+    .set(setFields)
     .where(and(eq(constructionTasksTable.id, id), eq(constructionTasksTable.companyId, req.scopedCompanyId!)))
     .returning();
+
+  const changes = taskFieldChanges(prev, patchBody);
+  for (const ch of changes) {
+    await logTaskActivity({
+      companyId: req.scopedCompanyId!,
+      taskId: id,
+      userId: req.userId!,
+      action: "field_change",
+      fieldName: ch.field,
+      oldValue: ch.oldValue,
+      newValue: ch.newValue,
+    });
+  }
 
   // Если назначение изменилось — уведомить нового исполнителя
   if (

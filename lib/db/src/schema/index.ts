@@ -22,6 +22,11 @@ export * from "./distributions";
 export * from "./construction_projects";
 export * from "./construction_stages";
 export * from "./construction_tasks";
+export * from "./construction_task_subtasks";
+export * from "./construction_task_checklist_items";
+export * from "./construction_task_activity";
+export * from "./construction_task_attachments";
+export * from "./construction_task_photos";
 export * from "./construction_workers";
 export * from "./construction_contractors";
 export * from "./construction_contractor_specializations";
@@ -73,4 +78,5 @@ export * from "./payroll_approval_requests";
 export * from "./project_legal_entities";
 export * from "./supply";
 export * from "./global_catalog";
+export * from "./user_table_views";
 

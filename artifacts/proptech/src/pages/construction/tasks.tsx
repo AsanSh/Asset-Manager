@@ -86,9 +86,19 @@ interface Task {
 	createdBy?: number | null;
 	dueDate?: string | null;
 	estimatedHours?: string | null;
+	progressPercent?: number | null;
+	progressMode?: string | null;
+	plannedStartDate?: string | null;
+	plannedEndDate?: string | null;
 	createdAt: string;
 }
 interface Project { id: number; name: string; }
+interface Stage {
+	id: number;
+	projectId: number;
+	name: string;
+	parentStageId?: number | null;
+}
 interface ApiUser { id: number; firstName: string; lastName: string; email: string; }
 
 function userName(u: ApiUser) { return `${u.firstName} ${u.lastName}`.trim(); }
@@ -126,7 +136,16 @@ function normalizeTask(raw: Record<string, unknown>): Task {
 		...(raw as unknown as Task),
 		assignedTo: raw.assignedTo ?? raw.assigned_to ?? null,
 		createdBy: raw.createdBy ?? raw.created_by ?? null,
+		stageId: raw.stageId ?? raw.stage_id ?? null,
+		progressPercent: Number(raw.progressPercent ?? raw.progress_percent ?? 0),
 	} as unknown as Task;
+}
+
+function stageLabel(stage: Stage, parentMap: Record<number, Stage>): string {
+	if (stage.parentStageId && parentMap[stage.parentStageId]) {
+		return `${parentMap[stage.parentStageId].name} → ${stage.name}`;
+	}
+	return stage.name;
 }
 
 function TaskDialog({
@@ -145,40 +164,84 @@ function TaskDialog({
 
 	const [form, setForm] = useState({
 		projectId: String(init?.projectId || projects[0]?.id || ""),
+		stageId: String(init?.stageId || ""),
 		title: init?.title || "",
 		description: init?.description || "",
 		status: init?.status || "todo",
 		priority: init?.priority || "medium",
 		dueDate: init?.dueDate || "",
+		plannedStartDate: init?.plannedStartDate || "",
+		plannedEndDate: init?.plannedEndDate || "",
 		estimatedHours: init?.estimatedHours || "",
 		assignedTo: String(init?.assignedTo || ""),
 	});
 	const [loading, setLoading] = useState(false);
 	const set = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
 
+	const { data: stages = [] } = useQuery<Stage[]>({
+		queryKey: ["construction-stages", form.projectId],
+		queryFn: () =>
+			api
+				.get(`/construction/stages?projectId=${form.projectId}`)
+				.then((r) => r.data),
+		enabled: !!form.projectId && form.projectId !== "",
+	});
+
+	const parentStageMap = useMemo(() => {
+		const m: Record<number, Stage> = {};
+		for (const s of stages) {
+			if (!s.parentStageId) m[s.id] = s;
+		}
+		return m;
+	}, [stages]);
+
 	useEffect(() => {
 		if (!task) return;
 		if (task === "new") {
 			setForm({
 				projectId: String(projects[0]?.id || ""),
+				stageId: "",
 				title: "",
 				description: "",
 				status: "todo",
 				priority: "medium",
 				dueDate: "",
+				plannedStartDate: "",
+				plannedEndDate: "",
 				estimatedHours: "",
 				assignedTo: currentUserId ? String(currentUserId) : "",
 			});
 		} else {
 			const t = task as Task;
-			setForm({ projectId: String(t.projectId), title: t.title, description: t.description || "", status: t.status, priority: t.priority, dueDate: t.dueDate || "", estimatedHours: t.estimatedHours || "", assignedTo: String(t.assignedTo || "") });
+			setForm({
+				projectId: String(t.projectId),
+				stageId: String(t.stageId || ""),
+				title: t.title,
+				description: t.description || "",
+				status: t.status,
+				priority: t.priority,
+				dueDate: t.dueDate || "",
+				plannedStartDate: t.plannedStartDate || "",
+				plannedEndDate: t.plannedEndDate || "",
+				estimatedHours: t.estimatedHours || "",
+				assignedTo: String(t.assignedTo || ""),
+			});
 		}
-	}, [task]);
+	}, [task, projects, currentUserId]);
+
+	useEffect(() => {
+		if (task !== "new" || !stages.length || form.stageId) return;
+		const first = stages.find((s) => s.parentStageId) ?? stages[0];
+		if (first) setForm((p) => ({ ...p, stageId: String(first.id) }));
+	}, [stages, task, form.stageId]);
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
-		if (!form.title || !form.projectId) {
-			toast({ title: "Заполните обязательные поля", variant: "destructive" });
+		if (!form.title || !form.projectId || !form.stageId) {
+			toast({
+				title: "Заполните проект, этап и название",
+				variant: "destructive",
+			});
 			return;
 		}
 		setLoading(true);
@@ -190,6 +253,7 @@ function TaskDialog({
 				body: JSON.stringify({
 					...form,
 					projectId: parseInt(form.projectId, 10),
+					stageId: parseInt(form.stageId, 10),
 					assignedTo: form.assignedTo
 						? parseInt(form.assignedTo, 10)
 						: !isEdit && currentUserId
@@ -216,11 +280,29 @@ function TaskDialog({
 				<form onSubmit={handleSubmit} className="space-y-3">
 					<div>
 						<Label>Проект *</Label>
-						<Select value={form.projectId} onValueChange={(v) => set("projectId", v)}>
+						<Select
+							value={form.projectId}
+							onValueChange={(v) => {
+								setForm((p) => ({ ...p, projectId: v, stageId: "" }));
+							}}
+						>
 							<SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
 							<SelectContent>
 								{projects.map((p) => (
 									<SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</div>
+					<div>
+						<Label>Этап / подэтап *</Label>
+						<Select value={form.stageId} onValueChange={(v) => set("stageId", v)}>
+							<SelectTrigger className="mt-1"><SelectValue placeholder="Выберите этап" /></SelectTrigger>
+							<SelectContent>
+								{stages.map((s) => (
+									<SelectItem key={s.id} value={String(s.id)}>
+										{stageLabel(s, parentStageMap)}
+									</SelectItem>
 								))}
 							</SelectContent>
 						</Select>
@@ -259,6 +341,14 @@ function TaskDialog({
 						<div className="flex flex-col">
 							<Label className="leading-tight mb-1.5">Срок</Label>
 							<Input className="mt-auto" type="date" value={form.dueDate} onChange={(e) => set("dueDate", e.target.value)} />
+						</div>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">План начала</Label>
+							<Input className="mt-auto" type="date" value={form.plannedStartDate} onChange={(e) => set("plannedStartDate", e.target.value)} />
+						</div>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">План окончания</Label>
+							<Input className="mt-auto" type="date" value={form.plannedEndDate} onChange={(e) => set("plannedEndDate", e.target.value)} />
 						</div>
 						<div className="flex flex-col">
 							<Label className="leading-tight mb-1.5">Плановые часы</Label>
@@ -306,11 +396,12 @@ function Avatar({ name, size = "sm" }: { name: string; size?: "sm" | "md" }) {
 }
 
 function TaskCard({
-	task, userMap, projectMap, onEdit, onDelete, onStatusChange,
+	task, userMap, projectMap, stageLabelText, onEdit, onDelete, onStatusChange,
 }: {
 	task: Task;
 	userMap: Record<number, ApiUser>;
 	projectMap: Record<number, string>;
+	stageLabelText?: string;
 	onEdit: (t: Task) => void;
 	onDelete: (id: number) => void;
 	onStatusChange: (task: Task, status: string) => void;
@@ -410,11 +501,19 @@ function TaskCard({
 						{new Date(task.dueDate).toLocaleDateString("ru-KG", { day: "numeric", month: "short" })}
 					</span>
 				)}
+				{stageLabelText && (
+					<span className="text-[10px] text-indigo-600 truncate max-w-[120px]">
+						{stageLabelText}
+					</span>
+				)}
 				{projectMap[task.projectId] && (
 					<span className="text-[10px] text-gray-400 truncate max-w-[100px]">
 						{projectMap[task.projectId]}
 					</span>
 				)}
+				<span className="text-[10px] font-medium text-gray-600">
+					{Number(task.progressPercent) || 0}%
+				</span>
 				{assignee && (
 					<div className="ml-auto flex items-center gap-1">
 						<Avatar name={userName(assignee)} size="sm" />
@@ -446,11 +545,13 @@ function TasksTable({
 	tasks,
 	userMap,
 	projectMap,
+	stageLabelByTaskId,
 	onRowClick,
 }: {
 	tasks: Task[];
 	userMap: Record<number, ApiUser>;
 	projectMap: Record<number, string>;
+	stageLabelByTaskId: Record<number, string>;
 	onRowClick: (task: Task) => void;
 }) {
 	const columns = useMemo<ColumnDef<Task, unknown>[]>(
@@ -473,6 +574,26 @@ function TasksTable({
 					<div className="text-sm text-gray-600">
 						{projectMap[Number(getValue())] || "—"}
 					</div>
+				),
+			},
+			{
+				id: "stage",
+				header: "Этап",
+				meta: { exportLabel: "Этап" },
+				cell: ({ row }) => (
+					<div className="text-sm text-gray-600 max-w-[160px] truncate">
+						{stageLabelByTaskId[row.original.id] || "—"}
+					</div>
+				),
+			},
+			{
+				id: "progressPercent",
+				header: "Прогресс",
+				meta: { exportLabel: "Прогресс" },
+				cell: ({ row }) => (
+					<span className="text-sm font-medium tabular-nums">
+						{Number(row.original.progressPercent) || 0}%
+					</span>
 				),
 			},
 			{
@@ -552,7 +673,7 @@ function TasksTable({
 				},
 			},
 		],
-		[userMap, projectMap],
+		[userMap, projectMap, stageLabelByTaskId],
 	);
 
 	return (
@@ -601,6 +722,10 @@ export default function ConstructionTasks() {
 				(Array.isArray(r.data) ? r.data : []).map((t) => normalizeTask(t as Record<string, unknown>)),
 			),
 	});
+	const { data: allStages = [] } = useQuery<Stage[]>({
+		queryKey: ["construction-stages-all"],
+		queryFn: () => api.get("/construction/stages").then((r) => r.data),
+	});
 
 	const userMap = useMemo(
 		() => Object.fromEntries(usersRaw.map((u) => [u.id, u])),
@@ -610,6 +735,22 @@ export default function ConstructionTasks() {
 		() => Object.fromEntries(projects.map((p) => [p.id, p.name])),
 		[projects],
 	);
+
+	const stageLabelByTaskId = useMemo(() => {
+		const byId = Object.fromEntries(allStages.map((s) => [s.id, s]));
+		const parents: Record<number, Stage> = {};
+		for (const s of allStages) {
+			if (!s.parentStageId) parents[s.id] = s;
+		}
+		const out: Record<number, string> = {};
+		for (const t of tasks) {
+			const sid = t.stageId != null ? Number(t.stageId) : null;
+			if (sid && byId[sid]) {
+				out[t.id] = stageLabel(byId[sid], parents);
+			}
+		}
+		return out;
+	}, [allStages, tasks]);
 
 	const filterTasks = (list: Task[]) => {
 		return list.filter((t) => {
@@ -820,6 +961,7 @@ export default function ConstructionTasks() {
 											task={t}
 											userMap={userMap}
 											projectMap={projectMap}
+											stageLabelText={stageLabelByTaskId[t.id]}
 											onEdit={setDialog}
 											onDelete={handleDelete}
 											onStatusChange={handleStatusChange}
@@ -838,6 +980,7 @@ export default function ConstructionTasks() {
 					tasks={filteredTasks}
 					userMap={userMap}
 					projectMap={projectMap}
+					stageLabelByTaskId={stageLabelByTaskId}
 					onRowClick={(task) => navigate(`/construction/tasks/${task.id}`)}
 				/>
 			)}

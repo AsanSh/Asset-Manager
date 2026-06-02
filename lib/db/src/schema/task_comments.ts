@@ -10,6 +10,7 @@ export const taskCommentsTable = pgTable("task_comments", {
   content: text("content").notNull(),
   commentType: text("comment_type").notNull().default("message"),
   // message | status_change | return | result
+  parentCommentId: integer("parent_comment_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
