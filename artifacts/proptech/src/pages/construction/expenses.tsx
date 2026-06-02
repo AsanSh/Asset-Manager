@@ -116,11 +116,23 @@ interface BudgetItem {
 	category: string;
 }
 
-function expenseStageKey(expense: Expense | null): string {
-	if (!expense) return "";
-	if (expense.budgetItemId) return `budget:${expense.budgetItemId}`;
-	if (expense.stageId) return `stage:${expense.stageId}`;
-	return `misc:${expense.category || CATS[CATS.length - 1]}`;
+function expenseFormInit(expense: Expense | null, projects: Project[]) {
+	const row = expense;
+	return {
+		projectId: String(row?.projectId || projects[0]?.id || ""),
+		stageId: row?.stageId != null ? String(row.stageId) : "",
+		budgetItemId: row?.budgetItemId != null ? String(row.budgetItemId) : "none",
+		miscCategory: row?.stageId == null && row?.budgetItemId == null ? row?.category || CATS[CATS.length - 1] : "",
+		description: row?.description || "",
+		amount: row?.amount || "",
+		currency: row?.currency || "KGS",
+		exchangeRateSource: row?.exchangeRateSource || "nbkr",
+		exchangeRate: row?.exchangeRate || "1",
+		contractorId: String(row?.contractorId || "none"),
+		date: row?.date || new Date().toISOString().split("T")[0],
+		paymentMethod: row?.paymentMethod || "cash",
+		notes: row?.notes || "",
+	};
 }
 
 function ExpenseDialog({
@@ -139,38 +151,14 @@ function ExpenseDialog({
 	const { toast } = useToast();
 	const isEdit = expense && expense !== "new";
 	const init = isEdit ? (expense as Expense) : null;
-	const [form, setForm] = useState({
-		projectId: String(init?.projectId || projects[0]?.id || ""),
-		stageKey: expenseStageKey(init),
-		description: init?.description || "",
-		amount: init?.amount || "",
-		currency: init?.currency || "KGS",
-		exchangeRateSource: init?.exchangeRateSource || "nbkr",
-		exchangeRate: init?.exchangeRate || "1",
-		contractorId: String(init?.contractorId || "none"),
-		date: init?.date || new Date().toISOString().split("T")[0],
-		paymentMethod: init?.paymentMethod || "cash",
-		notes: init?.notes || "",
-	});
+	const [form, setForm] = useState(() => expenseFormInit(init, projects));
 	const [loading, setLoading] = useState(false);
 	const set = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
 
 	useEffect(() => {
 		if (!expense) return;
 		const row = expense === "new" ? null : expense;
-		setForm({
-			projectId: String(row?.projectId || projects[0]?.id || ""),
-			stageKey: expenseStageKey(row),
-			description: row?.description || "",
-			amount: row?.amount || "",
-			currency: row?.currency || "KGS",
-			exchangeRateSource: row?.exchangeRateSource || "nbkr",
-			exchangeRate: row?.exchangeRate || "1",
-			contractorId: String(row?.contractorId || "none"),
-			date: row?.date || new Date().toISOString().split("T")[0],
-			paymentMethod: row?.paymentMethod || "cash",
-			notes: row?.notes || "",
-		});
+		setForm(expenseFormInit(row, projects));
 	}, [expense, projects]);
 
 	const { data: projectStages = [] } = useQuery<WbsStage[]>({
@@ -196,42 +184,49 @@ function ExpenseDialog({
 		[projectStages],
 	);
 
+	const budgetForStage = useMemo(() => {
+		if (!form.stageId) return budgetItems;
+		const sid = Number(form.stageId);
+		return budgetItems.filter((b) => Number(b.stageId) === sid);
+	}, [budgetItems, form.stageId]);
+
 	useEffect(() => {
 		if (!form.projectId || isEdit) return;
-		if (stageOptions.length > 0 && !form.stageKey.startsWith("stage:")) {
-			setForm((p) => ({ ...p, stageKey: `stage:${stageOptions[0].id}` }));
+		if (stageOptions.length > 0 && !form.stageId) {
+			setForm((p) => ({ ...p, stageId: String(stageOptions[0].id), miscCategory: "" }));
 		}
-	}, [form.projectId, stageOptions, isEdit, form.stageKey]);
+	}, [form.projectId, stageOptions, isEdit, form.stageId]);
+
+	useEffect(() => {
+		if (form.budgetItemId === "none") return;
+		const item = budgetItems.find((b) => String(b.id) === form.budgetItemId);
+		if (item?.stageId != null && String(item.stageId) !== form.stageId) {
+			setForm((p) => ({ ...p, stageId: String(item.stageId) }));
+		}
+	}, [form.budgetItemId, form.stageId, budgetItems]);
 
 	const amount = parseFloat(form.amount || "0");
 	const rate = parseFloat(form.exchangeRate || "1");
 	const amountKgs = form.currency === "KGS" ? amount : amount * rate;
 
 	const resolveStagePayload = () => {
-		const key = form.stageKey;
-		if (key.startsWith("stage:")) {
-			const stageId = parseInt(key.slice(6), 10);
-			const stage = projectStages.find((s) => s.id === stageId);
+		if (stageOptions.length === 0) {
 			return {
-				stageId,
+				stageId: null as number | null,
 				budgetItemId: null as number | null,
-				category: stage?.name || "Этап WBS",
+				category: form.miscCategory || CATS[CATS.length - 1],
 			};
 		}
-		if (key.startsWith("budget:")) {
-			const budgetItemId = parseInt(key.slice(7), 10);
-			const item = budgetItems.find((b) => b.id === budgetItemId);
-			return {
-				stageId: item?.stageId != null ? Number(item.stageId) : null,
-				budgetItemId,
-				category: item?.name || item?.category || "Статья бюджета",
-			};
-		}
-		return {
-			stageId: null as number | null,
-			budgetItemId: null as number | null,
-			category: key.startsWith("misc:") ? key.slice(5) : CATS[CATS.length - 1],
-		};
+		const stageId = form.stageId ? parseInt(form.stageId, 10) : null;
+		const stage = projectStages.find((s) => s.id === stageId);
+		const budgetItemId =
+			form.budgetItemId !== "none" ? parseInt(form.budgetItemId, 10) : null;
+		const item = budgetItemId
+			? budgetItems.find((b) => b.id === budgetItemId)
+			: null;
+		const category =
+			item?.name || item?.category || stage?.name || "Этап WBS";
+		return { stageId, budgetItemId, category };
 	};
 
 	const handleSubmit = async (e: React.FormEvent) => {
@@ -240,14 +235,10 @@ function ExpenseDialog({
 			toast({ title: "Заполните обязательные поля", variant: "destructive" });
 			return;
 		}
-		if (
-			stageOptions.length > 0 &&
-			!form.stageKey.startsWith("stage:") &&
-			!form.stageKey.startsWith("budget:")
-		) {
+		if (stageOptions.length > 0 && !form.stageId) {
 			toast({
-				title: "Выберите этап WBS или статью бюджета",
-				description: "Расход должен быть привязан к этапу, чтобы отразиться в Ганте и плане проекта.",
+				title: "Выберите этап WBS",
+				description: "Расход привязывается к этапу — освоение попадёт в Гант и план проекта. Статья бюджета опциональна.",
 				variant: "destructive",
 			});
 			return;
@@ -319,48 +310,81 @@ function ExpenseDialog({
 								</SelectContent>
 							</Select>
 						</div>
-						<div className="flex flex-col col-span-2">
-							<Label className="leading-tight mb-1.5">Этап WBS / статья *</Label>
-							<Select
-								value={form.stageKey || undefined}
-								onValueChange={(v) => set("stageKey", v)}
-							>
-								<SelectTrigger className="mt-auto">
-									<SelectValue placeholder="Выберите этап или статью бюджета" />
-								</SelectTrigger>
-								<SelectContent>
-									{stageOptions.length === 0 && budgetItems.length === 0 ? (
-										<SelectItem value={`misc:${CATS[CATS.length - 1]}`}>
-											{CATS[CATS.length - 1]} (без WBS)
-										</SelectItem>
-									) : (
-										<>
+						{stageOptions.length === 0 ? (
+							<div className="flex flex-col col-span-2">
+								<Label className="leading-tight mb-1.5">Категория</Label>
+								<Select
+									value={form.miscCategory || CATS[CATS.length - 1]}
+									onValueChange={(v) => set("miscCategory", v)}
+								>
+									<SelectTrigger className="mt-auto">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										{CATS.map((c) => (
+											<SelectItem key={c} value={c}>
+												{c}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+								<p className="text-[10px] text-gray-400 mt-1">
+									В проекте нет этапов WBS — расход не попадёт в Гант
+								</p>
+							</div>
+						) : (
+							<>
+								<div className="flex flex-col col-span-2">
+									<Label className="leading-tight mb-1.5">Этап WBS *</Label>
+									<Select
+										value={form.stageId || undefined}
+										onValueChange={(v) =>
+											setForm((p) => ({
+												...p,
+												stageId: v,
+												budgetItemId: "none",
+											}))
+										}
+									>
+										<SelectTrigger className="mt-auto">
+											<SelectValue placeholder="Этап для Ганта и освоения" />
+										</SelectTrigger>
+										<SelectContent>
 											{stageOptions.map((node) => (
-												<SelectItem key={`stage-${node.id}`} value={`stage:${node.id}`}>
+												<SelectItem key={node.id} value={String(node.id)}>
 													<span style={{ paddingLeft: node.depth * 12 }}>
 														{node.wbsCode} · {node.stage.name}
 													</span>
 												</SelectItem>
 											))}
-											{budgetItems.map((item) => (
-												<SelectItem key={`budget-${item.id}`} value={`budget:${item.id}`}>
-													Статья: {item.name}
+										</SelectContent>
+									</Select>
+								</div>
+								<div className="flex flex-col col-span-2">
+									<Label className="leading-tight mb-1.5">Статья бюджета</Label>
+									<Select
+										value={form.budgetItemId}
+										onValueChange={(v) => set("budgetItemId", v)}
+									>
+										<SelectTrigger className="mt-auto">
+											<SelectValue placeholder="Необязательно" />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="none">— без статьи —</SelectItem>
+											{budgetForStage.map((item) => (
+												<SelectItem key={item.id} value={String(item.id)}>
+													{item.name}
 													{item.category ? ` (${item.category})` : ""}
 												</SelectItem>
 											))}
-											<SelectItem value={`misc:${CATS[CATS.length - 1]}`}>
-												{CATS[CATS.length - 1]} — без привязки к этапу
-											</SelectItem>
-										</>
-									)}
-								</SelectContent>
-							</Select>
-							{stageOptions.length > 0 && (
-								<p className="text-[10px] text-gray-400 mt-1">
-									Расход попадёт в освоение этапа и отобразится в Ганте и плане проекта
-								</p>
-							)}
-						</div>
+										</SelectContent>
+									</Select>
+									<p className="text-[10px] text-gray-400 mt-1">
+										Этап — для WBS и Ганта; статья — детализация в бюджете проекта
+									</p>
+								</div>
+							</>
+						)}
 						<div className="col-span-2 flex flex-col">
 							<Label className="leading-tight mb-1.5">Описание *</Label>
 							<Input
@@ -524,6 +548,10 @@ export default function ConstructionExpenses() {
 	const initialStageId = urlParams.get("stageId");
 
 	const [dialog, setDialog] = useState<Expense | null | "new">(null);
+
+	useEffect(() => {
+		if (urlParams.get("create") === "1") setDialog("new");
+	}, [urlParams]);
 	const [projectFilter, setProjectFilter] = useState(initialProject);
 	const [stageFilter, setStageFilter] = useState<string>(initialStageId || "all");
 	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod());

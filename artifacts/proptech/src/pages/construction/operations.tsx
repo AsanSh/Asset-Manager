@@ -8,14 +8,19 @@ import {
 	TrendingUp,
 	Upload,
 	X,
+	Zap,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearch } from "wouter";
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-table";
 import { defaultPeriod, inPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { PageShell } from "@/components/am/PageShell";
+import { Breadcrumbs } from "@/components/am/Breadcrumbs";
+import { OperationQuickWizard } from "@/components/construction/operation-quick-wizard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -80,6 +85,23 @@ export default function ConstructionOperations() {
 	const [filterType, setFilterType] = useState<
 		"all" | "income" | "expense" | "transfer"
 	>("all");
+	const urlSearch = useSearch();
+	const urlParams = useMemo(() => new URLSearchParams(urlSearch), [urlSearch]);
+	const [quickWizardOpen, setQuickWizardOpen] = useState(false);
+	const [quickWizardType, setQuickWizardType] = useState<"income" | "expense" | "transfer">(
+		"expense",
+	);
+
+	useEffect(() => {
+		const quick = urlParams.get("quick");
+		if (quick === "income") {
+			setQuickWizardType("income");
+			setQuickWizardOpen(true);
+		} else if (quick === "expense") {
+			setQuickWizardType("expense");
+			setQuickWizardOpen(true);
+		}
+	}, [urlParams]);
 	const [form, setForm] = useState({
 		type: "expense" as "income" | "expense" | "transfer",
 		category: "",
@@ -131,6 +153,7 @@ export default function ConstructionOperations() {
 			qc.invalidateQueries({ queryKey: ["construction-accounts"] });
 			toast.success(variables.id ? "Операция обновлена" : "Операция добавлена");
 			closePanel();
+			setQuickWizardOpen(false);
 		},
 		onError: (err: Error) => {
 			toast.error(err.message || "Ошибка сохранения операции");
@@ -374,25 +397,31 @@ export default function ConstructionOperations() {
 
 
 	return (
-		<div className="flex h-full relative">
+		<PageShell.List
+			title="Операции"
+			subtitle="Управление приходами, расходами и переводами. Нажмите на строку — откроется редактирование."
+			breadcrumb={
+				<Breadcrumbs
+					items={[
+						{ label: "Строительство", href: "/dashboard?tab=construction" },
+						{ label: "Операции" },
+					]}
+				/>
+			}
+		>
+		<div className="flex h-full relative -mt-2">
 			{/* Main */}
 			<div
 				className={`flex-1 flex flex-col min-w-0 transition-all duration-200 ${panelType ? "mr-80" : ""}`}
 			>
-				<div className="mb-6">
-					<h1 className="text-2xl font-bold text-gray-900">
-						Операции
-					</h1>
-					<p className="text-sm text-gray-500 mt-1">
-						Управление приходами, расходами и переводами.{" "}
-						<span className="text-gray-400">
-							Нажмите на строку в таблице — откроется редактирование.
-						</span>
-					</p>
-				</div>
-
 				{/* Action buttons */}
-				<div className="flex items-center gap-2 mb-4">
+				<div className="flex items-center gap-2 mb-4 flex-wrap">
+					<Button
+						onClick={() => setQuickWizardOpen(true)}
+						className="h-9 px-4 text-sm font-medium rounded-xl bg-amber-500 hover:bg-amber-600 text-white"
+					>
+						<Zap className="w-4 h-4 mr-2" /> Быстрая операция
+					</Button>
 					<Button
 						onClick={() => openPanel("income")}
 						variant="outline"
@@ -897,5 +926,21 @@ export default function ConstructionOperations() {
 					document.body,
 				)}
 		</div>
+		<OperationQuickWizard
+			open={quickWizardOpen}
+			onOpenChange={setQuickWizardOpen}
+			initialType={quickWizardType}
+			accounts={accounts.map((a: { id: number; name: string }) => ({
+				id: a.id,
+				name: a.name,
+			}))}
+			projects={projects.map((p: { id: number; name: string }) => ({
+				id: p.id,
+				name: p.name,
+			}))}
+			isPending={saveMut.isPending}
+			onSubmit={(payload) => saveMut.mutate({ id: null, data: payload })}
+		/>
+		</PageShell.List>
 	);
 }

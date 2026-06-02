@@ -57,6 +57,7 @@ import {
 } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useSearch } from "wouter";
+import { useFinanceHotkeys } from "@/hooks/use-finance-hotkeys";
 import ChatPanel from "@/components/chat-panel";
 import {
 	CommandPalette,
@@ -679,6 +680,7 @@ export function Layout({ children }: { children: ReactNode }) {
 	const [createOpen, setCreateOpen] = useState(false);
 	const [mobileNavOpen, setMobileNavOpen] = useState(false);
 	const { open: commandOpen, setOpen: setCommandOpen } = useCommandPalette();
+	useFinanceHotkeys(!!user);
 	const modulePickerRef = useRef<HTMLDivElement>(null);
 	const createRef = useRef<HTMLDivElement>(null);
 
