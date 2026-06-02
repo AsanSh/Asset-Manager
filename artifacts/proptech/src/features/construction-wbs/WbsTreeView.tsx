@@ -20,7 +20,7 @@ import { GripVertical, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { inferWbsStatus, statusMeta } from "./status";
+import { inferStageStatus, statusMeta } from "./status";
 import {
 	WBS_INDENT_PX,
 	flatToReorderPayload,
@@ -53,7 +53,7 @@ function WbsRowContent({
 	onAddSub: (s: WbsStage) => void;
 	isOverlay?: boolean;
 }) {
-	const st = inferWbsStatus(node.stage, node.metrics.issueCount);
+	const st = inferStageStatus(node.stage, node.metrics);
 	const meta = statusMeta(st);
 	const behind = st === "behind";
 
@@ -87,6 +87,16 @@ function WbsRowContent({
 				</span>
 				<span>
 					Освоено: <span className="font-semibold text-amber-700">{fmt(node.metrics.spentKgs)}</span>
+				</span>
+				<span>
+					Остаток:{" "}
+					<span
+						className={`font-semibold ${
+							node.metrics.remainderKgs >= 0 ? "text-emerald-700" : "text-rose-700"
+						}`}
+					>
+						{fmt(node.metrics.remainderKgs)}
+					</span>
 				</span>
 			</div>
 			<div className="flex items-center gap-2 text-[10px] text-gray-500 shrink-0">

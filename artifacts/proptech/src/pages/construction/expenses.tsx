@@ -1,7 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Receipt, Trash2, TrendingDown } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
+import { useSearch } from "wouter";
 import { DataTable } from "@/components/data-table";
 import { defaultPeriod, inPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +23,8 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { flattenWbsTree } from "@/features/construction-wbs/tree";
+import type { WbsStage } from "@/features/construction-wbs/types";
 import { api } from "@/lib/api";
 import { getApiBase } from "@/lib/api-base";
 
@@ -79,6 +82,7 @@ interface Expense {
 	id: number;
 	projectId: number;
 	stageId?: number;
+	budgetItemId?: number;
 	category: string;
 	description: string;
 	amount: string;
@@ -93,6 +97,7 @@ interface Expense {
 	notes?: string;
 	contractorName?: string;
 	projectName?: string;
+	stageName?: string;
 	createdAt: string;
 }
 interface Project {
@@ -102,6 +107,20 @@ interface Project {
 interface Contractor {
 	id: number;
 	fullName: string;
+}
+interface BudgetItem {
+	id: number;
+	projectId: number;
+	stageId?: number | null;
+	name: string;
+	category: string;
+}
+
+function expenseStageKey(expense: Expense | null): string {
+	if (!expense) return "";
+	if (expense.budgetItemId) return `budget:${expense.budgetItemId}`;
+	if (expense.stageId) return `stage:${expense.stageId}`;
+	return `misc:${expense.category || CATS[CATS.length - 1]}`;
 }
 
 function ExpenseDialog({
@@ -122,7 +141,7 @@ function ExpenseDialog({
 	const init = isEdit ? (expense as Expense) : null;
 	const [form, setForm] = useState({
 		projectId: String(init?.projectId || projects[0]?.id || ""),
-		category: init?.category || CATS[0],
+		stageKey: expenseStageKey(init),
 		description: init?.description || "",
 		amount: init?.amount || "",
 		currency: init?.currency || "KGS",
@@ -136,9 +155,84 @@ function ExpenseDialog({
 	const [loading, setLoading] = useState(false);
 	const set = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
 
+	useEffect(() => {
+		if (!expense) return;
+		const row = expense === "new" ? null : expense;
+		setForm({
+			projectId: String(row?.projectId || projects[0]?.id || ""),
+			stageKey: expenseStageKey(row),
+			description: row?.description || "",
+			amount: row?.amount || "",
+			currency: row?.currency || "KGS",
+			exchangeRateSource: row?.exchangeRateSource || "nbkr",
+			exchangeRate: row?.exchangeRate || "1",
+			contractorId: String(row?.contractorId || "none"),
+			date: row?.date || new Date().toISOString().split("T")[0],
+			paymentMethod: row?.paymentMethod || "cash",
+			notes: row?.notes || "",
+		});
+	}, [expense, projects]);
+
+	const { data: projectStages = [] } = useQuery<WbsStage[]>({
+		queryKey: ["construction-stages", form.projectId],
+		enabled: !!form.projectId,
+		queryFn: () =>
+			api
+				.get("/construction/stages", { params: { projectId: form.projectId } })
+				.then((r) => (Array.isArray(r.data) ? r.data : [])),
+	});
+
+	const { data: budgetItems = [] } = useQuery<BudgetItem[]>({
+		queryKey: ["construction-budget", form.projectId],
+		enabled: !!form.projectId,
+		queryFn: () =>
+			api
+				.get("/construction/budget", { params: { projectId: form.projectId } })
+				.then((r) => (Array.isArray(r.data) ? r.data : [])),
+	});
+
+	const stageOptions = useMemo(
+		() => flattenWbsTree(projectStages, new Map()),
+		[projectStages],
+	);
+
+	useEffect(() => {
+		if (!form.projectId || isEdit) return;
+		if (stageOptions.length > 0 && !form.stageKey.startsWith("stage:")) {
+			setForm((p) => ({ ...p, stageKey: `stage:${stageOptions[0].id}` }));
+		}
+	}, [form.projectId, stageOptions, isEdit, form.stageKey]);
+
 	const amount = parseFloat(form.amount || "0");
 	const rate = parseFloat(form.exchangeRate || "1");
 	const amountKgs = form.currency === "KGS" ? amount : amount * rate;
+
+	const resolveStagePayload = () => {
+		const key = form.stageKey;
+		if (key.startsWith("stage:")) {
+			const stageId = parseInt(key.slice(6), 10);
+			const stage = projectStages.find((s) => s.id === stageId);
+			return {
+				stageId,
+				budgetItemId: null as number | null,
+				category: stage?.name || "Этап WBS",
+			};
+		}
+		if (key.startsWith("budget:")) {
+			const budgetItemId = parseInt(key.slice(7), 10);
+			const item = budgetItems.find((b) => b.id === budgetItemId);
+			return {
+				stageId: item?.stageId != null ? Number(item.stageId) : null,
+				budgetItemId,
+				category: item?.name || item?.category || "Статья бюджета",
+			};
+		}
+		return {
+			stageId: null as number | null,
+			budgetItemId: null as number | null,
+			category: key.startsWith("misc:") ? key.slice(5) : CATS[CATS.length - 1],
+		};
+	};
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -146,20 +240,47 @@ function ExpenseDialog({
 			toast({ title: "Заполните обязательные поля", variant: "destructive" });
 			return;
 		}
+		if (
+			stageOptions.length > 0 &&
+			!form.stageKey.startsWith("stage:") &&
+			!form.stageKey.startsWith("budget:")
+		) {
+			toast({
+				title: "Выберите этап WBS или статью бюджета",
+				description: "Расход должен быть привязан к этапу, чтобы отразиться в Ганте и плане проекта.",
+				variant: "destructive",
+			});
+			return;
+		}
+		const { stageId, budgetItemId, category } = resolveStagePayload();
 		setLoading(true);
 		try {
 			const url = isEdit
 				? `${BASE}/construction/expenses/${init?.id}`
 				: `${BASE}/construction/expenses`;
-			await fetch(url, {
+			const res = await fetch(url, {
 				method: isEdit ? "PATCH" : "POST",
 				headers: ah(),
 				body: JSON.stringify({
-					...form,
 					projectId: parseInt(form.projectId, 10),
-					contractorId: form.contractorId && form.contractorId !== "none" ? parseInt(form.contractorId, 10) : null,
+					stageId,
+					budgetItemId,
+					category,
+					description: form.description,
+					amount: form.amount,
+					currency: form.currency,
+					exchangeRateSource: form.exchangeRateSource,
+					exchangeRate: form.exchangeRate,
+					contractorId:
+						form.contractorId && form.contractorId !== "none"
+							? parseInt(form.contractorId, 10)
+							: null,
+					date: form.date,
+					paymentMethod: form.paymentMethod,
+					notes: form.notes,
 				}),
 			});
+			if (!res.ok) throw new Error("save failed");
 			toast({ title: isEdit ? "Расход обновлён" : "Расход добавлен" });
 			onSaved();
 			onClose();
@@ -198,23 +319,47 @@ function ExpenseDialog({
 								</SelectContent>
 							</Select>
 						</div>
-						<div className="flex flex-col">
-							<Label className="leading-tight mb-1.5">Категория *</Label>
+						<div className="flex flex-col col-span-2">
+							<Label className="leading-tight mb-1.5">Этап WBS / статья *</Label>
 							<Select
-								value={form.category}
-								onValueChange={(v) => set("category", v)}
+								value={form.stageKey || undefined}
+								onValueChange={(v) => set("stageKey", v)}
 							>
 								<SelectTrigger className="mt-auto">
-									<SelectValue />
+									<SelectValue placeholder="Выберите этап или статью бюджета" />
 								</SelectTrigger>
 								<SelectContent>
-									{CATS.map((c) => (
-										<SelectItem key={c} value={c}>
-											{c}
+									{stageOptions.length === 0 && budgetItems.length === 0 ? (
+										<SelectItem value={`misc:${CATS[CATS.length - 1]}`}>
+											{CATS[CATS.length - 1]} (без WBS)
 										</SelectItem>
-									))}
+									) : (
+										<>
+											{stageOptions.map((node) => (
+												<SelectItem key={`stage-${node.id}`} value={`stage:${node.id}`}>
+													<span style={{ paddingLeft: node.depth * 12 }}>
+														{node.wbsCode} · {node.stage.name}
+													</span>
+												</SelectItem>
+											))}
+											{budgetItems.map((item) => (
+												<SelectItem key={`budget-${item.id}`} value={`budget:${item.id}`}>
+													Статья: {item.name}
+													{item.category ? ` (${item.category})` : ""}
+												</SelectItem>
+											))}
+											<SelectItem value={`misc:${CATS[CATS.length - 1]}`}>
+												{CATS[CATS.length - 1]} — без привязки к этапу
+											</SelectItem>
+										</>
+									)}
 								</SelectContent>
 							</Select>
+							{stageOptions.length > 0 && (
+								<p className="text-[10px] text-gray-400 mt-1">
+									Расход попадёт в освоение этапа и отобразится в Ганте и плане проекта
+								</p>
+							)}
 						</div>
 						<div className="col-span-2 flex flex-col">
 							<Label className="leading-tight mb-1.5">Описание *</Label>
@@ -373,8 +518,14 @@ function ExpenseDialog({
 export default function ConstructionExpenses() {
 	const qc = useQueryClient();
 	const { toast } = useToast();
+	const urlSearch = useSearch();
+	const urlParams = useMemo(() => new URLSearchParams(urlSearch), [urlSearch]);
+	const initialProject = urlParams.get("projectId") || "all";
+	const initialStageId = urlParams.get("stageId");
+
 	const [dialog, setDialog] = useState<Expense | null | "new">(null);
-	const [projectFilter, setProjectFilter] = useState("all");
+	const [projectFilter, setProjectFilter] = useState(initialProject);
+	const [stageFilter, setStageFilter] = useState<string>(initialStageId || "all");
 	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod());
 
 	const { data: projects = [] } = useQuery<Project[]>({
@@ -397,7 +548,11 @@ export default function ConstructionExpenses() {
 	});
 
 	const expensesArray = Array.isArray(expenses) ? expenses : [];
-	const filteredExpenses = expensesArray.filter((e) => inPeriod(e.date, period));
+	const filteredExpenses = expensesArray.filter((e) => {
+		if (!inPeriod(e.date, period)) return false;
+		if (stageFilter !== "all" && String(e.stageId ?? "") !== stageFilter) return false;
+		return true;
+	});
 	const projectsArray = Array.isArray(projects) ? projects : [];
 	const totalKgs = filteredExpenses.reduce(
 		(s, e) => s + parseFloat(e.amountKgs || e.amount),
@@ -412,7 +567,22 @@ export default function ConstructionExpenses() {
 		});
 		toast({ title: "Удалено" });
 		qc.invalidateQueries({ queryKey: ["construction-expenses"] });
+		qc.invalidateQueries({ queryKey: ["construction-stages"] });
 	};
+
+	const handleSaved = () => {
+		qc.invalidateQueries({ queryKey: ["construction-expenses"] });
+		qc.invalidateQueries({ queryKey: ["construction-stages"] });
+	};
+
+	const { data: filterStages = [] } = useQuery<WbsStage[]>({
+		queryKey: ["construction-stages", projectFilter],
+		enabled: projectFilter !== "all",
+		queryFn: () =>
+			api
+				.get("/construction/stages", { params: { projectId: projectFilter } })
+				.then((r) => (Array.isArray(r.data) ? r.data : [])),
+	});
 
 	const RATE_LABELS: Record<string, string> = Object.fromEntries(
 		RATE_SOURCES.map((r) => [r.value, r.label]),
@@ -444,17 +614,21 @@ export default function ConstructionExpenses() {
 				),
 			},
 			{
-				accessorKey: "category",
-				header: "Категория",
-				size: 140,
-				meta: { exportLabel: "Категория" },
+				id: "stage",
+				header: "Этап WBS",
+				size: 160,
+				accessorFn: (row: Expense) => row.stageName || row.category,
+				meta: { exportLabel: "Этап WBS" },
 				cell: ({ row }) => (
-					<Badge
-						variant="secondary"
-						className="text-[10px] bg-amber-50 text-amber-700"
-					>
-						{row.original.category}
-					</Badge>
+					<span className="text-xs text-gray-700 truncate block max-w-[160px]">
+						{row.original.stageName ? (
+							<Badge variant="secondary" className="text-[10px] bg-blue-50 text-blue-800">
+								{row.original.stageName}
+							</Badge>
+						) : (
+							<span className="text-amber-600">{row.original.category}</span>
+						)}
+					</span>
 				),
 			},
 			{
@@ -585,13 +759,37 @@ export default function ConstructionExpenses() {
 				{projectsArray.map((p) => (
 					<button
 						key={p.id}
-						onClick={() => setProjectFilter(String(p.id))}
+						onClick={() => {
+							setProjectFilter(String(p.id));
+							setStageFilter("all");
+						}}
 						className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${projectFilter === String(p.id) ? "bg-amber-500 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
 					>
 						{p.name}
 					</button>
 				))}
 			</div>
+
+			{projectFilter !== "all" && filterStages.length > 0 && (
+				<div className="flex gap-2 flex-wrap items-center">
+					<span className="text-xs text-gray-400">Этап:</span>
+					<button
+						onClick={() => setStageFilter("all")}
+						className={`px-2.5 py-1 rounded-full text-xs ${stageFilter === "all" ? "bg-gray-800 text-white" : "bg-gray-100 text-gray-600"}`}
+					>
+						Все
+					</button>
+					{filterStages.map((s) => (
+						<button
+							key={s.id}
+							onClick={() => setStageFilter(String(s.id))}
+							className={`px-2.5 py-1 rounded-full text-xs max-w-[200px] truncate ${stageFilter === String(s.id) ? "bg-gray-800 text-white" : "bg-gray-100 text-gray-600"}`}
+						>
+							{s.name}
+						</button>
+					))}
+				</div>
+			)}
 
 			<DataTable
 				tableId="construction-expenses"
@@ -612,9 +810,7 @@ export default function ConstructionExpenses() {
 				projects={projects}
 				contractors={contractors}
 				onClose={() => setDialog(null)}
-				onSaved={() =>
-					qc.invalidateQueries({ queryKey: ["construction-expenses"] })
-				}
+				onSaved={handleSaved}
 			/>
 		</div>
 	);

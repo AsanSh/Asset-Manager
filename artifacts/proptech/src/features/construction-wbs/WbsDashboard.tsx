@@ -18,6 +18,7 @@ export function WbsDashboard({
 		remainderKgs: number;
 		totalStages: number;
 		risks: number;
+		budgetOverruns: number;
 		overdueTasks: number;
 	};
 	isLoading: boolean;
@@ -84,7 +85,7 @@ export function WbsDashboard({
 					value={loading ?? String(dashboard.risks + dashboard.overdueTasks)}
 					icon={AlertTriangle}
 					color={dashboard.risks + dashboard.overdueTasks > 0 ? "red" : "blue"}
-					sub={`${dashboard.risks} этапов · ${dashboard.overdueTasks} задач`}
+					sub={`${dashboard.risks} этапов · ${dashboard.budgetOverruns} перерасход · ${dashboard.overdueTasks} задач`}
 				/>
 				<KpiCard
 					label="Этапов в WBS"

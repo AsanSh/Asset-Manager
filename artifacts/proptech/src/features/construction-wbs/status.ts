@@ -1,4 +1,4 @@
-import type { WbsStage, WbsStatusKey } from "./types";
+import type { WbsStage, WbsStageMetrics, WbsStatusKey } from "./types";
 
 export const WBS_STATUS_OPTS: {
 	value: WbsStatusKey;
@@ -35,6 +35,12 @@ export const WBS_STATUS_OPTS: {
 		label: "Отстаёт",
 		badge: "bg-rose-100 text-rose-700 border-rose-200",
 		dot: "bg-rose-500",
+	},
+	{
+		value: "over_budget",
+		label: "Перерасход",
+		badge: "bg-rose-100 text-rose-800 border-rose-300",
+		dot: "bg-rose-600",
 	},
 	{
 		value: "completed",
@@ -81,4 +87,13 @@ export function inferWbsStatus(stage: WbsStage, issueCount: number): WbsStatusKe
 
 export function statusMeta(key: WbsStatusKey) {
 	return WBS_STATUS_OPTS.find((o) => o.value === key) ?? WBS_STATUS_OPTS[0];
+}
+
+/** Статус этапа с учётом графика и освоения бюджета (расходы по stageId). */
+export function inferStageStatus(
+	stage: WbsStage,
+	metrics: Pick<WbsStageMetrics, "issueCount" | "deviationKgs" | "budgetKgs">,
+): WbsStatusKey {
+	if (metrics.budgetKgs > 0 && metrics.deviationKgs > 0) return "over_budget";
+	return inferWbsStatus(stage, metrics.issueCount);
 }

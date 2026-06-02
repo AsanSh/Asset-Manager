@@ -11,7 +11,7 @@ import {
 	SheetTitle,
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { inferWbsStatus, statusMeta } from "./status";
+import { inferStageStatus, statusMeta } from "./status";
 import { buildChildrenMap } from "./tree";
 import type { FlatWbsNode, WbsStage, WbsTaskSummary } from "./types";
 
@@ -38,7 +38,7 @@ export function WbsStageDrawer({
 }) {
 	if (!node) return null;
 
-	const st = inferWbsStatus(node.stage, node.metrics.issueCount);
+	const st = inferStageStatus(node.stage, node.metrics);
 	const meta = statusMeta(st);
 	const stageTasks = tasks.filter((t) => Number(t.stageId) === node.id);
 
@@ -170,11 +170,18 @@ export function WbsStageDrawer({
 									<span>Факт {node.metrics.factPct}%</span>
 								</div>
 							</div>
-							<Link href={`/construction/budget?projectId=${node.stage.projectId}`}>
-								<Button variant="outline" size="sm" className="w-full gap-1">
-									<ExternalLink className="w-3.5 h-3.5" /> Бюджет проекта
-								</Button>
-							</Link>
+							<div className="grid grid-cols-1 gap-2 mt-2">
+								<Link href={`/construction/expenses?projectId=${node.stage.projectId}&stageId=${node.id}`}>
+									<Button variant="outline" size="sm" className="w-full gap-1">
+										<ExternalLink className="w-3.5 h-3.5" /> Расходы этапа
+									</Button>
+								</Link>
+								<Link href={`/construction/budget?projectId=${node.stage.projectId}`}>
+									<Button variant="outline" size="sm" className="w-full gap-1">
+										<ExternalLink className="w-3.5 h-3.5" /> Бюджет проекта
+									</Button>
+								</Link>
+							</div>
 						</TabsContent>
 
 						<TabsContent value="links" className="mt-4 space-y-2">

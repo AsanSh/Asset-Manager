@@ -1,5 +1,5 @@
 import { Progress } from "@/components/ui/progress";
-import { inferWbsStatus, statusMeta } from "./status";
+import { inferStageStatus, statusMeta } from "./status";
 import type { FlatWbsNode, WbsStage } from "./types";
 
 export function WbsCardsView({
@@ -24,7 +24,7 @@ export function WbsCardsView({
 	return (
 		<div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
 			{roots.map((node) => {
-				const st = inferWbsStatus(node.stage, node.metrics.issueCount);
+				const st = inferStageStatus(node.stage, node.metrics);
 				const meta = statusMeta(st);
 				const subs = flat.filter((n) => n.parentId === node.id);
 
@@ -49,6 +49,14 @@ export function WbsCardsView({
 						<div className="grid grid-cols-2 gap-2 text-[11px] text-gray-500">
 							<span>Бюджет: {fmt(node.metrics.budgetKgs)}</span>
 							<span>Освоено: {fmt(node.metrics.spentKgs)}</span>
+							<span
+								className={node.metrics.remainderKgs >= 0 ? "text-emerald-700" : "text-rose-700 font-medium"}
+							>
+								{node.metrics.remainderKgs >= 0
+									? `Остаток: ${fmt(node.metrics.remainderKgs)}`
+									: `Перерасход: ${fmt(Math.abs(node.metrics.remainderKgs))}`}
+							</span>
+							<span>Освоение: {node.metrics.budgetKgs > 0 ? `${node.metrics.factPct}%` : "—"}</span>
 							<span>Задачи: {node.metrics.taskCount}</span>
 							<span>Подэтапы: {subs.length}</span>
 						</div>

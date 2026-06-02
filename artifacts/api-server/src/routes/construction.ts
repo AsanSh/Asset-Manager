@@ -1675,6 +1675,7 @@ router.get("/expenses", async (req: AuthenticatedRequest, res): Promise<void> =>
     companyId: constructionExpensesTable.companyId,
     projectId: constructionExpensesTable.projectId,
     stageId: constructionExpensesTable.stageId,
+    budgetItemId: constructionExpensesTable.budgetItemId,
     category: constructionExpensesTable.category,
     description: constructionExpensesTable.description,
     amount: constructionExpensesTable.amount,
@@ -1690,10 +1691,12 @@ router.get("/expenses", async (req: AuthenticatedRequest, res): Promise<void> =>
     createdAt: constructionExpensesTable.createdAt,
     contractorName: constructionContractorsTable.fullName,
     projectName: constructionProjectsTable.name,
+    stageName: constructionStagesTable.name,
   })
     .from(constructionExpensesTable)
     .leftJoin(constructionContractorsTable, eq(constructionExpensesTable.contractorId, constructionContractorsTable.id))
     .leftJoin(constructionProjectsTable, eq(constructionExpensesTable.projectId, constructionProjectsTable.id))
+    .leftJoin(constructionStagesTable, eq(constructionExpensesTable.stageId, constructionStagesTable.id))
     .where(and(
       eq(constructionExpensesTable.companyId, req.scopedCompanyId!),
       ...(projectId ? [eq(constructionExpensesTable.projectId, parseInt(projectId as string))] : [])
@@ -1719,6 +1722,41 @@ router.post("/expenses", async (req: AuthenticatedRequest, res): Promise<void> =
     status: "approved", notes,
   }).returning();
   res.status(201).json(row);
+});
+
+router.patch("/expenses/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const id = parseInt(req.params.id as string);
+  const {
+    projectId, stageId, budgetItemId, category, description, amount, currency,
+    exchangeRateSource, exchangeRate, contractorId, date, paymentMethod, notes,
+  } = req.body;
+  const amt = parseFloat(amount || "0");
+  const rate = parseFloat(exchangeRate || "1");
+  const amtKgs = (currency || "KGS") === "KGS" ? amt : amt * rate;
+  const [row] = await db.update(constructionExpensesTable)
+    .set({
+      ...(projectId != null ? { projectId } : {}),
+      stageId: stageId ?? null,
+      budgetItemId: budgetItemId ?? null,
+      category,
+      description,
+      amount: String(amt),
+      currency: currency || "KGS",
+      exchangeRateSource: exchangeRateSource || "nbkr",
+      exchangeRate: String(rate),
+      amountKgs: String(amtKgs),
+      contractorId: contractorId || null,
+      ...(date ? { date } : {}),
+      paymentMethod: paymentMethod || "cash",
+      notes,
+    })
+    .where(and(eq(constructionExpensesTable.id, id), eq(constructionExpensesTable.companyId, req.scopedCompanyId!)))
+    .returning();
+  if (!row) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  res.json(row);
 });
 
 router.delete("/expenses/:id", async (req: AuthenticatedRequest, res): Promise<void> => {

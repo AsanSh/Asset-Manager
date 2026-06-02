@@ -62,6 +62,7 @@ export type WbsStatusKey =
 	| "on_track"
 	| "at_risk"
 	| "behind"
+	| "over_budget"
 	| "completed";
 
 /** Payload for AI / analytics extensions */

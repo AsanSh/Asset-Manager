@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-table";
-import { inferWbsStatus, statusMeta } from "./status";
+import { inferStageStatus, statusMeta } from "./status";
 import type { FlatWbsNode, WbsStage } from "./types";
 
 export function WbsTableView({
@@ -53,8 +53,21 @@ export function WbsTableView({
 				),
 			},
 			{
+				id: "factPct",
+				header: "Освоение",
+				cell: ({ row }) => (
+					<span
+						className={`tabular-nums text-sm ${
+							row.original.metrics.factPct > 100 ? "text-rose-700 font-semibold" : "text-amber-700"
+						}`}
+					>
+						{row.original.metrics.budgetKgs > 0 ? `${row.original.metrics.factPct}%` : "—"}
+					</span>
+				),
+			},
+			{
 				id: "spent",
-				header: "Освоено",
+				header: "Факт расходов",
 				cell: ({ row }) => (
 					<span className="tabular-nums text-sm text-amber-700 text-right block">
 						{fmt(row.original.metrics.spentKgs)}
@@ -93,7 +106,7 @@ export function WbsTableView({
 				id: "status",
 				header: "Статус",
 				cell: ({ row }) => {
-					const st = inferWbsStatus(row.original.stage, row.original.metrics.issueCount);
+					const st = inferStageStatus(row.original.stage, row.original.metrics);
 					const meta = statusMeta(st);
 					return (
 						<span className={`text-[10px] px-1.5 py-0.5 rounded border ${meta.badge}`}>{meta.label}</span>

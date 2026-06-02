@@ -267,7 +267,7 @@ export function WbsPage() {
 					)}
 
 					{viewMode === "gantt" && (
-						<WbsGanttView flat={flat} onSelect={handleSelect} />
+						<WbsGanttView flat={flat} fmt={fmt} onSelect={handleSelect} />
 					)}
 				</>
 			)}

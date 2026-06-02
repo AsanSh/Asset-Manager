@@ -1,4 +1,4 @@
-import { inferWbsStatus } from "./status";
+import { inferStageStatus } from "./status";
 import { buildChildrenMap, stageParentId } from "./tree";
 import type {
 	FlatWbsNode,
@@ -133,9 +133,13 @@ export function computeProjectDashboard(
 	const lagPct = Math.max(0, planProgress - factProgress);
 
 	const risks = flat.filter((n) => {
-		const st = inferWbsStatus(n.stage, n.metrics.issueCount);
-		return st === "at_risk" || st === "behind";
+		const st = inferStageStatus(n.stage, n.metrics);
+		return st === "at_risk" || st === "behind" || st === "over_budget";
 	}).length;
+
+	const budgetOverruns = flat.filter(
+		(n) => n.metrics.budgetKgs > 0 && n.metrics.deviationKgs > 0,
+	).length;
 
 	const overdueTasks = tasks.filter(isTaskIssue).length;
 
@@ -150,6 +154,7 @@ export function computeProjectDashboard(
 		spentKgs,
 		remainderKgs: budgetKgs - spentKgs,
 		risks,
+		budgetOverruns,
 		overdueTasks,
 	};
 }

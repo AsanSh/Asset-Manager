@@ -1,12 +1,14 @@
 import { useMemo } from "react";
-import { inferWbsStatus, statusMeta } from "./status";
+import { inferStageStatus, statusMeta } from "./status";
 import type { FlatWbsNode, WbsStage } from "./types";
 
 export function WbsGanttView({
 	flat,
+	fmt,
 	onSelect,
 }: {
 	flat: FlatWbsNode[];
+	fmt: (kgs: number) => string;
 	onSelect: (s: WbsStage) => void;
 }) {
 	const bars = useMemo(() => {
@@ -33,21 +35,46 @@ export function WbsGanttView({
 			const endMs = new Date(row.end).getTime();
 			const left = ((startMs - minMs) / total) * 100;
 			const width = (Math.max(1, endMs - startMs) / total) * 100;
-			const progress = row.node.metrics.effectiveProgress;
-			const st = inferWbsStatus(row.node.stage, row.node.metrics.issueCount);
-			const isCritical = st === "behind" || (endMs < todayMs && progress < 100);
+			const scheduleProgress = row.node.metrics.effectiveProgress;
+			const factPct = row.node.metrics.factPct;
+			const st = inferStageStatus(row.node.stage, row.node.metrics);
+			const isCritical =
+				st === "behind" ||
+				st === "over_budget" ||
+				(endMs < todayMs && scheduleProgress < 100);
 			const barColor =
-				st === "completed"
-					? "bg-blue-500"
-					: st === "behind"
-						? "bg-rose-500"
-						: st === "at_risk"
-							? "bg-amber-500"
-							: "bg-emerald-500";
+				st === "over_budget"
+					? "bg-rose-600"
+					: st === "completed"
+						? "bg-blue-500"
+						: st === "behind"
+							? "bg-rose-500"
+							: st === "at_risk"
+								? "bg-amber-500"
+								: "bg-emerald-500";
 
-			return { ...row, left, width, progress, isCritical, barColor, meta: statusMeta(st) };
+			const budgetLabel =
+				row.node.metrics.budgetKgs > 0
+					? row.node.metrics.remainderKgs >= 0
+						? `Остаток ${fmt(row.node.metrics.remainderKgs)}`
+						: `Перерасход ${fmt(Math.abs(row.node.metrics.remainderKgs))}`
+					: row.node.metrics.spentKgs > 0
+						? `Освоено ${fmt(row.node.metrics.spentKgs)}`
+						: null;
+
+			return {
+				...row,
+				left,
+				width,
+				scheduleProgress,
+				factPct,
+				isCritical,
+				barColor,
+				budgetLabel,
+				meta: statusMeta(st),
+			};
 		});
-	}, [flat]);
+	}, [flat, fmt]);
 
 	if (bars.length === 0) {
 		return (
@@ -60,7 +87,7 @@ export function WbsGanttView({
 	return (
 		<div className="rounded-xl border border-gray-200 bg-white p-3 space-y-2">
 			<p className="text-[11px] text-gray-400 px-1 mb-2">
-				Критический путь подсвечивается для просроченных и отстающих этапов
+				Заливка — освоение бюджета (расходы по этапу). Тёмная полоса — прогресс работ. Перерасход подсвечивается красным.
 			</p>
 			{bars.map((row) => (
 				<button
@@ -91,12 +118,47 @@ export function WbsGanttView({
 							style={{ left: `${row.left}%`, width: `${Math.max(row.width, 1.5)}%` }}
 						/>
 						<div
-							className="absolute top-0 h-full bg-black/15 rounded-l"
+							className="absolute top-0 h-full bg-amber-400/80 rounded-l"
 							style={{
 								left: `${row.left}%`,
-								width: `${Math.max(row.width * (row.progress / 100), 0.5)}%`,
+								width: `${Math.max(row.width * (Math.min(row.factPct, 100) / 100), 0.5)}%`,
 							}}
 						/>
+						{row.factPct > 100 && (
+							<div
+								className="absolute top-0 h-full bg-rose-700/70 rounded-r"
+								style={{
+									left: `${row.left + row.width * (100 / Math.max(row.factPct, 100))}%`,
+									width: `${Math.max(row.width * ((row.factPct - 100) / 100), 0.5)}%`,
+								}}
+							/>
+						)}
+						<div
+							className="absolute top-0 h-1 bg-black/25 rounded-l"
+							style={{
+								left: `${row.left}%`,
+								width: `${Math.max(row.width * (row.scheduleProgress / 100), 0.5)}%`,
+							}}
+						/>
+					</div>
+					<div className="ml-6 mt-0.5 flex flex-wrap gap-x-3 gap-y-0 text-[10px] text-gray-500">
+						<span>
+							Работы: <strong className="text-gray-700">{row.scheduleProgress}%</strong>
+						</span>
+						<span>
+							Бюджет: <strong className="text-amber-700">{row.factPct}%</strong>
+							{row.node.metrics.budgetKgs > 0 && (
+								<>
+									{" "}
+									· {fmt(row.node.metrics.spentKgs)} / {fmt(row.node.metrics.budgetKgs)}
+								</>
+							)}
+						</span>
+						{row.budgetLabel && (
+							<span className={row.node.metrics.remainderKgs < 0 ? "text-rose-600 font-medium" : "text-emerald-700"}>
+								{row.budgetLabel}
+							</span>
+						)}
 					</div>
 				</button>
 			))}
