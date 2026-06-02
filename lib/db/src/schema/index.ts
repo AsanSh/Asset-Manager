@@ -27,6 +27,7 @@ export * from "./construction_task_checklist_items";
 export * from "./construction_task_activity";
 export * from "./construction_task_attachments";
 export * from "./construction_task_photos";
+export * from "./construction_task_dependencies";
 export * from "./construction_workers";
 export * from "./construction_contractors";
 export * from "./construction_contractor_specializations";

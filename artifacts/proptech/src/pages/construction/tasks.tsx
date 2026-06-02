@@ -2,6 +2,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import {
 	AlertCircle,
+	BarChart3,
+	CalendarDays,
 	CheckCircle2,
 	Circle,
 	Clock,
@@ -40,6 +42,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { getApiBase } from "@/lib/api-base";
+import { defaultPeriod, inPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
 
 const BASE = getApiBase();
 const ah = () => {
@@ -90,6 +93,9 @@ interface Task {
 	progressMode?: string | null;
 	plannedStartDate?: string | null;
 	plannedEndDate?: string | null;
+	commentCount?: number;
+	attachmentCount?: number;
+	blockedByCount?: number;
 	createdAt: string;
 }
 interface Project { id: number; name: string; }
@@ -138,7 +144,14 @@ function normalizeTask(raw: Record<string, unknown>): Task {
 		createdBy: raw.createdBy ?? raw.created_by ?? null,
 		stageId: raw.stageId ?? raw.stage_id ?? null,
 		progressPercent: Number(raw.progressPercent ?? raw.progress_percent ?? 0),
+		commentCount: Number(raw.commentCount ?? raw.comment_count ?? 0),
+		attachmentCount: Number(raw.attachmentCount ?? raw.attachment_count ?? 0),
+		blockedByCount: Number(raw.blockedByCount ?? raw.blocked_by_count ?? 0),
 	} as unknown as Task;
+}
+
+function taskTimelineDate(task: Task): string | null {
+	return task.plannedEndDate || task.dueDate || task.createdAt || null;
 }
 
 function stageLabel(stage: Stage, parentMap: Record<number, Stage>): string {
@@ -672,6 +685,35 @@ function TasksTable({
 					);
 				},
 			},
+			{
+				id: "comments",
+				header: "Комментарии",
+				meta: { exportLabel: "Комментарии" },
+				cell: ({ row }) => (
+					<div className="text-xs text-gray-600">{Number(row.original.commentCount ?? 0)}</div>
+				),
+			},
+			{
+				id: "attachments",
+				header: "Вложения",
+				meta: { exportLabel: "Вложения" },
+				cell: ({ row }) => (
+					<div className="text-xs text-gray-600">{Number(row.original.attachmentCount ?? 0)}</div>
+				),
+			},
+			{
+				id: "blockedBy",
+				header: "Блокеры",
+				meta: { exportLabel: "Блокеры" },
+				cell: ({ row }) => {
+					const value = Number(row.original.blockedByCount ?? 0);
+					return (
+						<div className={`text-xs font-medium ${value > 0 ? "text-rose-600" : "text-gray-500"}`}>
+							{value}
+						</div>
+					);
+				},
+			},
 		],
 		[userMap, projectMap, stageLabelByTaskId],
 	);
@@ -692,6 +734,125 @@ function TasksTable({
 	);
 }
 
+function TasksCalendarView({
+	tasks,
+	projectMap,
+	onTaskClick,
+}: {
+	tasks: Task[];
+	projectMap: Record<number, string>;
+	onTaskClick: (task: Task) => void;
+}) {
+	const groups = useMemo(() => {
+		const map = new Map<string, Task[]>();
+		for (const task of tasks) {
+			const key = String(taskTimelineDate(task) || "").slice(0, 10);
+			if (!key) continue;
+			const arr = map.get(key) ?? [];
+			arr.push(task);
+			map.set(key, arr);
+		}
+		return Array.from(map.entries())
+			.sort(([a], [b]) => a.localeCompare(b))
+			.map(([date, rows]) => ({ date, rows }));
+	}, [tasks]);
+
+	if (groups.length === 0) {
+		return <div className="text-sm text-gray-400 py-10 text-center">Нет задач в выбранном периоде</div>;
+	}
+
+	return (
+		<div className="space-y-3">
+			{groups.map((group) => (
+				<div key={group.date} className="rounded-xl border border-gray-200 bg-white">
+					<div className="px-3 py-2 border-b border-gray-100 text-sm font-semibold text-gray-700">
+						{new Date(group.date).toLocaleDateString("ru-RU", {
+							weekday: "long",
+							day: "2-digit",
+							month: "long",
+						})}
+					</div>
+					<div className="divide-y divide-gray-100">
+						{group.rows.map((task) => (
+							<button
+								key={task.id}
+								onClick={() => onTaskClick(task)}
+								className="w-full text-left px-3 py-2 hover:bg-gray-50"
+							>
+								<div className="text-sm font-medium text-gray-900">{task.title}</div>
+								<div className="text-xs text-gray-500 mt-0.5">
+									{projectMap[task.projectId] || "—"} · {task.status}
+								</div>
+							</button>
+						))}
+					</div>
+				</div>
+			))}
+		</div>
+	);
+}
+
+function TasksGanttView({
+	tasks,
+	onTaskClick,
+}: {
+	tasks: Task[];
+	onTaskClick: (task: Task) => void;
+}) {
+	const bars = useMemo(() => {
+		const withDates = tasks
+			.map((task) => {
+				const start = task.plannedStartDate || task.createdAt;
+				const end = task.plannedEndDate || task.dueDate || start;
+				return { task, start: String(start).slice(0, 10), end: String(end).slice(0, 10) };
+			})
+			.filter((x) => x.start && x.end)
+			.sort((a, b) => a.start.localeCompare(b.start));
+		if (!withDates.length) return [];
+		const min = withDates[0].start;
+		const max = withDates.reduce((m, x) => (x.end > m ? x.end : m), withDates[0].end);
+		const minMs = new Date(min).getTime();
+		const maxMs = new Date(max).getTime();
+		const total = Math.max(1, maxMs - minMs);
+		return withDates.map((row) => {
+			const startMs = new Date(row.start).getTime();
+			const endMs = new Date(row.end).getTime();
+			const left = ((startMs - minMs) / total) * 100;
+			const width = (Math.max(1, endMs - startMs) / total) * 100;
+			return { ...row, left, width };
+		});
+	}, [tasks]);
+
+	if (bars.length === 0) {
+		return <div className="text-sm text-gray-400 py-10 text-center">Нет плановых дат для Gantt</div>;
+	}
+
+	return (
+		<div className="space-y-2 rounded-xl border border-gray-200 bg-white p-3">
+			{bars.map((row) => (
+				<button
+					key={row.task.id}
+					onClick={() => onTaskClick(row.task)}
+					className="w-full text-left"
+				>
+					<div className="text-xs text-gray-700 mb-1 flex items-center justify-between">
+						<span className="truncate pr-2">{row.task.title}</span>
+						<span className="text-gray-400">
+							{row.start} → {row.end}
+						</span>
+					</div>
+					<div className="relative h-6 rounded bg-gray-100 overflow-hidden">
+						<div
+							className={`absolute top-0 h-full rounded ${row.task.status === "done" ? "bg-emerald-400" : "bg-blue-400"}`}
+							style={{ left: `${row.left}%`, width: `${Math.max(row.width, 2)}%` }}
+						/>
+					</div>
+				</button>
+			))}
+		</div>
+	);
+}
+
 export default function ConstructionTasks() {
 	const qc = useQueryClient();
 	const { toast } = useToast();
@@ -704,7 +865,8 @@ export default function ConstructionTasks() {
 	const [priorityFilter, setPriorityFilter] = useState("all");
 	const [statusFilter, setStatusFilter] = useState("all");
 	const [search, setSearch] = useState("");
-	const [viewMode, setViewMode] = useState<"kanban" | "table">("kanban");
+	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod("month"));
+	const [viewMode, setViewMode] = useState<"kanban" | "table" | "calendar" | "gantt">("kanban");
 	const [, navigate] = useLocation();
 
 	useEffect(() => {
@@ -720,9 +882,9 @@ export default function ConstructionTasks() {
 		queryFn: () => api.get("/users").then((r) => Array.isArray(r.data) ? r.data : r.data?.data ?? []),
 	});
 	const { data: tasks = [], isLoading } = useQuery<Task[]>({
-		queryKey: ["construction-tasks"],
+		queryKey: ["construction-tasks", period.from, period.to],
 		queryFn: () =>
-			api.get("/construction/tasks").then((r) =>
+			api.get(`/construction/tasks?fromDate=${encodeURIComponent(period.from)}&toDate=${encodeURIComponent(period.to)}`).then((r) =>
 				(Array.isArray(r.data) ? r.data : []).map((t) => normalizeTask(t as Record<string, unknown>)),
 			),
 	});
@@ -762,6 +924,7 @@ export default function ConstructionTasks() {
 			if (priorityFilter !== "all" && t.priority !== priorityFilter) return false;
 			if (statusFilter !== "all" && t.status !== statusFilter) return false;
 			if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false;
+			if (!inPeriod(taskTimelineDate(t), period)) return false;
 			return true;
 		});
 	};
@@ -791,7 +954,7 @@ export default function ConstructionTasks() {
 		}
 	}, [tasks, me, activeTab]);
 
-	const filteredTasks = useMemo(() => filterTasks(tabTasks), [tabTasks, projectFilter, priorityFilter, statusFilter, search]);
+	const filteredTasks = useMemo(() => filterTasks(tabTasks), [tabTasks, projectFilter, priorityFilter, statusFilter, search, period]);
 
 	const tabCounts = useMemo(() => {
 		if (me == null) return {} as Record<TabId, number>;
@@ -914,10 +1077,17 @@ export default function ConstructionTasks() {
 						))}
 					</SelectContent>
 				</Select>
+				<PeriodPicker value={period} onChange={setPeriod} />
 				{(projectFilter !== "all" || priorityFilter !== "all" || statusFilter !== "all" || search) && (
 					<button
 						className="text-xs text-gray-400 hover:text-gray-700"
-						onClick={() => { setProjectFilter("all"); setPriorityFilter("all"); setStatusFilter("all"); setSearch(""); }}
+						onClick={() => {
+							setProjectFilter("all");
+							setPriorityFilter("all");
+							setStatusFilter("all");
+							setSearch("");
+							setPeriod(defaultPeriod("month"));
+						}}
 					>
 						✕ сбросить
 					</button>
@@ -936,6 +1106,20 @@ export default function ConstructionTasks() {
 						title="Таблица"
 					>
 						<List className="w-4 h-4" />
+					</button>
+					<button
+						onClick={() => setViewMode("calendar")}
+						className={`p-1.5 rounded transition-all ${viewMode === "calendar" ? "bg-white shadow-sm text-gray-900" : "text-gray-400 hover:text-gray-600"}`}
+						title="Календарь"
+					>
+						<CalendarDays className="w-4 h-4" />
+					</button>
+					<button
+						onClick={() => setViewMode("gantt")}
+						className={`p-1.5 rounded transition-all ${viewMode === "gantt" ? "bg-white shadow-sm text-gray-900" : "text-gray-400 hover:text-gray-600"}`}
+						title="Gantt"
+					>
+						<BarChart3 className="w-4 h-4" />
 					</button>
 				</div>
 			</div>
@@ -979,13 +1163,24 @@ export default function ConstructionTasks() {
 						);
 					})}
 				</div>
-			) : (
+			) : viewMode === "table" ? (
 				<TasksTable
 					tasks={filteredTasks}
 					userMap={userMap}
 					projectMap={projectMap}
 					stageLabelByTaskId={stageLabelByTaskId}
 					onRowClick={(task) => navigate(`/construction/tasks/${task.id}`)}
+				/>
+			) : viewMode === "calendar" ? (
+				<TasksCalendarView
+					tasks={filteredTasks}
+					projectMap={projectMap}
+					onTaskClick={(task) => navigate(`/construction/tasks/${task.id}`)}
+				/>
+			) : (
+				<TasksGanttView
+					tasks={filteredTasks}
+					onTaskClick={(task) => navigate(`/construction/tasks/${task.id}`)}
 				/>
 			)}
 

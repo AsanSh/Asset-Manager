@@ -11,7 +11,7 @@ export const constructionTaskAttachmentsTable = pgTable("construction_task_attac
   fileUrl: text("file_url").notNull(),
   fileName: text("file_name").notNull(),
   mimeType: text("mime_type"),
-  fileSize: bigint("file_size"),
+  fileSize: bigint("file_size", { mode: "bigint" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

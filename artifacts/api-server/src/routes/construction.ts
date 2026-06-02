@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, and, desc, sql, asc, gte } from "drizzle-orm";
+import { eq, and, desc, sql, asc, gte, inArray } from "drizzle-orm";
 import { z } from "zod";
 import {
   db,
@@ -20,6 +20,7 @@ import {
   constructionSupplementsTable,
   notificationsTable,
   usersTable,
+  constructionTaskDependenciesTable,
 } from "../lib/db";
 import { sendTaskAssignedEmail } from "../lib/email";
 import { logTaskActivity, taskFieldChanges } from "../lib/construction-task-work";
@@ -478,15 +479,168 @@ router.delete("/stages/:id", async (req: AuthenticatedRequest, res): Promise<voi
 // ── TASKS ─────────────────────────────────────────────────────────────────────
 
 router.get("/tasks", async (req: AuthenticatedRequest, res): Promise<void> => {
-  const { projectId, stageId } = req.query;
+  const { projectId, stageId, fromDate, toDate } = req.query;
+  const dateFilter =
+    fromDate && toDate
+      ? sql`COALESCE(${constructionTasksTable.plannedEndDate}, ${constructionTasksTable.dueDate}, ${constructionTasksTable.createdAt})::date BETWEEN ${String(fromDate)}::date AND ${String(toDate)}::date`
+      : undefined;
   const rows = await db.select().from(constructionTasksTable)
     .where(and(
       eq(constructionTasksTable.companyId, req.scopedCompanyId!),
       ...(projectId ? [eq(constructionTasksTable.projectId, parseInt(projectId as string))] : []),
-      ...(stageId ? [eq(constructionTasksTable.stageId, parseInt(stageId as string))] : [])
+      ...(stageId ? [eq(constructionTasksTable.stageId, parseInt(stageId as string))] : []),
+      ...(dateFilter ? [dateFilter] : []),
     ))
     .orderBy(desc(constructionTasksTable.createdAt));
+  const taskIds = rows.map((r) => r.id);
+  if (taskIds.length === 0) {
+    res.json(rows);
+    return;
+  }
+
+  const [commentCounts, attachmentCounts, blockedByCounts] = await Promise.all([
+    db
+      .select({
+        taskId: taskCommentsTable.taskId,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(taskCommentsTable)
+      .where(and(
+        eq(taskCommentsTable.companyId, req.scopedCompanyId!),
+        inArray(taskCommentsTable.taskId, taskIds),
+      ))
+      .groupBy(taskCommentsTable.taskId),
+    db
+      .select({
+        taskId: constructionTaskAttachmentsTable.taskId,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(constructionTaskAttachmentsTable)
+      .where(and(
+        eq(constructionTaskAttachmentsTable.companyId, req.scopedCompanyId!),
+        inArray(constructionTaskAttachmentsTable.taskId, taskIds),
+      ))
+      .groupBy(constructionTaskAttachmentsTable.taskId),
+    db
+      .select({
+        taskId: constructionTaskDependenciesTable.successorTaskId,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(constructionTaskDependenciesTable)
+      .where(and(
+        eq(constructionTaskDependenciesTable.companyId, req.scopedCompanyId!),
+        inArray(constructionTaskDependenciesTable.successorTaskId, taskIds),
+      ))
+      .groupBy(constructionTaskDependenciesTable.successorTaskId),
+  ]);
+
+  const commentMap = Object.fromEntries(commentCounts.map((c) => [c.taskId, Number(c.count || 0)]));
+  const attachmentMap = Object.fromEntries(attachmentCounts.map((c) => [c.taskId, Number(c.count || 0)]));
+  const blockedByMap = Object.fromEntries(blockedByCounts.map((c) => [c.taskId, Number(c.count || 0)]));
+
+  res.json(
+    rows.map((row) => ({
+      ...row,
+      commentCount: commentMap[row.id] ?? 0,
+      attachmentCount: attachmentMap[row.id] ?? 0,
+      blockedByCount: blockedByMap[row.id] ?? 0,
+    })),
+  );
+});
+
+router.get("/tasks/dependencies", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const { projectId } = req.query;
+  const rows = await db
+    .select({
+      id: constructionTaskDependenciesTable.id,
+      predecessorTaskId: constructionTaskDependenciesTable.predecessorTaskId,
+      successorTaskId: constructionTaskDependenciesTable.successorTaskId,
+      dependencyType: constructionTaskDependenciesTable.dependencyType,
+      lagDays: constructionTaskDependenciesTable.lagDays,
+      createdAt: constructionTaskDependenciesTable.createdAt,
+    })
+    .from(constructionTaskDependenciesTable)
+    .innerJoin(
+      constructionTasksTable,
+      eq(constructionTasksTable.id, constructionTaskDependenciesTable.successorTaskId),
+    )
+    .where(and(
+      eq(constructionTaskDependenciesTable.companyId, req.scopedCompanyId!),
+      ...(projectId ? [eq(constructionTasksTable.projectId, parseInt(String(projectId), 10))] : []),
+    ))
+    .orderBy(desc(constructionTaskDependenciesTable.createdAt));
   res.json(rows);
+});
+
+router.post("/tasks/dependencies", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const predecessorTaskId = Number(req.body?.predecessorTaskId);
+  const successorTaskId = Number(req.body?.successorTaskId);
+  const dependencyType = String(req.body?.dependencyType || "FS").toUpperCase();
+  const lagDays = Number(req.body?.lagDays ?? 0);
+  if (!Number.isFinite(predecessorTaskId) || !Number.isFinite(successorTaskId)) {
+    res.status(400).json({ error: "Укажите predecessorTaskId и successorTaskId" });
+    return;
+  }
+  if (predecessorTaskId === successorTaskId) {
+    res.status(400).json({ error: "Нельзя связать задачу саму с собой" });
+    return;
+  }
+  if (!["FS", "SS"].includes(dependencyType)) {
+    res.status(400).json({ error: "Допустимы типы зависимостей только FS и SS" });
+    return;
+  }
+
+  const tasks = await db
+    .select({
+      id: constructionTasksTable.id,
+      projectId: constructionTasksTable.projectId,
+    })
+    .from(constructionTasksTable)
+    .where(and(
+      eq(constructionTasksTable.companyId, req.scopedCompanyId!),
+      inArray(constructionTasksTable.id, [predecessorTaskId, successorTaskId]),
+    ));
+  if (tasks.length !== 2) {
+    res.status(404).json({ error: "Одна из задач не найдена" });
+    return;
+  }
+  if (tasks[0].projectId !== tasks[1].projectId) {
+    res.status(400).json({ error: "Связи допустимы только внутри одного проекта" });
+    return;
+  }
+
+  const [row] = await db
+    .insert(constructionTaskDependenciesTable)
+    .values({
+      companyId: req.scopedCompanyId!,
+      predecessorTaskId,
+      successorTaskId,
+      dependencyType,
+      lagDays: Number.isFinite(lagDays) ? lagDays : 0,
+    })
+    .onConflictDoNothing()
+    .returning();
+
+  if (!row) {
+    res.status(409).json({ error: "Такая зависимость уже существует" });
+    return;
+  }
+  res.status(201).json(row);
+});
+
+router.delete("/tasks/dependencies/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid dependency id" });
+    return;
+  }
+  await db
+    .delete(constructionTaskDependenciesTable)
+    .where(and(
+      eq(constructionTaskDependenciesTable.id, id),
+      eq(constructionTaskDependenciesTable.companyId, req.scopedCompanyId!),
+    ));
+  res.json({ ok: true });
 });
 
 // GET /tasks/:id — одиночная задача (для чата задачи)
