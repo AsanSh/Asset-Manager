@@ -1,6 +1,6 @@
 import { Building2 } from "lucide-react";
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useLogin } from "@/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -139,6 +139,12 @@ export default function Login() {
 									>
 										Пароль
 									</Label>
+									<Link
+										href="/forgot-password"
+										className="text-xs text-blue-600 font-medium hover:underline"
+									>
+										Забыли пароль?
+									</Link>
 								</div>
 								<Input
 									id="password"

@@ -137,3 +137,28 @@ export async function initiatePasswordReset(userId: number): Promise<{
 
   return { resetLink, emailSent, email: user.email };
 }
+
+/** Публичный запрос сброса по email (без раскрытия, есть ли аккаунт). */
+export async function requestPasswordResetByEmail(
+  email: string,
+): Promise<{ processed: boolean }> {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized) return { processed: false };
+
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.email, normalized));
+
+  if (!user || !user.isActive || user.role === "super_admin") {
+    return { processed: false };
+  }
+
+  try {
+    await initiatePasswordReset(user.id);
+    return { processed: true };
+  } catch (err) {
+    logger.error({ err, email: normalized }, "Forgot-password initiate failed");
+    return { processed: false };
+  }
+}

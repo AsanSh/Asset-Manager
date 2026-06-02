@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
-import { Redirect, Route, Switch, Router as WouterRouter, useLocation } from "wouter";
+import { Redirect, Route, Switch, Router as WouterRouter, useLocation, useSearch } from "wouter";
 import { Layout } from "@/components/layout";
 import { PlatformAdminLayout } from "@/components/platform-admin-layout";
 import { Toaster } from "@/components/ui/toaster";
@@ -83,7 +83,6 @@ import ConstructionSettings from "@/pages/construction/settings";
 import ConstructionStages from "@/pages/construction/stages";
 import ConstructionTasks from "@/pages/construction/tasks";
 import TaskChat from "@/pages/construction/task-chat";
-import ConsolidatedModule from "@/pages/consolidated";
 import ConstructionWorkers from "@/pages/construction/workers";
 import Counterparties from "@/pages/counterparties";
 import CrmClients from "@/pages/crm/clients";
@@ -99,6 +98,7 @@ import ImportCenter from "@/pages/import-center";
 import Login from "@/pages/login";
 import PortalLogin from "@/pages/portal-login";
 import ResetPassword from "@/pages/reset-password";
+import ForgotPassword from "@/pages/forgot-password";
 import InvestorPortal from "@/pages/portal/investor";
 import TenantPortal from "@/pages/portal/tenant";
 import ContractorPortal from "@/pages/portal/contractor";
@@ -193,6 +193,10 @@ function ProtectedRoute({ component: Component, ...rest }: any) {
 	const { isAuthenticated, isLoading, user } = useAuth();
 	const { canAccess, homePath, isLoading: accessLoading } = useModuleAccess();
 	const [location] = useLocation();
+	const search = useSearch();
+	const pathWithSearch = search
+		? `${location}${search.startsWith("?") ? search : `?${search}`}`
+		: location;
 	const role = (user as any)?.role;
 
 	if (isLoading || accessLoading) return <Spinner />;
@@ -207,7 +211,7 @@ function ProtectedRoute({ component: Component, ...rest }: any) {
 	if (role === "buyer") return <Redirect to="/buyer-portal" />;
 	if (role === "super_admin") return <Redirect to="/platform-admin" />;
 
-	if (!canAccess(location)) return <Redirect to={homePath} />;
+	if (!canAccess(pathWithSearch)) return <Redirect to={homePath} />;
 
 	return (
 		<Layout>
@@ -270,6 +274,7 @@ function Router() {
 			<Route path="/login" component={Login} />
 			<Route path="/portal-login" component={PortalLogin} />
 			<Route path="/reset-password" component={ResetPassword} />
+			<Route path="/forgot-password" component={ForgotPassword} />
 			<Route path="/register" component={Register} />
 			<Route path="/investor-portal">
 				<PortalRoute component={InvestorPortal} />
@@ -315,9 +320,9 @@ function Router() {
 				<HomeRedirect />
 			</Route>
 
-			{/* ── Сводное (consolidated) ── */}
+			{/* ── Сводное (consolidated) — legacy redirect ── */}
 			<Route path="/consolidated">
-				<ProtectedRoute component={ConsolidatedModule} />
+				<Redirect to="/dashboard?tab=control" />
 			</Route>
 			<Route path="/dashboard">
 				<ProtectedRoute component={Dashboard} />

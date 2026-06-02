@@ -113,6 +113,7 @@ app.use(xssProtection);
 // Apply rate limiters
 app.use("/auth/login", authLimiter);
 app.use("/auth/register", authLimiter);
+app.use("/auth/forgot-password", authLimiter);
 app.use("/", generalLimiter);
 app.use("/", apiLimiter);
 

@@ -99,9 +99,15 @@ export default function ResetPassword() {
 				) : invalid ? (
 					<div className="text-center space-y-4">
 						<p className="text-sm text-destructive">
-							Ссылка недействительна или истекла. Запросите новую у администратора.
+							Ссылка недействительна или истекла.
 						</p>
-						<Link href="/login" className="text-blue-600 text-sm hover:underline">
+						<Link
+							href="/forgot-password"
+							className="text-blue-600 text-sm hover:underline block"
+						>
+							Запросить новую ссылку
+						</Link>
+						<Link href="/login" className="text-gray-500 text-sm hover:underline">
 							На страницу входа
 						</Link>
 					</div>

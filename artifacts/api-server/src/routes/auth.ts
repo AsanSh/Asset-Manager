@@ -14,6 +14,7 @@ import {
   completePasswordReset,
   findPasswordResetUser,
   maskEmail,
+  requestPasswordResetByEmail,
 } from "../lib/password-reset";
 import { issueOtp, verifyOtp, normalizePhone } from "../lib/otp";
 
@@ -48,6 +49,10 @@ const registerSchema = z.object({
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+});
+
+const forgotPasswordSchema = z.object({
+  email: z.string().email(),
 });
 
 const updateProfileSchema = z.object({
@@ -368,6 +373,26 @@ router.post("/auth/resend-verification", async (req, res): Promise<void> => {
     res.status(500).json({ error: "Ошибка отправки" });
   }
 });
+
+// POST /auth/forgot-password — письмо со ссылкой на сброс (публично)
+router.post(
+  "/auth/forgot-password",
+  validateBody(forgotPasswordSchema),
+  async (req, res): Promise<void> => {
+    try {
+      const { email } = req.body as { email: string };
+      await requestPasswordResetByEmail(email);
+      res.json({
+        success: true,
+        message:
+          "Если аккаунт с таким email зарегистрирован, мы отправили ссылку для сброса пароля. Проверьте почту (и папку «Спам»).",
+      });
+    } catch (error) {
+      console.error("Forgot password error:", error);
+      res.status(500).json({ error: "Не удалось обработать запрос" });
+    }
+  },
+);
 
 // GET /auth/password-reset/validate?token=...
 router.get("/auth/password-reset/validate", async (req, res): Promise<void> => {
