@@ -1,10 +1,26 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import {
+	addMonths,
+	eachDayOfInterval,
+	endOfMonth,
+	endOfWeek,
+	format,
+	isSameDay,
+	isSameMonth,
+	isToday,
+	startOfMonth,
+	startOfWeek,
+	subMonths,
+} from "date-fns";
+import { ru } from "date-fns/locale";
+import {
 	AlertCircle,
 	BarChart3,
 	CalendarDays,
 	CheckCircle2,
+	ChevronLeft,
+	ChevronRight,
 	Circle,
 	Clock,
 	Edit2,
@@ -19,7 +35,7 @@ import {
 	Trash2,
 	User,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useAuth } from "@/lib/auth";
 import { DataTable } from "@/components/data-table";
@@ -174,6 +190,23 @@ function normalizeTask(raw: Record<string, unknown>): Task {
 function taskTimelineDate(task: Task): string | null {
 	return task.plannedEndDate || task.dueDate || task.createdAt || null;
 }
+
+function taskCalendarDateKeys(task: Task): string[] {
+	const keys = new Set<string>();
+	for (const d of [task.dueDate, task.plannedEndDate, task.plannedStartDate, task.createdAt]) {
+		if (d) keys.add(String(d).slice(0, 10));
+	}
+	return [...keys];
+}
+
+function isTaskOverdue(task: Task): boolean {
+	return Boolean(task.dueDate && task.status !== "done" && new Date(task.dueDate) < new Date());
+}
+
+const TASK_DRAG_MIME = "application/x-construction-task-id";
+
+type ViewMode = "kanban" | "table" | "calendar" | "gantt";
+const TASKS_VIEW_STORAGE_KEY = "construction-tasks-view-mode";
 
 /** Задача попадает в период, если любая из дат в диапазоне; без дат — не скрываем */
 function taskMatchesPeriod(task: Task, period: PeriodValue): boolean {
@@ -530,7 +563,7 @@ function Avatar({ name, size = "sm" }: { name: string; size?: "sm" | "md" }) {
 }
 
 function TaskCard({
-	task, userMap, projectMap, stageLabelText, contractorMap, salesContractMap, supplyRequestMap, onEdit, onDelete, onStatusChange, onQuickSupplyRequest, onQuickSalesContract,
+	task, userMap, projectMap, stageLabelText, contractorMap, salesContractMap, supplyRequestMap, onEdit, onDelete, onStatusChange, onQuickSupplyRequest, onQuickSalesContract, kanbanDraggable = false,
 }: {
 	task: Task;
 	userMap: Record<number, ApiUser>;
@@ -544,13 +577,15 @@ function TaskCard({
 	onStatusChange: (task: Task, status: string) => void;
 	onQuickSupplyRequest: (task: Task) => void;
 	onQuickSalesContract: (task: Task) => void;
+	kanbanDraggable?: boolean;
 }) {
 	const [, navigate] = useLocation();
+	const dragMovedRef = useRef(false);
 	const statusOpt = STATUS_OPTS.find((s) => s.value === task.status);
 	const StatusIcon = statusOpt?.icon ?? Circle;
 	const priorityOpt = PRIORITY_OPTS.find((p) => p.value === task.priority);
 	const assignee = taskAssignedTo(task) ? userMap[taskAssignedTo(task)!] : null;
-	const isOverdue = task.dueDate && task.status !== "done" && new Date(task.dueDate) < new Date();
+	const isOverdue = isTaskOverdue(task);
 
 	const nextStatus = task.status === "todo" ? "in_progress"
 		: task.status === "in_progress" ? "review"
@@ -562,14 +597,33 @@ function TaskCard({
 		<div
 			role="button"
 			tabIndex={0}
-			onClick={openChat}
+			draggable={kanbanDraggable}
+			onDragStart={(e) => {
+				if (!kanbanDraggable) return;
+				dragMovedRef.current = true;
+				e.dataTransfer.setData(TASK_DRAG_MIME, String(task.id));
+				e.dataTransfer.effectAllowed = "move";
+			}}
+			onDragEnd={() => {
+				window.setTimeout(() => {
+					dragMovedRef.current = false;
+				}, 0);
+			}}
+			onClick={() => {
+				if (dragMovedRef.current) return;
+				openChat();
+			}}
 			onKeyDown={(e) => {
 				if (e.key === "Enter" || e.key === " ") {
 					e.preventDefault();
 					openChat();
 				}
 			}}
-			className="bg-white border border-gray-200 rounded-lg p-3 hover:border-amber-300 hover:shadow-sm transition-all group cursor-pointer"
+			className={`bg-white border rounded-lg p-3 hover:border-amber-300 hover:shadow-sm transition-all group cursor-pointer ${
+				isOverdue
+					? "border-rose-300 am-task-overdue-pulse"
+					: "border-gray-200"
+			} ${kanbanDraggable ? "cursor-grab active:cursor-grabbing" : ""}`}
 		>
 			<div className="flex items-start justify-between gap-2 mb-2">
 				<div className="flex items-start gap-2 flex-1 min-w-0">
@@ -959,51 +1013,179 @@ function TasksCalendarView({
 	projectMap: Record<number, string>;
 	onTaskClick: (task: Task) => void;
 }) {
-	const groups = useMemo(() => {
+	const [monthCursor, setMonthCursor] = useState(() => startOfMonth(new Date()));
+	const [selectedDay, setSelectedDay] = useState<Date>(() => new Date());
+
+	const tasksByDate = useMemo(() => {
 		const map = new Map<string, Task[]>();
 		for (const task of tasks) {
-			const key = String(taskTimelineDate(task) || "").slice(0, 10);
-			if (!key) continue;
-			const arr = map.get(key) ?? [];
-			arr.push(task);
-			map.set(key, arr);
+			for (const key of taskCalendarDateKeys(task)) {
+				const arr = map.get(key) ?? [];
+				if (!arr.some((t) => t.id === task.id)) arr.push(task);
+				map.set(key, arr);
+			}
 		}
-		return Array.from(map.entries())
-			.sort(([a], [b]) => a.localeCompare(b))
-			.map(([date, rows]) => ({ date, rows }));
+		return map;
 	}, [tasks]);
 
-	if (groups.length === 0) {
+	const calendarDays = useMemo(() => {
+		const start = startOfWeek(startOfMonth(monthCursor), { weekStartsOn: 1 });
+		const end = endOfWeek(endOfMonth(monthCursor), { weekStartsOn: 1 });
+		return eachDayOfInterval({ start, end });
+	}, [monthCursor]);
+
+	const selectedKey = format(selectedDay, "yyyy-MM-dd");
+	const selectedTasks = tasksByDate.get(selectedKey) ?? [];
+
+	const weekDayLabels = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+
+	if (tasks.length === 0) {
 		return <div className="text-sm text-gray-400 py-10 text-center">Нет задач в выбранном периоде</div>;
 	}
 
 	return (
-		<div className="space-y-3">
-			{groups.map((group) => (
-				<div key={group.date} className="rounded-xl border border-gray-200 bg-white">
-					<div className="px-3 py-2 border-b border-gray-100 text-sm font-semibold text-gray-700">
-						{new Date(group.date).toLocaleDateString("ru-RU", {
-							weekday: "long",
-							day: "2-digit",
-							month: "long",
-						})}
+		<div className="space-y-4">
+			<div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+				<div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+					<Button
+						type="button"
+						variant="ghost"
+						size="icon"
+						className="h-8 w-8"
+						onClick={() => setMonthCursor((m) => subMonths(m, 1))}
+						aria-label="Предыдущий месяц"
+					>
+						<ChevronLeft className="w-4 h-4" />
+					</Button>
+					<div className="text-sm font-semibold text-gray-900 capitalize">
+						{format(monthCursor, "LLLL yyyy", { locale: ru })}
 					</div>
+					<Button
+						type="button"
+						variant="ghost"
+						size="icon"
+						className="h-8 w-8"
+						onClick={() => setMonthCursor((m) => addMonths(m, 1))}
+						aria-label="Следующий месяц"
+					>
+						<ChevronRight className="w-4 h-4" />
+					</Button>
+				</div>
+
+				<div className="grid grid-cols-7 border-b border-gray-100 bg-gray-50">
+					{weekDayLabels.map((label) => (
+						<div
+							key={label}
+							className="py-2 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wide"
+						>
+							{label}
+						</div>
+					))}
+				</div>
+
+				<div className="grid grid-cols-7">
+					{calendarDays.map((day) => {
+						const key = format(day, "yyyy-MM-dd");
+						const dayTasks = tasksByDate.get(key) ?? [];
+						const inMonth = isSameMonth(day, monthCursor);
+						const selected = isSameDay(day, selectedDay);
+						const today = isToday(day);
+						return (
+							<button
+								key={key}
+								type="button"
+								onClick={() => setSelectedDay(day)}
+								className={`min-h-[88px] border-b border-r border-gray-100 p-1.5 text-left transition-colors ${
+									!inMonth ? "bg-gray-50/80" : "bg-white"
+								} ${selected ? "ring-2 ring-inset ring-amber-400 z-[1]" : "hover:bg-amber-50/40"}`}
+							>
+								<div className="flex items-center justify-between gap-1 mb-1">
+									<span
+										className={`text-xs font-medium w-6 h-6 flex items-center justify-center rounded-full ${
+											today
+												? "bg-amber-500 text-white"
+												: inMonth
+													? "text-gray-800"
+													: "text-gray-400"
+										}`}
+									>
+										{format(day, "d")}
+									</span>
+									{dayTasks.length > 0 && (
+										<span className="text-[10px] text-gray-500 font-medium tabular-nums">
+											{dayTasks.length}
+										</span>
+									)}
+								</div>
+								<div className="space-y-0.5">
+									{dayTasks.slice(0, 3).map((task) => {
+										const overdue = isTaskOverdue(task);
+										const statusOpt = STATUS_OPTS.find((s) => s.value === task.status);
+										return (
+											<div
+												key={task.id}
+												className={`truncate rounded px-1 py-0.5 text-[10px] leading-tight ${
+													overdue
+														? "bg-rose-100 text-rose-800 am-task-overdue-pulse"
+														: statusOpt?.bg ?? "bg-gray-100 text-gray-700"
+												}`}
+												title={task.title}
+											>
+												{task.title}
+											</div>
+										);
+									})}
+									{dayTasks.length > 3 && (
+										<div className="text-[10px] text-gray-400 px-1">
+											+{dayTasks.length - 3} ещё
+										</div>
+									)}
+								</div>
+							</button>
+						);
+					})}
+				</div>
+			</div>
+
+			<div className="rounded-xl border border-gray-200 bg-white">
+				<div className="px-3 py-2 border-b border-gray-100 text-sm font-semibold text-gray-700">
+					{format(selectedDay, "d MMMM yyyy, EEEE", { locale: ru })}
+					{selectedTasks.length > 0 && (
+						<span className="ml-2 text-xs font-normal text-gray-500">
+							· {selectedTasks.length} задач
+						</span>
+					)}
+				</div>
+				{selectedTasks.length === 0 ? (
+					<p className="text-sm text-gray-400 px-3 py-4">На этот день задач нет</p>
+				) : (
 					<div className="divide-y divide-gray-100">
-						{group.rows.map((task) => (
+						{selectedTasks.map((task) => (
 							<button
 								key={task.id}
+								type="button"
 								onClick={() => onTaskClick(task)}
-								className="w-full text-left px-3 py-2 hover:bg-gray-50"
+								className={`w-full text-left px-3 py-2 hover:bg-gray-50 ${
+									isTaskOverdue(task) ? "bg-rose-50/50" : ""
+								}`}
 							>
-								<div className="text-sm font-medium text-gray-900">{task.title}</div>
+								<div
+									className={`text-sm font-medium ${
+										isTaskOverdue(task) ? "text-rose-800 am-task-overdue-pulse rounded px-1 -mx-1" : "text-gray-900"
+									}`}
+								>
+									{task.title}
+								</div>
 								<div className="text-xs text-gray-500 mt-0.5">
-									{projectMap[task.projectId] || "—"} · {task.status}
+									{projectMap[task.projectId] || "—"} ·{" "}
+									{STATUS_OPTS.find((s) => s.value === task.status)?.label || task.status}
+									{isTaskOverdue(task) ? " · просрочено" : ""}
 								</div>
 							</button>
 						))}
 					</div>
-				</div>
-			))}
+				)}
+			</div>
 		</div>
 	);
 }
@@ -1103,8 +1285,20 @@ export default function ConstructionTasks() {
 	const [tableGroupBy, setTableGroupBy] = useState<TableGroupBy>("none");
 	const [search, setSearch] = useState("");
 	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod("all"));
-	const [viewMode, setViewMode] = useState<"kanban" | "table" | "calendar" | "gantt">("calendar");
+	const [viewMode, setViewMode] = useState<ViewMode>(() => {
+		if (typeof window === "undefined") return "calendar";
+		const saved = localStorage.getItem(TASKS_VIEW_STORAGE_KEY);
+		if (saved === "kanban" || saved === "table" || saved === "calendar" || saved === "gantt") {
+			return saved;
+		}
+		return "calendar";
+	});
+	const [kanbanDropStatus, setKanbanDropStatus] = useState<string | null>(null);
 	const [, navigate] = useLocation();
+
+	useEffect(() => {
+		localStorage.setItem(TASKS_VIEW_STORAGE_KEY, viewMode);
+	}, [viewMode]);
 
 	useEffect(() => {
 		void api.post("/construction/tasks/overdue/check").catch(() => {});
@@ -1491,8 +1685,37 @@ export default function ConstructionTasks() {
 				<div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
 					{columns.map((col) => {
 						const Icon = col.icon;
+						const isDropTarget = kanbanDropStatus === col.value;
 						return (
-							<div key={col.value} className={`rounded-xl border ${col.bg} p-3`}>
+							<div
+								key={col.value}
+								className={`rounded-xl border ${col.bg} p-3 transition-shadow ${
+									isDropTarget ? "ring-2 ring-amber-400 ring-offset-2 shadow-md" : ""
+								}`}
+								onDragOver={(e) => {
+									e.preventDefault();
+									e.dataTransfer.dropEffect = "move";
+									setKanbanDropStatus(col.value);
+								}}
+								onDragLeave={(e) => {
+									const next = e.relatedTarget as Node | null;
+									if (next && e.currentTarget.contains(next)) return;
+									setKanbanDropStatus((prev) => (prev === col.value ? null : prev));
+								}}
+								onDrop={(e) => {
+									e.preventDefault();
+									const id = Number(e.dataTransfer.getData(TASK_DRAG_MIME));
+									if (!Number.isFinite(id)) {
+										setKanbanDropStatus(null);
+										return;
+									}
+									const dropped = filteredTasks.find((t) => t.id === id);
+									if (dropped && dropped.status !== col.value) {
+										void handleStatusChange(dropped, col.value);
+									}
+									setKanbanDropStatus(null);
+								}}
+							>
 								<div className={`flex items-center gap-1.5 mb-3 ${col.color}`}>
 									<Icon className="w-3.5 h-3.5" />
 									<span className="text-xs font-semibold text-gray-700">{col.label}</span>
@@ -1500,7 +1723,7 @@ export default function ConstructionTasks() {
 										{col.tasks.length}
 									</span>
 								</div>
-								<div className="space-y-2">
+								<div className="space-y-2 min-h-[72px]">
 									{col.tasks.map((t) => (
 										<TaskCard
 											key={t.id}
@@ -1516,6 +1739,7 @@ export default function ConstructionTasks() {
 											onStatusChange={handleStatusChange}
 											onQuickSupplyRequest={handleQuickSupplyRequest}
 											onQuickSalesContract={handleQuickSalesContract}
+											kanbanDraggable
 										/>
 									))}
 									{col.tasks.length === 0 && (

@@ -328,6 +328,12 @@
   --am-brand-surface: 33 100% 96%;   /* amber-50 — hover row, tab bg */
   --am-brand-fg: 0 0% 100%;
 
+  /* Навигация (indigo sidebar) */
+  --am-nav: 243 75% 59%;
+  --am-nav-muted: 228 38% 16%;
+  --am-nav-bg-from: 228 45% 8%;
+  --am-nav-bg-to: 228 38% 16%;
+
   /* Семантика */
   --am-success: 160 84% 39%;         /* emerald-500 */
   --am-success-surface: 152 81% 96%;
@@ -463,6 +469,21 @@
 }
 .am-spin {
   animation: am-spin 700ms linear infinite;
+}
+
+/* Просроченные задачи — мягкая пульсация рамки */
+@keyframes am-task-overdue-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.35);
+    border-color: rgb(253 164 175);
+  }
+  50% {
+    box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.45);
+    border-color: rgb(244 63 94);
+  }
+}
+.am-task-overdue-pulse {
+  animation: am-task-overdue-pulse 1.6s ease-in-out infinite;
 }
 
 /* tabular-nums для денежных колонок */
