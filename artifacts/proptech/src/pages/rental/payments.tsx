@@ -131,8 +131,15 @@ function PaymentDialog({ open, onClose }: PaymentDialogProps) {
 	>({});
 	const [loading, setLoading] = useState(false);
 
-	const accountsArray = Array.isArray(accounts) ? accounts : [];
-	const leasesArray = Array.isArray(leases) ? leases : [];
+	const accountsArray = useMemo(
+		() => (Array.isArray(accounts) ? accounts : []),
+		[accounts],
+	);
+	const leasesArray = useMemo(
+		() => (Array.isArray(leases) ? leases : []),
+		[leases],
+	);
+	const defaultAccountId = accountsArray[0] ? String(accountsArray[0].id) : "";
 
 	const selectedLease = leasesArray.find(
 		(l) => String(l.id) === formData.leaseContractId,
@@ -144,27 +151,27 @@ function PaymentDialog({ open, onClose }: PaymentDialogProps) {
 	const accountCurrency = (selectedAccount?.currency || "KGS").toUpperCase();
 
 	useEffect(() => {
-		if (!open) return;
+		if (!open || !defaultAccountId) return;
 		setFormData((prev) => ({
 			...prev,
-			accountId: prev.accountId || (accountsArray[0] ? String(accountsArray[0].id) : ""),
+			accountId: prev.accountId || defaultAccountId,
 		}));
-	}, [open, accountsArray]);
+	}, [open, defaultAccountId]);
 
 	// Load open accruals for selected contract
 	const { data: openAccruals = [] } = useQuery<OpenAccrual[]>({
 		queryKey: getAccrualsOpenQueryKey(formData.leaseContractId),
 		queryFn: async () => {
 			if (!formData.leaseContractId) return [];
-			const all = await api.get("/rental/accruals").then((r) => r.data);
-			const allArray = Array.isArray(all) ? all : [];
-			return allArray
-				.filter(
-					(a: any) =>
-						String(a.leaseContractId) === formData.leaseContractId &&
-						parseFloat(a.balance) > 0,
-				)
-				.sort((a: any, b: any) => a.dueDate.localeCompare(b.dueDate));
+			const rows = await api
+				.get("/rental/accruals", {
+					params: { leaseContractId: formData.leaseContractId },
+				})
+				.then((r) => r.data);
+			const list = Array.isArray(rows) ? rows : [];
+			return list
+				.filter((a: OpenAccrual) => parseFloat(a.balance) > 0)
+				.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
 		},
 		enabled: !!formData.leaseContractId,
 	});

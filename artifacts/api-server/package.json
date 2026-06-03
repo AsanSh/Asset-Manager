@@ -15,10 +15,10 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.97.0",
+    "@sentry/node": "^9.47.1",
+    "@vercel/blob": "^0.27.3",
     "bcryptjs": "^3.0.2",
-    "cookie-parser": "^1.4.7",
     "cors": "^2",
-    "docxtemplater": "^3.68.7",
     "drizzle-orm": "^0.45.1",
     "drizzle-zod": "^0.8.3",
     "exceljs": "^4.4.0",
@@ -35,7 +35,6 @@
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
-    "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^25.3.3",

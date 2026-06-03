@@ -1253,35 +1253,88 @@ router.get("/rental/properties", async (req: AuthenticatedRequest, res): Promise
     .orderBy(propertiesTable.createdAt);
   if (rentalStatus) props = props.filter(p => p.rentalStatus === rentalStatus);
 
-  const enriched = await Promise.all(props.map(async (p) => {
-    const activeConditions: SQL[] = [eq(leaseContractsTable.propertyId, p.id), eq(leaseContractsTable.status, "active")];
-    const [activeContract] = await db.select().from(leaseContractsTable).where(and(...activeConditions));
+  if (props.length === 0) {
+    res.json([]);
+    return;
+  }
 
+  const propertyIds = props.map((p) => p.id);
+  const activeContracts = await db
+    .select()
+    .from(leaseContractsTable)
+    .where(
+      and(
+        inArray(leaseContractsTable.propertyId, propertyIds),
+        eq(leaseContractsTable.status, "active"),
+      ),
+    );
+
+  const contractByPropertyId = new Map<number, (typeof activeContracts)[number]>();
+  for (const c of activeContracts) {
+    if (!contractByPropertyId.has(c.propertyId)) {
+      contractByPropertyId.set(c.propertyId, c);
+    }
+  }
+
+  const tenantIds = [
+    ...new Set(
+      activeContracts.map((c) => c.tenantId).filter((id): id is number => id != null),
+    ),
+  ];
+  const tenants =
+    tenantIds.length > 0
+      ? await db.select().from(tenantsTable).where(inArray(tenantsTable.id, tenantIds))
+      : [];
+  const tenantById = new Map(tenants.map((t) => [t.id, t]));
+
+  const contractIds = [...contractByPropertyId.values()].map((c) => c.id);
+  const accrualRows =
+    contractIds.length > 0
+      ? await db
+          .select()
+          .from(accrualsTable)
+          .where(inArray(accrualsTable.leaseContractId, contractIds))
+      : [];
+  const balanceByContractId = new Map<number, number>();
+  for (const a of accrualRows) {
+    const prev = balanceByContractId.get(a.leaseContractId) ?? 0;
+    balanceByContractId.set(a.leaseContractId, prev + parseFloat(a.balance));
+  }
+
+  const enriched = props.map((p) => {
+    const activeContract = contractByPropertyId.get(p.id);
     let currentTenantName = null;
     let currentRentAmount = null;
     let currency = null;
     let leaseEndDate = null;
+    let totalBalance = 0;
 
     if (activeContract) {
-      const [t] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, activeContract.tenantId));
+      const t = tenantById.get(activeContract.tenantId);
       currentTenantName = t?.fullName ?? null;
       currentRentAmount = parseFloat(activeContract.rentAmount);
       currency = activeContract.currency;
       leaseEndDate = activeContract.endDate;
+      totalBalance = balanceByContractId.get(activeContract.id) ?? 0;
     }
 
-    const accruals = await db.select().from(accrualsTable).where(
-      eq(accrualsTable.leaseContractId, activeContract?.id ?? -1)
-    );
-    const totalBalance = accruals.reduce((sum, a) => sum + parseFloat(a.balance), 0);
-
     return {
-      id: p.id, propertyId: p.id, unitNumber: p.unitNumber, projectName: p.projectName,
-      type: p.type, area: p.area ? parseFloat(p.area) : null, rentalStatus: p.rentalStatus || "free",
-      currentTenantName, currentRentAmount, currency, leaseEndDate,
-      totalBalance, isActive: true, createdAt: p.createdAt.toISOString(),
+      id: p.id,
+      propertyId: p.id,
+      unitNumber: p.unitNumber,
+      projectName: p.projectName,
+      type: p.type,
+      area: p.area ? parseFloat(p.area) : null,
+      rentalStatus: p.rentalStatus || "free",
+      currentTenantName,
+      currentRentAmount,
+      currency,
+      leaseEndDate,
+      totalBalance,
+      isActive: true,
+      createdAt: p.createdAt.toISOString(),
     };
-  }));
+  });
   res.json(enriched);
 });
 

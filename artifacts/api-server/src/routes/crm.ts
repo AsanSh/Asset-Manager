@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, and, SQL, sql, desc, asc } from "drizzle-orm";
+import { eq, and, SQL, sql, desc, asc, inArray } from "drizzle-orm";
 import {
   db,
   crmLeadsTable,
@@ -211,14 +211,24 @@ router.get("/crm/leads", async (req: AuthenticatedRequest, res): Promise<void> =
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(desc(crmLeadsTable.createdAt));
 
-  // Enrich with assigned user names
-  const enriched = await Promise.all(leads.map(async (lead) => {
-    let assignedUserName = null;
-    if (lead.assignedUserId) {
-      const [user] = await db.select().from(usersTable).where(eq(usersTable.id, lead.assignedUserId));
-      assignedUserName = user ? `${user.firstName} ${user.lastName}` : null;
-    }
-    return { ...lead, assignedUserName };
+  const assignedIds = [
+    ...new Set(
+      leads.map((l) => l.assignedUserId).filter((id): id is number => id != null),
+    ),
+  ];
+  const assignees =
+    assignedIds.length > 0
+      ? await db.select().from(usersTable).where(inArray(usersTable.id, assignedIds))
+      : [];
+  const nameByUserId = new Map(
+    assignees.map((u) => [u.id, `${u.firstName} ${u.lastName}`.trim()]),
+  );
+
+  const enriched = leads.map((lead) => ({
+    ...lead,
+    assignedUserName: lead.assignedUserId
+      ? nameByUserId.get(lead.assignedUserId) ?? null
+      : null,
   }));
 
   res.json(enriched);
