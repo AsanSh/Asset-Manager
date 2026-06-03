@@ -99,6 +99,16 @@ import {
   slugifyStatusCode,
 } from "../lib/unit-statuses";
 import { UNIT_STATUS_COLOR_PRESETS, type UnitStatusColorKey } from "../lib/default-unit-statuses";
+import {
+  assertUnitStatusAllowed,
+  approveUnitPrice,
+  canManagePricing,
+  computeListPrice,
+  enrichUnitPricing,
+  isSalesRole,
+  loadProjectForPricing,
+  parseNum,
+} from "../lib/unit-pricing";
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -300,6 +310,10 @@ router.patch("/projects/:id", async (req: AuthenticatedRequest, res): Promise<vo
       totalUnits: body.totalUnits ? parseInt(body.totalUnits) : null,
       totalArea: body.totalArea ? String(totalArea) : null,
       costPerSqm: body.costPerSqm ? String(costPerSqm) : null,
+      baseSalePricePerSqm:
+        body.baseSalePricePerSqm != null && body.baseSalePricePerSqm !== ""
+          ? String(parseFloat(body.baseSalePricePerSqm))
+          : undefined,
       currency: body.currency, exchangeRateSource: body.exchangeRateSource,
       exchangeRate: String(exchangeRate),
       estimatedCostKgs: estimatedCostKgs > 0 ? String(estimatedCostKgs) : null,
@@ -1794,20 +1808,138 @@ router.post("/units", async (req: AuthenticatedRequest, res): Promise<void> => {
 
 router.patch("/units/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
-  const { unitNumber, floor, block, unitType, roomCount, area, pricePerSqm, currency, status, buyerId, contractDate, notes } = req.body;
-  const a = parseFloat(area || "0");
-  const pps = parseFloat(pricePerSqm || "0");
-  const [row] = await db.update(constructionUnitsTable)
-    .set({
-      unitNumber, floor: floor ? parseInt(floor) : null, block,
-      unitType, roomCount: roomCount ? parseInt(roomCount) : null,
-      area: a > 0 ? String(a) : null, pricePerSqm: pps > 0 ? String(pps) : null,
-      totalPrice: a > 0 && pps > 0 ? String(a * pps) : null,
-      currency, status, buyerId: buyerId || null, contractDate: contractDate || null, notes,
-    })
-    .where(and(eq(constructionUnitsTable.id, id), eq(constructionUnitsTable.companyId, req.scopedCompanyId!)))
+  const companyId = req.scopedCompanyId!;
+  const role = req.userRole || "";
+  const permissions = req.userPermissions || [];
+
+  const [existing] = await db
+    .select()
+    .from(constructionUnitsTable)
+    .where(and(eq(constructionUnitsTable.id, id), eq(constructionUnitsTable.companyId, companyId)));
+  if (!existing) {
+    res.status(404).json({ error: "Квартира не найдена" });
+    return;
+  }
+
+  const {
+    unitNumber, floor, block, unitType, roomCount, area, pricePerSqm, currency, status,
+    buyerId, contractDate, notes, priceCoefficient,
+  } = req.body;
+
+  const nextStatus =
+    status !== undefined ? await resolveUnitStatus(companyId, String(status)) : existing.status;
+
+  if (status !== undefined && nextStatus !== existing.status) {
+    const gate = await assertUnitStatusAllowed({
+      companyId,
+      role,
+      unit: existing,
+      nextStatus,
+    });
+    if (!gate.ok) {
+      res.status(403).json({ error: gate.error });
+      return;
+    }
+  }
+
+  if (isSalesRole(role) && !existing.priceApproved) {
+    res.status(403).json({ error: "Редактирование доступно после утверждения цены" });
+    return;
+  }
+
+  const project = await loadProjectForPricing(companyId, existing.projectId);
+  const a = parseNum(area !== undefined ? area : existing.area);
+  let coef = parseNum(
+    priceCoefficient !== undefined ? priceCoefficient : existing.priceCoefficient,
+  );
+  if (coef <= 0) coef = 1;
+
+  const canPrice = canManagePricing(role, permissions);
+  if (priceCoefficient !== undefined && !canPrice) {
+    res.status(403).json({ error: "Коэффициент цены меняет коммерческий директор" });
+    return;
+  }
+
+  let pps = pricePerSqm !== undefined ? parseNum(pricePerSqm) : parseNum(existing.pricePerSqm);
+  let total = a > 0 && pps > 0 ? a * pps : parseNum(existing.totalPrice);
+
+  if (canPrice && (priceCoefficient !== undefined || body.recalcPrice)) {
+    const list = computeListPrice(project, {
+      ...existing,
+      area: a > 0 ? String(a) : existing.area,
+      priceCoefficient: String(coef),
+    });
+    if (list > 0) {
+      total = list;
+      pps = a > 0 ? list / a : pps;
+    }
+  }
+
+  const patch: Record<string, unknown> = {
+    unitNumber: unitNumber ?? existing.unitNumber,
+    floor: floor !== undefined ? (floor ? parseInt(floor, 10) : null) : existing.floor,
+    block: block !== undefined ? block : existing.block,
+    unitType: unitType ?? existing.unitType,
+    roomCount:
+      roomCount !== undefined
+        ? roomCount
+          ? parseInt(roomCount, 10)
+          : null
+        : existing.roomCount,
+    area: a > 0 ? String(a) : existing.area,
+    pricePerSqm: pps > 0 ? String(pps) : existing.pricePerSqm,
+    totalPrice: total > 0 ? String(total) : existing.totalPrice,
+    currency: currency ?? existing.currency,
+    status: nextStatus,
+    buyerId: buyerId !== undefined ? buyerId || null : existing.buyerId,
+    contractDate: contractDate !== undefined ? contractDate || null : existing.contractDate,
+    notes: notes !== undefined ? notes : existing.notes,
+  };
+  if (priceCoefficient !== undefined && canPrice) {
+    patch.priceCoefficient = String(coef);
+    if (existing.priceApproved) {
+      patch.priceApproved = false;
+      patch.priceApprovedAt = null;
+      patch.priceApprovedBy = null;
+    }
+  }
+
+  const [row] = await db
+    .update(constructionUnitsTable)
+    .set(patch as typeof constructionUnitsTable.$inferInsert)
+    .where(eq(constructionUnitsTable.id, id))
     .returning();
-  res.json(row);
+
+  res.json(enrichUnitPricing(project, row));
+});
+
+router.post("/units/:id/approve-price", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
+  const id = parseInt(req.params.id as string, 10);
+  const role = req.userRole || "";
+  const permissions = req.userPermissions || [];
+
+  if (!canManagePricing(role, permissions)) {
+    res.status(403).json({ error: "Утверждение цены доступно коммерческому директору" });
+    return;
+  }
+
+  const coef = req.body?.priceCoefficient !== undefined
+    ? parseNum(req.body.priceCoefficient)
+    : undefined;
+
+  const updated = await approveUnitPrice({
+    companyId,
+    unitId: id,
+    userId: req.userId!,
+    coefficient: coef,
+  });
+  if (!updated) {
+    res.status(404).json({ error: "Квартира не найдена" });
+    return;
+  }
+  const project = await loadProjectForPricing(companyId, updated.projectId);
+  res.json(enrichUnitPricing(project, updated));
 });
 
 router.post("/units/bulk", async (req: AuthenticatedRequest, res): Promise<void> => {
@@ -1862,11 +1994,22 @@ router.get("/units/overview", async (req: AuthenticatedRequest, res): Promise<vo
     if (!contractByUnit.has(c.unitId)) contractByUnit.set(c.unitId, c);
   }
 
+  const [project] = await db
+    .select()
+    .from(constructionProjectsTable)
+    .where(
+      and(
+        eq(constructionProjectsTable.id, projectId),
+        eq(constructionProjectsTable.companyId, companyId),
+      ),
+    );
+
   res.json(
     units.map((u) => {
       const c = contractByUnit.get(u.id);
+      const enriched = enrichUnitPricing(project ?? null, u);
       return {
-        ...u,
+        ...enriched,
         contract: c
           ? {
               id: c.id,
@@ -2593,6 +2736,84 @@ router.get("/consolidated", async (req: AuthenticatedRequest, res): Promise<void
     .limit(parseInt(String(lim), 10));
 
   res.json(rows);
+});
+
+/** Себестоимость по проекту / этапу / задаче (операции + расходы + снабжение). */
+router.get("/cost-summary", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
+  const projectId = parseInt(String(req.query.projectId || ""), 10);
+  if (!projectId) {
+    res.status(400).json({ error: "projectId обязателен" });
+    return;
+  }
+
+  const stageId = req.query.stageId ? parseInt(String(req.query.stageId), 10) : null;
+  const taskId = req.query.taskId ? parseInt(String(req.query.taskId), 10) : null;
+
+  const expenseFilters = [
+    eq(constructionExpensesTable.companyId, companyId),
+    eq(constructionExpensesTable.projectId, projectId),
+  ];
+  if (stageId) expenseFilters.push(eq(constructionExpensesTable.stageId, stageId));
+  if (taskId) expenseFilters.push(eq(constructionExpensesTable.constructionTaskId, taskId));
+
+  const expenses = await db
+    .select()
+    .from(constructionExpensesTable)
+    .where(and(...expenseFilters));
+
+  const stages = await db
+    .select({ id: constructionStagesTable.id, name: constructionStagesTable.name })
+    .from(constructionStagesTable)
+    .where(
+      and(
+        eq(constructionStagesTable.companyId, companyId),
+        eq(constructionStagesTable.projectId, projectId),
+      ),
+    );
+
+  const tasks = await db
+    .select({
+      id: constructionTasksTable.id,
+      title: constructionTasksTable.title,
+      stageId: constructionTasksTable.stageId,
+    })
+    .from(constructionTasksTable)
+    .where(
+      and(
+        eq(constructionTasksTable.companyId, companyId),
+        eq(constructionTasksTable.projectId, projectId),
+        ...(stageId ? [eq(constructionTasksTable.stageId, stageId)] : []),
+        ...(taskId ? [eq(constructionTasksTable.id, taskId)] : []),
+      ),
+    );
+
+  const expenseTotal = expenses.reduce((s, e) => s + parseNum(e.amountKgs ?? e.amount), 0);
+
+  const byStage = new Map<number, number>();
+  const byTask = new Map<number, number>();
+  for (const e of expenses) {
+    const amt = parseNum(e.amountKgs ?? e.amount);
+    if (e.stageId) byStage.set(e.stageId, (byStage.get(e.stageId) ?? 0) + amt);
+    if (e.constructionTaskId) {
+      byTask.set(e.constructionTaskId, (byTask.get(e.constructionTaskId) ?? 0) + amt);
+    }
+  }
+
+  res.json({
+    projectId,
+    totalKgs: expenseTotal,
+    expensesCount: expenses.length,
+    stages: stages.map((s) => ({
+      ...s,
+      costKgs: byStage.get(s.id) ?? 0,
+    })),
+    tasks: tasks.map((t) => ({
+      ...t,
+      costKgs: byTask.get(t.id) ?? 0,
+      stageCostKgs: t.stageId ? byStage.get(t.stageId) ?? 0 : 0,
+    })),
+  });
 });
 
 export default router;

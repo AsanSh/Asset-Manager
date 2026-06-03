@@ -32,6 +32,7 @@
     { "idx": 27, "version": "7", "when": 1780015000000, "tag": "0027_construction_task_dependencies", "breakpoints": true },
     { "idx": 28, "version": "7", "when": 1780020000000, "tag": "0028_task_business_links_rollup", "breakpoints": true },
     { "idx": 29, "version": "7", "when": 1780025000000, "tag": "0029_construction_operations_counterparty", "breakpoints": true },
-    { "idx": 30, "version": "7", "when": 1780030000000, "tag": "0030_rental_payments_account_amount", "breakpoints": true }
+    { "idx": 30, "version": "7", "when": 1780030000000, "tag": "0030_rental_payments_account_amount", "breakpoints": true },
+    { "idx": 31, "version": "7", "when": 1780035000000, "tag": "0031_mvp_sales_client_relations", "breakpoints": true }
   ]
 }

@@ -40,6 +40,7 @@ import payrollRouter from "./payroll";
 import supplyRouter from "./supply";
 import catalogRouter from "./catalog";
 import tableViewsRouter from "./table-views";
+import clientRelationsRouter from "./client-relations";
 
 const router: IRouter = Router();
 
@@ -69,6 +70,7 @@ router.use("/finance-reconciliation", financeReconciliationRouter);
 router.use(supplyRouter);
 router.use(catalogRouter);
 router.use(tableViewsRouter);
+router.use(clientRelationsRouter);
 router.use(notificationsRouter);
 router.use(notificationsApiRouter);
 router.use(categoriesRouter);

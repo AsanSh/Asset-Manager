@@ -72,6 +72,10 @@ import { useAuth } from "@/lib/auth";
 import { detectModuleFromPath, type ModuleId } from "@/lib/module-access";
 import { resolveQuickActions } from "@/lib/quick-create-access";
 import { resolveNavItemHref } from "@/lib/nav-hrefs";
+import {
+	isNavHrefAllowedForRole,
+	resolveBusinessNavRole,
+} from "@/lib/role-nav";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -192,6 +196,11 @@ const MODULES: Module[] = [
 						icon: AlertTriangle,
 					},
 					{ href: "/construction/budget", label: "Бюджет", icon: Wallet },
+					{
+						href: "/construction/cost-summary",
+						label: "Себестоимость",
+						icon: Scale,
+					},
 					{
 						href: "/construction/planning/forecast",
 						label: "Будущие поступления",
@@ -492,6 +501,7 @@ const MODULES: Module[] = [
 		urlPrefix: [
 			"/dashboard",
 			"/counterparties",
+			"/client-relations",
 			"/properties",
 			"/users",
 			"/settings",
@@ -513,6 +523,11 @@ const MODULES: Module[] = [
 						icon: Grid3X3,
 					},
 					{ href: "/counterparties", label: "Все контрагенты", icon: Users },
+					{
+						href: "/client-relations",
+						label: "Client Relations",
+						icon: MessageCircle,
+					},
 					{ href: "/companies", label: "Компании", icon: Building },
 					{ href: "/users", label: "Пользователи", icon: UserCircle },
 					{
@@ -607,10 +622,14 @@ function SectionGroup({
 	allowedModules,
 	defaultOpen,
 }: SectionGroupProps) {
-	const items = section.items.map((item) => ({
-		...item,
-		href: resolveNavItemHref(item, moduleId, role, permissions, allowedModules),
-	}));
+	const businessRole = resolveBusinessNavRole(role, permissions);
+	const items = section.items
+		.map((item) => ({
+			...item,
+			href: resolveNavItemHref(item, moduleId, role, permissions, allowedModules),
+		}))
+		.filter((item) => isNavHrefAllowedForRole(item.href, businessRole));
+	if (items.length === 0) return null;
 	const matchingItems = items.filter((i) =>
 		navItemMatches(location, i.href),
 	);

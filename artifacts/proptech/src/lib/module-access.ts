@@ -32,6 +32,7 @@ export const MODULE_URL_PREFIXES: Record<ModuleId, string[]> = {
 		"/dashboard",
 		"/consolidated",
 		"/counterparties",
+		"/client-relations",
 		"/properties",
 		"/users",
 		"/settings",

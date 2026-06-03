@@ -8,6 +8,7 @@ export const supplyRequestsTable = pgTable("supply_requests", {
   companyId: integer("company_id").notNull(),
   projectId: integer("project_id"),
   constructionStageId: integer("construction_stage_id"),
+  constructionTaskId: integer("construction_task_id"),
   requestedBy: integer("requested_by").notNull(),
   status: text("status").notNull().default("pending"), // pending | approved | rejected | ordered | cancelled
   priority: text("priority").notNull().default("normal"), // low | normal | high | urgent
@@ -55,6 +56,7 @@ export const supplyOrdersTable = pgTable("supply_orders", {
   currency: text("currency").notNull().default("KGS"),
   notes: text("notes"),
   createdBy: integer("created_by"),
+  constructionExpenseId: integer("construction_expense_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

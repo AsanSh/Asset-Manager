@@ -9,6 +9,7 @@ import {
   companySupplierCreditLimitsTable,
   globalProductsTable,
   usersTable,
+  constructionExpensesTable,
 } from "../lib/db";
 import { requireAuth, requireRole, type AuthenticatedRequest } from "../middleware/auth";
 import { requireTenantCompany } from "../middleware/tenant";
@@ -78,6 +79,7 @@ router.post("/supply/requests", async (req: AuthenticatedRequest, res): Promise<
         companyId,
         projectId: body.projectId ? Number(body.projectId) : null,
         constructionStageId: body.constructionStageId ? Number(body.constructionStageId) : null,
+        constructionTaskId: body.constructionTaskId ? Number(body.constructionTaskId) : null,
         requestedBy: req.userId!,
         status,
         priority,
@@ -319,6 +321,44 @@ router.patch(
       return;
     }
 
+    let expenseId = order.constructionExpenseId;
+
+    if (nextStatus === "delivered" && !expenseId && order.requestId) {
+      const [request] = await db
+        .select()
+        .from(supplyRequestsTable)
+        .where(
+          and(
+            eq(supplyRequestsTable.id, order.requestId),
+            eq(supplyRequestsTable.companyId, companyId),
+          ),
+        );
+      if (request?.projectId) {
+        const amount = parseFloat(String(
+          body.totalAmount !== undefined ? body.totalAmount : order.totalAmount,
+        ));
+        const today = new Date().toISOString().slice(0, 10);
+        const [expense] = await db
+          .insert(constructionExpensesTable)
+          .values({
+            companyId,
+            projectId: request.projectId,
+            stageId: request.constructionStageId,
+            constructionTaskId: request.constructionTaskId,
+            category: "materials",
+            description: `Снабжение: заказ #${order.id}`,
+            amount: String(amount),
+            amountKgs: String(amount),
+            currency: order.currency || "KGS",
+            date: today,
+            status: "approved",
+            notes: `supply-order:${order.id}`,
+          })
+          .returning();
+        expenseId = expense.id;
+      }
+    }
+
     const [updated] = await db
       .update(supplyOrdersTable)
       .set({
@@ -328,6 +368,7 @@ router.patch(
           body.totalAmount !== undefined ? String(body.totalAmount) : order.totalAmount,
         currency: body.currency !== undefined ? String(body.currency) : order.currency,
         notes: body.notes !== undefined ? String(body.notes || "") : order.notes,
+        constructionExpenseId: expenseId ?? order.constructionExpenseId,
       })
       .where(eq(supplyOrdersTable.id, id))
       .returning();

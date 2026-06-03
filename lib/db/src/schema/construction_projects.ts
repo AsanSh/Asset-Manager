@@ -29,6 +29,9 @@ export const constructionProjectsTable = pgTable("construction_projects", {
   unitsStudio: integer("units_studio").default(0),
   unitsCommercial: integer("units_commercial").default(0),
 
+  /** Базовая цена продажи за м² (коммерческий директор) */
+  baseSalePricePerSqm: numeric("base_sale_price_per_sqm", { precision: 12, scale: 2 }),
+
   // Cost calculation
   costPerSqm: numeric("cost_per_sqm", { precision: 12, scale: 2 }),
   currency: text("currency").notNull().default("KGS"),

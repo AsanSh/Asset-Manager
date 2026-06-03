@@ -14,6 +14,11 @@ export const constructionUnitsTable = pgTable("construction_units", {
   roomCount: integer("room_count"),
   area: numeric("area", { precision: 8, scale: 2 }),
   pricePerSqm: numeric("price_per_sqm", { precision: 12, scale: 2 }),
+  /** Коэффициент к базовой цене проекта (этаж, вид, ликвидность) */
+  priceCoefficient: numeric("price_coefficient", { precision: 8, scale: 4 }).default("1"),
+  priceApproved: boolean("price_approved").default(false),
+  priceApprovedBy: integer("price_approved_by"),
+  priceApprovedAt: timestamp("price_approved_at", { withTimezone: true }),
   totalPrice: numeric("total_price", { precision: 15, scale: 2 }),
   currency: text("currency").notNull().default("KGS"),
   status: text("status").notNull().default("available"),

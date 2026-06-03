@@ -78,6 +78,7 @@ export * from "./payroll_salary_changes";
 export * from "./payroll_approval_requests";
 export * from "./project_legal_entities";
 export * from "./supply";
+export * from "./client_relations";
 export * from "./global_catalog";
 export * from "./user_table_views";
 

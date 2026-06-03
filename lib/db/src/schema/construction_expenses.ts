@@ -7,6 +7,7 @@ export const constructionExpensesTable = pgTable("construction_expenses", {
   companyId: integer("company_id"),
   projectId: integer("project_id").notNull(),
   stageId: integer("stage_id"),
+  constructionTaskId: integer("construction_task_id"),
   budgetItemId: integer("budget_item_id"),
   category: text("category").notNull(),
   description: text("description").notNull(),

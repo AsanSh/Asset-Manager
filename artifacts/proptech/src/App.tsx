@@ -62,6 +62,7 @@ import ConstructionDebt from "@/pages/construction/analytics/debt";
 import ConstructionExpenseAnalysis from "@/pages/construction/analytics/expenses";
 import ConstructionPnL from "@/pages/construction/analytics/pnl";
 import ConstructionBudget from "@/pages/construction/budget";
+import ConstructionCostSummary from "@/pages/construction/cost-summary";
 import ConstructionCashier from "@/pages/construction/cashier";
 import ConstructionChess from "@/pages/construction/chess";
 import ConstructionContractors from "@/pages/construction/contractors";
@@ -85,6 +86,7 @@ import ConstructionTasks from "@/pages/construction/tasks";
 import { TaskDetailPage } from "@/features/construction-tasks/TaskDetailPage";
 import ConstructionWorkers from "@/pages/construction/workers";
 import Counterparties from "@/pages/counterparties";
+import ClientRelations from "@/pages/client-relations/index";
 import CrmClients from "@/pages/crm/clients";
 // CRM/PropTech module
 import CrmDeals from "@/pages/crm/deals";
@@ -336,6 +338,9 @@ function Router() {
 			<Route path="/counterparties">
 				<ProtectedRoute component={Counterparties} />
 			</Route>
+			<Route path="/client-relations">
+				<ProtectedRoute component={ClientRelations} />
+			</Route>
 			<Route path="/properties/chess">
 				<ProtectedRoute component={ChessBoard} />
 			</Route>
@@ -454,6 +459,9 @@ function Router() {
 			</Route>
 			<Route path="/construction/budget">
 				<ProtectedRoute component={ConstructionBudget} />
+			</Route>
+			<Route path="/construction/cost-summary">
+				<ProtectedRoute component={ConstructionCostSummary} />
 			</Route>
 			<Route path="/construction/expenses">
 				<ProtectedRoute component={ConstructionExpenses} />

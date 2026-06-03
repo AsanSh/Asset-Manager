@@ -18,6 +18,7 @@ export const counterpartiesTable = pgTable("counterparties", {
   address: text("address"),
   additionalContact: text("additional_contact"),
   comment: text("comment"),
+  clientSegmentId: integer("client_segment_id"),
   externalId: text("external_id"),
   sourceType: text("source_type"),
   syncStatus: text("sync_status"),

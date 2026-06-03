@@ -30,6 +30,8 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { PageShell } from "@/components/am/PageShell";
+import { EmptyState } from "@/components/am/misc";
 import { useToast } from "@/hooks/use-toast";
 import {
 	applyParsedToProjectForm,
@@ -96,6 +98,7 @@ interface Project {
 	totalUnits?: number;
 	totalArea?: string;
 	costPerSqm?: string;
+	baseSalePricePerSqm?: string;
 	currency: string;
 	exchangeRateSource: string;
 	exchangeRate?: string;
@@ -148,6 +151,7 @@ const emptyForm = () => ({
 	totalUnits: "",
 	totalArea: "",
 	costPerSqm: "",
+	baseSalePricePerSqm: "",
 	currency: "KGS",
 	exchangeRateSource: "nbkr",
 	exchangeRate: "1",
@@ -189,6 +193,7 @@ function ProjectDialog({
 				totalUnits: String(init.totalUnits || ""),
 				totalArea: init.totalArea || "",
 				costPerSqm: init.costPerSqm || "",
+				baseSalePricePerSqm: init.baseSalePricePerSqm || "",
 				currency: init.currency,
 				exchangeRateSource: init.exchangeRateSource,
 				exchangeRate: init.exchangeRate || "1",
@@ -248,6 +253,9 @@ function ProjectDialog({
 				totalUnits: form.totalUnits ? parseInt(form.totalUnits, 10) : null,
 				totalArea: form.totalArea ? parseFloat(form.totalArea) : null,
 				costPerSqm: form.costPerSqm ? parseFloat(form.costPerSqm) : null,
+				baseSalePricePerSqm: form.baseSalePricePerSqm
+					? parseFloat(form.baseSalePricePerSqm)
+					: null,
 				exchangeRate: form.exchangeRate ? parseFloat(form.exchangeRate) : 1,
 				totalBudget: estimatedKgs,
 				documentMeta: documentMeta || undefined,
@@ -558,6 +566,29 @@ function ProjectDialog({
 						)}
 					</div>
 
+					<div className="space-y-3">
+						<p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+							Продажи (шахматка)
+						</p>
+						<div className="flex flex-col">
+							<Label className="leading-tight mb-1.5">
+								Базовая цена продажи за 1 м² (сом)
+							</Label>
+							<Input
+								className="mt-auto"
+								type="number"
+								min="0"
+								step="0.01"
+								value={form.baseSalePricePerSqm}
+								onChange={(e) => set("baseSalePricePerSqm", e.target.value)}
+								placeholder="120000"
+							/>
+							<p className="text-[11px] text-gray-500 mt-1">
+								Списочная цена = база × коэффициент × площадь; утверждает коммерческий директор.
+							</p>
+						</div>
+					</div>
+
 					{/* Сроки */}
 					<div className="space-y-3">
 						<p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -791,17 +822,11 @@ export default function ConstructionProjects() {
 	);
 
 	return (
-		<div className="space-y-6">
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="text-2xl font-bold text-gray-900">
-						Строительные проекты
-					</h1>
-					<p className="text-sm text-gray-500 mt-0.5">
-						Управление проектами и расчёт себестоимости
-					</p>
-				</div>
-				<div className="flex gap-2">
+		<PageShell.List
+			title="Строительные проекты"
+			subtitle="Управление проектами и расчёт себестоимости"
+			primaryAction={
+				<div className="flex gap-2 flex-wrap">
 					<Button
 						variant="outline"
 						onClick={() => setDocUploadOpen(true)}
@@ -819,17 +844,16 @@ export default function ConstructionProjects() {
 						<Plus className="w-4 h-4" /> Новый проект
 					</Button>
 				</div>
-			</div>
-
-			<div className="mb-2">
+			}
+			filters={
 				<Input
 					placeholder="Поиск по названию или адресу..."
 					value={search}
 					onChange={(e) => setSearch(e.target.value)}
 					className="max-w-sm"
 				/>
-			</div>
-
+			}
+		>
 			{isLoading ? (
 				<div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
 					{Array.from({ length: 3 }).map((_, i) => (
@@ -837,13 +861,24 @@ export default function ConstructionProjects() {
 					))}
 				</div>
 			) : filtered.length === 0 ? (
-				<div className="text-center py-16 text-gray-400">
-					<HardHat className="w-12 h-12 mx-auto mb-3 opacity-20" />
-					<p className="font-medium">
-						{search ? "Ничего не найдено" : "Проектов пока нет"}
-					</p>
-					<p className="text-sm mt-1">Нажмите «Новый проект» чтобы начать</p>
-				</div>
+				<EmptyState
+					icon={HardHat}
+					title={search ? "Ничего не найдено" : "Проектов пока нет"}
+					description="Нажмите «Новый проект», чтобы начать"
+					action={
+						!search ? (
+							<Button
+								onClick={() => {
+									setPrefill(null);
+									setDialog("new");
+								}}
+								className="bg-amber-500 hover:bg-orange-600"
+							>
+								<Plus className="w-4 h-4 mr-2" /> Новый проект
+							</Button>
+						) : undefined
+					}
+				/>
 			) : (
 				<div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
 					{filtered.map((p) => {
@@ -1053,6 +1088,6 @@ export default function ConstructionProjects() {
 				onClose={() => setDocUploadOpen(false)}
 				onParsed={(parsed) => handleDocumentParsed(parsed)}
 			/>
-		</div>
+		</PageShell.List>
 	);
 }

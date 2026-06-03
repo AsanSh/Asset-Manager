@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	ChessByCounterpartyView,
@@ -50,6 +51,7 @@ import {
 	saleModeFor,
 	type UnitStatusDto,
 } from "@/lib/unit-statuses";
+import { canManageUnitPricing } from "@/lib/unit-pricing";
 
 function fmtNum(v: string | number | null | undefined) {
 	if (!v) return "—";
@@ -77,6 +79,9 @@ interface Unit {
 	roomCount?: number;
 	area?: string;
 	pricePerSqm?: string;
+	priceCoefficient?: string;
+	priceApproved?: boolean;
+	listPrice?: string;
 	totalPrice?: string;
 	currency: string;
 	status: string;
@@ -115,7 +120,9 @@ function UnitDialog({
 	salesOnly?: boolean;
 }) {
 	const { toast } = useToast();
-	const isEdit = unit && unit !== "new";
+	const { user } = useAuth();
+	const canPrice = canManageUnitPricing(user?.role || "");
+	const isEdit = !!(unit && unit !== "new");
 	const init = isEdit ? (unit as Unit) : null;
 	const [form, setForm] = useState({
 		unitNumber: init?.unitNumber || "",
@@ -125,17 +132,39 @@ function UnitDialog({
 		roomCount: String(init?.roomCount || ""),
 		area: init?.area || "",
 		pricePerSqm: init?.pricePerSqm || "",
+		priceCoefficient: init?.priceCoefficient || "1",
 		currency: init?.currency || "KGS",
 		status: init?.status || "available",
 		notes: init?.notes || "",
 	});
 	const [loading, setLoading] = useState(false);
+	const [approving, setApproving] = useState(false);
 	const set = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
 
 	const totalPrice =
 		parseFloat(form.area || "0") * parseFloat(form.pricePerSqm || "0");
 
 	const readOnly = salesOnly && isEdit;
+
+	const handleApprovePrice = async () => {
+		if (!isEdit || !init?.id) return;
+		setApproving(true);
+		try {
+			await api.post(`/construction/units/${init.id}/approve-price`, {
+				priceCoefficient: parseFloat(form.priceCoefficient || "1"),
+			});
+			toast({ title: "Цена утверждена" });
+			onSaved();
+			onClose();
+		} catch (err: unknown) {
+			const msg =
+				(err as { response?: { data?: { error?: string } } })?.response?.data
+					?.error || "Не удалось утвердить цену";
+			toast({ title: msg, variant: "destructive" });
+		} finally {
+			setApproving(false);
+		}
+	};
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -146,7 +175,11 @@ function UnitDialog({
 		}
 		setLoading(true);
 		try {
-			const body = { ...form, projectId };
+			const body = {
+				...form,
+				projectId,
+				priceCoefficient: form.priceCoefficient,
+			};
 			if (isEdit) {
 				await api.patch(`/construction/units/${init?.id}`, body);
 			} else {
@@ -266,6 +299,13 @@ function UnitDialog({
 								onValueChange={(v) => {
 									const sale = saleModeFor(statuses, v);
 									if (isEdit && init && sale && onRequestSale) {
+										if (!init.priceApproved) {
+											toast({
+												title: "Цена не утверждена коммерческим директором",
+												variant: "destructive",
+											});
+											return;
+										}
 										onRequestSale(sale, init);
 										return;
 									}
@@ -291,6 +331,43 @@ function UnitDialog({
 							)}
 						</div>
 					</div>
+					{isEdit && (
+						<div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
+							<div className="flex items-center justify-between gap-2">
+								<p className="text-xs font-medium text-slate-600">Ценообразование</p>
+								{init?.priceApproved ? (
+									<Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">
+										Утверждена
+									</Badge>
+								) : (
+									<Badge className="bg-amber-100 text-amber-700 border-amber-200">
+										На утверждении
+									</Badge>
+								)}
+							</div>
+							{canPrice && (
+								<div className="flex flex-col">
+									<Label className="text-xs">Коэффициент юнита</Label>
+									<Input
+										type="number"
+										step="0.01"
+										min="0.01"
+										className="mt-1"
+										value={form.priceCoefficient}
+										onChange={(e) => set("priceCoefficient", e.target.value)}
+									/>
+								</div>
+							)}
+							{init?.listPrice && (
+								<p className="text-sm text-slate-700">
+									Расчётная цена:{" "}
+									<span className="font-semibold">
+										{fmtNum(init.listPrice)} {form.currency}
+									</span>
+								</p>
+							)}
+						</div>
+					)}
 					{totalPrice > 0 && (
 						<div className="bg-amber-50 border border-amber-100 rounded-lg p-3">
 							<p className="text-xs text-amber-600">Стоимость квартиры</p>
@@ -318,6 +395,16 @@ function UnitDialog({
 						>
 							{readOnly ? "Закрыть" : "Отмена"}
 						</Button>
+						{canPrice && isEdit && (
+							<Button
+								type="button"
+								variant="secondary"
+								onClick={handleApprovePrice}
+								disabled={approving || loading}
+							>
+								{approving ? "..." : "Утвердить цену"}
+							</Button>
+						)}
 						{!readOnly && (
 							<Button
 								type="submit"

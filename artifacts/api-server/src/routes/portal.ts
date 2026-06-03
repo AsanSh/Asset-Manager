@@ -9,6 +9,8 @@ import {
   counterpartiesTable, constructionSalesContractsTable, constructionAccrualsTable,
   constructionOperationsTable, constructionUnitsTable, constructionProjectsTable,
   companiesTable,
+  clientPortalPublicationsTable,
+  clientPortalAppealsTable,
 } from "../lib/db";
 import { requireAuth, requireRole, AuthenticatedRequest } from "../middleware/auth";
 import { requireTenantCompany } from "../middleware/tenant";
@@ -641,6 +643,69 @@ router.get("/portal/buyer/me", async (req: AuthenticatedRequest, res): Promise<v
     currency,
   });
 
+  const publications = await db
+    .select()
+    .from(clientPortalPublicationsTable)
+    .where(and(
+      eq(clientPortalPublicationsTable.companyId, req.scopedCompanyId!),
+      eq(clientPortalPublicationsTable.isActive, true),
+    ))
+    .orderBy(desc(clientPortalPublicationsTable.publishedAt))
+    .limit(20);
+
+  const visiblePublications = publications.filter((p) => {
+    if (p.audience === "all") return true;
+    if (p.audience === "segment" && buyer.clientSegmentId && p.segmentId === buyer.clientSegmentId) {
+      return true;
+    }
+    const contractProjectIds = new Set(contracts.map((c) => c.projectId).filter(Boolean));
+    if (p.audience === "project" && p.projectId && contractProjectIds.has(p.projectId)) {
+      return true;
+    }
+    return false;
+  });
+
+  const appeals = await db
+    .select()
+    .from(clientPortalAppealsTable)
+    .where(and(
+      eq(clientPortalAppealsTable.companyId, req.scopedCompanyId!),
+      eq(clientPortalAppealsTable.buyerId, me.linkedBuyerId),
+    ))
+    .orderBy(desc(clientPortalAppealsTable.createdAt))
+    .limit(50);
+
+  const primaryContract = contracts[0];
+  const unitPricing =
+    primaryContract?.unitId && primaryContract.projectId
+      ? await (async () => {
+          const [unit] = await db
+            .select()
+            .from(constructionUnitsTable)
+            .where(eq(constructionUnitsTable.id, primaryContract.unitId!));
+          const [project] = await db
+            .select()
+            .from(constructionProjectsTable)
+            .where(eq(constructionProjectsTable.id, primaryContract.projectId!));
+          if (!unit) return null;
+          const area = parseFloat(String(unit.area ?? 0));
+          const base = parseFloat(
+            String(project?.baseSalePricePerSqm ?? project?.costPerSqm ?? unit.pricePerSqm ?? 0),
+          );
+          const coef = parseFloat(String(unit.priceCoefficient ?? 1)) || 1;
+          const list = area * base * coef;
+          return {
+            unitNumber: unit.unitNumber,
+            area,
+            basePricePerSqm: base,
+            coefficient: coef,
+            listPrice: list,
+            approved: !!unit.priceApproved,
+            projectName: project?.name ?? primaryContract.projectName,
+          };
+        })()
+      : null;
+
   res.json({
     buyer,
     contracts: contracts.map(({ contractDocumentMeta, ...c }) => ({
@@ -658,7 +723,35 @@ router.get("/portal/buyer/me", async (req: AuthenticatedRequest, res): Promise<v
       activeContracts: contracts.filter((c) => c.status === "signed" || c.status === "review").length,
     },
     reconciliation,
+    publications: visiblePublications,
+    appeals,
+    unitPricing,
   });
+});
+
+router.post("/portal/buyer/appeals", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const [me] = await db.select().from(usersTable).where(eq(usersTable.id, req.userId!));
+  if (!me || me.role !== "buyer" || !me.linkedBuyerId) {
+    res.status(403).json({ error: "Нет доступа" });
+    return;
+  }
+  const { subject, message, contractId } = req.body ?? {};
+  if (!subject || !message) {
+    res.status(400).json({ error: "Тема и сообщение обязательны" });
+    return;
+  }
+  const [row] = await db
+    .insert(clientPortalAppealsTable)
+    .values({
+      companyId: req.scopedCompanyId!,
+      buyerId: me.linkedBuyerId,
+      contractId: contractId ? Number(contractId) : null,
+      subject: String(subject),
+      message: String(message),
+      status: "open",
+    })
+    .returning();
+  res.status(201).json(row);
 });
 
 // GET /portal/buyer/preview/:buyerId — предпросмотр портала покупателя для админа
