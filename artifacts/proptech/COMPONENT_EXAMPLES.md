@@ -1,4 +1,4 @@
-# BuildFlow Component Examples
+# Planalityc.ai Component Examples
 
 > **Цель:** Ready-to-use code snippets для быстрой разработки  
 > **Использование:** Copy-paste эти примеры в свой код  

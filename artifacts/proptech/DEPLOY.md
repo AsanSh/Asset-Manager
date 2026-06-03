@@ -1,4 +1,4 @@
-# 🚀 Деплой BuildFlow на Vercel
+# 🚀 Деплой Planalityc.ai на Vercel
 
 ## Часть 1: Деплой Frontend на Vercel
 

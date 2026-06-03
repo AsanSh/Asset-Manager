@@ -1,5 +1,5 @@
 import type { ModuleId } from "./module-access";
-import { parseCustomRoleId } from "./user-roles";
+import { parseCustomRoleId } from "./custom-role-id";
 
 /** Вкладки единого Dashboard */
 export type DashboardTabId =
@@ -21,6 +21,16 @@ export const DASHBOARD_TAB_ORDER: DashboardTabId[] = [
 	"investors",
 	"rental",
 	"analytics",
+];
+
+/** Вкладки в основной полоске (без вложенных разделов investors/analytics) */
+export const PRIMARY_DASHBOARD_TAB_ORDER: DashboardTabId[] = [
+	"control",
+	"construction",
+	"finance",
+	"supply",
+	"sales",
+	"rental",
 ];
 
 export const DASHBOARD_TAB_LABELS: Record<DashboardTabId, string> = {
@@ -216,4 +226,14 @@ export function canAccessDashboardTab(
 	allowedModules: ModuleId[],
 ): boolean {
 	return resolveDashboardTabs(role, permissions, allowedModules).includes(tab);
+}
+
+/** Вкладки для UI-полоски (≤6, без investors/analytics — они доступны по ссылкам) */
+export function resolvePrimaryDashboardTabs(
+	role: string,
+	permissions: string[],
+	allowedModules: ModuleId[],
+): DashboardTabId[] {
+	const allowed = resolveDashboardTabs(role, permissions, allowedModules);
+	return PRIMARY_DASHBOARD_TAB_ORDER.filter((tab) => allowed.includes(tab));
 }

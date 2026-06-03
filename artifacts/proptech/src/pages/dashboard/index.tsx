@@ -1,12 +1,15 @@
 import { lazy, Suspense, useEffect } from "react";
 import { useLocation, useSearch } from "wouter";
+import { DashboardScopeBar } from "@/components/dashboard/DashboardScopeBar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DashboardScopeProvider } from "@/hooks/use-dashboard-scope";
 import { useDashboardAccess } from "@/hooks/use-dashboard-access";
 import {
 	DASHBOARD_TAB_LABELS,
 	parseDashboardTabFromSearch,
 	type DashboardTabId,
 } from "@/lib/dashboard-access";
+import { parseScopeFromSearch, scopeToSearchParams } from "@/lib/dashboard-scope";
 import { cn } from "@/lib/utils";
 
 const ControlCenterTab = lazy(() => import("../consolidated-dashboard"));
@@ -34,7 +37,7 @@ const TAB_PANELS: Record<DashboardTabId, React.ComponentType> = {
 };
 
 export default function UnifiedDashboard() {
-	const { allowedTabs, defaultTab, isLoading, hasDashboard } = useDashboardAccess();
+	const { allowedTabs, primaryTabs, defaultTab, isLoading, hasDashboard } = useDashboardAccess();
 	const search = useSearch();
 	const [, setLocation] = useLocation();
 
@@ -45,7 +48,7 @@ export default function UnifiedDashboard() {
 	useEffect(() => {
 		if (isLoading || !hasDashboard) return;
 		if (!requested || !allowedTabs.includes(requested)) {
-			const qs = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
+			const qs = scopeToSearchParams(parseScopeFromSearch(search));
 			qs.set("tab", activeTab);
 			setLocation(`/dashboard?${qs.toString()}`, { replace: true });
 		}
@@ -63,35 +66,40 @@ export default function UnifiedDashboard() {
 	if (!hasDashboard) {
 		return (
 			<div className="py-16 text-center text-gray-500">
-				<p className="text-sm">Нет доступа к Dashboard. Обратитесь к администратору.</p>
+				<p className="text-sm">Нет доступа к обзору. Обратитесь к администратору.</p>
 			</div>
 		);
 	}
 
+	const visibleTabs = primaryTabs.length > 0 ? primaryTabs : allowedTabs;
+
 	const setTab = (tab: DashboardTabId) => {
-		setLocation(`/dashboard?tab=${tab}`);
+		const qs = scopeToSearchParams(parseScopeFromSearch(search));
+		qs.set("tab", tab);
+		setLocation(`/dashboard?${qs.toString()}`);
 	};
 
 	const ActivePanel = TAB_PANELS[activeTab];
 
 	return (
-		<div className="space-y-4 -mt-1">
+		<DashboardScopeProvider>
+			<div className="space-y-4 -mt-1">
 			<div>
-				<h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+				<h1 className="text-2xl font-bold text-gray-900">Обзор</h1>
 				<p className="text-sm text-gray-500 mt-0.5">
 					{DASHBOARD_TAB_LABELS[activeTab]}
-					{allowedTabs.length === 1
+					{visibleTabs.length === 1
 						? " · рабочий экран по вашей роли"
 						: " · выберите раздел"}
 				</p>
 			</div>
 
-			{allowedTabs.length > 1 && (
+			{visibleTabs.length > 1 && (
 				<div
-					className="flex flex-wrap gap-1 border-b border-gray-200 pb-0 overflow-x-auto"
+					className="flex gap-1 border-b border-gray-200 pb-0 overflow-x-auto scrollbar-thin -mx-1 px-1"
 					role="tablist"
 				>
-					{allowedTabs.map((tab) => (
+					{visibleTabs.map((tab) => (
 						<button
 							key={tab}
 							type="button"
@@ -111,11 +119,14 @@ export default function UnifiedDashboard() {
 				</div>
 			)}
 
+			{activeTab === "control" && <DashboardScopeBar />}
+
 			<div role="tabpanel" className="min-h-[320px]">
 				<Suspense fallback={<TabFallback />}>
 					<ActivePanel />
 				</Suspense>
 			</div>
 		</div>
+		</DashboardScopeProvider>
 	);
 }

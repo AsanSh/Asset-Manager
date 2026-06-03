@@ -34,39 +34,24 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import {
+	fetchRemoteTablePrefs,
+	loadLocalTablePrefs,
+	mergeTablePrefs,
+	saveLocalTablePrefs,
+	scheduleRemoteTablePrefsSave,
+	type TableViewLayout,
+} from "@/lib/table-view-prefs";
 
 export type TableDensity = "compact" | "normal" | "comfortable";
 
-type Persisted = {
-	visibility: VisibilityState;
-	order: ColumnOrderState;
-	sizing: ColumnSizingState;
-	density: TableDensity;
-	sorting: SortingState;
-};
+type Persisted = TableViewLayout;
 
 const DENSITY_PADDING: Record<TableDensity, string> = {
 	compact: "py-1.5",
 	normal: "py-2.5",
 	comfortable: "py-4",
 };
-
-function loadPrefs(tableId: string): Partial<Persisted> | null {
-	try {
-		const raw = localStorage.getItem(`dt:${tableId}`);
-		return raw ? (JSON.parse(raw) as Partial<Persisted>) : null;
-	} catch {
-		return null;
-	}
-}
-
-function savePrefs(tableId: string, prefs: Partial<Persisted>) {
-	try {
-		localStorage.setItem(`dt:${tableId}`, JSON.stringify(prefs));
-	} catch {
-		// storage may be unavailable — ignore
-	}
-}
 
 export type DataTableColumnMeta = {
 	exportLabel?: string;
@@ -136,7 +121,8 @@ export function DataTable<T>({
 	getRowId,
 }: DataTableProps<T>) {
 	const isExcel = variant === "excel";
-	const saved = useMemo(() => loadPrefs(tableId), [tableId]);
+	const localSaved = useMemo(() => loadLocalTablePrefs(tableId), [tableId]);
+	const saved = localSaved;
 	const hadSavedSizing = Boolean(
 		saved?.sizing && Object.keys(saved.sizing).length > 0,
 	);
@@ -158,7 +144,32 @@ export function DataTable<T>({
 
 	useEffect(() => {
 		if (isExcel) return;
-		savePrefs(tableId, { visibility, order, sizing, density, sorting });
+		let cancelled = false;
+		void fetchRemoteTablePrefs(tableId).then((remote) => {
+			if (cancelled) return;
+			const merged = mergeTablePrefs(localSaved, remote);
+			if (!merged) return;
+			if (merged.sorting?.length) setSorting(merged.sorting);
+			if (merged.visibility && Object.keys(merged.visibility).length) {
+				setVisibility(merged.visibility);
+			}
+			if (merged.order?.length) setOrder(merged.order);
+			if (merged.sizing && Object.keys(merged.sizing).length) {
+				skipAutoFillRef.current = true;
+				setSizing(merged.sizing);
+			}
+			if (merged.density) setDensity(merged.density);
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, [tableId, isExcel, localSaved]);
+
+	useEffect(() => {
+		if (isExcel) return;
+		const prefs: Partial<Persisted> = { visibility, order, sizing, density, sorting };
+		saveLocalTablePrefs(tableId, prefs);
+		scheduleRemoteTablePrefsSave(tableId, prefs);
 	}, [tableId, visibility, order, sizing, density, sorting, isExcel]);
 
 	const table = useReactTable({

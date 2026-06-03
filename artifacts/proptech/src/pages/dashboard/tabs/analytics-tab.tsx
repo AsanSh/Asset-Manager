@@ -11,7 +11,6 @@ const REPORT_LINKS = [
 	{ href: "/reports/cashflow", label: "Денежный поток", icon: TrendingUp },
 	{ href: "/reports/rental", label: "Сводка аренды", icon: BarChart2 },
 	{ href: "/reports/payments", label: "История платежей", icon: TrendingUp },
-	{ href: "/consolidated", label: "Сводное (legacy)", icon: BarChart3 },
 ];
 
 export default function AnalyticsDashboardTab() {

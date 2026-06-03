@@ -110,7 +110,14 @@ export const cacheKeys = {
   warehouseItems: (companyId: number) => `warehouse:items:${companyId}`,
   suppliers: (companyId: number) => `suppliers:${companyId}`,
   notifications: (userId: number) => `notifications:${userId}`,
-  unreadCount: (userId: number) => `notifications:unread:${userId}`,
+  controlCenter: (
+    companyId: number,
+    projectId: string,
+    legalEntityId: string,
+    from: string,
+    to: string,
+  ) =>
+    `dashboard:control-center:${companyId}:${projectId}:${legalEntityId}:${from}:${to}`,
 };
 
 /**

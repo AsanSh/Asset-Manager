@@ -1,4 +1,4 @@
-# BuildFlow Design System - Quick Reference
+# Planalityc.ai Design System - Quick Reference
 
 > **Cheat Sheet** для быстрого доступа к основным стилям
 

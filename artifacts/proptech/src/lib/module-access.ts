@@ -5,7 +5,7 @@ import {
 	resolveDashboardTabs,
 	type DashboardTabId,
 } from "./dashboard-access";
-import { parseCustomRoleId } from "./user-roles";
+import { parseCustomRoleId } from "./custom-role-id";
 
 export type ModuleId =
 	| "construction"
@@ -30,10 +30,12 @@ export const MODULE_URL_PREFIXES: Record<ModuleId, string[]> = {
 	warehouse: ["/warehouse"],
 	consolidated: [
 		"/dashboard",
+		"/consolidated",
 		"/counterparties",
 		"/properties",
 		"/users",
 		"/settings",
+		"/design-system",
 		"/import",
 		"/activity",
 		"/companies",
@@ -61,6 +63,7 @@ const PERMISSION_PREFIX_TO_MODULE: Record<string, ModuleId> = {
 	counterparties: "consolidated",
 	settings: "consolidated",
 	admin: "consolidated",
+	warehouse: "warehouse",
 };
 
 const DEFAULT_HOME_LEGACY: Record<string, string> = {
@@ -68,10 +71,38 @@ const DEFAULT_HOME_LEGACY: Record<string, string> = {
 	engineer: "/construction/chess",
 };
 
+/** Вкладка unified Dashboard → модуль для sidebar */
+const DASHBOARD_TAB_TO_MODULE: Record<string, ModuleId> = {
+	control: "consolidated",
+	analytics: "consolidated",
+	construction: "construction",
+	finance: "construction",
+	supply: "warehouse",
+	sales: "proptech",
+	investors: "rental",
+	rental: "rental",
+};
+
+function moduleFromDashboardPath(path: string): ModuleId | null {
+	const qIdx = path.indexOf("?");
+	if (qIdx === -1) return null;
+	const pathOnly = path.slice(0, qIdx);
+	if (pathOnly !== "/dashboard") return null;
+	const tab = new URLSearchParams(path.slice(qIdx)).get("tab");
+	if (tab && tab in DASHBOARD_TAB_TO_MODULE) {
+		return DASHBOARD_TAB_TO_MODULE[tab]!;
+	}
+	return "consolidated";
+}
+
 export function detectModuleFromPath(path: string): ModuleId {
+	const fromDashboard = moduleFromDashboardPath(path);
+	if (fromDashboard) return fromDashboard;
+
+	const pathOnly = path.split("?")[0] ?? path;
 	for (const id of ALL_MODULE_IDS) {
 		const prefixes = MODULE_URL_PREFIXES[id];
-		if (prefixes.some((p) => path.startsWith(p))) return id;
+		if (prefixes.some((p) => pathOnly.startsWith(p))) return id;
 	}
 	return "consolidated";
 }
@@ -124,12 +155,13 @@ export function canAccessPath(
 	if (path === "/" || path === "/login" || path === "/register") return true;
 
 	const pathOnly = path.split("?")[0] ?? path;
+	const search = path.includes("?") ? path.slice(path.indexOf("?")) : "";
 
 	if (pathOnly === "/dashboard" || path.startsWith("/dashboard?")) {
 		const tabs = resolveDashboardTabs(role, permissions, allowedModules);
 		if (tabs.length === 0) return false;
 		const tab = parseDashboardTabFromSearch(
-			path.includes("?") ? path.slice(path.indexOf("?")) : "",
+			search || (path.includes("?") ? path.slice(path.indexOf("?")) : ""),
 		);
 		if (!tab) return true;
 		return canAccessDashboardTab(tab, role, permissions, allowedModules);

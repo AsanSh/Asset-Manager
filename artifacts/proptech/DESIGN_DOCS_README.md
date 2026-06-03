@@ -1,6 +1,6 @@
-# BuildFlow Design System Documentation
+# Planalityc.ai Design System Documentation
 
-> **Comprehensive UI/UX audit and design system** для PropTech Platform  
+> **Comprehensive UI/UX audit and design system** для Planalityc.ai  
 > **Дата создания:** 6 мая 2026  
 > **Статус:** Ready for implementation  
 
@@ -8,7 +8,7 @@
 
 ## Что здесь?
 
-Это полная документация результатов UI/UX аудита системы BuildFlow (112 страниц, 5 модулей) и новой единой дизайн-системы.
+Это полная документация результатов UI/UX аудита системы Planalityc.ai (112 страниц, 5 модулей) и новой единой дизайн-системы.
 
 ---
 
@@ -342,7 +342,7 @@ find ./src/pages -name "*.tsx" -exec sed -i '' \
 **Principles:** Inspired by Radix, Stripe, Linear, Vercel design systems  
 
 **Team:**
-- Product: BuildFlow Team
+- Product: Planalityc.ai Team
 - Development: Frontend Team
 - Design: Design Team
 

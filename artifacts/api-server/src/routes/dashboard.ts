@@ -7,10 +7,39 @@ import {
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
 import { requireTenantCompany } from "../middleware/tenant";
 import { cache, cacheKeys } from "../lib/cache";
+import { buildControlCenter, parseControlCenterScope } from "../lib/control-center";
 
 const router: ReturnType<typeof Router> = Router();
 
 router.use(requireAuth, requireTenantCompany);
+
+/** BFF: центр управления CEO — один запрос вместо множества на клиенте */
+router.get("/dashboard/control-center", async (req: AuthenticatedRequest, res): Promise<void> => {
+  try {
+    const cid = req.scopedCompanyId!;
+    const scope = parseControlCenterScope(req.query as Record<string, unknown>);
+    const cacheKey = cacheKeys.controlCenter(
+      cid,
+      scope.projectId != null ? String(scope.projectId) : "",
+      scope.legalEntityId != null ? String(scope.legalEntityId) : "",
+      scope.from ?? "",
+      scope.to ?? "",
+    );
+    const cached = cache.get<Awaited<ReturnType<typeof buildControlCenter>>>(cacheKey);
+    if (cached) {
+      res.setHeader("X-Cache", "HIT");
+      res.json(cached);
+      return;
+    }
+    const data = await buildControlCenter(cid, scope);
+    cache.set(cacheKey, data, 60);
+    res.setHeader("X-Cache", "MISS");
+    res.json(data);
+  } catch (error) {
+    console.error("control-center error:", error);
+    res.status(500).json({ error: "Не удалось загрузить центр управления" });
+  }
+});
 
 router.get("/dashboard/summary", async (req: AuthenticatedRequest, res): Promise<void> => {
   const cid = req.scopedCompanyId!;

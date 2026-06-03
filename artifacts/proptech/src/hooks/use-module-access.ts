@@ -8,7 +8,7 @@ import {
 	resolveAllowedModules,
 	type ModuleId,
 } from "@/lib/module-access";
-import { parseCustomRoleId } from "@/lib/user-roles";
+import { parseCustomRoleId } from "@/lib/custom-role-id";
 
 interface CompanyRoleRow {
 	id: number;

@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
 	getDefaultDashboardTab,
 	resolveDashboardTabs,
+	resolvePrimaryDashboardTabs,
 } from "./dashboard-access";
 
 describe("dashboard-access", () => {
@@ -42,5 +43,27 @@ describe("dashboard-access", () => {
 		assert.ok(tabs.includes("rental"));
 		assert.ok(tabs.includes("supply"));
 		assert.ok(tabs.includes("sales"));
+	});
+
+	it("primary tabs hide investors and analytics from tab bar", () => {
+		const tabs = resolveDashboardTabs("company_admin", [], [
+			"consolidated",
+			"construction",
+			"rental",
+			"warehouse",
+			"proptech",
+		]);
+		const primary = resolvePrimaryDashboardTabs("company_admin", [], [
+			"consolidated",
+			"construction",
+			"rental",
+			"warehouse",
+			"proptech",
+		]);
+		assert.ok(tabs.includes("investors"));
+		assert.ok(tabs.includes("analytics"));
+		assert.ok(!primary.includes("investors"));
+		assert.ok(!primary.includes("analytics"));
+		assert.ok(primary.length <= 6);
 	});
 });
