@@ -749,7 +749,7 @@ export default function ConstructionExpenses() {
 						Расходы строительства
 					</h1>
 					<p className="text-sm text-gray-500 mt-0.5">
-						Фактические затраты по проектам
+						Фактические затраты по проектам · ⌘⇧Z — новый расход
 					</p>
 				</div>
 				<Button

@@ -1,7 +1,20 @@
 import { useEffect } from "react";
 import { useLocation } from "wouter";
 
-/** ⌘⇧Z — фактический расход (стройка), ⌘⇧X — доход (ОДДС) */
+/** ⌘⇧Z — расход (стройка), ⌘⇧X — доход (ОДДС). Физические клавиши — не зависят от раскладки. */
+export const FINANCE_HOTKEY_EXPENSE_PATH = "/construction/expenses?create=1";
+export const FINANCE_HOTKEY_INCOME_PATH = "/construction/operations?quick=income";
+
+export function resolveFinanceHotkeyTarget(
+	code: string,
+	opts: { metaOrCtrl: boolean; shift: boolean; alt: boolean },
+): string | null {
+	if (!opts.metaOrCtrl || !opts.shift || opts.alt) return null;
+	if (code === "KeyZ") return FINANCE_HOTKEY_EXPENSE_PATH;
+	if (code === "KeyX") return FINANCE_HOTKEY_INCOME_PATH;
+	return null;
+}
+
 export function useFinanceHotkeys(enabled = true) {
 	const [, setLocation] = useLocation();
 
@@ -9,22 +22,17 @@ export function useFinanceHotkeys(enabled = true) {
 		if (!enabled) return;
 
 		const onKeyDown = (e: KeyboardEvent) => {
-			const mod = e.metaKey || e.ctrlKey;
-			if (!mod || !e.shiftKey || e.altKey) return;
-
 			const tag = (e.target as HTMLElement)?.tagName;
 			if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
 
-			const key = e.key.toLowerCase();
-			if (key === "z") {
-				e.preventDefault();
-				setLocation("/construction/expenses?create=1");
-				return;
-			}
-			if (key === "x") {
-				e.preventDefault();
-				setLocation("/construction/operations?quick=income");
-			}
+			const href = resolveFinanceHotkeyTarget(e.code, {
+				metaOrCtrl: e.metaKey || e.ctrlKey,
+				shift: e.shiftKey,
+				alt: e.altKey,
+			});
+			if (!href) return;
+			e.preventDefault();
+			setLocation(href);
 		};
 
 		window.addEventListener("keydown", onKeyDown);

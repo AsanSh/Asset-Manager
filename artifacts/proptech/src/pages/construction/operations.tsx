@@ -399,7 +399,7 @@ export default function ConstructionOperations() {
 	return (
 		<PageShell.List
 			title="Операции"
-			subtitle="Управление приходами, расходами и переводами. Нажмите на строку — откроется редактирование."
+			subtitle="Приходы, расходы и переводы. ⌘⇧X — быстрый доход, ⌘⇧Z — расход по проекту (этап WBS). Клик по строке — редактирование."
 			breadcrumb={
 				<Breadcrumbs
 					items={[
