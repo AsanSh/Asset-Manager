@@ -55,7 +55,7 @@ export default function TelegramSettings() {
 		localStorage.getItem("tg_chat_id") ?? "",
 	);
 	const [testMessage, setTestMessage] = useState(
-		"✅ Тест уведомлений Asset Manager работает корректно!",
+		"✅ Тест уведомлений Planalityc.ai работает корректно!",
 	);
 	const [sending, setSending] = useState(false);
 	const [tested, setTested] = useState(false);
