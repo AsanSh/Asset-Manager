@@ -7,6 +7,8 @@ export interface NbkrRate {
 export interface NbkrResponse {
 	date: string;
 	rates: Record<string, NbkrRate>;
+	/** Предупреждение, если курс не на запрошенную дату (НБКР daily.xml). */
+	warning?: string;
 }
 
 export type DisplayCurrency = "KGS" | "USD";

@@ -49,6 +49,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/lib/api-error";
 import { RentalQueryState } from "@/components/rental/rental-query-state";
+import { RentalPaymentFxNote } from "@/components/rental/rental-payment-fx-note";
+import { fmtCurrencyAmount } from "@/lib/nbkr-currency";
 import { api } from "@/lib/api";
 import { getApiBase } from "@/lib/api-base";
 import { cn } from "@/lib/utils";
@@ -130,6 +132,16 @@ function PaymentDialog({ open, onClose }: PaymentDialogProps) {
 	const [loading, setLoading] = useState(false);
 
 	const accountsArray = Array.isArray(accounts) ? accounts : [];
+	const leasesArray = Array.isArray(leases) ? leases : [];
+
+	const selectedLease = leasesArray.find(
+		(l) => String(l.id) === formData.leaseContractId,
+	);
+	const contractCurrency = (selectedLease?.currency || "KGS").toUpperCase();
+	const selectedAccount = accountsArray.find(
+		(a) => String(a.id) === formData.accountId,
+	);
+	const accountCurrency = (selectedAccount?.currency || "KGS").toUpperCase();
 
 	useEffect(() => {
 		if (!open) return;
@@ -189,7 +201,7 @@ function PaymentDialog({ open, onClose }: PaymentDialogProps) {
 			const body: any = {
 				leaseContractId: parseInt(formData.leaseContractId, 10),
 				amount: parseFloat(formData.amount),
-				currency: formData.currency,
+				currency: contractCurrency,
 				paymentDate: formData.paymentDate,
 				paymentMethod: formData.paymentMethod,
 				accountId: parseInt(formData.accountId, 10),
@@ -213,15 +225,40 @@ function PaymentDialog({ open, onClose }: PaymentDialogProps) {
 				headers: authHeaders(),
 				body: JSON.stringify(body),
 			});
-			if (!res.ok) throw new Error("Ошибка сохранения платежа");
+			if (!res.ok) {
+				const err = await res.json().catch(() => ({}));
+				throw new Error(err.error || "Ошибка сохранения платежа");
+			}
 
 			const result = await res.json();
 			const allocCount = result.allocations?.length ?? 0;
 			const unallocAmt = result.unallocated ?? 0;
+			const payAmt = parseFloat(formData.amount);
+			const payLabel = fmtCurrencyAmount(
+				payAmt,
+				contractCurrency === "USD" ? "USD" : "KGS",
+			);
+			let desc = `${payLabel} · распределено по ${allocCount} начислениям`;
+			if (unallocAmt > 0) {
+				desc += ` · нераспред.: ${fmtCurrencyAmount(
+					unallocAmt,
+					contractCurrency === "USD" ? "USD" : "KGS",
+				)}`;
+			}
+			if (
+				result.accountAmount != null &&
+				result.accountCurrency &&
+				result.accountCurrency !== contractCurrency
+			) {
+				desc += ` · на счёт: ${fmtCurrencyAmount(
+					Number(result.accountAmount),
+					result.accountCurrency === "USD" ? "USD" : "KGS",
+				)}`;
+			}
 
 			toast({
 				title: "Платёж зарегистрирован",
-				description: `${fmtCurrency(parseFloat(formData.amount))} · распределено по ${allocCount} начислениям${unallocAmt > 0 ? ` · нераспред.: ${fmtCurrency(unallocAmt)}` : ""}`,
+				description: desc,
 			});
 			queryClient.invalidateQueries({ queryKey: getListPaymentsQueryKey() });
 			queryClient.invalidateQueries({ queryKey: getListAccrualsQueryKey() });
@@ -251,7 +288,12 @@ function PaymentDialog({ open, onClose }: PaymentDialogProps) {
 						<Select
 							value={formData.leaseContractId}
 							onValueChange={(v) => {
-								setFormData({ ...formData, leaseContractId: v });
+								const lease = leasesArray.find((l) => String(l.id) === v);
+								setFormData({
+									...formData,
+									leaseContractId: v,
+									currency: (lease?.currency || "KGS").toUpperCase(),
+								});
 								setManualAllocations({});
 							}}
 						>
@@ -259,10 +301,13 @@ function PaymentDialog({ open, onClose }: PaymentDialogProps) {
 								<SelectValue placeholder="Выберите договор" />
 							</SelectTrigger>
 							<SelectContent>
-								{(leases || []).map((l: any) => (
+								{leasesArray.map((l: any) => (
 									<SelectItem key={l.id} value={String(l.id)}>
 										{l.contractNumber} —{" "}
 										{l.tenantName || `Арендатор #${l.tenantId}`}
+										{l.currency && l.currency !== "KGS"
+											? ` · ${l.currency}`
+											: ""}
 									</SelectItem>
 								))}
 							</SelectContent>
@@ -297,13 +342,24 @@ function PaymentDialog({ open, onClose }: PaymentDialogProps) {
 					)}
 
 					<FormGrid>
-						<Field label="Сумма" required className="col-span-8">
+						<Field
+							label={
+								selectedLease
+									? `Сумма платежа (${contractCurrency})`
+									: "Сумма платежа"
+							}
+							required
+							className="col-span-8"
+						>
 							<MoneyInput
 								value={formData.amount}
 								onChange={(v) => setFormData({ ...formData, amount: v })}
-								currency={formData.currency as "KGS" | "USD"}
-								onCurrencyChange={(v) => setFormData({ ...formData, currency: v })}
-								placeholder="150 000"
+								currency={
+									(contractCurrency === "USD" ? "USD" : "KGS") as
+										| "KGS"
+										| "USD"
+								}
+								placeholder={contractCurrency === "USD" ? "400" : "150 000"}
 							/>
 						</Field>
 						<Field label="Дата платежа" required className="col-span-4">
@@ -338,7 +394,7 @@ function PaymentDialog({ open, onClose }: PaymentDialogProps) {
 						</Field>
 					</FormGrid>
 
-					<Field label="Расчётный счёт" required>
+					<Field label="Счёт зачисления (валюта счёта)" required>
 						<Select
 							value={formData.accountId}
 							onValueChange={(v) =>
@@ -349,18 +405,27 @@ function PaymentDialog({ open, onClose }: PaymentDialogProps) {
 								<SelectValue placeholder="Выберите счёт *" />
 							</SelectTrigger>
 							<SelectContent>
-								{(accounts as any[]).length === 0 ? (
+								{accountsArray.length === 0 ? (
 									<SelectItem value="_empty" disabled>Нет счетов — создайте в Расчётных счетах</SelectItem>
 								) : (
-									(accounts as any[]).map((a: any) => (
+									accountsArray.map((a: any) => (
 										<SelectItem key={a.id} value={String(a.id)}>
-											{a.name}
+											{a.name} ({a.currency || "KGS"})
 										</SelectItem>
 									))
 								)}
 							</SelectContent>
 						</Select>
 					</Field>
+
+					{formData.leaseContractId && formData.accountId && paymentAmount > 0 && (
+						<RentalPaymentFxNote
+							paymentAmount={paymentAmount}
+							paymentCurrency={contractCurrency}
+							accountCurrency={accountCurrency}
+							paymentDate={formData.paymentDate}
+						/>
+					)}
 
 					{/* Allocation mode */}
 					{openAccrualsArray.length > 0 && paymentAmount > 0 && (

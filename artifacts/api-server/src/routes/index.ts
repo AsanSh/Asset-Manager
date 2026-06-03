@@ -86,32 +86,12 @@ router.use(marketplaceRouter);
 router.use(aiRouter);
 
 // NBKR exchange rates proxy
-router.get("/nbkr/rates", async (_req, res): Promise<void> => {
-  try {
-    const r = await fetch("https://www.nbkr.kg/XML/daily.xml", { signal: AbortSignal.timeout(5000) });
-    const xml = await r.text();
-    // Формат НБКР: <Currency ISOCode="USD"><Nominal>1</Nominal><Value>87,4500</Value></Currency>
-    // Десятичный разделитель — запятая, номинал в <Nominal>.
-    const rates: Record<string, { name: string; rate: string; scale: string }> = {};
-    const regex = /<Currency ISOCode="([^"]+)"[^>]*>[\s\S]*?<Nominal>(\d+)<\/Nominal>[\s\S]*?<Value>([\d.,]+)<\/Value>[\s\S]*?<\/Currency>/g;
-    let m;
-    while ((m = regex.exec(xml)) !== null) {
-      const [, iso, nominal, value] = m;
-      rates[iso] = { name: iso, scale: nominal, rate: value.replace(",", ".") };
-    }
-    const dateMatch = xml.match(/Date="(\d{2})\.(\d{2})\.(\d{4})"/);
-    const date = dateMatch
-      ? `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`
-      : new Date().toISOString().slice(0, 10);
-    res.json({ date, rates });
-  } catch {
-    // Fallback rates if NBKR is unavailable
-    res.json({ date: new Date().toISOString().slice(0, 10), rates: {
-      USD: { name: "Доллар США", scale: "1", rate: "87.50" },
-      EUR: { name: "Евро", scale: "1", rate: "95.20" },
-      RUB: { name: "Российский рубль", scale: "100", rate: "95.40" },
-    }});
-  }
+router.get("/nbkr/rates", async (req, res): Promise<void> => {
+  const { fetchNbkrRatesForDate } = await import("../lib/nbkr");
+  const requestedDate =
+    typeof req.query.date === "string" ? req.query.date.slice(0, 10) : undefined;
+  const payload = await fetchNbkrRatesForDate(requestedDate);
+  res.json(payload);
 });
 
 export default router;

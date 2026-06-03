@@ -9,6 +9,10 @@ export const paymentsTable = pgTable("payments", {
   accrualId: integer("accrual_id"),
   amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
   currency: text("currency").notNull().default("KZT"),
+  /** Сумма, зачисленная на расчётный счёт (в валюте счёта). */
+  accountAmount: numeric("account_amount", { precision: 14, scale: 2 }),
+  exchangeRate: numeric("exchange_rate", { precision: 14, scale: 6 }),
+  exchangeRateDate: text("exchange_rate_date"),
   paymentDate: text("payment_date").notNull(),
   paymentMethod: text("payment_method"),
   accountId: integer("account_id"),

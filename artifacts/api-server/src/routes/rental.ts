@@ -26,6 +26,7 @@ import {
 } from "../lib/bank-account-module";
 import { investmentsTable } from "../lib/db";
 import { ensureCounterpartyWithRole } from "../lib/counterparty-sync";
+import { resolveRentalPaymentAccountCredit } from "../lib/rental-payment-fx";
 
 const RENTAL_ACCOUNTS = BANK_ACCOUNT_MODULE.rental;
 
@@ -217,7 +218,9 @@ router.post("/rental/accounts/recalculate", async (req: AuthenticatedRequest, re
 
   const updated: { id: number; newBalance: string }[] = [];
   for (const acc of accounts) {
-    const [inRow] = await db.select({ total: sql<string>`COALESCE(SUM(amount::numeric), 0)` })
+    const [inRow] = await db.select({
+      total: sql<string>`COALESCE(SUM(COALESCE(${paymentsTable.accountAmount}, ${paymentsTable.amount})::numeric), 0)`,
+    })
       .from(paymentsTable)
       .where(and(eq(paymentsTable.companyId, companyId), eq(paymentsTable.accountId, acc.id)));
     const [depRow] = await db.select({ total: sql<string>`COALESCE(SUM(amount::numeric), 0)` })
@@ -780,13 +783,66 @@ router.post("/rental/payments", async (req: AuthenticatedRequest, res): Promise<
   }
 
   const paymentAmount = parseFloat(amount);
+  const paymentCurrency = String(currency).toUpperCase();
+
+  const [contract] = await db.select({
+    id: leaseContractsTable.id,
+    currency: leaseContractsTable.currency,
+  })
+    .from(leaseContractsTable)
+    .where(and(
+      eq(leaseContractsTable.id, leaseContractId),
+      eq(leaseContractsTable.companyId, companyId),
+    ));
+  if (!contract) {
+    res.status(404).json({ error: "Договор аренды не найден" });
+    return;
+  }
+  const contractCurrency = String(contract.currency || "KGS").toUpperCase();
+  if (paymentCurrency !== contractCurrency) {
+    res.status(400).json({
+      error: `Валюта платежа (${paymentCurrency}) должна совпадать с валютой договора (${contractCurrency})`,
+    });
+    return;
+  }
+
+  const [account] = await db.select({
+    id: bankAccountsTable.id,
+    currency: bankAccountsTable.currency,
+  })
+    .from(bankAccountsTable)
+    .where(eq(bankAccountsTable.id, parsedAccountId));
+  if (!account) {
+    res.status(404).json({ error: "Счёт не найден" });
+    return;
+  }
+  const accountCurrency = String(account.currency || "KGS").toUpperCase();
+
+  let fx: Awaited<ReturnType<typeof resolveRentalPaymentAccountCredit>>;
+  try {
+    fx = await resolveRentalPaymentAccountCredit({
+      paymentAmount,
+      paymentCurrency,
+      accountCurrency,
+      paymentDate: String(paymentDate).slice(0, 10),
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Ошибка курса НБКР";
+    res.status(400).json({ error: msg });
+    return;
+  }
+
+  const accountCredit = fx.accountAmount;
 
   // Создаём запись платежа
   const [payment] = await db.insert(paymentsTable).values({
     companyId: req.scopedCompanyId!,
     leaseContractId,
     amount: String(paymentAmount),
-    currency,
+    currency: paymentCurrency,
+    accountAmount: String(accountCredit),
+    exchangeRate: String(fx.exchangeRate),
+    exchangeRateDate: fx.exchangeRateDate,
     paymentDate,
     paymentMethod: paymentMethod || null,
     accountId: parsedAccountId,
@@ -855,18 +911,27 @@ router.post("/rental/payments", async (req: AuthenticatedRequest, res): Promise<
     }
   }
 
-  // Update bank account balance
+  // Update bank account balance (в валюте счёта)
   {
     const [acc] = await db.select().from(bankAccountsTable).where(eq(bankAccountsTable.id, parsedAccountId));
     if (acc) {
-      const newBal = (parseFloat(acc.currentBalance || "0") + paymentAmount).toFixed(2);
+      const newBal = (parseFloat(acc.currentBalance || "0") + accountCredit).toFixed(2);
       await db.update(bankAccountsTable).set({ currentBalance: newBal }).where(eq(bankAccountsTable.id, parsedAccountId));
     }
   }
 
   await logOp(req.scopedCompanyId!, req.userId, "payment", payment.id, "create",
-      `Добавлен платёж ${paymentAmount} ${currency} (договор #${leaseContractId})`, payment);
-  res.status(201).json({ ...payment, allocations: createdAllocations, unallocated: remainingAmount });
+      `Добавлен платёж ${paymentAmount} ${paymentCurrency} → ${accountCredit} ${accountCurrency} на счёт (договор #${leaseContractId})`, payment);
+  res.status(201).json({
+    ...payment,
+    allocations: createdAllocations,
+    unallocated: remainingAmount,
+    accountCurrency,
+    accountAmount: accountCredit,
+    exchangeRate: fx.exchangeRate,
+    exchangeRateDate: fx.exchangeRateDate,
+    rateWarning: fx.rateWarning,
+  });
 });
 
 router.delete("/rental/payments/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
@@ -891,11 +956,12 @@ router.delete("/rental/payments/:id", async (req: AuthenticatedRequest, res): Pr
   await db.delete(paymentAllocationsTable).where(eq(paymentAllocationsTable.paymentId, id));
   await db.delete(paymentsTable).where(and(...conds));
 
-  // Reverse bank account balance
+  // Reverse bank account balance (сумма зачисления в валюте счёта)
   if (snap.accountId) {
     const [acc] = await db.select().from(bankAccountsTable).where(eq(bankAccountsTable.id, snap.accountId));
     if (acc) {
-      const newBal = Math.max(0, parseFloat(acc.currentBalance || "0") - parseFloat(snap.amount)).toFixed(2);
+      const credit = parseFloat(snap.accountAmount ?? snap.amount);
+      const newBal = Math.max(0, parseFloat(acc.currentBalance || "0") - credit).toFixed(2);
       await db.update(bankAccountsTable).set({ currentBalance: newBal }).where(eq(bankAccountsTable.id, snap.accountId));
     }
   }

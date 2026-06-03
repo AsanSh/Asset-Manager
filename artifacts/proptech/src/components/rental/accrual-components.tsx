@@ -51,6 +51,8 @@ import { api } from "@/lib/api";
 import { getApiBase } from "@/lib/api-base";
 import { getRentalAccountsQueryKey } from "@/lib/rental-query-keys";
 import { cn } from "@/lib/utils";
+import { RentalPaymentFxNote } from "@/components/rental/rental-payment-fx-note";
+import { fmtCurrencyAmount } from "@/lib/nbkr-currency";
 
 export const statusColors: Record<string, string> = {
 	pending: "bg-amber-100 text-amber-800",
@@ -448,6 +450,10 @@ export function QuickPayDialog({
 	}, [accrual?.id, accounts]);
 
 	const balanceNum = accrual ? Math.max(0, parseFloat(accrual.balance)) : 0;
+	const paymentCurrency = (accrual?.currency || "KGS").toUpperCase();
+	const selectedAccount = accounts.find((a) => String(a.id) === accountId);
+	const accountCurrency = (selectedAccount?.currency || "KGS").toUpperCase();
+	const sendAmountPreview = parseFloat(amount) || balanceNum;
 
 	if (!accrual || !leaseContractId) return null;
 
@@ -457,7 +463,7 @@ export function QuickPayDialog({
 		try {
 			const res = await api.post("/rental/accounts", {
 				name: newAccountName.trim(),
-				currency: "KGS",
+				currency: paymentCurrency === "USD" ? "USD" : "KGS",
 				type: "cash",
 			});
 			await refetchAccounts();
@@ -503,9 +509,25 @@ export function QuickPayDialog({
 				const err = await res.json().catch(() => ({}));
 				throw new Error(err.error || "Ошибка создания платежа");
 			}
+			const result = await res.json();
+			const payLabel = fmtCurrencyAmount(
+				sendAmount,
+				paymentCurrency === "USD" ? "USD" : "KGS",
+			);
+			let desc = `${payLabel} · ${accrual.period}`;
+			if (
+				result.accountAmount != null &&
+				result.accountCurrency &&
+				result.accountCurrency !== paymentCurrency
+			) {
+				desc += ` · на счёт: ${fmtCurrencyAmount(
+					Number(result.accountAmount),
+					result.accountCurrency === "USD" ? "USD" : "KGS",
+				)}`;
+			}
 			toast({
 				title: "Платёж принят",
-				description: `${fmtCurrency(sendAmount)} · ${accrual.period}`,
+				description: desc,
 			});
 			onSaved();
 			onClose();
@@ -567,7 +589,7 @@ export function QuickPayDialog({
 					</div>
 
 					<div>
-						<Label>Счёт зачисления</Label>
+						<Label>Счёт зачисления (валюта счёта)</Label>
 						{accounts.length > 0 && !creatingAccount ? (
 							<div className="flex gap-2 mt-1">
 								<Select value={accountId} onValueChange={setAccountId}>
@@ -610,6 +632,15 @@ export function QuickPayDialog({
 							</div>
 						)}
 					</div>
+
+					{accountId && sendAmountPreview > 0 && (
+						<RentalPaymentFxNote
+							paymentAmount={sendAmountPreview}
+							paymentCurrency={paymentCurrency}
+							accountCurrency={accountCurrency}
+							paymentDate={paymentDate}
+						/>
+					)}
 
 					<div>
 						<Label>Примечание</Label>
