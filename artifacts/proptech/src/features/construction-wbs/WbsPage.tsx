@@ -30,7 +30,6 @@ import {
 } from "@/lib/nbkr-currency";
 import { WbsCardsView } from "./WbsCardsView";
 import { WbsDashboard } from "./WbsDashboard";
-import { WbsRemotionPreview } from "./WbsRemotionPreview";
 import { WbsGanttView } from "./WbsGanttView";
 import { WbsStageDialog } from "./WbsStageDialog";
 import { WbsStageDrawer } from "./WbsStageDrawer";
@@ -240,12 +239,6 @@ export function WbsPage() {
 			) : (
 				<>
 					<WbsDashboard fmt={fmt} dashboard={dashboard} isLoading={false} />
-					{projectFilter !== "all" && dashboard.budgetKgs > 0 && (
-						<WbsRemotionPreview
-							budgetKgs={dashboard.budgetKgs}
-							spentKgs={dashboard.spentKgs}
-						/>
-					)}
 
 					{viewMode === "wbs" && projectFilter === "all" && (
 						<div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
