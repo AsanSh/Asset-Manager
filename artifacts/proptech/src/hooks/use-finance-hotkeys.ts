@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useLocation } from "wouter";
 
-/** ⌘⇧R — фактический расход (стройка), ⌘⇧D — доход (ОДДС) */
+/** ⌘⇧Z — фактический расход (стройка), ⌘⇧X — доход (ОДДС) */
 export function useFinanceHotkeys(enabled = true) {
 	const [, setLocation] = useLocation();
 
@@ -16,12 +16,12 @@ export function useFinanceHotkeys(enabled = true) {
 			if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
 
 			const key = e.key.toLowerCase();
-			if (key === "r") {
+			if (key === "z") {
 				e.preventDefault();
 				setLocation("/construction/expenses?create=1");
 				return;
 			}
-			if (key === "d") {
+			if (key === "x") {
 				e.preventDefault();
 				setLocation("/construction/operations?quick=income");
 			}
