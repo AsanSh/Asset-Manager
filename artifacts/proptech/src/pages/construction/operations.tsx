@@ -257,6 +257,12 @@ export default function ConstructionOperations() {
 		resetForm();
 	}
 
+	useEffect(() => {
+		if (urlParams.get("create") === "income") {
+			openPanel("income");
+		}
+	}, [urlParams]);
+
 	function resetForm() {
 		setForm({
 			type: panelType || "expense",
@@ -461,7 +467,7 @@ export default function ConstructionOperations() {
 	return (
 		<PageShell.List
 			title="Операции"
-			subtitle="Приходы, расходы и переводы. ⌘⇧X — быстрый доход, ⌘⇧Z — расход по проекту (этап WBS). Клик по строке — редактирование."
+			subtitle="Приходы, расходы и переводы. ⌘⇧X — добавить доход, ⌘⇧Z — расход по проекту (этап WBS). Клик по строке — редактирование."
 			breadcrumb={
 				<Breadcrumbs
 					items={[

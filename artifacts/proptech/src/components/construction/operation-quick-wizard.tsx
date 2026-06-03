@@ -43,7 +43,7 @@ export type OperationQuickWizardProps = {
 	projects: { id: number; name: string }[];
 	onSubmit: (payload: Record<string, unknown>) => void;
 	isPending?: boolean;
-	/** При открытии с ⌘⇧X / URL ?quick=income */
+	/** Быстрая операция с кнопки «Быстрая операция» или URL ?quick=income */
 	initialType?: OpType;
 };
 

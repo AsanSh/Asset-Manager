@@ -1,9 +1,9 @@
 import { useEffect } from "react";
 import { useLocation } from "wouter";
 
-/** ⌘⇧Z — расход (стройка), ⌘⇧X — доход (ОДДС). Физические клавиши — не зависят от раскладки. */
+/** ⌘⇧Z — расход (стройка), ⌘⇧X — добавить доход (панель на Операциях). */
 export const FINANCE_HOTKEY_EXPENSE_PATH = "/construction/expenses?create=1";
-export const FINANCE_HOTKEY_INCOME_PATH = "/construction/operations?quick=income";
+export const FINANCE_HOTKEY_INCOME_PATH = "/construction/operations?create=income";
 
 export function resolveFinanceHotkeyTarget(
 	code: string,

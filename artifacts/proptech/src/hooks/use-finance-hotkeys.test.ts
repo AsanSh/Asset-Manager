@@ -7,7 +7,7 @@ import {
 } from "./use-finance-hotkeys";
 
 describe("resolveFinanceHotkeyTarget", () => {
-	it("⌘⇧Z открывает расход, ⌘⇧X — доход", () => {
+	it("⌘⇧Z открывает расход, ⌘⇧X — панель дохода", () => {
 		assert.equal(
 			resolveFinanceHotkeyTarget("KeyZ", { metaOrCtrl: true, shift: true }),
 			FINANCE_HOTKEY_EXPENSE_PATH,
