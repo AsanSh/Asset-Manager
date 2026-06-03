@@ -609,32 +609,36 @@ export default function ConstructionContractsSales() {
 					<Plus className="w-4 h-4 mr-2" /> Новый договор
 				</Button>
 			}
-			kpis={[
-				{
-					label: "Всего договоров",
-					value: totalContracts,
-					color: "text-am-text-strong",
-				},
-				{ label: "Подписанных", value: totalSold, color: "text-am-success" },
-				{
-					label: "Сумма договоров",
-					value: `${fmt(totalAmount)} сом`,
-					color: "text-am-info",
-				},
-				{
-					label: "Получено",
-					value: `${fmt(totalPaid)} сом`,
-					color: "text-am-brand",
-				},
-			].map((stat) => (
-				<div
-					key={stat.label}
-					className="bg-am-bg rounded-lg p-4 border border-am-border shadow-sm"
-				>
-					<div className="text-xs text-am-text-muted mb-1">{stat.label}</div>
-					<div className={`text-xl font-bold ${stat.color}`}>{stat.value}</div>
+			kpis={
+				<div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+					{[
+						{
+							label: "Всего договоров",
+							value: totalContracts,
+							color: "text-am-text-strong",
+						},
+						{ label: "Подписанных", value: totalSold, color: "text-am-success" },
+						{
+							label: "Сумма договоров",
+							value: `${fmt(totalAmount)} сом`,
+							color: "text-am-info",
+						},
+						{
+							label: "Получено",
+							value: `${fmt(totalPaid)} сом`,
+							color: "text-am-brand",
+						},
+					].map((stat) => (
+						<div
+							key={stat.label}
+							className="bg-am-bg rounded-lg p-4 border border-am-border shadow-sm"
+						>
+							<div className="text-xs text-am-text-muted mb-1">{stat.label}</div>
+							<div className={`text-xl font-bold ${stat.color}`}>{stat.value}</div>
+						</div>
+					))}
 				</div>
-			))}
+			}
 			filters={
 				<div className="flex gap-2 flex-wrap">
 					{[

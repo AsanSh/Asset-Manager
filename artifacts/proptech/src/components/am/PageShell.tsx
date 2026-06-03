@@ -55,9 +55,9 @@ export interface ListShellProps extends BaseHeaderProps {
 
 function ListShell({ title, subtitle, primaryAction, backLink, breadcrumb, kpis, filters, children }: ListShellProps) {
 	return (
-		<div className="p-6 space-y-5 max-w-full">
+		<div className="space-y-5 max-w-full">
 			<PageHeader {...{ title, subtitle, primaryAction, backLink, breadcrumb }} />
-			{kpis && <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{kpis}</div>}
+			{kpis && <div className="w-full min-w-0">{kpis}</div>}
 			{filters && (
 				<div className="bg-am-bg rounded-lg border border-am-border p-3 flex items-center gap-2 flex-wrap">
 					{filters}
@@ -78,7 +78,7 @@ export interface DetailShellProps extends BaseHeaderProps {
 
 function DetailShell({ title, subtitle, primaryAction, backLink, breadcrumb, tabs, sidebar, children }: DetailShellProps) {
 	return (
-		<div className="p-6 space-y-5 max-w-full">
+		<div className="space-y-5 max-w-full">
 			<PageHeader {...{ title, subtitle, primaryAction, backLink, breadcrumb }} />
 			{tabs && <div className="border-b border-am-border">{tabs}</div>}
 			{sidebar ? (
@@ -103,12 +103,12 @@ export interface DashboardShellProps extends BaseHeaderProps {
 
 function DashboardShell({ title, subtitle, primaryAction, backLink, breadcrumb, kpis, filters, children }: DashboardShellProps) {
 	return (
-		<div className="p-6 space-y-5 max-w-full">
+		<div className="space-y-5 max-w-full">
 			<PageHeader {...{ title, subtitle, primaryAction, backLink, breadcrumb }} />
 			{filters && (
 				<div className="flex items-center gap-2 flex-wrap">{filters}</div>
 			)}
-			{kpis && <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{kpis}</div>}
+			{kpis && <div className="w-full min-w-0">{kpis}</div>}
 			<div className="space-y-5">{children}</div>
 		</div>
 	);
@@ -125,7 +125,7 @@ export interface ReportShellProps extends BaseHeaderProps {
 
 function ReportShell({ title, subtitle, primaryAction, backLink, breadcrumb, filters, exportAction, summary, children }: ReportShellProps) {
 	return (
-		<div className="p-6 space-y-5 max-w-full">
+		<div className="space-y-5 max-w-full">
 			<PageHeader
 				{...{ title, subtitle, primaryAction: exportAction || primaryAction, backLink, breadcrumb }}
 			/>

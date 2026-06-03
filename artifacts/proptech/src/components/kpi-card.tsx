@@ -27,9 +27,9 @@ export function KpiRow({
 				? "grid-cols-2 md:grid-cols-3"
 				: cols === 2
 					? "grid-cols-2"
-					: "grid-cols-2 lg:grid-cols-4";
+					: "grid-cols-2 md:grid-cols-4";
 	return (
-		<div className={cn("grid gap-2", grid, className)}>{children}</div>
+		<div className={cn("grid gap-3 w-full", grid, className)}>{children}</div>
 	);
 }
 
@@ -57,27 +57,27 @@ export function KpiCard({
 	const strip = (
 		<div
 			className={cn(
-				"flex items-center gap-2 rounded-lg border border-am-border bg-am-bg px-2.5 py-1.5 min-w-0 shadow-sm",
+				"flex items-center gap-2.5 rounded-lg border border-am-border bg-am-bg px-3 py-2 min-w-0 shadow-sm",
 				href && "hover:shadow-md hover:border-am-border-strong transition-all cursor-pointer",
 			)}
 		>
 			<div
-				className={`w-5 h-5 shrink-0 ${c.bg} rounded flex items-center justify-center`}
+				className={`w-8 h-8 shrink-0 ${c.bg} rounded-md flex items-center justify-center`}
 			>
-				<Icon className={`w-3 h-3 ${c.icon}`} />
+				<Icon className={`w-4 h-4 ${c.icon}`} />
 			</div>
 			<div className="min-w-0 flex-1 leading-tight">
 				{loading ? (
 					<Skeleton className="h-4 w-16" />
 				) : (
 					<>
-						<p className="text-[10px] text-am-text-muted truncate">{label}</p>
-						<p className="text-sm font-bold text-am-text-strong truncate">{value}</p>
+						<p className="text-[11px] text-am-text-muted leading-snug">{label}</p>
+						<p className="text-base font-bold text-am-text-strong tabular-nums">{value}</p>
 					</>
 				)}
 			</div>
 			{sub && !loading && (
-				<span className="text-[9px] text-am-text-subtle shrink-0 hidden sm:inline max-w-[72px] truncate">
+				<span className="text-[10px] text-am-text-subtle shrink-0 text-right leading-snug max-w-[40%] hidden min-[420px]:block">
 					{sub}
 				</span>
 			)}
