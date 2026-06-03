@@ -35,6 +35,29 @@ import { api } from "@/lib/api";
 import { unwrapList } from "@/lib/unwrap-list";
 
 const RATE_SOURCES = ["НБКР", "Optima", "RSB", "Bakai", "DoBank", "MBank"];
+/** Панель z-[210] — контент Select должен быть выше backdrop и панели */
+const SIDE_PANEL_SELECT_CONTENT = "z-[220]";
+
+function operationAmountInAccountCurrency(
+	amount: string,
+	currency: string,
+	exchangeRate: string,
+	accountCurrency: string,
+): number {
+	const n = parseFloat(amount || "0");
+	if (!Number.isFinite(n) || n <= 0) return 0;
+	if (currency === accountCurrency) return n;
+	const rate = parseFloat(exchangeRate || "1");
+	const safeRate = Number.isFinite(rate) && rate > 0 ? rate : 1;
+	if (currency === "KGS" && accountCurrency !== "KGS") {
+		return n / safeRate;
+	}
+	if (currency !== "KGS" && accountCurrency === "KGS") {
+		return n * safeRate;
+	}
+	const kgs = currency === "KGS" ? n : n * safeRate;
+	return accountCurrency === "KGS" ? kgs : kgs / safeRate;
+}
 const CATEGORIES_INCOME = [
 	"Платёж по договору",
 	"Первоначальный взнос",
@@ -112,7 +135,7 @@ export default function ConstructionOperations() {
 		exchangeRateSource: "НБКР",
 		exchangeRate: "89",
 		notes: "",
-		projectId: "",
+		projectId: "none",
 		accountId: "",
 		fromAccountId: "",
 		toAccountId: "",
@@ -136,6 +159,30 @@ export default function ConstructionOperations() {
 		queryFn: () => api.get("/construction/accounts").then((r) => r.data),
 	});
 	const accounts = unwrapList<any>(accountsRaw);
+
+	useEffect(() => {
+		if (!panelType || accounts.length === 0) return;
+		const first = accounts[0] as { id: number; currency?: string };
+		const firstId = String(first.id);
+		setForm((f) => {
+			let next = f;
+			if (panelType === "transfer") {
+				if (!f.fromAccountId) {
+					next = { ...next, fromAccountId: firstId };
+				}
+			} else if (!f.accountId) {
+				next = {
+					...next,
+					accountId: firstId,
+					currency: first.currency || next.currency,
+				};
+			}
+			if (!next.projectId) {
+				next = { ...next, projectId: "none" };
+			}
+			return next === f ? f : next;
+		});
+	}, [panelType, accounts]);
 
 	const saveMut = useMutation({
 		mutationFn: ({
@@ -185,13 +232,18 @@ export default function ConstructionOperations() {
 				status: String(op.status || "approved"),
 			});
 		} else {
-			const firstId = accounts[0] ? String((accounts[0] as { id: number }).id) : "";
+			const first = accounts[0] as
+				| { id: number; currency?: string }
+				| undefined;
+			const firstId = first ? String(first.id) : "";
 			setForm((f) => ({
 				...f,
 				type,
 				category: "",
 				description: "",
 				amount: "",
+				projectId: "none",
+				currency: first?.currency || f.currency || "KGS",
 				fromAccountId: type === "transfer" ? firstId : "",
 				toAccountId: "",
 				accountId: type !== "transfer" ? firstId : "",
@@ -216,7 +268,7 @@ export default function ConstructionOperations() {
 			exchangeRateSource: "НБКР",
 			exchangeRate: "89",
 			notes: "",
-			projectId: "",
+			projectId: "none",
 			accountId: "",
 			fromAccountId: "",
 			toAccountId: "",
@@ -382,11 +434,21 @@ export default function ConstructionOperations() {
 	) {
 		accountBalance += parseFloat(editingOp.amountKgs || "0");
 	}
+	const accountCurrency = selectedAccount?.currency || "KGS";
+	const spendInAccountCurrency = selectedAccount
+		? operationAmountInAccountCurrency(
+				form.amount,
+				form.currency,
+				form.exchangeRate,
+				accountCurrency,
+			)
+		: 0;
 	const insufficientFunds =
 		(form.type === "expense" || form.type === "transfer") &&
 		form.status === "approved" &&
 		expenseAccountId &&
-		amountKgs > accountBalance + 0.01;
+		selectedAccount &&
+		spendInAccountCurrency > accountBalance + 0.01;
 
 	const totalIncome = filteredArray
 		.filter((o: any) => o.type === "income")
@@ -583,6 +645,12 @@ export default function ConstructionOperations() {
 					</div>
 
 					<div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+						{accounts.length === 0 && (
+							<div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+								Нет счетов в модуле «Стройка». Создайте счёт в разделе счетов
+								компании, затем обновите страницу.
+							</div>
+						)}
 						{/* Type selector */}
 						<div className="grid grid-cols-3 gap-1.5">
 							{(["income", "expense", "transfer"] as const).map((t) => (
@@ -632,7 +700,7 @@ export default function ConstructionOperations() {
 									<SelectTrigger className="w-20 h-9 text-sm border-gray-200">
 										<SelectValue />
 									</SelectTrigger>
-									<SelectContent>
+									<SelectContent className={SIDE_PANEL_SELECT_CONTENT}>
 										{["KGS", "USD", "EUR", "RUB", "CNY"].map((c) => (
 											<SelectItem key={c} value={c}>
 												{c}
@@ -662,7 +730,7 @@ export default function ConstructionOperations() {
 											<SelectTrigger className="w-24 h-8 text-xs border-gray-200">
 												<SelectValue />
 											</SelectTrigger>
-											<SelectContent>
+											<SelectContent className={SIDE_PANEL_SELECT_CONTENT}>
 												{RATE_SOURCES.map((s) => (
 													<SelectItem key={s} value={s}>
 														{s}
@@ -685,15 +753,22 @@ export default function ConstructionOperations() {
 										СЧЁТ СПИСАНИЯ *
 									</Label>
 									<Select
-										value={form.fromAccountId}
-										onValueChange={(v) =>
-											setForm((f) => ({ ...f, fromAccountId: v }))
-										}
+										value={form.fromAccountId || undefined}
+										onValueChange={(v) => {
+											const acc = accounts.find(
+												(a: { id: number }) => String(a.id) === v,
+											) as { currency?: string } | undefined;
+											setForm((f) => ({
+												...f,
+												fromAccountId: v,
+												currency: acc?.currency || f.currency,
+											}));
+										}}
 									>
 										<SelectTrigger className="mt-1 h-9 text-sm border-gray-200">
 											<SelectValue placeholder="Откуда" />
 										</SelectTrigger>
-										<SelectContent>
+										<SelectContent className={SIDE_PANEL_SELECT_CONTENT}>
 											{accounts.map((a: { id: number; name: string; currentBalance: string; currency: string }) => (
 												<SelectItem key={a.id} value={String(a.id)}>
 													{a.name} ({fmt(a.currentBalance)} {a.currency})
@@ -707,7 +782,7 @@ export default function ConstructionOperations() {
 										СЧЁТ ЗАЧИСЛЕНИЯ *
 									</Label>
 									<Select
-										value={form.toAccountId}
+										value={form.toAccountId || undefined}
 										onValueChange={(v) =>
 											setForm((f) => ({ ...f, toAccountId: v }))
 										}
@@ -715,7 +790,7 @@ export default function ConstructionOperations() {
 										<SelectTrigger className="mt-1 h-9 text-sm border-gray-200">
 											<SelectValue placeholder="Куда" />
 										</SelectTrigger>
-										<SelectContent>
+										<SelectContent className={SIDE_PANEL_SELECT_CONTENT}>
 											{accounts.map((a: { id: number; name: string; currentBalance: string; currency: string }) => (
 												<SelectItem key={a.id} value={String(a.id)}>
 													{a.name} ({fmt(a.currentBalance)} {a.currency})
@@ -731,15 +806,22 @@ export default function ConstructionOperations() {
 									{panelType === "income" ? "СЧЁТ ЗАЧИСЛЕНИЯ *" : "СЧЁТ СПИСАНИЯ *"}
 								</Label>
 								<Select
-									value={form.accountId}
-									onValueChange={(v) =>
-										setForm((f) => ({ ...f, accountId: v }))
-									}
+									value={form.accountId || undefined}
+									onValueChange={(v) => {
+										const acc = accounts.find(
+											(a: { id: number }) => String(a.id) === v,
+										) as { currency?: string } | undefined;
+										setForm((f) => ({
+											...f,
+											accountId: v,
+											currency: acc?.currency || f.currency,
+										}));
+									}}
 								>
 									<SelectTrigger className="mt-1 h-9 text-sm border-gray-200">
 										<SelectValue placeholder="Выберите счёт" />
 									</SelectTrigger>
-									<SelectContent>
+									<SelectContent className={SIDE_PANEL_SELECT_CONTENT}>
 										{accounts.map((a: { id: number; name: string; currentBalance: string; currency: string }) => (
 											<SelectItem key={a.id} value={String(a.id)}>
 												{a.name} ({fmt(a.currentBalance)} {a.currency})
@@ -762,7 +844,12 @@ export default function ConstructionOperations() {
 							<div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800 space-y-2">
 								<p>
 									На счёте недостаточно средств для проведения расхода (
-									{fmt(amountKgs)} KGS при остатке {fmt(accountBalance)} KGS).
+									{fmt(spendInAccountCurrency)} {accountCurrency} при остатке{" "}
+									{fmt(accountBalance)} {accountCurrency}
+									{form.currency !== accountCurrency
+										? `, ≈ ${fmt(amountKgs)} KGS`
+										: ""}
+									).
 								</p>
 								<p className="text-rose-700">
 									Сначала сделайте приход или перевод с другого счёта.
@@ -793,13 +880,13 @@ export default function ConstructionOperations() {
 							<div>
 								<Label className="text-xs text-gray-500">СТАТЬЯ</Label>
 								<Select
-									value={form.category}
+									value={form.category || undefined}
 									onValueChange={(v) => setForm((f) => ({ ...f, category: v }))}
 								>
 									<SelectTrigger className="mt-1 h-9 text-sm border-gray-200">
 										<SelectValue placeholder="Выберите статью" />
 									</SelectTrigger>
-									<SelectContent>
+									<SelectContent className={SIDE_PANEL_SELECT_CONTENT}>
 										{categories.map((c) => (
 											<SelectItem key={c} value={c}>
 												{c}
@@ -829,13 +916,13 @@ export default function ConstructionOperations() {
 								ПРОЕКТ ИЛИ НАПРАВЛЕНИЕ
 							</Label>
 							<Select
-								value={form.projectId}
+								value={form.projectId === "" ? "none" : form.projectId}
 								onValueChange={(v) => setForm((f) => ({ ...f, projectId: v }))}
 							>
 								<SelectTrigger className="mt-1 h-9 text-sm border-gray-200">
 									<SelectValue placeholder="Выберите проект..." />
 								</SelectTrigger>
-								<SelectContent>
+										<SelectContent className={SIDE_PANEL_SELECT_CONTENT}>
 									<SelectItem value="none">Не привязан</SelectItem>
 									{projects.map((p: any) => (
 										<SelectItem key={p.id} value={String(p.id)}>
