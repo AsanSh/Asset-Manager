@@ -140,6 +140,7 @@ export default function ConstructionOperations() {
 		fromAccountId: "",
 		toAccountId: "",
 		status: "approved",
+		counterpartyId: "none",
 	});
 
 	const { data: opsRaw, isLoading } = useQuery({
@@ -159,6 +160,17 @@ export default function ConstructionOperations() {
 		queryFn: () => api.get("/construction/accounts").then((r) => r.data),
 	});
 	const accounts = unwrapList<any>(accountsRaw);
+
+	const { data: counterpartiesRaw } = useQuery({
+		queryKey: ["counterparties", "all"],
+		queryFn: () => api.get("/counterparties").then((r) => r.data),
+	});
+	const counterparties = unwrapList<{ id: number; fullName: string }>(counterpartiesRaw);
+
+	const counterpartyNameById = useMemo(
+		() => Object.fromEntries(counterparties.map((c) => [c.id, c.fullName])),
+		[counterparties],
+	);
 
 	useEffect(() => {
 		if (!panelType || accounts.length === 0) return;
@@ -230,6 +242,9 @@ export default function ConstructionOperations() {
 				fromAccountId: op.fromAccountId ? String(op.fromAccountId) : "",
 				toAccountId: op.toAccountId ? String(op.toAccountId) : "",
 				status: String(op.status || "approved"),
+				counterpartyId: op.counterpartyId
+					? String(op.counterpartyId)
+					: "none",
 			});
 		} else {
 			const first = accounts[0] as
@@ -279,6 +294,7 @@ export default function ConstructionOperations() {
 			fromAccountId: "",
 			toAccountId: "",
 			status: "approved",
+			counterpartyId: "none",
 		});
 	}
 
@@ -314,8 +330,13 @@ export default function ConstructionOperations() {
 		if (form.type === "transfer") {
 			payload.fromAccountId = Number(form.fromAccountId);
 			payload.toAccountId = Number(form.toAccountId);
+			payload.counterpartyId = null;
 		} else {
 			payload.accountId = Number(form.accountId);
+			payload.counterpartyId =
+				form.counterpartyId && form.counterpartyId !== "none"
+					? Number(form.counterpartyId)
+					: null;
 		}
 		return payload;
 	}
@@ -331,12 +352,20 @@ export default function ConstructionOperations() {
 	const opsList = Array.isArray(ops) ? ops : [];
 
 	const filtered = opsList.filter((op: any) => {
-		if (
-			search &&
-			!op.description?.toLowerCase().includes(search.toLowerCase()) &&
-			!op.category?.toLowerCase().includes(search.toLowerCase())
-		)
-			return false;
+		if (search) {
+			const q = search.toLowerCase();
+			const cpName =
+				op.counterpartyName ||
+				(op.counterpartyId
+					? counterpartyNameById[Number(op.counterpartyId)]
+					: "");
+			if (
+				!op.description?.toLowerCase().includes(q) &&
+				!op.category?.toLowerCase().includes(q) &&
+				!cpName?.toLowerCase().includes(q)
+			)
+				return false;
+		}
 		if (!inPeriod(op.date, period)) return false;
 		if (filterType === "income" && op.type !== "income") return false;
 		if (filterType === "expense" && op.type !== "expense") return false;
@@ -390,6 +419,34 @@ export default function ConstructionOperations() {
 				),
 			},
 			{
+				id: "counterparty",
+				header: "Контрагент",
+				size: 200,
+				accessorFn: (row: any) =>
+					row.counterpartyName ||
+					(row.counterpartyId
+						? counterpartyNameById[Number(row.counterpartyId)]
+						: "") ||
+					"—",
+				meta: { exportLabel: "Контрагент" },
+				cell: ({ row }) => {
+					const op = row.original;
+					if (op.type === "transfer") {
+						return <span className="text-xs text-gray-300">—</span>;
+					}
+					const name =
+						op.counterpartyName ||
+						(op.counterpartyId
+							? counterpartyNameById[Number(op.counterpartyId)]
+							: "");
+					return (
+						<span className="text-xs text-gray-600">
+							{name || "—"}
+						</span>
+					);
+				},
+			},
+			{
 				id: "project",
 				header: "Проект",
 				size: 180,
@@ -426,7 +483,7 @@ export default function ConstructionOperations() {
 				},
 			},
 		],
-		[projects],
+		[projects, counterpartyNameById],
 	);
 	let accountBalance = parseFloat(
 		selectedAccount?.currentBalance?.toString() || "0",
@@ -881,6 +938,38 @@ export default function ConstructionOperations() {
 							</div>
 						)}
 
+						{panelType !== "transfer" && (
+							<div>
+								<Label className="text-xs text-gray-500">
+									{panelType === "income"
+										? "КТО ВНОСИТ (ПЛАТЕЛЬЩИК)"
+										: "КОМУ / ПОЛУЧАТЕЛЬ"}
+								</Label>
+								<Select
+									value={
+										form.counterpartyId === ""
+											? "none"
+											: form.counterpartyId
+									}
+									onValueChange={(v) =>
+										setForm((f) => ({ ...f, counterpartyId: v }))
+									}
+								>
+									<SelectTrigger className="mt-1 h-9 text-sm border-gray-200">
+										<SelectValue placeholder="Не указан" />
+									</SelectTrigger>
+									<SelectContent className={SIDE_PANEL_SELECT_CONTENT}>
+										<SelectItem value="none">Не указан</SelectItem>
+										{counterparties.map((c) => (
+											<SelectItem key={c.id} value={String(c.id)}>
+												{c.fullName}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
+						)}
+
 						{/* Category */}
 						{panelType !== "transfer" && (
 							<div>
@@ -1030,6 +1119,10 @@ export default function ConstructionOperations() {
 			projects={projects.map((p: { id: number; name: string }) => ({
 				id: p.id,
 				name: p.name,
+			}))}
+			counterparties={counterparties.map((c) => ({
+				id: c.id,
+				fullName: c.fullName,
 			}))}
 			isPending={saveMut.isPending}
 			onSubmit={(payload) => saveMut.mutate({ id: null, data: payload })}

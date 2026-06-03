@@ -6,7 +6,7 @@ import {
   constructionUnitsTable,
   counterpartiesTable,
 } from "../lib/db";
-import { eq, and, desc, sql, ilike } from "drizzle-orm";
+import { eq, and, desc, sql, ilike, getTableColumns } from "drizzle-orm";
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
 import { requireTenantCompany } from "../middleware/tenant";
 import { sendServerError } from "../lib/http-errors";
@@ -114,9 +114,47 @@ router.delete("/accounts/:id", async (req: AuthenticatedRequest, res): Promise<v
 });
 
 // ── Operations ──────────────────────────────────────────────────────────
+const constructionOpColumns = getTableColumns(constructionOperationsTable);
+
+function parseCounterpartyId(raw: unknown): number | null {
+  if (raw == null || raw === "" || raw === "none") return null;
+  const id = Number(raw);
+  return Number.isFinite(id) && id > 0 ? id : null;
+}
+
+async function resolveOperationCounterpartyId(
+  companyId: number,
+  raw: unknown,
+  type: string,
+): Promise<number | null | { error: string }> {
+  if (type === "transfer") return null;
+  const id = parseCounterpartyId(raw);
+  if (!id) return null;
+  const [cp] = await db
+    .select({ id: counterpartiesTable.id })
+    .from(counterpartiesTable)
+    .where(
+      and(
+        eq(counterpartiesTable.id, id),
+        eq(counterpartiesTable.companyId, companyId),
+      ),
+    );
+  if (!cp) return { error: "Контрагент не найден" };
+  return id;
+}
+
 router.get("/operations", async (req: AuthenticatedRequest, res): Promise<void> => {
   const companyId = req.scopedCompanyId!;
-  const rows = await db.select().from(constructionOperationsTable)
+  const rows = await db
+    .select({
+      ...constructionOpColumns,
+      counterpartyName: counterpartiesTable.fullName,
+    })
+    .from(constructionOperationsTable)
+    .leftJoin(
+      counterpartiesTable,
+      eq(constructionOperationsTable.counterpartyId, counterpartiesTable.id),
+    )
     .where(eq(constructionOperationsTable.companyId, companyId))
     .orderBy(desc(constructionOperationsTable.date));
   res.json(rows);
@@ -192,6 +230,16 @@ router.post("/operations", async (req: AuthenticatedRequest, res): Promise<void>
 
   const status = body.status === "pending" ? "pending" : "approved";
 
+  const counterpartyResolved = await resolveOperationCounterpartyId(
+    companyId,
+    body.counterpartyId,
+    type,
+  );
+  if (typeof counterpartyResolved === "object") {
+    res.status(400).json({ error: counterpartyResolved.error });
+    return;
+  }
+
   const values = {
     companyId,
     projectId:
@@ -202,6 +250,7 @@ router.post("/operations", async (req: AuthenticatedRequest, res): Promise<void>
     category,
     fromAccountId,
     toAccountId,
+    counterpartyId: counterpartyResolved,
     amount: String(amount),
     currency,
     exchangeRateSource: String(body.exchangeRateSource || "nbkr").slice(0, 32),
@@ -327,6 +376,20 @@ router.patch("/operations/:id", async (req: AuthenticatedRequest, res): Promise<
         : "approved"
       : existing.status;
 
+  let counterpartyId = existing.counterpartyId;
+  if (body.counterpartyId !== undefined || type === "transfer") {
+    const counterpartyResolved = await resolveOperationCounterpartyId(
+      companyId,
+      body.counterpartyId !== undefined ? body.counterpartyId : null,
+      type,
+    );
+    if (typeof counterpartyResolved === "object") {
+      res.status(400).json({ error: counterpartyResolved.error });
+      return;
+    }
+    counterpartyId = counterpartyResolved;
+  }
+
   const patch = {
     projectId:
       body.projectId !== undefined
@@ -339,6 +402,7 @@ router.patch("/operations/:id", async (req: AuthenticatedRequest, res): Promise<
       body.category != null ? String(body.category) : existing.category,
     fromAccountId,
     toAccountId,
+    counterpartyId,
     amount: String(amount),
     currency,
     exchangeRateSource:

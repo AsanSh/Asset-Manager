@@ -41,6 +41,7 @@ export type OperationQuickWizardProps = {
 	onOpenChange: (open: boolean) => void;
 	accounts: { id: number; name: string }[];
 	projects: { id: number; name: string }[];
+	counterparties?: { id: number; fullName: string }[];
 	onSubmit: (payload: Record<string, unknown>) => void;
 	isPending?: boolean;
 	/** Быстрая операция с кнопки «Быстрая операция» или URL ?quick=income */
@@ -54,6 +55,7 @@ export function OperationQuickWizard({
 	onOpenChange,
 	accounts,
 	projects,
+	counterparties = [],
 	onSubmit,
 	isPending,
 	initialType = "expense",
@@ -69,6 +71,7 @@ export function OperationQuickWizard({
 	const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
 	const [description, setDescription] = useState("");
 	const [projectId, setProjectId] = useState("none");
+	const [counterpartyId, setCounterpartyId] = useState("none");
 
 	useEffect(() => {
 		if (!open) return;
@@ -84,6 +87,7 @@ export function OperationQuickWizard({
 		setDate(new Date().toISOString().slice(0, 10));
 		setDescription("");
 		setProjectId("none");
+		setCounterpartyId("none");
 	}, [open, accounts, initialType]);
 
 	const categories = type === "income" ? CATEGORIES_INCOME : CATEGORIES_EXPENSE;
@@ -118,8 +122,13 @@ export function OperationQuickWizard({
 		if (type === "transfer") {
 			payload.fromAccountId = Number(fromAccountId);
 			payload.toAccountId = Number(toAccountId);
+			payload.counterpartyId = null;
 		} else {
 			payload.accountId = Number(accountId);
+			payload.counterpartyId =
+				counterpartyId && counterpartyId !== "none"
+					? Number(counterpartyId)
+					: null;
 		}
 		return payload;
 	}
@@ -303,6 +312,29 @@ export function OperationQuickWizard({
 								</SelectContent>
 							</Select>
 						</div>
+						{type !== "transfer" && counterparties.length > 0 && (
+							<div>
+								<Label className="text-xs text-gray-500">
+									{type === "income" ? "Кто вносит" : "Кому / получатель"}
+								</Label>
+								<Select
+									value={counterpartyId}
+									onValueChange={setCounterpartyId}
+								>
+									<SelectTrigger className="mt-1">
+										<SelectValue placeholder="Не указан" />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="none">Не указан</SelectItem>
+										{counterparties.map((c) => (
+											<SelectItem key={c.id} value={String(c.id)}>
+												{c.fullName}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
+						)}
 						<div>
 							<Label className="text-xs text-gray-500">Описание *</Label>
 							<Textarea

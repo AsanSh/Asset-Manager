@@ -11,6 +11,8 @@ export const constructionOperationsTable = pgTable("construction_operations", {
   fromAccountId: integer("from_account_id"),
   toAccountId: integer("to_account_id"),
   contractorId: integer("contractor_id"),
+  /** Справочник контрагентов: плательщик (приход) / получатель (расход) */
+  counterpartyId: integer("counterparty_id"),
   contractId: integer("contract_id"),
   accrualId: integer("accrual_id"),
   amount: numeric("amount").notNull().default("0"),
