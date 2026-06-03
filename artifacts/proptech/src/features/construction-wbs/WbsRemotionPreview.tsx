@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo, type ComponentType } from "react";
+import { lazy, Suspense, useMemo } from "react";
 import { AbsoluteFill, interpolate, useCurrentFrame } from "remotion";
 
 const Player = lazy(() =>
@@ -102,12 +102,7 @@ export function WbsRemotionPreview({
 				}
 			>
 				<Player
-					component={
-						OsvoenieBars as ComponentType<{
-							budgetPct: number;
-							spentPct: number;
-						}>
-					}
+					component={OsvoenieBars}
 					durationInFrames={DURATION}
 					compositionWidth={640}
 					compositionHeight={120}

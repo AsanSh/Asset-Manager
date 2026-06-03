@@ -81,8 +81,9 @@ export function computeStageMetricsMap(
 			ownProgress > 0 ? ownProgress : childRollups.length > 0 ? childProgress : 0;
 
 		const planPct = effectiveProgress;
+		// Не ограничиваем 100% — Гант и таблица показывают перерасход (>100%)
 		const factPct =
-			budgetKgs > 0 ? Math.min(100, Math.round((spentKgs / budgetKgs) * 100)) : 0;
+			budgetKgs > 0 ? Math.round((spentKgs / budgetKgs) * 100) : spentKgs > 0 ? 100 : 0;
 
 		const row: WbsStageMetrics = {
 			budgetKgs,
