@@ -1,9 +1,28 @@
 import { useQuery } from "@tanstack/react-query";
-import { Calendar, } from "lucide-react";
-import { useMemo } from "react";
+import { Calendar } from "lucide-react";
+import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-table";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { api } from "@/lib/api";
+import { unwrapList } from "@/lib/unwrap-list";
+
+type ForecastRow = {
+	contractId: number;
+	dueDate: string;
+	installmentNumber: number;
+	remainingAmount: string;
+	status: string;
+	counterpartyName: string;
+};
+
+type ForecastSort = "date" | "counterparty";
 
 function fmtFull(n: any) {
 	const v = parseFloat(n || "0");
@@ -27,16 +46,52 @@ const MONTHS = [
 ];
 
 export default function ConstructionForecast() {
-	const { data: accruals = [] } = useQuery({
+	const [sortBy, setSortBy] = useState<ForecastSort>("date");
+
+	const { data: accrualsRaw } = useQuery({
 		queryKey: ["construction-accruals"],
 		queryFn: () => api.get("/construction/accruals").then((r) => r.data),
 	});
-	const { data: contracts = [] } = useQuery({
+	const { data: contractsRaw } = useQuery({
 		queryKey: ["construction-contracts-sales"],
 		queryFn: () => api.get("/construction/contracts-sales").then((r) => r.data),
 	});
 
-	const pending = accruals.filter((a: any) => a.status !== "paid");
+	const accruals = unwrapList<any>(accrualsRaw);
+	const contracts = unwrapList<any>(contractsRaw);
+
+	const contractById = useMemo(() => {
+		const m = new Map<number, any>();
+		for (const c of contracts) m.set(c.id, c);
+		return m;
+	}, [contracts]);
+
+	const pending = useMemo(
+		() =>
+			accruals
+				.filter((a: any) => a.status !== "paid")
+				.map((a: any): ForecastRow => {
+					const contract = contractById.get(a.contractId);
+					return {
+						contractId: a.contractId,
+						dueDate: a.dueDate,
+						installmentNumber: a.installmentNumber,
+						remainingAmount: a.remainingAmount,
+						status: a.status,
+						counterpartyName:
+							contract?.buyerName?.trim() || "Без контрагента",
+					};
+				}),
+		[accruals, contractById],
+	);
+
+	const tableSorting = useMemo(
+		() =>
+			sortBy === "counterparty"
+				? [{ id: "counterpartyName", desc: false }]
+				: [{ id: "dueDate", desc: false }],
+		[sortBy],
+	);
 
 	// Group by month
 	const byMonth: Record<
@@ -58,19 +113,19 @@ export default function ConstructionForecast() {
 	const maxMonthly = Math.max(...monthsSorted.map(([, v]) => v.total), 1);
 	const totalForecast = monthsSorted.reduce((s, [, v]) => s + v.total, 0);
 
-	const columns = useMemo<ColumnDef<any, unknown>[]>(
+	const columns = useMemo<ColumnDef<ForecastRow, unknown>[]>(
 		() => [
 			{
 				id: "contract",
 				header: "Договор",
 				size: 140,
-				accessorFn: (row: any) => {
-					const c = contracts.find((x: any) => x.id === row.contractId);
+				accessorFn: (row) => {
+					const c = contractById.get(row.contractId);
 					return c?.contractNumber || `#${row.contractId}`;
 				},
 				meta: { exportLabel: "Договор" },
 				cell: ({ row }) => {
-					const c = contracts.find((x: any) => x.id === row.original.contractId);
+					const c = contractById.get(row.original.contractId);
 					return (
 						<span className="font-mono text-xs font-medium text-amber-600">
 							{c?.contractNumber || `#${row.original.contractId}`}
@@ -79,14 +134,15 @@ export default function ConstructionForecast() {
 				},
 			},
 			{
-				id: "buyer",
-				header: "Покупатель",
-				size: 200,
-				accessorFn: (row: any) =>
-					contracts.find((x: any) => x.id === row.contractId)?.buyerName || "—",
-				meta: { exportLabel: "Покупатель" },
+				id: "counterpartyName",
+				header: "Контрагент",
+				size: 220,
+				accessorKey: "counterpartyName",
+				meta: { exportLabel: "Контрагент", grow: true },
 				cell: ({ getValue }) => (
-					<span className="text-gray-600">{getValue() as string}</span>
+					<span className="text-gray-700 font-medium">
+						{getValue() as string}
+					</span>
 				),
 			},
 			{
@@ -127,7 +183,7 @@ export default function ConstructionForecast() {
 				),
 			},
 		],
-		[contracts],
+		[contractById],
 	);
 
 	return (
@@ -217,11 +273,30 @@ export default function ConstructionForecast() {
 			</div>
 
 			<DataTable
+				key={sortBy}
 				tableId="construction-forecast"
 				columns={columns}
-				data={pending.slice(0, 30)}
-				initialSorting={[{ id: "dueDate", desc: false }]}
-				rowClassName={(a: any) =>
+				data={pending}
+				enableSearch
+				searchPlaceholder="Поиск по контрагенту, договору…"
+				initialSorting={tableSorting}
+				toolbar={
+					<Select
+						value={sortBy}
+						onValueChange={(v) => setSortBy(v as ForecastSort)}
+					>
+						<SelectTrigger className="h-8 w-[200px] text-sm border-gray-200">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="date">Сортировка: по дате</SelectItem>
+							<SelectItem value="counterparty">
+								Сортировка: по контрагенту
+							</SelectItem>
+						</SelectContent>
+					</Select>
+				}
+				rowClassName={(a) =>
 					new Date(a.dueDate) < new Date() ? "bg-rose-50/30" : ""
 				}
 				emptyState={
