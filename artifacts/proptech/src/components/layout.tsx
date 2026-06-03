@@ -72,10 +72,6 @@ import { useAuth } from "@/lib/auth";
 import { detectModuleFromPath, type ModuleId } from "@/lib/module-access";
 import { resolveQuickActions } from "@/lib/quick-create-access";
 import { resolveNavItemHref } from "@/lib/nav-hrefs";
-import {
-	isNavHrefAllowedForRole,
-	resolveBusinessNavRole,
-} from "@/lib/role-nav";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -622,13 +618,10 @@ function SectionGroup({
 	allowedModules,
 	defaultOpen,
 }: SectionGroupProps) {
-	const businessRole = resolveBusinessNavRole(role, permissions);
-	const items = section.items
-		.map((item) => ({
-			...item,
-			href: resolveNavItemHref(item, moduleId, role, permissions, allowedModules),
-		}))
-		.filter((item) => isNavHrefAllowedForRole(item.href, businessRole));
+	const items = section.items.map((item) => ({
+		...item,
+		href: resolveNavItemHref(item, moduleId, role, permissions, allowedModules),
+	}));
 	if (items.length === 0) return null;
 	const matchingItems = items.filter((i) =>
 		navItemMatches(location, i.href),
