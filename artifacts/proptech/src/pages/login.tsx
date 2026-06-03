@@ -1,12 +1,16 @@
-import { Building2 } from "lucide-react";
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useLogin } from "@/api-client";
+import { PlanalitycLogo } from "@/components/brand/PlanalitycLogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { BRAND } from "@/lib/brand";
 import { useAuth } from "@/lib/auth";
+
+const AUTH_GRADIENT =
+	"linear-gradient(160deg, #0f172a 0%, #1e1b4b 45%, #0e7490 100%)";
 
 export default function Login() {
 	const [email, setEmail] = useState("");
@@ -42,64 +46,43 @@ export default function Login() {
 
 	return (
 		<div className="min-h-screen flex" style={{ background: "#f4f6f9" }}>
-			{/* Left branding panel */}
 			<div
 				className="hidden lg:flex w-1/2 flex-col justify-between p-12"
-				style={{
-					background: "linear-gradient(160deg, #1e3a5f 0%, #0d1f3c 100%)",
-				}}
+				style={{ background: AUTH_GRADIENT }}
 			>
-				<div className="flex items-center gap-3">
-					<div className="h-10 w-10 bg-blue-600 rounded-xl flex items-center justify-center">
-						<Building2 className="h-6 w-6 text-white" />
-					</div>
-					<div>
-						<p className="text-xl font-bold text-white leading-tight">
-							BuildFlow
-						</p>
-						<p className="text-xs text-blue-300">Платформа управления</p>
-					</div>
-				</div>
+				<PlanalitycLogo variant="auth" inverse />
 
 				<div className="space-y-6 max-w-md">
 					<h1 className="text-4xl font-bold leading-tight text-white">
 						Управляйте недвижимостью&nbsp;эффективно
 					</h1>
-					<p className="text-blue-200 text-base leading-relaxed">
-						Комплексная PropTech-платформа для строительных компаний и
-						девелоперов Кыргызстана. Управление портфелем, арендой, договорами и
-						финансами в одном месте.
+					<p className="text-indigo-100/90 text-base leading-relaxed">
+						{BRAND.tagline}. Стройка, аренда, CRM и финансы в одной
+						аналитической платформе.
 					</p>
 					<div className="flex gap-8 pt-2">
 						<div>
 							<p className="text-2xl font-bold text-white">KGS</p>
-							<p className="text-xs text-blue-300">Кыргызский сом</p>
+							<p className="text-xs text-cyan-200/80">Кыргызский сом</p>
 						</div>
 						<div>
 							<p className="text-2xl font-bold text-white">НБКР</p>
-							<p className="text-xs text-blue-300">Курс валют</p>
+							<p className="text-xs text-cyan-200/80">Курс валют</p>
 						</div>
 						<div>
 							<p className="text-2xl font-bold text-white">24/7</p>
-							<p className="text-xs text-blue-300">Онлайн-доступ</p>
+							<p className="text-xs text-cyan-200/80">Онлайн-доступ</p>
 						</div>
 					</div>
 				</div>
 
-				<p className="text-sm text-blue-400">
-					© {new Date().getFullYear()} BuildFlow. Все права защищены.
-				</p>
+				<p className="text-sm text-indigo-300/70">{BRAND.copyright()}</p>
 			</div>
 
-			{/* Right login form */}
 			<div className="w-full lg:w-1/2 flex items-center justify-center p-8">
 				<div className="w-full max-w-md">
-					{/* Mobile logo */}
-					<div className="flex items-center gap-3 lg:hidden mb-8">
-						<div className="h-9 w-9 bg-blue-600 rounded-xl flex items-center justify-center">
-							<Building2 className="h-5 w-5 text-white" />
-						</div>
-						<span className="text-xl font-bold text-gray-900">BuildFlow</span>
+					<div className="lg:hidden mb-8">
+						<PlanalitycLogo variant="auth" />
 					</div>
 
 					<div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
@@ -108,7 +91,7 @@ export default function Login() {
 								Добро пожаловать
 							</h2>
 							<p className="text-gray-500 text-sm mt-1">
-								Войдите в свой аккаунт BuildFlow
+								Войдите в аккаунт {BRAND.name}
 							</p>
 						</div>
 
@@ -141,7 +124,7 @@ export default function Login() {
 									</Label>
 									<Link
 										href="/forgot-password"
-										className="text-xs text-blue-600 font-medium hover:underline"
+										className="text-xs text-indigo-600 font-medium hover:underline"
 									>
 										Забыли пароль?
 									</Link>
@@ -158,7 +141,7 @@ export default function Login() {
 
 							<Button
 								type="submit"
-								className="w-full h-11 rounded-xl text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white mt-2"
+								className="w-full h-11 rounded-xl text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white mt-2"
 								disabled={loginMutation.isPending}
 							>
 								{loginMutation.isPending ? "Вход..." : "Войти"}
@@ -168,7 +151,7 @@ export default function Login() {
 							Нет аккаунта?{" "}
 							<a
 								href={`${import.meta.env.BASE_URL.replace(/\/$/, "")}/register`}
-								className="text-blue-600 font-medium hover:underline"
+								className="text-indigo-600 font-medium hover:underline"
 							>
 								Зарегистрировать компанию
 							</a>

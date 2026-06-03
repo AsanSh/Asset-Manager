@@ -182,7 +182,7 @@ export default function ConstructionDashboard() {
 			<div className="flex items-center justify-between">
 				<div>
 					<h1 className="text-2xl font-bold text-gray-900">
-						{projectsArray[0]?.name?.split(" ")[0] || "BuildFlow"}
+						{projectsArray[0]?.name?.split(" ")[0] || "Planalityc.ai"}
 					</h1>
 					<p className="text-sm text-gray-400">Строительный дашборд</p>
 				</div>

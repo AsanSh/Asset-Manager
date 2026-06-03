@@ -31,7 +31,7 @@ export default function ProjectLanding() {
 		name: "ЖК Горизонт",
 		tagline: "Современный комфорт в сердце города",
 		address: "ул. Ибраимова, 42, Бишкек",
-		developer: "PropTech Development",
+		developer: "Planalityc.ai",
 		status: "В строительстве",
 		completionDate: "Q4 2026",
 		totalUnits: 120,
@@ -337,7 +337,7 @@ export default function ProjectLanding() {
 										<div>
 											<div className="text-sm text-purple-100">Email</div>
 											<div className="text-lg font-semibold">
-												info@proptech.kg
+												info@planalityc.ai
 											</div>
 										</div>
 									</div>
@@ -426,7 +426,7 @@ export default function ProjectLanding() {
 				<div className="container mx-auto px-6 text-center">
 					<div className="flex items-center justify-center gap-3 mb-4">
 						<Building2 className="w-8 h-8" />
-						<span className="text-2xl font-bold">PropTech Platform</span>
+						<span className="text-2xl font-bold">Planalityc.ai</span>
 					</div>
 					<p className="text-gray-400 mb-6">{project.developer}</p>
 					<p className="text-sm text-gray-500">© 2026 Все права защищены</p>

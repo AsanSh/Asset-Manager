@@ -1,4 +1,4 @@
-# 🏢 BuildFlow - PropTech Platform
+# Planalityc.ai
 
 Современная платформа для управления недвижимостью, строительством и арендой.
 
@@ -155,7 +155,7 @@ MIT License - см. LICENSE файл
 
 ## 👥 Команда
 
-Разработано с ❤️ командой BuildFlow
+Разработано с ❤️ командой Planalityc.ai
 
 ---
 

@@ -1,4 +1,5 @@
-import { Building, Building2, LayoutDashboard, LogOut, Package } from "lucide-react";
+import { Building, LayoutDashboard, LogOut, Package } from "lucide-react";
+import { PlanalitycLogo } from "@/components/brand/PlanalitycLogo";
 import { Link, useLocation } from "wouter";
 import type { ReactNode } from "react";
 import { useAuth } from "@/lib/auth";
@@ -18,17 +19,10 @@ export function PlatformAdminLayout({ children }: { children: ReactNode }) {
 		<div className="min-h-screen flex bg-slate-950 text-slate-100">
 			<aside className="w-60 flex-shrink-0 border-r border-slate-800 bg-slate-900 flex flex-col">
 				<div className="p-4 border-b border-slate-800">
-					<div className="flex items-center gap-2">
-						<div className="h-9 w-9 rounded-lg bg-violet-600 flex items-center justify-center">
-							<Building2 className="h-5 w-5 text-white" />
-						</div>
-						<div>
-							<p className="font-semibold text-sm leading-tight">BuildFlow</p>
-							<p className="text-[10px] text-violet-300 uppercase tracking-wide">
-								Админ платформы
-							</p>
-						</div>
-					</div>
+					<PlanalitycLogo variant="sidebar" />
+					<p className="text-[10px] text-violet-300 uppercase tracking-wide mt-2 pl-1">
+						Админ платформы
+					</p>
 				</div>
 				<nav className="flex-1 p-3 space-y-1">
 					{NAV.map((item) => {

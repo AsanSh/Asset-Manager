@@ -379,7 +379,7 @@ export default function ClientDashboard() {
 								</Button>
 								<Button variant="secondary" className="gap-2">
 									<Mail className="w-4 h-4" />
-									support@proptech.kg
+									support@planalityc.ai
 								</Button>
 							</div>
 						</div>

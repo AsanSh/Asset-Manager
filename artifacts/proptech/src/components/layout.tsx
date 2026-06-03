@@ -64,6 +64,7 @@ import {
 	useCommandPalette,
 	type CommandPaletteItem,
 } from "@/components/command-palette";
+import { PlanalitycLogo } from "@/components/brand/PlanalitycLogo";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import UserProfileDropdown from "@/components/user-profile-dropdown";
 import { useModuleAccess } from "@/hooks/use-module-access";
@@ -809,21 +810,8 @@ export function Layout({ children }: { children: ReactNode }) {
 				}}
 			>
 				{/* Logo */}
-				<div className="flex items-center gap-3 px-4 py-4 border-b border-white/10">
-					<div
-						className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-						style={{ background: "#4F46E5" }}
-					>
-						<HardHat className="w-4 h-4 text-white" />
-					</div>
-					<div>
-						<div className="text-white font-bold text-sm leading-none">
-							BuildFlow
-						</div>
-						<div className="text-white/40 text-[10px] mt-0.5">
-							Платформа управления
-						</div>
-					</div>
+				<div className="px-4 py-4 border-b border-white/10">
+					<PlanalitycLogo variant="sidebar" />
 				</div>
 
 				{/* Nav */}

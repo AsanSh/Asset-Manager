@@ -1,12 +1,17 @@
-import { ArrowLeft, Building2, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2 } from "lucide-react";
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { PlanalitycLogo } from "@/components/brand/PlanalitycLogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
+import { BRAND } from "@/lib/brand";
 import { useAuth } from "@/lib/auth";
+
+const AUTH_GRADIENT =
+	"linear-gradient(160deg, #0f172a 0%, #1e1b4b 45%, #0e7490 100%)";
 
 async function registerOrg(body: Record<string, string>) {
 	const { data } = await api.post("/auth/register", body);
@@ -167,21 +172,9 @@ export default function Register() {
 			{/* Branding panel */}
 			<div
 				className="hidden lg:flex w-1/2 flex-col justify-between p-12"
-				style={{
-					background: "linear-gradient(160deg, #1e3a5f 0%, #0d1f3c 100%)",
-				}}
+				style={{ background: AUTH_GRADIENT }}
 			>
-				<div className="flex items-center gap-3">
-					<div className="h-10 w-10 bg-blue-600 rounded-xl flex items-center justify-center">
-						<Building2 className="h-6 w-6 text-white" />
-					</div>
-					<div>
-						<p className="text-xl font-bold text-white leading-tight">
-							BuildFlow
-						</p>
-						<p className="text-xs text-blue-300">Платформа управления</p>
-					</div>
-				</div>
+				<PlanalitycLogo variant="auth" inverse />
 
 				<div className="space-y-6 max-w-md">
 					<h1 className="text-4xl font-bold leading-tight text-white">
@@ -208,20 +201,15 @@ export default function Register() {
 					</div>
 				</div>
 
-				<p className="text-sm text-blue-400">
-					© {new Date().getFullYear()} BuildFlow. Все права защищены.
-				</p>
+				<p className="text-sm text-indigo-300/70">{BRAND.copyright()}</p>
 			</div>
 
 			{/* Form panel */}
 			<div className="w-full lg:w-1/2 flex items-center justify-center p-8">
 				<div className="w-full max-w-md">
 					{/* Mobile logo */}
-					<div className="flex items-center gap-3 lg:hidden mb-8">
-						<div className="h-9 w-9 bg-blue-600 rounded-xl flex items-center justify-center">
-							<Building2 className="h-5 w-5 text-white" />
-						</div>
-						<span className="text-xl font-bold text-gray-900">BuildFlow</span>
+					<div className="lg:hidden mb-8">
+						<PlanalitycLogo variant="auth" />
 					</div>
 
 					{/* Step indicator */}

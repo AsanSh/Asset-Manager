@@ -192,7 +192,7 @@ export default function MarketplaceSupplierPortal({
 							<Store className="w-5 h-5 text-white" />
 						</div>
 						<div>
-							<p className="text-sm font-bold text-gray-900">BuildFlow Маркетплейс</p>
+							<p className="text-sm font-bold text-gray-900">Planalityc.ai Маркетплейс</p>
 							<p className="text-[10px] text-gray-400 -mt-0.5">Кабинет поставщика</p>
 						</div>
 					</div>

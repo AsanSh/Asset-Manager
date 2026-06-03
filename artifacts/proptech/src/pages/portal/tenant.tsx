@@ -152,7 +152,7 @@ export default function TenantPortal({ previewTenantId }: { previewTenantId?: nu
 							<Building2 className="w-5 h-5 text-white" />
 						</div>
 						<div>
-							<p className="text-sm font-bold text-gray-900">BuildFlow</p>
+							<p className="text-sm font-bold text-gray-900">Planalityc.ai</p>
 							<p className="text-[10px] text-gray-400 -mt-0.5">
 								Портал арендатора
 							</p>
@@ -378,7 +378,7 @@ export default function TenantPortal({ previewTenantId }: { previewTenantId?: nu
 				</div>
 
 				<div className="text-center text-xs text-gray-400 py-4">
-					BuildFlow — Портал арендатора. Данные обновляются в реальном времени.
+					Planalityc.ai — Портал арендатора. Данные обновляются в реальном времени.
 				</div>
 			</div>
 		</div>

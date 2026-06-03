@@ -53,7 +53,7 @@ export function buildActText(input: ShareActInput): string {
 		}
 	}
 
-	return `${head}\n\n${summary}${lines}\n\n— BuildFlow`;
+	return `${head}\n\n${summary}${lines}\n\n— Planalityc.ai`;
 }
 
 /**

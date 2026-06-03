@@ -1,11 +1,13 @@
-import { Building2, ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { useState } from "react";
 import { Link } from "wouter";
+import { PlanalitycLogo } from "@/components/brand/PlanalitycLogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { getApiBase } from "@/lib/api-base";
+import { BRAND } from "@/lib/brand";
 
 export default function ForgotPassword() {
 	const [email, setEmail] = useState("");
@@ -50,12 +52,10 @@ export default function ForgotPassword() {
 		>
 			<div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
 				<div className="flex items-center gap-3 mb-6">
-					<div className="h-10 w-10 rounded-xl bg-blue-600 flex items-center justify-center">
-						<Building2 className="h-6 w-6 text-white" />
-					</div>
+					<PlanalitycLogo variant="mark" />
 					<div>
 						<h1 className="text-xl font-bold text-gray-900">Сброс пароля</h1>
-						<p className="text-sm text-gray-500">BuildFlow</p>
+						<p className="text-sm text-gray-500">{BRAND.name}</p>
 					</div>
 				</div>
 

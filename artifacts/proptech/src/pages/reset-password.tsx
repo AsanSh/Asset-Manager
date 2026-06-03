@@ -1,11 +1,13 @@
-import { Building2, Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useSearch } from "wouter";
+import { PlanalitycLogo } from "@/components/brand/PlanalitycLogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { getApiBase } from "@/lib/api-base";
+import { BRAND } from "@/lib/brand";
 
 export default function ResetPassword() {
 	const search = useSearch();
@@ -83,12 +85,10 @@ export default function ResetPassword() {
 		>
 			<div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
 				<div className="flex items-center gap-3 mb-6">
-					<div className="h-10 w-10 rounded-lg bg-blue-600 flex items-center justify-center">
-						<Building2 className="h-5 w-5 text-white" />
-					</div>
+					<PlanalitycLogo variant="mark" />
 					<div>
 						<h1 className="text-xl font-bold">Новый пароль</h1>
-						<p className="text-sm text-muted-foreground">BuildFlow / Asset Manager</p>
+						<p className="text-sm text-muted-foreground">{BRAND.name}</p>
 					</div>
 				</div>
 

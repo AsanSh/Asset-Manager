@@ -1,5 +1,8 @@
 /**
- * BuildFlow Design System - Design Tokens
+ * @deprecated Используйте CSS-переменные `--am-*` в index.css и компоненты `@/components/am`.
+ * Этот файл сохранён для обратной совместимости; новый код не должен импортировать отсюда.
+ *
+ * Planalityc.ai Design System - Design Tokens
  *
  * Централизованные токены дизайна для консистентности во всей системе.
  */

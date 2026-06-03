@@ -1,11 +1,13 @@
-import { ArrowRight, Building2, Lock, User } from "lucide-react";
+import { ArrowRight, Lock, User } from "lucide-react";
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { PlanalitycLogo } from "@/components/brand/PlanalitycLogo";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { BRAND } from "@/lib/brand";
 
 export default function ClientLogin() {
 	const [, setLocation] = useLocation();
@@ -39,8 +41,8 @@ export default function ClientLogin() {
 			<div className="w-full max-w-md">
 				{/* Logo */}
 				<div className="text-center mb-8">
-					<div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-white/10 backdrop-blur-lg mb-4 shadow-xl">
-						<Building2 className="w-10 h-10 text-white" />
+					<div className="inline-flex items-center justify-center mb-4">
+						<PlanalitycLogo variant="mark" className="h-16 w-16" />
 					</div>
 					<h1 className="text-4xl font-extrabold text-white mb-2">
 						Клиентский портал
@@ -122,7 +124,7 @@ export default function ClientLogin() {
 
 				{/* Footer */}
 				<div className="mt-8 text-center text-purple-100 text-sm">
-					<p>© 2026 PropTech Platform. Все права защищены.</p>
+					<p>{BRAND.copyright()}</p>
 				</div>
 			</div>
 		</div>

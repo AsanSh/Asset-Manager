@@ -150,7 +150,7 @@ export default function ContractorPortal({ previewContractorId }: { previewContr
 							<Briefcase className="w-5 h-5 text-white" />
 						</div>
 						<div>
-							<p className="text-sm font-bold text-gray-900">BuildFlow</p>
+							<p className="text-sm font-bold text-gray-900">Planalityc.ai</p>
 							<p className="text-[10px] text-gray-400 -mt-0.5">
 								Портал подрядчика
 							</p>

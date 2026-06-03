@@ -309,7 +309,7 @@ export default function DesignSystemShowcase() {
 								{ name: "Портал", count: 7 },
 								{ name: "Отчёты", count: 5 },
 								{ name: "Системные", count: 11 },
-								{ name: "PropTech", count: 2 },
+								{ name: "CRM", count: 2 },
 								{ name: "Прочие", count: 18 },
 							].map((m) => (
 								<div key={m.name} className="flex items-baseline gap-2">
