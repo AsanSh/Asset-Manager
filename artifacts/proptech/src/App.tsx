@@ -9,6 +9,10 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { useModuleAccess } from "@/hooks/use-module-access";
 import NotFound from "@/pages/not-found";
+import {
+	isChunkLoadError,
+	reloadOnceOnStaleChunk,
+} from "@/lib/chunk-reload";
 
 class PageErrorBoundary extends React.Component<
 	{ children: React.ReactNode },
@@ -21,8 +25,14 @@ class PageErrorBoundary extends React.Component<
 	static getDerivedStateFromError(error: Error) {
 		return { error };
 	}
+	componentDidCatch(error: Error) {
+		if (isChunkLoadError(error.message)) {
+			reloadOnceOnStaleChunk();
+		}
+	}
 	render() {
 		if (this.state.error) {
+			const staleChunk = isChunkLoadError(this.state.error.message);
 			return (
 				<div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center p-6">
 					<div className="text-4xl">⚠️</div>
@@ -30,13 +40,19 @@ class PageErrorBoundary extends React.Component<
 						Страница не загрузилась
 					</h2>
 					<p className="text-sm text-gray-500 max-w-md">
-						{this.state.error.message}
+						{staleChunk
+							? "Приложение обновилось. Обновите страницу, чтобы загрузить новую версию."
+							: this.state.error.message}
 					</p>
 					<button
-						onClick={() => this.setState({ error: null })}
+						onClick={() =>
+							staleChunk
+								? window.location.reload()
+								: this.setState({ error: null })
+						}
 						className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
 					>
-						Попробовать снова
+						{staleChunk ? "Обновить страницу" : "Попробовать снова"}
 					</button>
 				</div>
 			);
