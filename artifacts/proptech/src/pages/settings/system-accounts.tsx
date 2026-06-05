@@ -4,11 +4,14 @@ import {
 	CreditCard,
 	Edit2,
 	Plus,
-	Search,
 	Trash2,
 	Wallet,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table";
+import { PageShell } from "@/components/am/PageShell";
+import { EmptyState } from "@/components/am/misc";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -36,20 +39,12 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { SystemSettingsBar } from "@/components/system-settings-nav";
 import { api } from "@/lib/api";
+import { SettingsBreadcrumb } from "@/lib/settings-breadcrumbs";
 import { cn } from "@/lib/utils";
 
 type AccountType = "bank" | "cash" | "card";
@@ -449,7 +444,6 @@ function AccountDialog({ open, onClose, account }: AccountDialogProps) {
 }
 
 export default function SystemAccounts() {
-	const [search, setSearch] = useState("");
 	const [typeFilter, setTypeFilter] = useState<string>("all");
 	const [currencyFilter, setCurrencyFilter] = useState<string>("all");
 	const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -493,14 +487,6 @@ export default function SystemAccounts() {
 
 	const accountsArray = Array.isArray(accounts) ? accounts : [];
 	const filtered = accountsArray.filter((account: SystemAccount) => {
-		if (search) {
-			const searchLower = search.toLowerCase();
-			const matchesSearch =
-				account.name.toLowerCase().includes(searchLower) ||
-				account.bankName?.toLowerCase().includes(searchLower) ||
-				account.accountNumber?.toLowerCase().includes(searchLower);
-			if (!matchesSearch) return false;
-		}
 		if (typeFilter !== "all" && account.type !== typeFilter) return false;
 		if (currencyFilter !== "all" && account.currency !== currencyFilter)
 			return false;
@@ -515,166 +501,183 @@ export default function SystemAccounts() {
 		return <Icon className="w-4 h-4" />;
 	};
 
+	const columns = useMemo<ColumnDef<SystemAccount, unknown>[]>(
+		() => [
+			{
+				id: "name",
+				header: "Название",
+				accessorKey: "name",
+				meta: { exportLabel: "Название", grow: true },
+				cell: ({ row }) => (
+					<div className="flex items-center gap-2 font-medium text-gray-900">
+						{getTypeIcon(row.original.type)}
+						{row.original.name}
+					</div>
+				),
+			},
+			{
+				id: "bankName",
+				header: "Банк",
+				accessorKey: "bankName",
+				cell: ({ row }) => row.original.bankName || "—",
+			},
+			{
+				id: "accountNumber",
+				header: "Номер счета",
+				accessorKey: "accountNumber",
+				cell: ({ row }) => (
+					<span className="font-mono text-sm text-gray-500">
+						{row.original.accountNumber || "—"}
+					</span>
+				),
+			},
+			{
+				id: "currency",
+				header: "Валюта",
+				accessorKey: "currency",
+				cell: ({ row }) => <Badge variant="outline">{row.original.currency}</Badge>,
+			},
+			{
+				id: "currentBalance",
+				header: "Баланс",
+				meta: { align: "right", financeAmount: true },
+				cell: ({ row }) => (
+					<span className="font-mono text-right block">
+						{formatCurrency(row.original.currentBalance, row.original.currency)}
+					</span>
+				),
+			},
+			{
+				id: "isActive",
+				header: "Статус",
+				cell: ({ row }) => (
+					<Badge
+						variant={row.original.isActive ? "default" : "secondary"}
+						className={cn(!row.original.isActive && "bg-gray-200 text-gray-600")}
+					>
+						{row.original.isActive ? "Активен" : "Неактивен"}
+					</Badge>
+				),
+			},
+			{
+				id: "actions",
+				header: "",
+				size: 80,
+				enableSorting: false,
+				cell: ({ row }) => (
+					<div className="flex gap-1">
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={() => {
+								setSelectedAccount(row.original);
+								setDialogOpen(true);
+							}}
+						>
+							<Edit2 className="w-4 h-4" />
+						</Button>
+						<Button
+							variant="ghost"
+							size="icon"
+							className="text-rose-600 hover:text-rose-700"
+							onClick={() => setDeleteId(row.original.id)}
+						>
+							<Trash2 className="w-4 h-4" />
+						</Button>
+					</div>
+				),
+			},
+		],
+		[],
+	);
+
 	return (
 		<div className="space-y-5">
 			<SystemSettingsBar />
-			<div className="flex justify-between items-start">
-				<div>
-					<h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-						<Wallet className="w-6 h-6 text-blue-600" /> Счета организации
-					</h1>
-					<p className="text-sm text-gray-500 mt-1">
-						Банковские счета, кассы и карты
-					</p>
-				</div>
-				<Button
-					onClick={() => {
-						setSelectedAccount(undefined);
-						setDialogOpen(true);
-					}}
-				>
-					<Plus className="w-4 h-4 mr-2" /> Добавить
-				</Button>
-			</div>
-
-			<div className="flex gap-3">
-				<div className="relative flex-1">
-					<Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-					<Input
-						placeholder="Поиск по названию, банку, номеру счета..."
-						value={search}
-						onChange={(e) => setSearch(e.target.value)}
-						className="pl-9"
-					/>
-				</div>
-				<Select value={typeFilter} onValueChange={setTypeFilter}>
-					<SelectTrigger className="w-40">
-						<SelectValue placeholder="Тип" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="all">Все типы</SelectItem>
-						{ACCOUNT_TYPES.map((type) => (
-							<SelectItem key={type.value} value={type.value}>
-								{type.label}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-				<Select value={currencyFilter} onValueChange={setCurrencyFilter}>
-					<SelectTrigger className="w-32">
-						<SelectValue placeholder="Валюта" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="all">Все валюты</SelectItem>
-						{CURRENCIES.map((curr) => (
-							<SelectItem key={curr} value={curr}>
-								{curr}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-				<Select value={statusFilter} onValueChange={setStatusFilter}>
-					<SelectTrigger className="w-32">
-						<SelectValue placeholder="Статус" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="all">Все</SelectItem>
-						<SelectItem value="active">Активные</SelectItem>
-						<SelectItem value="inactive">Неактивные</SelectItem>
-					</SelectContent>
-				</Select>
-			</div>
-
-			<div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-				<Table>
-					<TableHeader>
-						<TableRow className="bg-gray-50">
-							<TableHead>Название</TableHead>
-							<TableHead>Банк</TableHead>
-							<TableHead>Номер счета</TableHead>
-							<TableHead>Валюта</TableHead>
-							<TableHead className="text-right">Баланс</TableHead>
-							<TableHead>Статус</TableHead>
-							<TableHead className="w-20"></TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isLoading ? (
-							Array.from({ length: 5 }).map((_, i) => (
-								<TableRow key={i}>
-									{Array.from({ length: 7 }).map((_, j) => (
-										<TableCell key={j}>
-											<Skeleton className="h-4 w-full" />
-										</TableCell>
-									))}
-								</TableRow>
-							))
-						) : !filtered.length ? (
-							<TableRow>
-								<TableCell colSpan={7} className="text-center py-12">
-									<Wallet className="w-8 h-8 text-gray-200 mx-auto mb-2" />
-									<p className="text-gray-400">Счета не найдены</p>
-								</TableCell>
-							</TableRow>
-						) : (
-							filtered.map((account: SystemAccount) => (
-								<TableRow key={account.id} className="hover:bg-gray-50">
-									<TableCell className="font-medium text-gray-900">
-										<div className="flex items-center gap-2">
-											{getTypeIcon(account.type)}
-											{account.name}
-										</div>
-									</TableCell>
-									<TableCell className="text-gray-600">
-										{account.bankName || "—"}
-									</TableCell>
-									<TableCell className="text-gray-500 font-mono text-sm">
-										{account.accountNumber || "—"}
-									</TableCell>
-									<TableCell>
-										<Badge variant="outline">{account.currency}</Badge>
-									</TableCell>
-									<TableCell className="text-right font-medium">
-										{formatCurrency(account.currentBalance, account.currency)}
-									</TableCell>
-									<TableCell>
-										<Badge
-											variant={account.isActive ? "default" : "secondary"}
-											className={cn(
-												!account.isActive && "bg-gray-200 text-gray-600",
-											)}
-										>
-											{account.isActive ? "Активен" : "Неактивен"}
-										</Badge>
-									</TableCell>
-									<TableCell>
-										<div className="flex gap-1">
-											<Button
-												variant="ghost"
-												size="icon"
-												onClick={() => {
-													setSelectedAccount(account);
-													setDialogOpen(true);
-												}}
-											>
-												<Edit2 className="w-4 h-4" />
-											</Button>
-											<Button
-												variant="ghost"
-												size="icon"
-												className="text-rose-600 hover:text-rose-700"
-												onClick={() => setDeleteId(account.id)}
-											>
-												<Trash2 className="w-4 h-4" />
-											</Button>
-										</div>
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</div>
+			<PageShell.List
+				title="Счета организации"
+				subtitle="Банковские счета, кассы и карты"
+				breadcrumb={<SettingsBreadcrumb label="Счета" />}
+				primaryAction={
+					<Button
+						onClick={() => {
+							setSelectedAccount(undefined);
+							setDialogOpen(true);
+						}}
+						className="bg-amber-500 hover:bg-amber-600"
+					>
+						<Plus className="w-4 h-4 mr-2" /> Добавить
+					</Button>
+				}
+				filters={
+					<>
+						<Select value={typeFilter} onValueChange={setTypeFilter}>
+							<SelectTrigger className="w-40 h-8">
+								<SelectValue placeholder="Тип" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">Все типы</SelectItem>
+								{ACCOUNT_TYPES.map((type) => (
+									<SelectItem key={type.value} value={type.value}>
+										{type.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+						<Select value={currencyFilter} onValueChange={setCurrencyFilter}>
+							<SelectTrigger className="w-32 h-8">
+								<SelectValue placeholder="Валюта" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">Все валюты</SelectItem>
+								{CURRENCIES.map((curr) => (
+									<SelectItem key={curr} value={curr}>
+										{curr}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+						<Select value={statusFilter} onValueChange={setStatusFilter}>
+							<SelectTrigger className="w-32 h-8">
+								<SelectValue placeholder="Статус" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">Все</SelectItem>
+								<SelectItem value="active">Активные</SelectItem>
+								<SelectItem value="inactive">Неактивные</SelectItem>
+							</SelectContent>
+						</Select>
+					</>
+				}
+			>
+				<DataTable
+					tableId="settings-system-accounts"
+					columns={columns}
+					data={filtered}
+					isLoading={isLoading}
+					enableSearch
+					searchPlaceholder="Поиск по названию, банку, номеру…"
+					initialSorting={[{ id: "name", desc: false }]}
+					emptyState={
+						<EmptyState
+							icon={Wallet}
+							title="Счета не найдены"
+							description="Добавьте банковский счёт или кассу"
+							action={
+								<Button
+									onClick={() => {
+										setSelectedAccount(undefined);
+										setDialogOpen(true);
+									}}
+									className="bg-amber-500 hover:bg-amber-600"
+								>
+									<Plus className="w-4 h-4 mr-2" /> Добавить счёт
+								</Button>
+							}
+						/>
+					}
+				/>
+			</PageShell.List>
 
 			<AccountDialog
 				open={dialogOpen}

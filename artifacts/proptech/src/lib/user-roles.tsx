@@ -7,6 +7,9 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
+import { customRoleValue, parseCustomRoleId } from "@/lib/custom-role-id";
+
+export { customRoleValue, parseCustomRoleId };
 
 export const SYSTEM_ROLE_LABELS: Record<string, string> = {
 	admin: "Администратор",
@@ -24,15 +27,6 @@ export interface CompanyRole {
 	id: number;
 	name: string;
 	isActive: boolean;
-}
-
-export function customRoleValue(id: number): string {
-	return `custom_${id}`;
-}
-
-export function parseCustomRoleId(role: string): number | null {
-	const match = /^custom_(\d+)$/.exec(role);
-	return match ? parseInt(match[1], 10) : null;
 }
 
 export function resolveRoleLabel(

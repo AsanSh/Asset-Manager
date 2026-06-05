@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/select";
 
 import { Textarea } from "@/components/ui/textarea";
+import { PageShell } from "@/components/am/PageShell";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -663,17 +664,11 @@ export default function Leads() {
 	);
 
 	return (
-		<div className="space-y-5">
-			<div className="flex justify-between items-start">
-				<div>
-					<h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-						<UserPlus className="w-6 h-6 text-blue-600" /> Лиды
-					</h1>
-					<p className="text-sm text-gray-500 mt-1">
-						Управление потенциальными клиентами
-					</p>
-				</div>
-				<div className="flex gap-2">
+		<PageShell.List
+			title="Лиды"
+			subtitle="Управление потенциальными клиентами"
+			primaryAction={
+				<div className="flex gap-2 flex-wrap">
 					<Link href="/crm/leads/intake">
 						<Button variant="outline" className="gap-2">
 							<Rss className="w-4 h-4" /> Приём лидов
@@ -684,14 +679,14 @@ export default function Leads() {
 							setSelectedLead(undefined);
 							setDialogOpen(true);
 						}}
+						className="bg-amber-500 hover:bg-amber-600"
 					>
 						<Plus className="w-4 h-4 mr-2" /> Добавить лид
 					</Button>
 				</div>
-			</div>
-
-			<PeriodPicker value={period} onChange={setPeriod} />
-
+			}
+			filters={<PeriodPicker value={period} onChange={setPeriod} />}
+		>
 			<DataTable
 				tableId="crm-leads"
 				columns={columns}
@@ -793,6 +788,6 @@ export default function Leads() {
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
-		</div>
+		</PageShell.List>
 	);
 }

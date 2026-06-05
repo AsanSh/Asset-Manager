@@ -21,6 +21,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageShell } from "@/components/am/PageShell";
 import {
 	Table,
 	TableBody,
@@ -334,18 +335,11 @@ export default function PlatformAdminMarketplace() {
 	};
 
 	return (
-		<div className="space-y-6">
-			<div className="flex items-center justify-between flex-wrap gap-3">
-				<div>
-					<h1 className="text-2xl font-bold flex items-center gap-2">
-						<Package className="w-7 h-7 text-violet-600" />
-						Маркетплейс материалов
-					</h1>
-					<p className="text-gray-500 mt-1">
-						Поставщики, импорт прайс-листов Excel, каталог для всех компаний
-					</p>
-				</div>
-				<div className="flex gap-2">
+		<PageShell.List
+			title="Маркетплейс материалов"
+			subtitle="Поставщики, импорт прайс-листов Excel, каталог для всех компаний"
+			primaryAction={
+				<div className="flex gap-2 flex-wrap">
 					<Button variant="outline" onClick={() => downloadMarketplacePriceTemplate()}>
 						<Download className="w-4 h-4 mr-2" />
 						Шаблон Excel
@@ -355,8 +349,8 @@ export default function PlatformAdminMarketplace() {
 						Поставщик
 					</Button>
 				</div>
-			</div>
-
+			}
+		>
 			<Tabs value={tab} onValueChange={setTab}>
 				<TabsList>
 					<TabsTrigger value="import">Импорт прайса</TabsTrigger>
@@ -918,6 +912,6 @@ export default function PlatformAdminMarketplace() {
 					}}
 				/>
 			)}
-		</div>
+		</PageShell.List>
 	);
 }

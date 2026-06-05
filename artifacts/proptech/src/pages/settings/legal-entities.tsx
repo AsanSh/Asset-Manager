@@ -1,6 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, Edit2, Plus, Search, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Building2, Edit2, Plus, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table";
+import { PageShell } from "@/components/am/PageShell";
+import { SettingsBreadcrumb } from "@/lib/settings-breadcrumbs";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -21,16 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { SystemSettingsBar } from "@/components/system-settings-nav";
 import { api } from "@/lib/api";
@@ -294,16 +289,12 @@ function LegalEntityDialog({ open, onClose, entity }: LegalEntityDialogProps) {
 }
 
 export default function LegalEntities() {
-	const [search, setSearch] = useState("");
 	const { toast } = useToast();
 	const queryClient = useQueryClient();
 
 	const { data: entities, isLoading } = useQuery({
-		queryKey: ["legal-entities", search],
-		queryFn: () =>
-			api
-				.get("/legal-entities", { params: { search: search || undefined } })
-				.then((r) => r.data),
+		queryKey: ["legal-entities"],
+		queryFn: () => api.get("/legal-entities").then((r) => r.data),
 	});
 
 	const [dialogOpen, setDialogOpen] = useState(false);
@@ -334,134 +325,127 @@ export default function LegalEntities() {
 	};
 
 	const entitiesArray = Array.isArray(entities) ? entities : [];
-	const filtered = entitiesArray.filter((entity: LegalEntity) => {
-		if (!search) return true;
-		const searchLower = search.toLowerCase();
-		return (
-			entity.name.toLowerCase().includes(searchLower) ||
-			entity.fullLegalName?.toLowerCase().includes(searchLower) ||
-			entity.inn?.toLowerCase().includes(searchLower) ||
-			entity.phone?.toLowerCase().includes(searchLower) ||
-			entity.email?.toLowerCase().includes(searchLower)
-		);
-	});
+
+	const columns = useMemo<ColumnDef<LegalEntity, unknown>[]>(
+		() => [
+			{
+				id: "name",
+				header: "Название",
+				accessorKey: "name",
+				meta: { exportLabel: "Название", grow: true },
+				cell: ({ row }) => (
+					<span className="font-medium text-gray-900">{row.original.name}</span>
+				),
+			},
+			{
+				id: "fullLegalName",
+				header: "Полное наименование",
+				accessorKey: "fullLegalName",
+				meta: { exportLabel: "Полное наименование" },
+				cell: ({ row }) => (
+					<span className="text-gray-600 text-sm">{row.original.fullLegalName || "—"}</span>
+				),
+			},
+			{
+				id: "inn",
+				header: "ИНН",
+				accessorKey: "inn",
+				meta: { exportLabel: "ИНН" },
+				cell: ({ row }) => row.original.inn || "—",
+			},
+			{
+				id: "phone",
+				header: "Телефон",
+				accessorKey: "phone",
+				meta: { exportLabel: "Телефон" },
+			},
+			{
+				id: "email",
+				header: "Email",
+				accessorKey: "email",
+				meta: { exportLabel: "Email" },
+				cell: ({ row }) => (
+					<span className="text-gray-500 text-sm">{row.original.email || "—"}</span>
+				),
+			},
+			{
+				id: "isActive",
+				header: "Статус",
+				accessorKey: "isActive",
+				meta: { exportLabel: "Статус" },
+				cell: ({ row }) => (
+					<Badge variant={row.original.isActive ? "default" : "secondary"}>
+						{row.original.isActive ? "Активен" : "Неактивен"}
+					</Badge>
+				),
+			},
+			{
+				id: "actions",
+				header: "",
+				size: 80,
+				enableSorting: false,
+				cell: ({ row }) => (
+					<div className="flex gap-1">
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={() => {
+								setSelectedEntity(row.original);
+								setDialogOpen(true);
+							}}
+						>
+							<Edit2 className="w-4 h-4" />
+						</Button>
+						<Button
+							variant="ghost"
+							size="icon"
+							className="text-rose-600 hover:text-rose-700"
+							onClick={() => setDeleteId(row.original.id)}
+						>
+							<Trash2 className="w-4 h-4" />
+						</Button>
+					</div>
+				),
+			},
+		],
+		[],
+	);
 
 	return (
 		<div className="space-y-5">
 			<SystemSettingsBar />
-			<div className="flex justify-between items-start">
-				<div>
-					<h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-						<Building2 className="w-6 h-6 text-blue-600" /> Юридические лица
-					</h1>
-					<p className="text-sm text-gray-500 mt-1">
-						Управление юридическими лицами организации
-					</p>
-				</div>
-				<Button
-					onClick={() => {
-						setSelectedEntity(undefined);
-						setDialogOpen(true);
-					}}
-				>
-					<Plus className="w-4 h-4 mr-2" /> Добавить
-				</Button>
-			</div>
-
-			<div className="flex gap-3">
-				<div className="relative flex-1">
-					<Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-					<Input
-						placeholder="Поиск по названию, ИНН, телефону, email..."
-						value={search}
-						onChange={(e) => setSearch(e.target.value)}
-						className="pl-9"
-					/>
-				</div>
-			</div>
-
-			<div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-				<Table>
-					<TableHeader>
-						<TableRow className="bg-gray-50">
-							<TableHead>Название</TableHead>
-							<TableHead>Полное наименование</TableHead>
-							<TableHead>ИНН</TableHead>
-							<TableHead>Телефон</TableHead>
-							<TableHead>Email</TableHead>
-							<TableHead>Статус</TableHead>
-							<TableHead className="w-20"></TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isLoading ? (
-							Array.from({ length: 5 }).map((_, i) => (
-								<TableRow key={i}>
-									{Array.from({ length: 7 }).map((_, j) => (
-										<TableCell key={j}>
-											<Skeleton className="h-4 w-full" />
-										</TableCell>
-									))}
-								</TableRow>
-							))
-						) : !filtered.length ? (
-							<TableRow>
-								<TableCell colSpan={7} className="text-center py-12">
-									<Building2 className="w-8 h-8 text-gray-200 mx-auto mb-2" />
-									<p className="text-gray-400">Юридические лица не найдены</p>
-								</TableCell>
-							</TableRow>
-						) : (
-							filtered.map((entity: LegalEntity) => (
-								<TableRow key={entity.id} className="hover:bg-gray-50">
-									<TableCell className="font-medium text-gray-900">
-										{entity.name}
-									</TableCell>
-									<TableCell className="text-gray-600 text-sm">
-										{entity.fullLegalName || "—"}
-									</TableCell>
-									<TableCell className="text-gray-500">
-										{entity.inn || "—"}
-									</TableCell>
-									<TableCell className="text-gray-600">
-										{entity.phone || "—"}
-									</TableCell>
-									<TableCell className="text-gray-500 text-sm">
-										{entity.email || "—"}
-									</TableCell>
-									<TableCell>
-										<Badge variant={entity.isActive ? "default" : "secondary"}>
-											{entity.isActive ? "Активен" : "Неактивен"}
-										</Badge>
-									</TableCell>
-									<TableCell>
-										<div className="flex gap-1">
-											<Button
-												variant="ghost"
-												size="icon"
-												onClick={() => {
-													setSelectedEntity(entity);
-													setDialogOpen(true);
-												}}
-											>
-												<Edit2 className="w-4 h-4" />
-											</Button>
-											<Button
-												variant="ghost"
-												size="icon"
-												className="text-rose-600 hover:text-rose-700"
-												onClick={() => setDeleteId(entity.id)}
-											>
-												<Trash2 className="w-4 h-4" />
-											</Button>
-										</div>
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</div>
+			<PageShell.List
+				title="Юридические лица"
+				subtitle="Управление юридическими лицами организации"
+				breadcrumb={<SettingsBreadcrumb label="Юридические лица" />}
+				primaryAction={
+					<Button
+						onClick={() => {
+							setSelectedEntity(undefined);
+							setDialogOpen(true);
+						}}
+						className="bg-amber-500 hover:bg-amber-600"
+					>
+						<Plus className="w-4 h-4 mr-2" /> Добавить
+					</Button>
+				}
+			>
+				<DataTable
+					tableId="settings-legal-entities"
+					columns={columns}
+					data={entitiesArray}
+					isLoading={isLoading}
+					enableSearch
+					searchPlaceholder="Поиск по названию, ИНН, телефону, email…"
+					initialSorting={[{ id: "name", desc: false }]}
+					emptyState={
+						<div className="flex flex-col items-center gap-2 py-8">
+							<Building2 className="w-8 h-8 text-gray-200" />
+							<p className="text-gray-400">Юридические лица не найдены</p>
+						</div>
+					}
+				/>
+			</PageShell.List>
 
 			<LegalEntityDialog
 				open={dialogOpen}

@@ -1,6 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Edit2, Lock, Plus, Search, Shield, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Edit2, Lock, Plus, Shield, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table";
+import { PageShell } from "@/components/am/PageShell";
+import { EmptyState } from "@/components/am/misc";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -22,20 +26,12 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { SystemSettingsBar } from "@/components/system-settings-nav";
 import { api } from "@/lib/api";
+import { SettingsBreadcrumb } from "@/lib/settings-breadcrumbs";
 import { cn } from "@/lib/utils";
 
 interface Role {
@@ -372,7 +368,6 @@ function RoleDialog({ open, onClose, role }: RoleDialogProps) {
 }
 
 export default function Roles() {
-	const [search, setSearch] = useState("");
 	const { toast } = useToast();
 	const queryClient = useQueryClient();
 
@@ -407,142 +402,143 @@ export default function Roles() {
 	};
 
 	const rolesArray = Array.isArray(roles) ? roles : [];
-	const filtered = rolesArray.filter((role: Role) => {
-		if (!search) return true;
-		const searchLower = search.toLowerCase();
-		return (
-			role.name.toLowerCase().includes(searchLower) ||
-			role.description?.toLowerCase().includes(searchLower)
-		);
-	});
+
+	const columns = useMemo<ColumnDef<Role, unknown>[]>(
+		() => [
+			{
+				id: "name",
+				header: "Название роли",
+				accessorKey: "name",
+				meta: { exportLabel: "Название", grow: true },
+				cell: ({ row }) => (
+					<div className="flex items-center gap-2 font-medium text-gray-900">
+						{row.original.isSystem && (
+							<Lock className="w-3 h-3 text-amber-600 flex-shrink-0" />
+						)}
+						{row.original.name}
+					</div>
+				),
+			},
+			{
+				id: "description",
+				header: "Описание",
+				accessorKey: "description",
+				meta: { exportLabel: "Описание", grow: true },
+				cell: ({ row }) => (
+					<span className="text-gray-600 text-sm truncate block max-w-md">
+						{row.original.description || "—"}
+					</span>
+				),
+			},
+			{
+				id: "permissions",
+				header: "Разрешений",
+				cell: ({ row }) => (
+					<Badge variant="outline">{row.original.permissions?.length || 0}</Badge>
+				),
+			},
+			{
+				id: "isSystem",
+				header: "Тип",
+				cell: ({ row }) =>
+					row.original.isSystem ? (
+						<Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
+							Системная
+						</Badge>
+					) : (
+						<Badge variant="secondary">Пользовательская</Badge>
+					),
+			},
+			{
+				id: "isActive",
+				header: "Статус",
+				cell: ({ row }) => (
+					<Badge variant={row.original.isActive ? "default" : "secondary"}>
+						{row.original.isActive ? "Активна" : "Неактивна"}
+					</Badge>
+				),
+			},
+			{
+				id: "actions",
+				header: "",
+				size: 80,
+				enableSorting: false,
+				cell: ({ row }) => (
+					<div className="flex gap-1">
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={() => {
+								setSelectedRole(row.original);
+								setDialogOpen(true);
+							}}
+						>
+							<Edit2 className="w-4 h-4" />
+						</Button>
+						{!row.original.isSystem && (
+							<Button
+								variant="ghost"
+								size="icon"
+								className="text-rose-600 hover:text-rose-700"
+								onClick={() => setDeleteId(row.original.id)}
+							>
+								<Trash2 className="w-4 h-4" />
+							</Button>
+						)}
+					</div>
+				),
+			},
+		],
+		[],
+	);
 
 	return (
 		<div className="space-y-5">
 			<SystemSettingsBar />
-			<div className="flex justify-between items-start">
-				<div>
-					<h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-						<Shield className="w-6 h-6 text-blue-600" /> Роли и разрешения
-					</h1>
-					<p className="text-sm text-gray-500 mt-1">
-						Управление ролями пользователей и правами доступа
-					</p>
-				</div>
-				<Button
-					onClick={() => {
-						setSelectedRole(undefined);
-						setDialogOpen(true);
-					}}
-				>
-					<Plus className="w-4 h-4 mr-2" /> Добавить
-				</Button>
-			</div>
-
-			<div className="flex gap-3">
-				<div className="relative flex-1">
-					<Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-					<Input
-						placeholder="Поиск по названию или описанию..."
-						value={search}
-						onChange={(e) => setSearch(e.target.value)}
-						className="pl-9"
-					/>
-				</div>
-			</div>
-
-			<div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-				<Table>
-					<TableHeader>
-						<TableRow className="bg-gray-50">
-							<TableHead>Название роли</TableHead>
-							<TableHead>Описание</TableHead>
-							<TableHead>Разрешений</TableHead>
-							<TableHead>Тип</TableHead>
-							<TableHead>Статус</TableHead>
-							<TableHead className="w-20"></TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isLoading ? (
-							Array.from({ length: 5 }).map((_, i) => (
-								<TableRow key={i}>
-									{Array.from({ length: 6 }).map((_, j) => (
-										<TableCell key={j}>
-											<Skeleton className="h-4 w-full" />
-										</TableCell>
-									))}
-								</TableRow>
-							))
-						) : !filtered.length ? (
-							<TableRow>
-								<TableCell colSpan={6} className="text-center py-12">
-									<Shield className="w-8 h-8 text-gray-200 mx-auto mb-2" />
-									<p className="text-gray-400">Роли не найдены</p>
-								</TableCell>
-							</TableRow>
-						) : (
-							filtered.map((role: Role) => (
-								<TableRow key={role.id} className="hover:bg-gray-50">
-									<TableCell className="font-medium text-gray-900">
-										<div className="flex items-center gap-2">
-											{role.isSystem && (
-												<Lock className="w-3 h-3 text-amber-600" />
-											)}
-											{role.name}
-										</div>
-									</TableCell>
-									<TableCell className="text-gray-600 text-sm max-w-md truncate">
-										{role.description || "—"}
-									</TableCell>
-									<TableCell>
-										<Badge variant="outline">
-											{role.permissions?.length || 0}
-										</Badge>
-									</TableCell>
-									<TableCell>
-										{role.isSystem ? (
-											<Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
-												Системная
-											</Badge>
-										) : (
-											<Badge variant="secondary">Пользовательская</Badge>
-										)}
-									</TableCell>
-									<TableCell>
-										<Badge variant={role.isActive ? "default" : "secondary"}>
-											{role.isActive ? "Активна" : "Неактивна"}
-										</Badge>
-									</TableCell>
-									<TableCell>
-										<div className="flex gap-1">
-											<Button
-												variant="ghost"
-												size="icon"
-												onClick={() => {
-													setSelectedRole(role);
-													setDialogOpen(true);
-												}}
-											>
-												<Edit2 className="w-4 h-4" />
-											</Button>
-											{!role.isSystem && (
-												<Button
-													variant="ghost"
-													size="icon"
-													className="text-rose-600 hover:text-rose-700"
-													onClick={() => setDeleteId(role.id)}
-												>
-													<Trash2 className="w-4 h-4" />
-												</Button>
-											)}
-										</div>
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</div>
+			<PageShell.List
+				title="Роли и разрешения"
+				subtitle="Управление ролями пользователей и правами доступа"
+				breadcrumb={<SettingsBreadcrumb label="Роли" />}
+				primaryAction={
+					<Button
+						onClick={() => {
+							setSelectedRole(undefined);
+							setDialogOpen(true);
+						}}
+						className="bg-amber-500 hover:bg-amber-600"
+					>
+						<Plus className="w-4 h-4 mr-2" /> Добавить
+					</Button>
+				}
+			>
+				<DataTable
+					tableId="settings-roles"
+					columns={columns}
+					data={rolesArray}
+					isLoading={isLoading}
+					enableSearch
+					searchPlaceholder="Поиск по названию или описанию…"
+					initialSorting={[{ id: "name", desc: false }]}
+					emptyState={
+						<EmptyState
+							icon={Shield}
+							title="Роли не найдены"
+							description="Создайте первую роль для настройки доступа"
+							action={
+								<Button
+									onClick={() => {
+										setSelectedRole(undefined);
+										setDialogOpen(true);
+									}}
+									className="bg-amber-500 hover:bg-amber-600"
+								>
+									<Plus className="w-4 h-4 mr-2" /> Добавить роль
+								</Button>
+							}
+						/>
+					}
+				/>
+			</PageShell.List>
 
 			<RoleDialog
 				open={dialogOpen}

@@ -1,5 +1,5 @@
-// Design System для PropTech платформы
-// Современная цветовая схема с градиентами
+// @deprecated Используйте CSS-переменные `--am-*` в index.css и компоненты `@/components/am`.
+// Этот файл сохранён для обратной совместимости; новый код не должен импортировать отсюда.
 
 export const colors = {
 	// Primary - Deep Purple & Teal
