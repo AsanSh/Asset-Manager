@@ -35,7 +35,7 @@ import { sendServerError } from "../lib/http-errors";
 import { getPaginationParams, createPaginatedResponse, getPaginationQuery } from "../lib/pagination";
 import { validateQuery, commonSchemas } from "../middleware/validation";
 import { cache, cacheKeys } from "../lib/cache";
-import { seedProjectUnits } from "../lib/seed-project-units";
+import { seedProjectUnits, syncProjectUnits } from "../lib/seed-project-units";
 import {
   buildContractDocumentMeta,
   parseContractDocumentMeta,
@@ -336,20 +336,25 @@ router.patch("/projects/:id", async (req: AuthenticatedRequest, res): Promise<vo
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
 
   let unitsCreated = 0;
+  let unitsRemoved = 0;
+  let unitsSkipped = 0;
   if (row.totalFloors && row.totalUnits) {
-    unitsCreated = await seedProjectUnits(
+    const sync = await syncProjectUnits(
       req.scopedCompanyId!,
       row.id,
       row.totalFloors,
       row.totalUnits,
     );
+    unitsCreated = sync.created;
+    unitsRemoved = sync.removed;
+    unitsSkipped = sync.skipped;
   }
 
   // Invalidate cache
   cache.deletePattern(`projects:${req.scopedCompanyId!}:*`);
   cache.delete(cacheKeys.project(id));
 
-  res.json({ ...row, unitsCreated });
+  res.json({ ...row, unitsCreated, unitsRemoved, unitsSkipped });
 });
 
 router.delete("/projects/:id", async (req: AuthenticatedRequest, res): Promise<void> => {
