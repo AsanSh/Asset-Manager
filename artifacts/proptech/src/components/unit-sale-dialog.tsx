@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,9 +26,21 @@ import {
 	scheduleTotal,
 	type ScheduleRow,
 } from "@/lib/payment-schedule";
+import { parseNum } from "@/lib/unit-pricing";
 
 function fmt(n: number) {
-	return new Intl.NumberFormat("ru-RU").format(n);
+	return new Intl.NumberFormat("ru-KG", { maximumFractionDigits: 0 }).format(n);
+}
+
+function contractDefaultTotal(unit: UnitForSale): number {
+	const fromTotal = parseNum(unit.totalPrice);
+	if (fromTotal > 0) return Math.round(fromTotal);
+	const fromList = parseNum(unit.listPrice);
+	if (fromList > 0) return Math.round(fromList);
+	const area = parseNum(unit.area);
+	const pps = parseNum(unit.pricePerSqm);
+	if (area > 0 && pps > 0) return Math.round(area * pps);
+	return 0;
 }
 
 export type UnitForSale = {
@@ -38,9 +50,34 @@ export type UnitForSale = {
 	floor?: number;
 	area?: string;
 	pricePerSqm?: string;
+	listPrice?: string;
 	totalPrice?: string;
 	currency?: string;
 };
+
+type SaleForm = {
+	buyerName: string;
+	buyerPhone: string;
+	totalAmount: string;
+	downPayment: string;
+	installmentMonths: string;
+	currency: string;
+	contractDate: string;
+	notes: string;
+};
+
+function emptySaleForm(unit: UnitForSale, defaultTotal: number): SaleForm {
+	return {
+		buyerName: "",
+		buyerPhone: "",
+		totalAmount: defaultTotal > 0 ? String(defaultTotal) : "",
+		downPayment: "",
+		installmentMonths: "12",
+		currency: unit.currency || "KGS",
+		contractDate: new Date().toISOString().slice(0, 10),
+		notes: "",
+	};
+}
 
 type Props = {
 	open: boolean;
@@ -61,53 +98,45 @@ export function UnitSaleDialog({
 	const [location, setLocation] = useLocation();
 	const [loading, setLoading] = useState(false);
 	const [flexible, setFlexible] = useState(false);
-	const [schedule, setSchedule] = useState<ScheduleRow[]>([]);
+	const [manualSchedule, setManualSchedule] = useState<ScheduleRow[]>([]);
+	const openedForUnitRef = useRef<number | null>(null);
 
-	const defaultTotal = useMemo(() => {
-		const tp = parseFloat(unit.totalPrice || "0");
-		if (tp > 0) return tp;
-		const area = parseFloat(unit.area || "0");
-		const pps = parseFloat(unit.pricePerSqm || "0");
-		return area * pps;
-	}, [unit]);
+	const [form, setForm] = useState<SaleForm>(() =>
+		emptySaleForm(unit, contractDefaultTotal(unit)),
+	);
 
-	const [form, setForm] = useState({
-		buyerName: "",
-		buyerPhone: "",
-		totalAmount: String(Math.round(defaultTotal) || ""),
-		downPayment: "",
-		installmentMonths: "12",
-		currency: unit.currency || "KGS",
-		contractDate: new Date().toISOString().slice(0, 10),
-		notes: "",
-	});
+	const set = (k: keyof SaleForm, v: string) =>
+		setForm((p) => ({ ...p, [k]: v }));
 
-	const set = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
-
-	const total = parseFloat(form.totalAmount || "0");
-	const down = parseFloat(form.downPayment || "0");
-	const months = parseInt(form.installmentMonths || "0", 10);
+	const total = parseNum(form.totalAmount);
+	const down = parseNum(form.downPayment);
+	const months = Math.max(0, parseInt(form.installmentMonths || "0", 10) || 0);
 	const remaining = Math.max(0, total - down);
 
 	useEffect(() => {
-		if (!open) return;
-		setForm((f) => ({
-			...f,
-			totalAmount: String(Math.round(defaultTotal) || f.totalAmount),
-			currency: unit.currency || "KGS",
-		}));
-	}, [open, defaultTotal, unit.currency]);
-
-	useEffect(() => {
-		if (flexible) return;
-		if (total <= 0) {
-			setSchedule([]);
+		if (!open) {
+			openedForUnitRef.current = null;
 			return;
 		}
-		setSchedule(
-			buildPaymentSchedule(total, down, months || 1, form.contractDate),
+		if (openedForUnitRef.current === unit.id) return;
+		openedForUnitRef.current = unit.id;
+		const initialTotal = contractDefaultTotal(unit);
+		setForm(emptySaleForm(unit, initialTotal));
+		setFlexible(false);
+		setManualSchedule([]);
+	}, [open, unit.id, unit]);
+
+	const autoSchedule = useMemo(() => {
+		if (total <= 0) return [];
+		return buildPaymentSchedule(
+			total,
+			down,
+			months || 1,
+			form.contractDate,
 		);
-	}, [flexible, total, down, months, form.contractDate]);
+	}, [total, down, months, form.contractDate]);
+
+	const schedule = flexible ? manualSchedule : autoSchedule;
 
 	const schedSum = scheduleTotal(schedule);
 	const sumMismatch = total > 0 && Math.abs(schedSum - total) > 1;
@@ -117,16 +146,26 @@ export function UnitSaleDialog({
 		field: "dueDate" | "amount",
 		value: string,
 	) => {
-		setSchedule((rows) =>
+		setManualSchedule((rows) =>
 			rows.map((r, i) =>
 				i === index
 					? {
 							...r,
-							[field]: field === "amount" ? Math.round(parseFloat(value) || 0) : value,
+							[field]:
+								field === "amount"
+									? Math.round(parseNum(value))
+									: value,
 						}
 					: r,
 			),
 		);
+	};
+
+	const onFlexibleChange = (checked: boolean) => {
+		setFlexible(checked);
+		if (checked) {
+			setManualSchedule(autoSchedule);
+		}
 	};
 
 	const handleSubmit = async (e: React.FormEvent) => {
@@ -200,7 +239,7 @@ export function UnitSaleDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-			<DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+			<DialogContent className="max-w-2xl w-[min(42rem,95vw)] max-h-[90vh] overflow-y-auto">
 				<DialogHeader>
 					<DialogTitle>{title}</DialogTitle>
 					<DialogDescription>
@@ -231,52 +270,58 @@ export function UnitSaleDialog({
 						</div>
 					</div>
 
-					<div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-						<div className="flex flex-col">
-							<Label className="leading-tight mb-1.5">Сумма договора *</Label>
+					<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+						<div className="flex flex-col gap-1.5">
+							<Label>Сумма договора *</Label>
 							<Input
 								type="number"
-								className="mt-auto"
+								min="0"
+								step="1"
+								className="tabular-nums"
 								value={form.totalAmount}
 								onChange={(e) => set("totalAmount", e.target.value)}
 								required
 							/>
 						</div>
-						<div className="flex flex-col">
-							<Label className="leading-tight mb-1.5">Первоначальный взнос</Label>
+						<div className="flex flex-col gap-1.5">
+							<Label>Первоначальный взнос</Label>
 							<Input
 								type="number"
-								className="mt-auto"
+								min="0"
+								step="1"
+								className="tabular-nums"
 								value={form.downPayment}
 								onChange={(e) => set("downPayment", e.target.value)}
 							/>
 						</div>
-						<div className="flex flex-col">
-							<Label className="leading-tight mb-1.5">Рассрочка (мес.)</Label>
+						<div className="flex flex-col gap-1.5">
+							<Label>Рассрочка (мес.)</Label>
 							<Input
 								type="number"
 								min="0"
-								className="mt-auto"
+								step="1"
+								className="tabular-nums"
 								value={form.installmentMonths}
 								onChange={(e) => set("installmentMonths", e.target.value)}
 								disabled={flexible}
 							/>
 						</div>
-						<div className="flex flex-col">
-							<Label className="leading-tight mb-1.5">Дата договора</Label>
+						<div className="flex flex-col gap-1.5">
+							<Label>Дата договора</Label>
 							<Input
 								type="date"
-								className="mt-auto"
 								value={form.contractDate}
 								onChange={(e) => set("contractDate", e.target.value)}
 							/>
 						</div>
 					</div>
 
-					<div className="bg-amber-50 border border-amber-100 rounded-lg px-4 py-3 text-sm grid grid-cols-3 gap-2 text-center">
+					<div className="bg-amber-50 border border-amber-100 rounded-lg px-4 py-3 text-sm grid grid-cols-1 sm:grid-cols-3 gap-3 text-center sm:text-left">
 						<div>
 							<div className="text-xs text-gray-500">Остаток в рассрочку</div>
-							<div className="font-bold text-amber-700">{fmt(remaining)}</div>
+							<div className="font-bold text-amber-700 tabular-nums">
+								{fmt(remaining)} {form.currency}
+							</div>
 						</div>
 						<div>
 							<div className="text-xs text-gray-500">Платежей в графике</div>
@@ -285,7 +330,7 @@ export function UnitSaleDialog({
 						<div>
 							<div className="text-xs text-gray-500">Сумма графика</div>
 							<div
-								className={`font-bold ${sumMismatch ? "text-red-600" : "text-emerald-600"}`}
+								className={`font-bold tabular-nums ${sumMismatch ? "text-red-600" : "text-emerald-600"}`}
 							>
 								{fmt(schedSum)} {form.currency}
 							</div>
@@ -294,17 +339,17 @@ export function UnitSaleDialog({
 
 					<div className="flex items-center justify-between">
 						<Label className="font-medium">Гибкий график (редактировать вручную)</Label>
-						<Switch checked={flexible} onCheckedChange={setFlexible} />
+						<Switch checked={flexible} onCheckedChange={onFlexibleChange} />
 					</div>
 
-					<div className="border rounded-lg overflow-hidden">
+					<div className="border rounded-lg overflow-hidden max-h-72 overflow-y-auto">
 						<Table>
-							<TableHeader>
+							<TableHeader className="sticky top-0 z-10 bg-background">
 								<TableRow>
-									<TableHead className="w-8">№</TableHead>
-									<TableHead>Назначение</TableHead>
-									<TableHead>Дата</TableHead>
-									<TableHead className="text-right">Сумма</TableHead>
+									<TableHead className="w-10">№</TableHead>
+									<TableHead className="min-w-[8rem]">Назначение</TableHead>
+									<TableHead className="min-w-[9rem]">Дата</TableHead>
+									<TableHead className="text-right min-w-[7rem]">Сумма</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
@@ -320,30 +365,40 @@ export function UnitSaleDialog({
 											<TableCell className="text-xs text-muted-foreground">
 												{row.installmentNumber === 0 ? "—" : row.installmentNumber}
 											</TableCell>
-											<TableCell className="text-sm">
+											<TableCell className="text-sm whitespace-nowrap">
 												{row.label || "Платёж"}
 											</TableCell>
 											<TableCell>
-												<Input
-													type="date"
-													className="h-8 text-xs"
-													value={row.dueDate}
-													disabled={!flexible}
-													onChange={(e) =>
-														updateScheduleRow(idx, "dueDate", e.target.value)
-													}
-												/>
+												{flexible ? (
+													<Input
+														type="date"
+														className="h-8 text-xs"
+														value={row.dueDate}
+														onChange={(e) =>
+															updateScheduleRow(idx, "dueDate", e.target.value)
+														}
+													/>
+												) : (
+													<span className="text-sm tabular-nums">{row.dueDate}</span>
+												)}
 											</TableCell>
-											<TableCell>
-												<Input
-													type="number"
-													className="h-8 text-xs text-right"
-													value={row.amount}
-													disabled={!flexible}
-													onChange={(e) =>
-														updateScheduleRow(idx, "amount", e.target.value)
-													}
-												/>
+											<TableCell className="text-right">
+												{flexible ? (
+													<Input
+														type="number"
+														min="0"
+														step="1"
+														className="h-8 text-xs text-right tabular-nums"
+														value={row.amount}
+														onChange={(e) =>
+															updateScheduleRow(idx, "amount", e.target.value)
+														}
+													/>
+												) : (
+													<span className="text-sm font-medium tabular-nums">
+														{fmt(row.amount)}
+													</span>
+												)}
 											</TableCell>
 										</TableRow>
 									))
