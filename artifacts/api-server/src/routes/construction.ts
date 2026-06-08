@@ -1950,6 +1950,96 @@ router.post("/units/:id/approve-price", async (req: AuthenticatedRequest, res): 
   res.json(enrichUnitPricing(project, updated));
 });
 
+/** Сохранение коммерческой цены из диалога шахматки (база проекта + коэффициент + утверждение). */
+router.put("/units/:id/commercial-price", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
+  const id = parseInt(req.params.id as string, 10);
+  const role = req.userRole || "";
+  const permissions = req.userPermissions || [];
+
+  if (!canManagePricing(role, permissions)) {
+    res.status(403).json({ error: "Коммерческая цена доступна коммерческому директору" });
+    return;
+  }
+
+  const [existing] = await db
+    .select()
+    .from(constructionUnitsTable)
+    .where(and(eq(constructionUnitsTable.id, id), eq(constructionUnitsTable.companyId, companyId)));
+  if (!existing) {
+    res.status(404).json({ error: "Квартира не найдена" });
+    return;
+  }
+
+  const baseRaw = req.body?.baseSalePricePerSqm;
+  const coefRaw = req.body?.priceCoefficient;
+  const activeForSale = req.body?.activeForSale !== false;
+
+  if (baseRaw !== undefined && baseRaw !== null && String(baseRaw).trim() !== "") {
+    const baseVal = parseNum(baseRaw);
+    if (baseVal > 0) {
+      await db
+        .update(constructionProjectsTable)
+        .set({ baseSalePricePerSqm: String(baseVal) })
+        .where(
+          and(
+            eq(constructionProjectsTable.id, existing.projectId),
+            eq(constructionProjectsTable.companyId, companyId),
+          ),
+        );
+    }
+  }
+
+  const coef =
+    coefRaw !== undefined && coefRaw !== null && String(coefRaw).trim() !== ""
+      ? parseNum(coefRaw)
+      : parseNum(existing.priceCoefficient) || 1;
+  if (coef <= 0) {
+    res.status(400).json({ error: "Коэффициент должен быть больше нуля" });
+    return;
+  }
+
+  let updated: typeof existing;
+  if (activeForSale) {
+    const approved = await approveUnitPrice({
+      companyId,
+      unitId: id,
+      userId: req.userId!,
+      coefficient: coef,
+    });
+    if (!approved) {
+      res.status(404).json({ error: "Квартира не найдена" });
+      return;
+    }
+    updated = approved;
+  } else {
+    const project = await loadProjectForPricing(companyId, existing.projectId);
+    const listPrice = computeListPrice(project, {
+      ...existing,
+      priceCoefficient: String(coef),
+    });
+    const area = parseNum(existing.area);
+    const pps = area > 0 ? listPrice / area : parseNum(existing.pricePerSqm);
+
+    const [row] = await db
+      .update(constructionUnitsTable)
+      .set({
+        priceCoefficient: String(coef),
+        pricePerSqm: pps > 0 ? String(pps) : existing.pricePerSqm,
+        totalPrice: listPrice > 0 ? String(listPrice) : existing.totalPrice,
+        priceApproved: false,
+        priceApprovedBy: null,
+        priceApprovedAt: null,
+      })
+      .where(eq(constructionUnitsTable.id, id))
+      .returning();
+    updated = row ?? existing;
+  }
+
+  const project = await loadProjectForPricing(companyId, existing.projectId);
+  res.json(enrichUnitPricing(project, updated));
+});
+
 router.post("/units/bulk", async (req: AuthenticatedRequest, res): Promise<void> => {
   const { projectId, floors, unitsPerFloor, block, unitType, area, pricePerSqm, currency } = req.body;
   const a = parseFloat(area || "0");

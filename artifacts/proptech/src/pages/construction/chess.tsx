@@ -9,7 +9,7 @@ import {
 	Users,
 	Building2,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { getApiErrorMessage } from "@/lib/api-error";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +44,7 @@ import { MatrixTableFrame } from "@/components/matrix-table-frame";
 import { ChessStatusSettingsDialog } from "@/components/chess-status-settings-dialog";
 import { exportChessUnitsCsv } from "@/lib/chess-grid-export";
 import { UnitSaleDialog } from "@/components/unit-sale-dialog";
+import { UnitCommercialPriceDialog } from "@/components/unit-commercial-price-dialog";
 import { api } from "@/lib/api";
 import {
 	buildStatusBadgeCfg,
@@ -99,6 +100,9 @@ interface Project {
 	name: string;
 	totalFloors?: number;
 	totalUnits?: number;
+	baseSalePricePerSqm?: string | null;
+	costPerSqm?: string | null;
+	currency?: string;
 }
 
 function UnitDialog({
@@ -848,6 +852,10 @@ export default function ConstructionChess() {
 	const isPTO = forcedRoleByUser || (isAdmin && adminModeOverride === "pto");
 	const [projectId, setProjectId] = useState<number | null>(null);
 	const [selectedUnit, setSelectedUnit] = useState<Unit | null | "new">(null);
+	const [commercialPriceUnit, setCommercialPriceUnit] = useState<Unit | null>(
+		null,
+	);
+	const canPrice = canManageUnitPricing(userRole || "");
 	const [saleFlow, setSaleFlow] = useState<{
 		unit: Unit;
 		status: "reserved" | "sold";
@@ -923,6 +931,15 @@ export default function ConstructionChess() {
 
 	const selectedProject = projects.find((p) => p.id === projectId);
 
+	const commercialUnitResolved = useMemo(() => {
+		if (!commercialPriceUnit) return null;
+		return (
+			units.find((u) => u.id === commercialPriceUnit.id) ??
+			overview.find((u) => u.id === commercialPriceUnit.id) ??
+			commercialPriceUnit
+		);
+	}, [commercialPriceUnit, units, overview]);
+
 	const handleExport = () => {
 		if (!selectedProject || overview.length === 0) {
 			toast({ title: "Нет данных для экспорта", variant: "destructive" });
@@ -952,7 +969,12 @@ export default function ConstructionChess() {
 	};
 
 	const openUnit = (u: OverviewUnit | Unit) => {
-		setSelectedUnit(u as Unit);
+		const unit = u as Unit;
+		if (canPrice && !isPTO && !isSalesOnly) {
+			setCommercialPriceUnit(unit);
+			return;
+		}
+		setSelectedUnit(unit);
 	};
 
 	const invalidateAll = () => {
@@ -1345,7 +1367,9 @@ export default function ConstructionChess() {
 																style={{ minHeight: "48px" }}
 																onClick={() => {
 																	if (isPTO) setPtoEditUnit(unit);
-																	else setSelectedUnit(unit);
+																	else if (canPrice && !isSalesOnly) {
+																		setCommercialPriceUnit(unit);
+																	} else setSelectedUnit(unit);
 																}}
 															>
 																{!isPTO && cellModified && (
@@ -1377,6 +1401,18 @@ export default function ConstructionChess() {
 				</>
 			)}
 
+			{commercialUnitResolved && selectedProject && (
+				<UnitCommercialPriceDialog
+					open
+					unit={commercialUnitResolved}
+					project={selectedProject}
+					onClose={() => setCommercialPriceUnit(null)}
+					onSaved={() => {
+						invalidateAll();
+						qc.invalidateQueries({ queryKey: ["construction-projects"] });
+					}}
+				/>
+			)}
 			{selectedUnit && projectId && (
 				<UnitDialog
 					unit={selectedUnit}
