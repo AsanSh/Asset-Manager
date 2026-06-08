@@ -28,7 +28,6 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { PageShell } from "@/components/am/PageShell";
 import { KpiCard, KpiRow } from "@/components/kpi-card";
 import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/lib/api-error";
@@ -269,7 +268,7 @@ export default function RentalTenants() {
 
 	const activeCount = tenantsArray.filter((t) => t.status === "active").length;
 	const inactiveCount = tenantsArray.length - activeCount;
-	const companyCount = tenantsArray.filter((t) => t.type === "company").length;
+	const companyCount = tenantsArray.filter((t) => (t as Tenant & { type?: string }).type === "company").length;
 	const individualCount = tenantsArray.length - companyCount;
 
 	const handleAdd = () => { setSelectedTenant(undefined); setDialogOpen(true); };
@@ -390,23 +389,24 @@ export default function RentalTenants() {
 	);
 
 	return (
-		<PageShell.List
-			title="Арендаторы"
-			subtitle="Управление базой арендаторов"
-			primaryAction={
-				<Button onClick={handleAdd} className="bg-amber-500 hover:bg-amber-600">
+		<div className="p-6 space-y-3">
+			<KpiRow>
+				<KpiCard variant="strip" label="Всего арендаторов" value={tenantsArray.length} sub="в базе" icon={Users} color="blue" loading={isLoading} />
+				<KpiCard variant="strip" label="Активных" value={activeCount} sub={inactiveCount > 0 ? `${inactiveCount} неактивных` : "все активны"} icon={UserCheck} color="green" loading={isLoading} />
+				<KpiCard variant="strip" label="Физлица" value={individualCount} sub={`${companyCount} юрлиц`} icon={Users} color="purple" loading={isLoading} />
+				<KpiCard variant="strip" label="Неактивных" value={inactiveCount} sub={inactiveCount > 0 ? "требуют проверки" : "нет"} icon={UserX} color={inactiveCount > 0 ? "yellow" : "green"} loading={isLoading} />
+			</KpiRow>
+
+			<div className="flex justify-between items-center">
+				<div>
+					<h1 className="text-2xl font-bold">Арендаторы</h1>
+					<p className="text-muted-foreground text-sm">Управление базой арендаторов</p>
+				</div>
+				<Button onClick={handleAdd}>
 					<Plus className="w-4 h-4 mr-2" />Добавить
 				</Button>
-			}
-			kpis={
-				<KpiRow>
-					<KpiCard variant="strip" label="Всего арендаторов" value={tenantsArray.length} sub="в базе" icon={Users} color="blue" loading={isLoading} />
-					<KpiCard variant="strip" label="Активных" value={activeCount} sub={inactiveCount > 0 ? `${inactiveCount} неактивных` : "все активны"} icon={UserCheck} color="green" loading={isLoading} />
-					<KpiCard variant="strip" label="Физлица" value={individualCount} sub={`${companyCount} юрлиц`} icon={Users} color="purple" loading={isLoading} />
-					<KpiCard variant="strip" label="Неактивных" value={inactiveCount} sub={inactiveCount > 0 ? "требуют проверки" : "нет"} icon={UserX} color={inactiveCount > 0 ? "yellow" : "green"} loading={isLoading} />
-				</KpiRow>
-			}
-		>
+			</div>
+
 			<RentalQueryState isLoading={isLoading} isError={isError} error={error} onRetry={() => refetch()}>
 				<DataTable
 					tableId="rental-tenants"
@@ -434,6 +434,6 @@ export default function RentalTenants() {
 			</RentalQueryState>
 
 			<TenantDialog open={dialogOpen} onClose={() => setDialogOpen(false)} tenant={selectedTenant} />
-		</PageShell.List>
+		</div>
 	);
 }

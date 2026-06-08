@@ -219,7 +219,7 @@ export default function RentalForecast() {
 			</div>
 
 			{/* KPIs */}
-			<div className="grid grid-cols-4 gap-4 mb-6">
+			<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-6">
 				<div className="bg-white border rounded-xl p-4">
 					<div className="flex items-center gap-2 mb-1">
 						<TrendingUp className="w-4 h-4 text-blue-500" />
@@ -338,7 +338,7 @@ export default function RentalForecast() {
 							<tr>
 								<td
 									colSpan={cols.length + 2}
-									className="text-center py-12 text-gray-400"
+									className="text-center py-12 text-gray-600"
 								>
 									Загрузка...
 								</td>
@@ -347,7 +347,7 @@ export default function RentalForecast() {
 							<tr>
 								<td
 									colSpan={cols.length + 2}
-									className="text-center py-12 text-gray-400"
+									className="text-center py-12 text-gray-600"
 								>
 									Нет активных договоров аренды
 								</td>
@@ -369,7 +369,7 @@ export default function RentalForecast() {
 													row.tenant?.fullName ||
 													`Дог. #${row.contract.id}`}
 											</p>
-											<p className="text-xs text-gray-400">
+											<p className="text-xs text-gray-600">
 												{row.contract.propertyAddress ||
 													`Договор #${row.contract.id}`}
 											</p>

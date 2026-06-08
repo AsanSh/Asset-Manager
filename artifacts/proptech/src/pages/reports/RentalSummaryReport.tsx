@@ -34,11 +34,11 @@ function StatCard({
 			)}
 		>
 			<div className="flex items-center gap-3 mb-2">
-				<Icon className="w-4 h-4 text-gray-400" />
+				<Icon className="w-4 h-4 text-gray-600" />
 				<p className="text-sm text-gray-500">{title}</p>
 			</div>
 			<p className="text-2xl font-bold text-gray-900">{value}</p>
-			{sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
+			{sub && <p className="text-xs text-gray-600 mt-1">{sub}</p>}
 		</div>
 	);
 }
@@ -129,7 +129,7 @@ export default function RentalSummaryReport() {
 				</div>
 			</div>
 
-			<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+			<div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4 gap-4">
 				<StatCard
 					title="Начислено"
 					value={formatCurrency(summary?.totalCharged ?? 0)}
@@ -170,7 +170,7 @@ export default function RentalSummaryReport() {
 						<RefreshCw className="w-6 h-6 text-blue-500 animate-spin" />
 					</div>
 				) : byMonth?.length === 0 ? (
-					<div className="h-48 flex items-center justify-center text-gray-400 text-sm">
+					<div className="h-48 flex items-center justify-center text-gray-600 text-sm">
 						Нет данных за выбранный период
 					</div>
 				) : (

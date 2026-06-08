@@ -10,7 +10,7 @@ import { BRAND } from "@/lib/brand";
 import { useAuth } from "@/lib/auth";
 
 const AUTH_GRADIENT =
-	"linear-gradient(160deg, #0f172a 0%, #1e1b4b 45%, #0e7490 100%)";
+	"linear-gradient(155deg, #06111f 0%, #0b1f2f 46%, #0e7490 100%)";
 
 export default function Login() {
 	const [email, setEmail] = useState("");
@@ -45,7 +45,10 @@ export default function Login() {
 	};
 
 	return (
-		<div className="min-h-screen flex" style={{ background: "#f4f6f9" }}>
+		<div
+			className="min-h-screen flex"
+			style={{ background: "linear-gradient(180deg, #f8fbfc 0%, #eef4f6 100%)" }}
+		>
 			<div
 				className="hidden lg:flex w-1/2 flex-col justify-between p-12"
 				style={{ background: AUTH_GRADIENT }}
@@ -56,7 +59,7 @@ export default function Login() {
 					<h1 className="text-4xl font-bold leading-tight text-white">
 						Управляйте недвижимостью&nbsp;эффективно
 					</h1>
-					<p className="text-indigo-100/90 text-base leading-relaxed">
+					<p className="text-slate-100/85 text-base leading-relaxed">
 						{BRAND.tagline}. Стройка, аренда, CRM и финансы в одной
 						аналитической платформе.
 					</p>
@@ -76,7 +79,7 @@ export default function Login() {
 					</div>
 				</div>
 
-				<p className="text-sm text-indigo-300/70">{BRAND.copyright()}</p>
+				<p className="text-sm text-cyan-100/55">{BRAND.copyright()}</p>
 			</div>
 
 			<div className="w-full lg:w-1/2 flex items-center justify-center p-8">
@@ -85,7 +88,7 @@ export default function Login() {
 						<PlanalitycLogo variant="auth" />
 					</div>
 
-					<div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+					<div className="bg-white/95 rounded-xl shadow-[0_28px_80px_-52px_rgba(15,23,42,0.55)] border border-slate-200/80 p-8">
 						<div className="mb-8">
 							<h2 className="text-2xl font-bold text-gray-900">
 								Добро пожаловать
@@ -110,7 +113,7 @@ export default function Login() {
 									value={email}
 									onChange={(e) => setEmail(e.target.value)}
 									required
-									className="mt-1.5 h-11 rounded-xl border-gray-200 bg-gray-50 focus:bg-white transition-colors"
+									className="mt-1.5 h-11 rounded-lg border-slate-200 bg-slate-50/80 focus:bg-white focus-visible:ring-cyan-600/20 transition-colors"
 								/>
 							</div>
 
@@ -124,7 +127,7 @@ export default function Login() {
 									</Label>
 									<Link
 										href="/forgot-password"
-										className="text-xs text-indigo-600 font-medium hover:underline"
+										className="text-xs text-cyan-700 font-medium hover:underline"
 									>
 										Забыли пароль?
 									</Link>
@@ -135,13 +138,13 @@ export default function Login() {
 									value={password}
 									onChange={(e) => setPassword(e.target.value)}
 									required
-									className="h-11 rounded-xl border-gray-200 bg-gray-50 focus:bg-white transition-colors"
+									className="h-11 rounded-lg border-slate-200 bg-slate-50/80 focus:bg-white focus-visible:ring-cyan-600/20 transition-colors"
 								/>
 							</div>
 
 							<Button
 								type="submit"
-								className="w-full h-11 rounded-xl text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white mt-2"
+								className="w-full h-11 rounded-lg text-sm font-semibold bg-cyan-700 hover:bg-cyan-800 text-white mt-2 shadow-sm shadow-cyan-900/10"
 								disabled={loginMutation.isPending}
 							>
 								{loginMutation.isPending ? "Вход..." : "Войти"}
@@ -151,7 +154,7 @@ export default function Login() {
 							Нет аккаунта?{" "}
 							<a
 								href={`${import.meta.env.BASE_URL.replace(/\/$/, "")}/register`}
-								className="text-indigo-600 font-medium hover:underline"
+								className="text-cyan-700 font-medium hover:underline"
 							>
 								Зарегистрировать компанию
 							</a>

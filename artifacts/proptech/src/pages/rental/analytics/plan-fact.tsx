@@ -326,7 +326,7 @@ export default function PlanFact() {
 							<tr>
 								<td
 									colSpan={12 * 2 + 4}
-									className="text-center py-8 text-gray-400"
+									className="text-center py-8 text-gray-600"
 								>
 									Нет активных договоров за {year} год
 								</td>
@@ -384,7 +384,7 @@ export default function PlanFact() {
 													? "text-rose-700"
 													: rDelta > 0
 														? "text-emerald-700"
-														: "text-gray-400"
+														: "text-gray-600"
 											}`}
 										>
 											{fmtDelta(rDelta)}
@@ -434,7 +434,7 @@ export default function PlanFact() {
 											? "text-rose-700"
 											: totalDelta > 0
 												? "text-emerald-700"
-												: "text-gray-400"
+												: "text-gray-600"
 									}`}
 								>
 									{fmtDelta(totalDelta)}

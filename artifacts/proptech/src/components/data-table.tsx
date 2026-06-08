@@ -17,6 +17,7 @@ import {
 	ArrowUp,
 	ChevronsUpDown,
 	Download,
+	FileSearch,
 	Rows2,
 	Rows3,
 	Rows4,
@@ -299,10 +300,10 @@ export function DataTable<T>({
 			title={title}
 			onClick={() => setDensity(d)}
 			className={cn(
-				"p-1.5 rounded-md transition-colors",
+				"p-1.5 rounded-full transition-colors",
 				density === d
-					? "bg-gray-900 text-white"
-					: "text-gray-500 hover:bg-gray-100",
+					? "bg-slate-950 text-white shadow-sm"
+					: "text-slate-500 hover:bg-white/80",
 			)}
 		>
 			<Icon className="w-4 h-4" />
@@ -312,22 +313,22 @@ export function DataTable<T>({
 	return (
 		<div className="space-y-3">
 			{!hideToolbar && (
-			<div className="flex items-center gap-2 flex-wrap">
+				<div className="am-shell-filter p-2 flex items-center gap-2 flex-wrap rounded-[24px]">
 				{toolbar}
 				{enableSearch && (
-					<div className="relative">
-						<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+					<div className="relative min-w-[220px] flex-1 sm:flex-none">
+						<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-600" />
 						<Input
 							value={globalFilter}
 							onChange={(e) => setGlobalFilter(e.target.value)}
 							placeholder={searchPlaceholder}
-							className="pl-8 h-9 w-56 border-gray-200"
+							className="pl-8 h-10 w-full sm:w-64"
 						/>
 					</div>
 				)}
 				<div className="flex-1" />
 				{toolbarEnd}
-				<div className="flex items-center gap-0.5 border border-gray-200 rounded-lg p-0.5">
+				<div className="flex items-center gap-0.5 rounded-full border border-slate-200/90 bg-white/70 p-0.5 shadow-sm shadow-slate-950/5">
 					{densityBtn("compact", Rows4, "Компактно")}
 					{densityBtn("normal", Rows3, "Средне")}
 					{densityBtn("comfortable", Rows2, "Просторно")}
@@ -335,7 +336,7 @@ export function DataTable<T>({
 				<Button
 					variant="outline"
 					size="sm"
-					className="h-9 gap-1.5 text-sm border-gray-200"
+					className="h-10 gap-1.5 text-sm"
 					onClick={exportCsv}
 				>
 					<Download className="w-4 h-4" /> CSV
@@ -345,7 +346,7 @@ export function DataTable<T>({
 						<Button
 							variant="outline"
 							size="sm"
-							className="h-9 gap-1.5 text-sm border-gray-200"
+							className="h-10 gap-1.5 text-sm"
 						>
 							<SlidersHorizontal className="w-4 h-4" /> Столбцы
 						</Button>
@@ -375,7 +376,7 @@ export function DataTable<T>({
 										<button
 											type="button"
 											title="Левее"
-											className="text-gray-400 hover:text-gray-700 disabled:opacity-30"
+											className="text-gray-600 hover:text-gray-700 disabled:opacity-30"
 											onClick={() => moveColumn(col.id, -1)}
 										>
 											<ArrowLeft className="w-3.5 h-3.5" />
@@ -383,7 +384,7 @@ export function DataTable<T>({
 										<button
 											type="button"
 											title="Правее"
-											className="text-gray-400 hover:text-gray-700 disabled:opacity-30"
+											className="text-gray-600 hover:text-gray-700 disabled:opacity-30"
 											onClick={() => moveColumn(col.id, 1)}
 										>
 											<ArrowRight className="w-3.5 h-3.5" />
@@ -401,8 +402,8 @@ export function DataTable<T>({
 				className={cn(
 					"overflow-auto",
 					isExcel
-						? "border border-gray-300 rounded-sm bg-white"
-						: "bg-white rounded-xl border border-gray-100 shadow-sm",
+						? "rounded-[24px] border border-slate-200/90 bg-white/86 shadow-xl shadow-slate-950/8 backdrop-blur-xl"
+						: "am-card rounded-[24px] border border-white/70 bg-white/80 shadow-xl shadow-slate-950/8 backdrop-blur-xl",
 				)}
 				style={maxHeight ? { maxHeight } : undefined}
 			>
@@ -421,15 +422,15 @@ export function DataTable<T>({
 								key={hg.id}
 								className={
 									isExcel
-										? "bg-[#E8EAED]"
-										: "bg-gray-50/80 border-b border-gray-100"
+										? "border-b border-slate-800/40 bg-slate-950 text-white"
+										: "border-b border-slate-200/70 bg-slate-900 text-white"
 								}
 							>
 								{showRowIndex && (
 									<th
 										className={cn(
 											"border border-gray-300 text-center text-gray-500 font-semibold py-1.5 px-2 select-none sticky top-0 left-0 z-30 text-[11px] w-10",
-											isExcel && "shadow-[0_1px_0_0_#d1d5db]",
+											isExcel && "border-slate-800 bg-slate-950 text-white/70 shadow-none",
 										)}
 										style={{ width: 40 }}
 									>
@@ -451,8 +452,8 @@ export function DataTable<T>({
 											className={cn(
 												"relative select-none group/col",
 												isExcel
-													? "border border-gray-300 py-1.5 px-2 font-semibold text-gray-700 whitespace-nowrap text-[11px] sticky top-0 z-20 shadow-[0_1px_0_0_#d1d5db]"
-													: "px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-am-text-muted whitespace-nowrap",
+													? "border border-slate-800/70 bg-slate-950 py-2 px-2 font-bold text-white/72 whitespace-nowrap text-[10px] uppercase tracking-[0.12em] sticky top-0 z-20"
+													: "px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.14em] text-white/78 whitespace-nowrap sticky top-0 z-20",
 												align === "right"
 													? "text-right"
 													: align === "center"
@@ -521,18 +522,33 @@ export function DataTable<T>({
 							<tr>
 								<td
 									colSpan={leafColumns.length + (showRowIndex ? 1 : 0)}
-									className="text-center py-16 text-gray-400"
+									className="text-center py-16 text-slate-500"
 								>
-									Загрузка…
+									<div className="mx-auto flex w-fit items-center gap-3 rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-3 shadow-sm">
+										<span className="h-4 w-4 animate-spin rounded-full border-2 border-cyan-600 border-t-transparent" />
+										Загрузка…
+									</div>
 								</td>
 							</tr>
 						) : table.getRowModel().rows.length === 0 ? (
 							<tr>
 								<td
 									colSpan={leafColumns.length + (showRowIndex ? 1 : 0)}
-									className="text-center py-16 text-gray-400"
+									className="text-center py-16 text-slate-500"
 								>
-									{emptyState ?? "Нет данных"}
+									{emptyState ?? (
+										<div className="mx-auto flex max-w-sm flex-col items-center gap-3">
+											<div className="grid h-14 w-14 place-items-center rounded-3xl border border-cyan-100 bg-cyan-50 text-cyan-700">
+												<FileSearch className="h-6 w-6" />
+											</div>
+											<div>
+												<p className="font-semibold text-slate-800">Данных пока нет</p>
+												<p className="mt-1 text-sm text-slate-500">
+													Создайте запись или измените фильтр периода.
+												</p>
+											</div>
+										</div>
+									)}
 								</td>
 							</tr>
 						) : (
@@ -545,15 +561,15 @@ export function DataTable<T>({
 									className={cn(
 										isExcel
 											? rowIndex % 2 === 0
-												? "bg-white"
-												: "bg-[#F8F9FA]"
-											: "border-b border-gray-50 transition-colors",
-										onRowClick && "cursor-pointer hover:bg-blue-50/30",
+												? "bg-white/80"
+												: "bg-slate-50/80"
+											: "border-b border-slate-100/80 bg-white/70 transition-colors odd:bg-white/55",
+										onRowClick && "cursor-pointer hover:bg-cyan-50/70",
 										rowClassName?.(row.original),
 									)}
 								>
 									{showRowIndex && (
-										<td className="border border-gray-300 px-2 py-1 text-center text-gray-400 text-[11px] sticky left-0 bg-inherit w-10">
+										<td className="border border-gray-300 px-2 py-1 text-center text-gray-600 text-[11px] sticky left-0 bg-inherit w-10">
 											{rowIndex + 1}
 										</td>
 									)}
@@ -579,8 +595,8 @@ export function DataTable<T>({
 												title={title}
 												className={cn(
 													isExcel
-														? "border border-gray-300 px-2 py-1 text-gray-800 overflow-hidden"
-														: ["px-3", padding, "overflow-hidden"],
+														? "border border-slate-100 px-2 py-2 text-slate-800 overflow-hidden"
+														: ["px-3 text-slate-700", padding, "overflow-hidden"],
 													align === "right"
 														? "text-right"
 														: align === "center"

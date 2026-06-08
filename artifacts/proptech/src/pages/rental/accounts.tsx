@@ -467,7 +467,7 @@ export default function RentalAccounts() {
 								}
 							/>
 						</div>
-						<div className="grid grid-cols-2 gap-3">
+						<div className="grid gap-3 sm:grid-cols-2">
 							<div className="flex flex-col">
 								<Label className="text-sm font-medium leading-tight mb-1.5">Тип</Label>
 								<Select
@@ -515,7 +515,7 @@ export default function RentalAccounts() {
 										}
 									/>
 								</div>
-								<div className="grid grid-cols-2 gap-3">
+								<div className="grid gap-3 sm:grid-cols-2">
 									<div className="flex flex-col">
 										<Label className="text-sm font-medium leading-tight mb-1.5">БИК</Label>
 										<Input
@@ -595,7 +595,7 @@ export default function RentalAccounts() {
 						</DialogTitle>
 					</DialogHeader>
 					<div className="space-y-4 py-2">
-						<div className="grid grid-cols-2 gap-3">
+						<div className="grid gap-3 sm:grid-cols-2">
 							<div className="flex flex-col">
 								<Label className="text-sm font-medium leading-tight mb-1.5">Со счёта *</Label>
 								<Select
@@ -616,7 +616,7 @@ export default function RentalAccounts() {
 									</SelectContent>
 								</Select>
 								{fromAcc && (
-									<p className="text-xs text-gray-400 mt-1">
+									<p className="text-xs text-gray-600 mt-1">
 										Баланс: {fmt(fromAcc.currentBalance, fromAcc.currency)}
 									</p>
 								)}
@@ -643,14 +643,14 @@ export default function RentalAccounts() {
 									</SelectContent>
 								</Select>
 								{toAcc && (
-									<p className="text-xs text-gray-400 mt-1">
+									<p className="text-xs text-gray-600 mt-1">
 										Баланс: {fmt(toAcc.currentBalance, toAcc.currency)}
 									</p>
 								)}
 							</div>
 						</div>
 
-						<div className="grid grid-cols-2 gap-3">
+						<div className="grid gap-3 sm:grid-cols-2">
 							<div className="flex flex-col">
 								<Label className="text-sm font-medium leading-tight mb-1.5">
 									Сумма * {fromAcc && `(${fromAcc.currency})`}

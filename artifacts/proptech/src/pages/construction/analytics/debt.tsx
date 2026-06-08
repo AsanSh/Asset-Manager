@@ -1,10 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Clock } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
+import { DateRangePicker } from "@/components/am/DateRangePicker";
 import { DataTable } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
+import { defaultPeriod, isInPeriod, type PeriodValue } from "@/lib/period-utils";
 
 function fmtFull(n: any) {
 	const v = parseFloat(n || "0");
@@ -19,6 +21,7 @@ function daysOverdue(dueDate: string) {
 }
 
 export default function ConstructionDebt() {
+	const [period, setPeriod] = useState<PeriodValue>(() => defaultPeriod("month"));
 	const { data: accruals = [], isLoading } = useQuery({
 		queryKey: ["construction-debt"],
 		queryFn: () => api.get("/construction/analytics/debt").then((r) => r.data),
@@ -28,11 +31,12 @@ export default function ConstructionDebt() {
 		queryFn: () => api.get("/construction/contracts-sales").then((r) => r.data),
 	});
 
-	const overdue = accruals.filter((a: any) => new Date(a.dueDate) < new Date());
-	const upcoming = accruals.filter(
+	const filteredAccruals = accruals.filter((a: any) => isInPeriod(a.dueDate, period));
+	const overdue = filteredAccruals.filter((a: any) => new Date(a.dueDate) < new Date());
+	const upcoming = filteredAccruals.filter(
 		(a: any) => new Date(a.dueDate) >= new Date(),
 	);
-	const totalDebt = accruals.reduce(
+	const totalDebt = filteredAccruals.reduce(
 		(s: number, a: any) => s + parseFloat(a.remainingAmount || "0"),
 		0,
 	);
@@ -144,55 +148,63 @@ export default function ConstructionDebt() {
 	);
 
 	return (
-		<div>
-			<div className="mb-6">
-				<h1 className="text-2xl font-bold text-gray-900">Задолженности</h1>
-				<p className="text-gray-500 text-sm mt-0.5">
-					Анализ дебиторской задолженности по договорам
-				</p>
+		<div className="rounded-[28px] bg-gradient-to-br from-slate-50 via-white to-amber-50/40 p-4">
+			<div className="mb-5 rounded-[24px] border border-slate-200 bg-white/90 p-5 shadow-sm">
+				<div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+					<div>
+						<p className="text-xs font-bold uppercase tracking-[0.12em] text-amber-700">
+							Дебиторский контроль
+						</p>
+						<h1 className="mt-1 text-3xl font-black tracking-tight text-slate-950">Задолженности</h1>
+						<p className="mt-1 text-sm text-slate-500">
+							Анализ дебиторской задолженности по договорам
+						</p>
+					</div>
+					<DateRangePicker value={period} onChange={setPeriod} />
+				</div>
 			</div>
 
 			{/* Stats */}
-			<div className="grid grid-cols-3 gap-4 mb-6">
-				<div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
-					<div className="text-xs text-gray-500 mb-1">Всего к получению</div>
-					<div className="text-2xl font-bold text-blue-600">
+			<div className="mb-5 grid gap-3 md:grid-cols-3">
+				<div className="rounded-lg border border-cyan-100 bg-white p-4 shadow-sm">
+					<div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Всего к получению</div>
+					<div className="text-2xl font-black text-cyan-700">
 						{fmtFull(totalDebt)}
 					</div>
-					<div className="text-xs text-gray-400">
-						{accruals.length} платежей
+					<div className="text-xs text-slate-400">
+						{filteredAccruals.length} платежей
 					</div>
 				</div>
-				<div className="bg-rose-50 rounded-xl p-4 border border-rose-100 shadow-sm">
-					<div className="flex items-center gap-1 text-xs text-rose-700 mb-1">
+				<div className="rounded-lg border border-rose-100 bg-rose-50 p-4 shadow-sm">
+					<div className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-rose-700">
 						<AlertTriangle className="w-3 h-3" />
 						Просрочено
 					</div>
-					<div className="text-2xl font-bold text-rose-700">
+					<div className="text-2xl font-black text-rose-700">
 						{fmtFull(totalOverdue)}
 					</div>
 					<div className="text-xs text-rose-600">{overdue.length} платежей</div>
 				</div>
-				<div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
-					<div className="flex items-center gap-1 text-xs text-gray-500 mb-1">
+				<div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+					<div className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
 						<Clock className="w-3 h-3" />
 						Предстоит
 					</div>
-					<div className="text-2xl font-bold text-amber-600">
+					<div className="text-2xl font-black text-amber-600">
 						{fmtFull(totalUpcoming)}
 					</div>
-					<div className="text-xs text-gray-400">
+					<div className="text-xs text-slate-400">
 						{upcoming.length} платежей
 					</div>
 				</div>
 			</div>
 
 			{/* Aging */}
-			<div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mb-6">
-				<div className="text-sm font-semibold text-gray-700 mb-4">
+			<div className="mb-5 rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+				<div className="mb-4 text-sm font-bold text-slate-800">
 					Aging Report (просрочка по срокам)
 				</div>
-				<div className="grid grid-cols-4 gap-3">
+				<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
 					{[
 						{
 							label: "0–30 дней",
@@ -229,7 +241,7 @@ export default function ConstructionDebt() {
 			<DataTable
 				tableId="construction-debt"
 				columns={columns}
-				data={accruals}
+				data={filteredAccruals}
 				isLoading={isLoading}
 				initialSorting={[{ id: "dueDate", desc: false }]}
 				rowClassName={(a: any) =>

@@ -163,7 +163,7 @@ function PaymentRow({
 				<div className="font-medium text-gray-900 text-xs font-mono">
 					{contract?.contractNumber || a.contractNumber || `#${a.contractId}`}
 				</div>
-				<div className="text-xs text-gray-400">{a.buyerName || contract?.buyerName}</div>
+				<div className="text-xs text-gray-600">{a.buyerName || contract?.buyerName}</div>
 			</td>
 			<td className="px-4 py-3">
 				<div
@@ -175,11 +175,11 @@ function PaymentRow({
 				>
 					{a.dueDate}
 				</div>
-				{a.paymentPeriod && (
-					<div className="text-xs text-blue-600">
-						{PERIOD_LABELS[a.paymentPeriod]}
-					</div>
-				)}
+								{a.paymentPeriod && a.paymentPeriod in PERIOD_LABELS && (
+									<div className="text-xs text-blue-600">
+										{PERIOD_LABELS[a.paymentPeriod as keyof typeof PERIOD_LABELS]}
+									</div>
+								)}
 				{a.isOverdue && a.status !== "paid" && (
 					<div className="text-xs text-rose-600">
 						{Math.ceil(
@@ -373,7 +373,7 @@ function AcceptPaymentDialog({
 							onChange={(e) => setAmount(e.target.value)}
 							className="mt-1"
 						/>
-						<p className="text-xs text-gray-400 mt-1">
+						<p className="text-xs text-gray-600 mt-1">
 							Сумма распределится по графику: сначала выбранный платёж,
 							затем следующие месяцы. Меньше суммы — частичная оплата и
 							остаток (просрочка, если срок прошёл).
@@ -425,7 +425,7 @@ function AcceptPaymentDialog({
 						</Select>
 					</div>
 
-					<div className="grid grid-cols-2 gap-3">
+					<div className="grid gap-3 sm:grid-cols-2">
 						<div className="flex flex-col">
 							<Label className="leading-tight mb-1.5">Способ оплаты</Label>
 							<Select
@@ -694,7 +694,7 @@ export default function ConstructionAccruals() {
 							<div className="font-medium text-gray-900 text-xs font-mono">
 								{a.contractNumber || `#${a.contractId}`}
 							</div>
-							<div className="text-xs text-gray-400">{a.buyerName}</div>
+							<div className="text-xs text-gray-600">{a.buyerName}</div>
 						</div>
 					);
 				},
@@ -716,11 +716,11 @@ export default function ConstructionAccruals() {
 							>
 								{a.dueDate}
 							</div>
-							{a.paymentPeriod && (
-								<div className="text-xs text-blue-600">
-									{PERIOD_LABELS[a.paymentPeriod]}
-								</div>
-							)}
+								{a.paymentPeriod && a.paymentPeriod in PERIOD_LABELS && (
+									<div className="text-xs text-blue-600">
+										{PERIOD_LABELS[a.paymentPeriod as keyof typeof PERIOD_LABELS]}
+									</div>
+								)}
 							{overdue && (
 								<div className="text-xs text-rose-600">
 									{Math.ceil(
@@ -851,34 +851,34 @@ export default function ConstructionAccruals() {
 	);
 
 	return (
-		<div>
-			<div className="mb-6">
-				<h1 className="text-2xl font-bold text-gray-900">Начисления</h1>
-				<p className="text-gray-500 text-sm mt-0.5">
+		<div className="am-page">
+			<div className="mb-5">
+				<h1 className="am-page-title text-2xl">Начисления</h1>
+				<p className="am-page-subtitle text-sm">
 					График платежей по договорам
 				</p>
 			</div>
 
-			<div className="grid grid-cols-4 gap-4 mb-6">
-				<div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+			<div className="am-kpi-grid mb-5">
+				<div className="am-kpi-card">
 					<div className="text-xs text-gray-500 mb-1">К получению</div>
 					<div className="text-xl font-bold text-blue-600">
 						{fmt(totalPending)}
 					</div>
 				</div>
-				<div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+				<div className="am-kpi-card">
 					<div className="text-xs text-gray-500 mb-1">Получено</div>
 					<div className="text-xl font-bold text-emerald-600">
 						{fmt(totalPaid)}
 					</div>
 				</div>
-				<div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+				<div className="am-kpi-card">
 					<div className="text-xs text-gray-500 mb-1">Просрочено</div>
 					<div className="text-xl font-bold text-rose-600">
 						{fmt(totalOverdue)}
 					</div>
 				</div>
-				<div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+				<div className="am-kpi-card">
 					<div className="text-xs text-gray-500 mb-1">Просроченных</div>
 					<div className="text-xl font-bold text-rose-600">
 						{countOverdue} шт.
@@ -886,8 +886,8 @@ export default function ConstructionAccruals() {
 				</div>
 			</div>
 
-			<div className="bg-white rounded-xl border border-gray-100 shadow-sm mb-4 p-3 flex gap-3 items-center">
-				<div className="flex gap-2">
+			<div className="am-panel mb-4 flex flex-wrap items-center gap-3 p-3">
+				<div className="flex flex-wrap gap-2">
 					{["all", "pending", "partial", "paid", "overdue"].map((s) => (
 						<button
 							key={s}
@@ -1052,13 +1052,13 @@ export default function ConstructionAccruals() {
 						<tbody>
 							{isLoading ? (
 								<tr>
-									<td colSpan={5} className="text-center py-12 text-gray-400">
+									<td colSpan={5} className="text-center py-12 text-gray-600">
 										Загрузка...
 									</td>
 								</tr>
 							) : counterpartyGroups.length === 0 ? (
 								<tr>
-									<td colSpan={5} className="text-center py-12 text-gray-400">
+									<td colSpan={5} className="text-center py-12 text-gray-600">
 										Нет данных за выбранный период
 									</td>
 								</tr>
@@ -1091,7 +1091,7 @@ export default function ConstructionAccruals() {
 												</td>
 												<td className="px-4 py-3 font-medium">
 													{buyer.name}
-													<span className="text-xs text-gray-400 ml-2">
+													<span className="text-xs text-gray-600 ml-2">
 														({buyer.payments.length} плат.)
 													</span>
 												</td>

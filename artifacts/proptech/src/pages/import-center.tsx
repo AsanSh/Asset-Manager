@@ -255,20 +255,20 @@ export default function ImportCenter() {
 			</div>
 
 			{activeTab === "history" ? (
-				<div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+				<div className="bg-white rounded-lg border border-gray-100 shadow-sm">
 					<div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
 						<h2 className="font-semibold text-gray-900 text-sm">
 							История импортов
 						</h2>
 						<button
 							onClick={loadHistory}
-							className="text-gray-400 hover:text-gray-600"
+							className="text-gray-600 hover:text-gray-600"
 						>
 							<RefreshCw className="w-4 h-4" />
 						</button>
 					</div>
 					{history.length === 0 ? (
-						<div className="py-12 text-center text-gray-400 text-sm">
+						<div className="py-12 text-center text-gray-600 text-sm">
 							История импортов пуста
 						</div>
 					) : (
@@ -300,7 +300,7 @@ export default function ImportCenter() {
 											className={
 												job.errorRows > 0
 													? "text-rose-600 font-medium"
-													: "text-gray-400"
+													: "text-gray-600"
 											}
 										>
 											{job.errorRows}
@@ -339,7 +339,7 @@ export default function ImportCenter() {
 									</div>
 									<span
 										className={
-											step === s ? "text-blue-600 font-medium" : "text-gray-400"
+											step === s ? "text-blue-600 font-medium" : "text-gray-600"
 										}
 									>
 										{
@@ -361,7 +361,7 @@ export default function ImportCenter() {
 
 					{/* Step 1: Upload */}
 					{step === "upload" && (
-						<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 space-y-6">
+						<div className="bg-white rounded-lg border border-gray-100 shadow-sm p-8 space-y-6">
 							<div>
 								<label className="block text-sm font-medium text-gray-700 mb-2">
 									Тип данных
@@ -407,13 +407,13 @@ export default function ImportCenter() {
 							{/* Drop zone */}
 							<div
 								onClick={() => fileRef.current?.click()}
-								className="border-2 border-dashed border-gray-200 rounded-2xl p-12 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-all"
+								className="border-2 border-dashed border-gray-200 rounded-lg p-12 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-all"
 							>
 								<Upload className="w-10 h-10 text-gray-300 mx-auto mb-3" />
 								<p className="text-gray-600 font-medium">
 									Нажмите для выбора файла
 								</p>
-								<p className="text-sm text-gray-400 mt-1">
+								<p className="text-sm text-gray-600 mt-1">
 									Поддерживается .xlsx и .xls формат
 								</p>
 								{isLoading && (
@@ -436,20 +436,20 @@ export default function ImportCenter() {
 					{step === "preview" && preview && (
 						<div className="space-y-4">
 							{/* Summary */}
-							<div className="grid grid-cols-3 gap-4">
-								<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 text-center">
+							<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+								<div className="bg-white rounded-lg border border-gray-100 shadow-sm p-5 text-center">
 									<p className="text-2xl font-bold text-gray-900">
 										{preview.totalRows}
 									</p>
 									<p className="text-xs text-gray-500 mt-1">Всего строк</p>
 								</div>
-								<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 text-center">
+								<div className="bg-white rounded-lg border border-gray-100 shadow-sm p-5 text-center">
 									<p className="text-2xl font-bold text-emerald-600">
 										{preview.validRows}
 									</p>
 									<p className="text-xs text-gray-500 mt-1">Корректных</p>
 								</div>
-								<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 text-center">
+								<div className="bg-white rounded-lg border border-gray-100 shadow-sm p-5 text-center">
 									<p className="text-2xl font-bold text-rose-600">
 										{preview.errorRows}
 									</p>
@@ -480,7 +480,7 @@ export default function ImportCenter() {
 							)}
 
 							{/* Preview Table */}
-							<div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+							<div className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden">
 								<div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
 									<p className="text-sm font-semibold text-gray-700">
 										Предпросмотр (первые {preview.preview.length} строк)
@@ -505,7 +505,7 @@ export default function ImportCenter() {
 														errorRowNumbers.has(idx + 1) ? "bg-rose-50" : ""
 													}
 												>
-													<TableCell className="text-gray-400 text-xs">
+													<TableCell className="text-gray-600 text-xs">
 														{idx + 1}
 													</TableCell>
 													{columns.map((col) => (
@@ -548,7 +548,7 @@ export default function ImportCenter() {
 
 					{/* Step 3: Confirm */}
 					{step === "confirm" && preview && (
-						<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 space-y-6 max-w-lg">
+						<div className="bg-white rounded-lg border border-gray-100 shadow-sm p-8 space-y-6 max-w-lg">
 							<div className="text-center space-y-3">
 								<div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto">
 									<Upload className="w-7 h-7 text-blue-600" />
@@ -569,7 +569,7 @@ export default function ImportCenter() {
 										</span>
 									)}
 								</p>
-								<p className="text-xs text-gray-400">
+								<p className="text-xs text-gray-600">
 									Тип данных: <strong>{typeLabels[importType]}</strong>
 								</p>
 							</div>
@@ -594,7 +594,7 @@ export default function ImportCenter() {
 
 					{/* Step 4: Result */}
 					{step === "result" && resultJob && (
-						<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center space-y-5 max-w-md mx-auto">
+						<div className="bg-white rounded-lg border border-gray-100 shadow-sm p-8 text-center space-y-5 max-w-md mx-auto">
 							{resultJob.status === "completed" ? (
 								<CheckCircle2 className="w-14 h-14 text-emerald-600 mx-auto" />
 							) : resultJob.status === "partial" ? (

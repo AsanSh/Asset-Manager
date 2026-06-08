@@ -272,7 +272,7 @@ export default function CrmLeadIntake() {
 									</div>
 								</div>
 
-								<div className="grid grid-cols-2 gap-3">
+								<div className="grid gap-3 sm:grid-cols-2">
 									<div className="flex flex-col">
 										<Label className="mb-1.5 leading-tight">Page ID</Label>
 										<Input
@@ -333,7 +333,7 @@ export default function CrmLeadIntake() {
 									</div>
 								</div>
 
-								<Button onClick={() => saveInstagramMut.mutate()} disabled={saveInstagramMut.isPending}>
+									<Button onClick={() => saveInstagramMut.mutate(undefined)} disabled={saveInstagramMut.isPending}>
 									Сохранить настройки
 								</Button>
 
@@ -412,7 +412,7 @@ export default function CrmLeadIntake() {
 
 					<div className="bg-white rounded-xl border p-5 space-y-4">
 						<h2 className="font-semibold">Тестовая отправка</h2>
-						<div className="grid grid-cols-2 gap-3">
+						<div className="grid gap-3 sm:grid-cols-2">
 							<div className="flex flex-col col-span-2">
 								<Label className="mb-1.5 leading-tight">ФИО *</Label>
 								<Input className="mt-auto" value={testForm.fullName} onChange={(e) => setTestForm((f) => ({ ...f, fullName: e.target.value }))} />

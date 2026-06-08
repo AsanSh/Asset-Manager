@@ -7,14 +7,12 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
-import { customRoleValue, parseCustomRoleId } from "@/lib/custom-role-id";
-
-export { customRoleValue, parseCustomRoleId };
 
 export const SYSTEM_ROLE_LABELS: Record<string, string> = {
 	admin: "Администратор",
 	super_admin: "Супер-Админ",
 	company_admin: "Администратор компании",
+	commercial_director: "Коммерческий директор",
 	sales_manager: "Менеджер продаж",
 	rental_manager: "Менеджер аренды",
 	finance: "Финансы",
@@ -27,6 +25,15 @@ export interface CompanyRole {
 	id: number;
 	name: string;
 	isActive: boolean;
+}
+
+export function customRoleValue(id: number): string {
+	return `custom_${id}`;
+}
+
+export function parseCustomRoleId(role: string): number | null {
+	const match = /^custom_(\d+)$/.exec(role);
+	return match ? parseInt(match[1], 10) : null;
 }
 
 export function resolveRoleLabel(
@@ -68,6 +75,7 @@ export function RoleSelect({
 			</SelectTrigger>
 			<SelectContent>
 				<SelectItem value="company_admin">Администратор компании</SelectItem>
+				<SelectItem value="commercial_director">Коммерческий директор</SelectItem>
 				<SelectItem value="sales_manager">Менеджер продаж</SelectItem>
 				<SelectItem value="rental_manager">Менеджер аренды</SelectItem>
 				<SelectItem value="finance">Финансы</SelectItem>

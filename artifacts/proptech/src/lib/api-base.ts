@@ -1,8 +1,11 @@
 /** Базовый URL API для fetch (без завершающего слэша). */
 export function getApiBase(): string {
-	const raw = (import.meta.env.VITE_API_URL || "http://localhost:3000").trim();
+	const fallback = import.meta.env.PROD
+		? "https://proptech-api.vercel.app"
+		: "http://localhost:3000";
+	const raw = (import.meta.env.VITE_API_URL || fallback).trim();
 	let base = raw.replace(/\/+$/, "");
-	if (!base) base = "http://localhost:3000";
+	if (!base) base = fallback;
 
 	try {
 		const u = new URL(base);

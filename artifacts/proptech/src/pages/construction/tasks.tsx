@@ -57,6 +57,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { useModuleAccess } from "@/hooks/use-module-access";
 import { api } from "@/lib/api";
 import { getApiBase } from "@/lib/api-base";
 import { defaultPeriod, inPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
@@ -71,10 +72,10 @@ const ah = () => {
 };
 
 const STATUS_OPTS = [
-	{ value: "todo", label: "К выполнению", icon: Circle, color: "text-gray-400", bg: "bg-gray-50 border-gray-200" },
+	{ value: "todo", label: "К выполнению", icon: Circle, color: "text-gray-600", bg: "bg-gray-50 border-gray-200" },
 	{ value: "in_progress", label: "В работе", icon: Clock, color: "text-blue-500", bg: "bg-blue-50 border-blue-200" },
 	{ value: "review", label: "На проверке", icon: AlertCircle, color: "text-amber-500", bg: "bg-amber-50 border-amber-200" },
-	{ value: "done", label: "Готово", icon: CheckCircle2, color: "text-emerald-500", bg: "bg-emerald-50 border-emerald-200" },
+	{ value: "done", label: "Готово", icon: CheckCircle2, color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200" },
 ];
 
 const PRIORITY_OPTS = [
@@ -226,7 +227,7 @@ function stageLabel(stage: Stage, parentMap: Record<number, Stage>): string {
 }
 
 function TaskDialog({
-	task, projects, users, contractors, salesContracts, supplyRequests, currentUserId, onClose, onSaved,
+	task, projects, users, contractors, salesContracts, supplyRequests, currentUserId, canUseProcurement, onClose, onSaved,
 }: {
 	task: Task | null | "new";
 	projects: Project[];
@@ -235,6 +236,7 @@ function TaskDialog({
 	salesContracts: SalesContract[];
 	supplyRequests: SupplyRequest[];
 	currentUserId: number | undefined;
+	canUseProcurement: boolean;
 	onClose: () => void;
 	onSaved: () => void;
 }) {
@@ -367,7 +369,7 @@ function TaskDialog({
 							: null,
 					contractorId: form.contractorId ? parseInt(form.contractorId, 10) : null,
 					salesContractId: form.salesContractId ? parseInt(form.salesContractId, 10) : null,
-					supplyRequestId: form.supplyRequestId ? parseInt(form.supplyRequestId, 10) : null,
+					supplyRequestId: canUseProcurement && form.supplyRequestId ? parseInt(form.supplyRequestId, 10) : null,
 				}),
 			});
 			if (!res.ok) {
@@ -440,7 +442,7 @@ function TaskDialog({
 						<Label>Описание</Label>
 						<Input className="mt-1" value={form.description} onChange={(e) => set("description", e.target.value)} />
 					</div>
-					<div className="grid grid-cols-2 gap-3">
+					<div className="grid gap-3 sm:grid-cols-2">
 						<div className="flex flex-col">
 							<Label className="leading-tight mb-1.5">Статус</Label>
 							<Select value={form.status} onValueChange={(v) => set("status", v)}>
@@ -524,20 +526,22 @@ function TaskDialog({
 								</SelectContent>
 							</Select>
 						</div>
-						<div>
-							<Label>Заявка снабжения</Label>
-							<Select value={form.supplyRequestId || "none"} onValueChange={(v) => set("supplyRequestId", v === "none" ? "" : v)}>
-								<SelectTrigger className="mt-1"><SelectValue placeholder="Не связана" /></SelectTrigger>
-								<SelectContent>
-									<SelectItem value="none">— Не связана —</SelectItem>
-									{availableSupplyRequests.map((r) => (
-										<SelectItem key={r.id} value={String(r.id)}>
-											Заявка #{r.id}{r.status ? ` · ${r.status}` : ""}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</div>
+						{canUseProcurement && (
+							<div>
+								<Label>Заявка снабжения</Label>
+								<Select value={form.supplyRequestId || "none"} onValueChange={(v) => set("supplyRequestId", v === "none" ? "" : v)}>
+									<SelectTrigger className="mt-1"><SelectValue placeholder="Не связана" /></SelectTrigger>
+									<SelectContent>
+										<SelectItem value="none">— Не связана —</SelectItem>
+										{availableSupplyRequests.map((r) => (
+											<SelectItem key={r.id} value={String(r.id)}>
+												Заявка #{r.id}{r.status ? ` · ${r.status}` : ""}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
+						)}
 					</div>
 					<div className="flex justify-end gap-2 pt-1">
 						<Button type="button" variant="outline" onClick={onClose} disabled={loading}>Отмена</Button>
@@ -563,7 +567,7 @@ function Avatar({ name, size = "sm" }: { name: string; size?: "sm" | "md" }) {
 }
 
 function TaskCard({
-	task, userMap, projectMap, stageLabelText, contractorMap, salesContractMap, supplyRequestMap, onEdit, onDelete, onStatusChange, onQuickSupplyRequest, onQuickSalesContract, kanbanDraggable = false,
+	task, userMap, projectMap, stageLabelText, contractorMap, salesContractMap, supplyRequestMap, canUseProcurement, onEdit, onDelete, onStatusChange, onQuickSupplyRequest, onQuickSalesContract, kanbanDraggable = false,
 }: {
 	task: Task;
 	userMap: Record<number, ApiUser>;
@@ -572,6 +576,7 @@ function TaskCard({
 	contractorMap: Record<number, string>;
 	salesContractMap: Record<number, string>;
 	supplyRequestMap: Record<number, string>;
+	canUseProcurement: boolean;
 	onEdit: (t: Task) => void;
 	onDelete: (id: number) => void;
 	onStatusChange: (task: Task, status: string) => void;
@@ -639,11 +644,11 @@ function TaskCard({
 						<StatusIcon className="w-4 h-4" />
 					</button>
 					<div className="flex-1 min-w-0">
-						<p className={`text-sm font-medium leading-snug ${task.status === "done" ? "line-through text-gray-400" : "text-gray-900"}`}>
+						<p className={`text-sm font-medium leading-snug ${task.status === "done" ? "line-through text-gray-600" : "text-gray-900"}`}>
 							{task.title}
 						</p>
 						{task.description && (
-							<p className="text-xs text-gray-400 mt-0.5 truncate">{task.description}</p>
+							<p className="text-xs text-gray-600 mt-0.5 truncate">{task.description}</p>
 						)}
 					</div>
 				</div>
@@ -669,7 +674,7 @@ function TaskCard({
 					>
 						<Edit2 className="w-3.5 h-3.5" />
 					</button>
-					{!task.supplyRequestId && (
+					{canUseProcurement && !task.supplyRequestId && (
 						<button
 							type="button"
 							onClick={(e) => {
@@ -715,7 +720,7 @@ function TaskCard({
 					</span>
 				)}
 				{task.dueDate && (
-					<span className={`text-[10px] ${isOverdue ? "text-rose-600 font-semibold" : "text-gray-400"}`}>
+					<span className={`text-[10px] ${isOverdue ? "text-rose-600 font-semibold" : "text-gray-600"}`}>
 						{isOverdue ? "⚠ " : ""}
 						{new Date(task.dueDate).toLocaleDateString("ru-KG", { day: "numeric", month: "short" })}
 					</span>
@@ -726,7 +731,7 @@ function TaskCard({
 					</span>
 				)}
 				{projectMap[task.projectId] && (
-					<span className="text-[10px] text-gray-400 truncate max-w-[100px]">
+					<span className="text-[10px] text-gray-600 truncate max-w-[100px]">
 						{projectMap[task.projectId]}
 					</span>
 				)}
@@ -740,7 +745,7 @@ function TaskCard({
 						📄 {salesContractMap[Number(task.salesContractId)] || `#${task.salesContractId}`}
 					</span>
 				)}
-				{task.supplyRequestId && (
+				{canUseProcurement && task.supplyRequestId && (
 					<span className="text-[10px] text-teal-700 truncate max-w-[130px]">
 						📦 {supplyRequestMap[Number(task.supplyRequestId)] || `#${task.supplyRequestId}`}
 					</span>
@@ -768,7 +773,7 @@ function EmptyState({ tab }: { tab: TabId }) {
 		all: "Задач пока нет",
 	};
 	return (
-		<div className="text-center py-16 text-gray-400">
+		<div className="text-center py-16 text-gray-600">
 			<Flag className="w-8 h-8 mx-auto mb-2 opacity-20" />
 			<p className="text-sm">{msgs[tab]}</p>
 		</div>
@@ -783,6 +788,7 @@ function TasksTable({
 	contractorMap,
 	salesContractMap,
 	supplyRequestMap,
+	canUseProcurement,
 	onRowClick,
 	footer,
 }: {
@@ -793,6 +799,7 @@ function TasksTable({
 	contractorMap: Record<number, string>;
 	salesContractMap: Record<number, string>;
 	supplyRequestMap: Record<number, string>;
+	canUseProcurement: boolean;
 	onRowClick: (task: Task) => void;
 	footer?: React.ReactNode;
 }) {
@@ -835,7 +842,7 @@ function TasksTable({
 				cell: ({ row }) => (
 					<div className="text-sm font-medium tabular-nums">
 						<div>{Number(row.original.progressPercent) || 0}%</div>
-						<div className="text-[10px] text-gray-400">
+						<div className="text-[10px] text-gray-600">
 							Этап: {Number(row.original.stageProgressPercent ?? 0)}%
 						</div>
 					</div>
@@ -848,7 +855,7 @@ function TasksTable({
 				meta: { exportLabel: "Статус" },
 				cell: ({ getValue }) => {
 					const status = STATUS_OPTS.find((s) => s.value === getValue());
-					if (!status) return <span className="text-gray-400">—</span>;
+					if (!status) return <span className="text-gray-600">—</span>;
 					const Icon = status.icon;
 					return (
 						<div
@@ -867,7 +874,7 @@ function TasksTable({
 				meta: { exportLabel: "Приоритет" },
 				cell: ({ getValue }) => {
 					const priority = PRIORITY_OPTS.find((p) => p.value === getValue());
-					if (!priority) return <span className="text-gray-400">—</span>;
+					if (!priority) return <span className="text-gray-600">—</span>;
 					return (
 						<div
 							className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${priority.color}`}
@@ -884,7 +891,7 @@ function TasksTable({
 				cell: ({ row }) => {
 					const assigneeId = taskAssignedTo(row.original);
 					if (!assigneeId) {
-						return <span className="text-gray-400 text-sm">Не назначен</span>;
+						return <span className="text-gray-600 text-sm">Не назначен</span>;
 					}
 					const user = userMap[assigneeId];
 					return (
@@ -901,7 +908,7 @@ function TasksTable({
 				meta: { exportLabel: "Срок" },
 				cell: ({ getValue, row }) => {
 					const date = getValue() as string | null;
-					if (!date) return <span className="text-gray-400 text-sm">—</span>;
+					if (!date) return <span className="text-gray-600 text-sm">—</span>;
 					const d = new Date(date);
 					const isOverdue =
 						d < new Date() && row.original.status !== "done";
@@ -926,7 +933,7 @@ function TasksTable({
 					const parts: string[] = [];
 					if (t.contractorId) parts.push(contractorMap[Number(t.contractorId)] || `Подрядчик #${t.contractorId}`);
 					if (t.salesContractId) parts.push(salesContractMap[Number(t.salesContractId)] || `Договор #${t.salesContractId}`);
-					if (t.supplyRequestId) parts.push(supplyRequestMap[Number(t.supplyRequestId)] || `Заявка #${t.supplyRequestId}`);
+					if (canUseProcurement && t.supplyRequestId) parts.push(supplyRequestMap[Number(t.supplyRequestId)] || `Заявка #${t.supplyRequestId}`);
 					return (
 						<div className="text-xs text-gray-600 max-w-[220px] truncate">
 							{parts.length ? parts.join(" · ") : "—"}
@@ -969,7 +976,7 @@ function TasksTable({
 				meta: { exportLabel: "Просрочка, дн", align: "right" },
 				cell: ({ row }) => {
 					if (!row.original.dueDate || row.original.status === "done") {
-						return <span className="text-xs text-gray-400">0</span>;
+						return <span className="text-xs text-gray-600">0</span>;
 					}
 					const due = new Date(row.original.dueDate);
 					const now = new Date();
@@ -984,7 +991,7 @@ function TasksTable({
 				},
 			},
 		],
-		[userMap, projectMap, stageLabelByTaskId, contractorMap, salesContractMap, supplyRequestMap],
+		[userMap, projectMap, stageLabelByTaskId, contractorMap, salesContractMap, supplyRequestMap, canUseProcurement],
 	);
 
 	return (
@@ -995,7 +1002,7 @@ function TasksTable({
 			onRowClick={onRowClick}
 			initialSorting={[{ id: "dueDate", desc: false }]}
 			emptyState={
-				<div className="text-center py-8 text-gray-400 text-sm">
+				<div className="text-center py-8 text-gray-600 text-sm">
 					Нет задач по выбранным фильтрам
 				</div>
 			}
@@ -1040,11 +1047,11 @@ function TasksCalendarView({
 	const weekDayLabels = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 
 	if (tasks.length === 0) {
-		return <div className="text-sm text-gray-400 py-10 text-center">Нет задач в выбранном периоде</div>;
+		return <div className="text-sm text-gray-600 py-10 text-center">Нет задач в выбранном периоде</div>;
 	}
 
 	return (
-		<div className="space-y-4">
+		<div className="am-page space-y-4">
 			<div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
 				<div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
 					<Button
@@ -1106,7 +1113,7 @@ function TasksCalendarView({
 												? "bg-amber-500 text-white"
 												: inMonth
 													? "text-gray-800"
-													: "text-gray-400"
+													: "text-gray-600"
 										}`}
 									>
 										{format(day, "d")}
@@ -1136,7 +1143,7 @@ function TasksCalendarView({
 										);
 									})}
 									{dayTasks.length > 3 && (
-										<div className="text-[10px] text-gray-400 px-1">
+										<div className="text-[10px] text-gray-600 px-1">
 											+{dayTasks.length - 3} ещё
 										</div>
 									)}
@@ -1157,7 +1164,7 @@ function TasksCalendarView({
 					)}
 				</div>
 				{selectedTasks.length === 0 ? (
-					<p className="text-sm text-gray-400 px-3 py-4">На этот день задач нет</p>
+					<p className="text-sm text-gray-600 px-3 py-4">На этот день задач нет</p>
 				) : (
 					<div className="divide-y divide-gray-100">
 						{selectedTasks.map((task) => (
@@ -1234,7 +1241,7 @@ function TasksGanttView({
 	}, [tasks]);
 
 	if (bars.length === 0) {
-		return <div className="text-sm text-gray-400 py-10 text-center">Нет плановых дат для Gantt</div>;
+		return <div className="text-sm text-gray-600 py-10 text-center">Нет плановых дат для Gantt</div>;
 	}
 
 	return (
@@ -1245,9 +1252,9 @@ function TasksGanttView({
 					onClick={() => onTaskClick(row.task)}
 					className="w-full text-left"
 				>
-					<div className="text-xs text-gray-700 mb-1 flex items-center justify-between">
+					<div className="text-xs text-gray-700 mb-1 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 						<span className="truncate pr-2">{row.task.title}</span>
-						<span className="text-gray-400">
+						<span className="text-gray-600">
 							{row.start} → {row.end}
 						</span>
 					</div>
@@ -1275,6 +1282,8 @@ export default function ConstructionTasks() {
 	const qc = useQueryClient();
 	const { toast } = useToast();
 	const { user: authUser } = useAuth();
+	const { canUseIntegration } = useModuleAccess();
+	const canUseProcurement = canUseIntegration("construction.procurement");
 	const currentUserId = authUser?.id;
 	const me = currentUserId != null ? Number(currentUserId) : null;
 	const [dialog, setDialog] = useState<Task | null | "new">(null);
@@ -1344,6 +1353,7 @@ export default function ConstructionTasks() {
 	const { data: supplyRequests = [] } = useQuery<SupplyRequest[]>({
 		queryKey: ["supply-requests-all"],
 		queryFn: () => api.get("/supply/requests").then((r) => Array.isArray(r.data) ? r.data : []),
+		enabled: canUseProcurement,
 	});
 	const { data: taskDependencies = [] } = useQuery<TaskDependency[]>({
 		queryKey: ["construction-task-dependencies", projectFilter],
@@ -1477,6 +1487,7 @@ export default function ConstructionTasks() {
 	};
 
 	const handleQuickSupplyRequest = async (task: Task) => {
+		if (!canUseProcurement) return;
 		try {
 			await api.post(`/construction/tasks/${task.id}/quick-supply-request`);
 			toast({ title: "Заявка снабжения создана и привязана к задаче" });
@@ -1539,10 +1550,10 @@ export default function ConstructionTasks() {
 	return (
 		<div className="space-y-4">
 			{/* Header */}
-			<div className="flex items-center justify-between">
+			<div className="am-page-header">
 				<div>
-					<h1 className="text-2xl font-bold text-gray-900">Задачи</h1>
-					<p className="text-sm text-gray-500 mt-0.5">
+					<h1 className="am-page-title text-2xl">Задачи</h1>
+					<p className="am-page-subtitle text-sm">
 						{filteredTasks.length} задач · {doneCount} выполнено
 						{overdueCount > 0 && <span className="text-rose-600"> · {overdueCount} просрочено</span>}
 					</p>
@@ -1553,7 +1564,7 @@ export default function ConstructionTasks() {
 			</div>
 
 			{/* Tabs */}
-			<div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+			<div className="flex gap-1.5 overflow-x-auto rounded-[22px] border border-white/80 bg-white/62 p-1.5 shadow-xl shadow-slate-950/6 backdrop-blur-xl">
 				{TABS.map((tab) => {
 					const Icon = tab.icon;
 					const count = tabCounts[tab.id] ?? 0;
@@ -1562,14 +1573,16 @@ export default function ConstructionTasks() {
 						<button
 							key={tab.id}
 							onClick={() => setActiveTab(tab.id)}
-							className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-xs font-medium transition-all ${
-								active ? "bg-white shadow text-gray-900" : "text-gray-500 hover:text-gray-700"
+							className={`flex-1 flex min-h-10 items-center justify-center gap-1.5 rounded-2xl px-3 py-2 text-xs font-semibold transition-all ${
+								active
+									? "bg-gradient-to-br from-slate-950 to-cyan-950 text-white shadow-lg shadow-cyan-950/18"
+									: "text-slate-500 hover:bg-white/80 hover:text-slate-950"
 							}`}
 						>
-							<Icon className="w-3.5 h-3.5 flex-shrink-0" />
+							<Icon className={`w-3.5 h-3.5 flex-shrink-0 ${active ? "text-cyan-300" : ""}`} />
 							<span className="hidden sm:inline">{tab.label}</span>
 							{count > 0 && (
-								<span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${active ? "bg-amber-100 text-amber-700" : "bg-gray-200 text-gray-500"}`}>
+								<span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${active ? "bg-white/14 text-cyan-100" : "bg-slate-200 text-slate-500"}`}>
 									{count}
 								</span>
 							)}
@@ -1579,12 +1592,12 @@ export default function ConstructionTasks() {
 			</div>
 
 			{/* Filters */}
-			<div className="flex gap-2 flex-wrap items-center">
+			<div className="am-toolbar">
 				<Input
 					placeholder="Поиск..."
 					value={search}
 					onChange={(e) => setSearch(e.target.value)}
-					className="h-8 text-sm w-44"
+					className="h-9 w-full text-sm sm:w-44"
 				/>
 				<Select value={projectFilter} onValueChange={setProjectFilter}>
 					<SelectTrigger className="h-8 text-sm w-40"><SelectValue placeholder="Проект" /></SelectTrigger>
@@ -1628,7 +1641,7 @@ export default function ConstructionTasks() {
 				<PeriodPicker value={period} onChange={setPeriod} />
 				{(projectFilter !== "all" || priorityFilter !== "all" || statusFilter !== "all" || search) && (
 					<button
-						className="text-xs text-gray-400 hover:text-gray-700"
+						className="text-xs text-gray-600 hover:text-gray-700"
 						onClick={() => {
 							setProjectFilter("all");
 							setPriorityFilter("all");
@@ -1640,31 +1653,31 @@ export default function ConstructionTasks() {
 						✕ сбросить
 					</button>
 				)}
-				<div className="ml-auto flex gap-1 bg-gray-100 rounded-lg p-0.5">
+				<div className="ml-auto flex gap-1 rounded-lg bg-gray-100 p-0.5">
 					<button
 						onClick={() => setViewMode("kanban")}
-						className={`p-1.5 rounded transition-all ${viewMode === "kanban" ? "bg-white shadow-sm text-gray-900" : "text-gray-400 hover:text-gray-600"}`}
+						className={`p-1.5 rounded transition-all ${viewMode === "kanban" ? "bg-white shadow-sm text-gray-900" : "text-gray-600 hover:text-gray-600"}`}
 						title="Канбан"
 					>
 						<LayoutGrid className="w-4 h-4" />
 					</button>
 					<button
 						onClick={() => setViewMode("table")}
-						className={`p-1.5 rounded transition-all ${viewMode === "table" ? "bg-white shadow-sm text-gray-900" : "text-gray-400 hover:text-gray-600"}`}
+						className={`p-1.5 rounded transition-all ${viewMode === "table" ? "bg-white shadow-sm text-gray-900" : "text-gray-600 hover:text-gray-600"}`}
 						title="Таблица"
 					>
 						<List className="w-4 h-4" />
 					</button>
 					<button
 						onClick={() => setViewMode("calendar")}
-						className={`p-1.5 rounded transition-all ${viewMode === "calendar" ? "bg-white shadow-sm text-gray-900" : "text-gray-400 hover:text-gray-600"}`}
+						className={`p-1.5 rounded transition-all ${viewMode === "calendar" ? "bg-white shadow-sm text-gray-900" : "text-gray-600 hover:text-gray-600"}`}
 						title="Календарь"
 					>
 						<CalendarDays className="w-4 h-4" />
 					</button>
 					<button
 						onClick={() => setViewMode("gantt")}
-						className={`p-1.5 rounded transition-all ${viewMode === "gantt" ? "bg-white shadow-sm text-gray-900" : "text-gray-400 hover:text-gray-600"}`}
+						className={`p-1.5 rounded transition-all ${viewMode === "gantt" ? "bg-white shadow-sm text-gray-900" : "text-gray-600 hover:text-gray-600"}`}
 						title="Gantt"
 					>
 						<BarChart3 className="w-4 h-4" />
@@ -1682,7 +1695,7 @@ export default function ConstructionTasks() {
 			) : filteredTasks.length === 0 ? (
 				<EmptyState tab={activeTab} />
 			) : viewMode === "kanban" ? (
-				<div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+				<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
 					{columns.map((col) => {
 						const Icon = col.icon;
 						const isDropTarget = kanbanDropStatus === col.value;
@@ -1734,6 +1747,7 @@ export default function ConstructionTasks() {
 											contractorMap={contractorMap}
 											salesContractMap={salesContractMap}
 											supplyRequestMap={supplyRequestMap}
+											canUseProcurement={canUseProcurement}
 											onEdit={setDialog}
 											onDelete={handleDelete}
 											onStatusChange={handleStatusChange}
@@ -1767,6 +1781,7 @@ export default function ConstructionTasks() {
 								contractorMap={contractorMap}
 								salesContractMap={salesContractMap}
 								supplyRequestMap={supplyRequestMap}
+								canUseProcurement={canUseProcurement}
 								onRowClick={(task) => navigate(`/construction/tasks/${task.id}`)}
 								footer={tableGroupBy === "none" ? tableFooter : undefined}
 							/>
@@ -1795,6 +1810,7 @@ export default function ConstructionTasks() {
 				salesContracts={salesContracts}
 				supplyRequests={supplyRequests}
 				currentUserId={currentUserId}
+				canUseProcurement={canUseProcurement}
 				onClose={() => setDialog(null)}
 				onSaved={() => qc.invalidateQueries({ queryKey: ["construction-tasks"] })}
 			/>

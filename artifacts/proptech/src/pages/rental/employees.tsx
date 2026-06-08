@@ -156,7 +156,7 @@ export default function RentalEmployees() {
 			</div>
 
 			{/* Stats */}
-			<div className="grid grid-cols-3 gap-4 mb-6">
+			<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 mb-6">
 				<div className="bg-white border rounded-lg p-4">
 					<p className="text-sm text-gray-500">Всего сотрудников</p>
 					<p className="text-2xl font-bold text-gray-900 mt-1">
@@ -178,7 +178,7 @@ export default function RentalEmployees() {
 			</div>
 
 			{/* Cards */}
-			<div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+			<div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 gap-4">
 				{isLoading ? (
 					Array.from({ length: 3 }).map((_, i) => (
 						<div
@@ -191,7 +191,7 @@ export default function RentalEmployees() {
 						</div>
 					))
 				) : users.length === 0 ? (
-					<div className="col-span-3 p-12 text-center text-gray-400">
+					<div className="col-span-3 p-12 text-center text-gray-600">
 						<UserCircle className="w-10 h-10 mx-auto mb-3 opacity-30" />
 						<p className="text-sm mb-3">Нет сотрудников</p>
 						<Button
@@ -213,7 +213,7 @@ export default function RentalEmployees() {
 								onClick={() => openEdit(u)}
 								className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 p-1.5 hover:bg-gray-100 rounded-lg"
 							>
-								<Pencil className="w-3.5 h-3.5 text-gray-400" />
+								<Pencil className="w-3.5 h-3.5 text-gray-600" />
 							</button>
 							<div className="flex items-start gap-3">
 								<div
@@ -281,7 +281,7 @@ export default function RentalEmployees() {
 						</div>
 
 						<div className="p-5 space-y-4">
-							<div className="grid grid-cols-2 gap-3">
+							<div className="grid gap-3 sm:grid-cols-2">
 								<div className="flex flex-col">
 									<Label className="text-xs font-medium text-gray-600 leading-tight mb-1.5">
 										Имя *
@@ -325,7 +325,7 @@ export default function RentalEmployees() {
 									disabled={!!editingId}
 								/>
 								{editingId && (
-									<p className="text-[10px] text-gray-400 mt-1">
+									<p className="text-[10px] text-gray-600 mt-1">
 										Email нельзя изменить
 									</p>
 								)}
@@ -352,7 +352,7 @@ export default function RentalEmployees() {
 									<button
 										type="button"
 										onClick={() => setShowPassword((v) => !v)}
-										className="absolute right-2.5 top-2 text-gray-400 hover:text-gray-600"
+										className="absolute right-2.5 top-2 text-gray-600 hover:text-gray-600"
 									>
 										{showPassword ? (
 											<EyeOff className="w-4 h-4" />

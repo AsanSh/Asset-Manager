@@ -177,11 +177,11 @@ export function WbsPage() {
 	};
 
 	return (
-		<div className="space-y-6">
-			<div className="flex items-start justify-between gap-4 flex-wrap">
+		<div className="am-page space-y-5">
+			<div className="am-page-header">
 				<div>
-					<h1 className="text-2xl font-bold text-gray-900">План проекта (WBS)</h1>
-					<p className="text-sm text-gray-500 mt-0.5">
+					<h1 className="am-page-title text-2xl">План проекта (WBS)</h1>
+					<p className="am-page-subtitle text-sm">
 						Иерархия работ, прогресс, бюджет и управление строительным объектом
 					</p>
 				</div>

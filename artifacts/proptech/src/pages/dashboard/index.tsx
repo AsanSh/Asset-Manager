@@ -10,7 +10,6 @@ import {
 	type DashboardTabId,
 } from "@/lib/dashboard-access";
 import { parseScopeFromSearch, scopeToSearchParams } from "@/lib/dashboard-scope";
-import { cn } from "@/lib/utils";
 
 const ControlCenterTab = lazy(() => import("../consolidated-dashboard"));
 const ConstructionOpsTab = lazy(() => import("./tabs/construction-ops-tab"));
@@ -37,7 +36,7 @@ const TAB_PANELS: Record<DashboardTabId, React.ComponentType> = {
 };
 
 export default function UnifiedDashboard() {
-	const { allowedTabs, primaryTabs, defaultTab, isLoading, hasDashboard } = useDashboardAccess();
+	const { allowedTabs, defaultTab, isLoading, hasDashboard } = useDashboardAccess();
 	const search = useSearch();
 	const [, setLocation] = useLocation();
 
@@ -71,53 +70,15 @@ export default function UnifiedDashboard() {
 		);
 	}
 
-	const visibleTabs = primaryTabs.length > 0 ? primaryTabs : allowedTabs;
-
-	const setTab = (tab: DashboardTabId) => {
-		const qs = scopeToSearchParams(parseScopeFromSearch(search));
-		qs.set("tab", tab);
-		setLocation(`/dashboard?${qs.toString()}`);
-	};
-
 	const ActivePanel = TAB_PANELS[activeTab];
 
 	return (
 		<DashboardScopeProvider>
 			<div className="space-y-4 -mt-1">
-			<div>
-				<h1 className="text-2xl font-bold text-gray-900">Обзор</h1>
-				<p className="text-sm text-gray-500 mt-0.5">
-					{DASHBOARD_TAB_LABELS[activeTab]}
-					{visibleTabs.length === 1
-						? " · рабочий экран по вашей роли"
-						: " · выберите раздел"}
-				</p>
+			<div className="sr-only">
+				<h1>Обзор</h1>
+				<p>{DASHBOARD_TAB_LABELS[activeTab]}</p>
 			</div>
-
-			{visibleTabs.length > 1 && (
-				<div
-					className="flex gap-1 border-b border-gray-200 pb-0 overflow-x-auto scrollbar-thin -mx-1 px-1"
-					role="tablist"
-				>
-					{visibleTabs.map((tab) => (
-						<button
-							key={tab}
-							type="button"
-							role="tab"
-							aria-selected={activeTab === tab}
-							onClick={() => setTab(tab)}
-							className={cn(
-								"px-3 py-2 text-sm font-medium rounded-t-lg border-b-2 -mb-px whitespace-nowrap transition-colors",
-								activeTab === tab
-									? "border-amber-500 text-amber-700 bg-amber-50/80"
-									: "border-transparent text-gray-500 hover:text-gray-800 hover:bg-gray-50",
-							)}
-						>
-							{DASHBOARD_TAB_LABELS[tab]}
-						</button>
-					))}
-				</div>
-			)}
 
 			{activeTab === "control" && <DashboardScopeBar />}
 

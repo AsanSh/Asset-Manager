@@ -1,152 +1,238 @@
-import { AlertCircle, Package, TrendingUp, Wallet } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useQuery } from "@tanstack/react-query";
+import { AlertCircle, Boxes, Package, TrendingUp, Wallet } from "lucide-react";
+import { Link } from "wouter";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { api } from "@/lib/api";
+
+type WarehouseItem = {
+	id: number;
+	name: string;
+	category?: string | null;
+	unit?: string | null;
+	currentStock?: number | string | null;
+	minStock?: number | string | null;
+	maxStock?: number | string | null;
+	unitPrice?: number | string | null;
+	currency?: string | null;
+};
+
+function num(value: unknown) {
+	const n = Number(value ?? 0);
+	return Number.isFinite(n) ? n : 0;
+}
+
+function money(amount: number, currency = "KGS") {
+	return new Intl.NumberFormat("ru-KG", {
+		style: "currency",
+		currency,
+		maximumFractionDigits: 0,
+	}).format(amount);
+}
+
+function compact(amount: number) {
+	return new Intl.NumberFormat("ru-KG", {
+		notation: "compact",
+		maximumFractionDigits: 1,
+	}).format(amount);
+}
 
 export default function WarehouseCosts() {
-	// Mock data
-	const totalValue = 12450000;
-	const categories = [
-		{ name: "Цемент", value: 3200000, percent: 25.7 },
-		{ name: "Арматура", value: 2800000, percent: 22.5 },
-		{ name: "Кирпич", value: 2100000, percent: 16.9 },
-		{ name: "Песок", value: 1800000, percent: 14.5 },
-		{ name: "Щебень", value: 1500000, percent: 12.0 },
-		{ name: "Прочее", value: 1050000, percent: 8.4 },
-	];
+	const { data: rawItems = [], isLoading } = useQuery<WarehouseItem[]>({
+		queryKey: ["warehouse-items"],
+		queryFn: () => api.get("/warehouse/items").then((r) => (Array.isArray(r.data) ? r.data : [])),
+	});
 
-	const lowStock = [
-		{ name: "Цемент М500", quantity: 45, unit: "т", minStock: 100 },
-		{ name: "Арматура 12мм", quantity: 180, unit: "м", minStock: 500 },
-		{ name: "Кирпич красный", quantity: 3500, unit: "шт", minStock: 5000 },
-	];
+	const items = rawItems.map((item) => ({
+		...item,
+		currentStockNum: num(item.currentStock),
+		minStockNum: num(item.minStock),
+		unitPriceNum: num(item.unitPrice),
+		currency: item.currency || "KGS",
+		category: item.category?.trim() || "Без категории",
+		unit: item.unit || "ед.",
+	}));
+
+	const totalValue = items.reduce(
+		(sum, item) => sum + item.currentStockNum * item.unitPriceNum,
+		0,
+	);
+	const lowStock = items.filter(
+		(item) => item.minStockNum > 0 && item.currentStockNum <= item.minStockNum,
+	);
+	const pricedItems = items.filter((item) => item.unitPriceNum > 0).length;
+
+	const categories = Object.values(
+		items.reduce<Record<string, { name: string; value: number; count: number }>>(
+			(acc, item) => {
+				const key = item.category;
+				acc[key] ??= { name: key, value: 0, count: 0 };
+				acc[key].value += item.currentStockNum * item.unitPriceNum;
+				acc[key].count += 1;
+				return acc;
+			},
+			{},
+		),
+	).sort((a, b) => b.value - a.value);
+
+	const maxCategory = Math.max(...categories.map((cat) => cat.value), 1);
 
 	return (
-		<div className="p-6 space-y-6">
-			{/* Header */}
-			<div>
-				<h1 className="text-3xl font-bold text-gray-900">Стоимость запасов</h1>
-				<p className="text-gray-500 mt-1">
-					Анализ стоимости и оборачиваемости складских запасов
-				</p>
-			</div>
-
-			{/* KPI Cards */}
-			<div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-				<Card>
-					<CardHeader className="flex flex-row items-center justify-between pb-2">
-						<CardTitle className="text-sm font-medium text-gray-600">
-							Общая стоимость
-						</CardTitle>
-						<Wallet className="w-4 h-4 text-emerald-600" />
-					</CardHeader>
-					<CardContent>
-						<div className="text-2xl font-bold text-gray-900">
-							{(totalValue / 1000000).toFixed(1)} млн с
+		<div className="space-y-6">
+			<section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+				<div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+					<div>
+						<div className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-700">
+							Складской капитал
 						</div>
-						<p className="text-xs text-gray-500 mt-1">По закупочным ценам</p>
-					</CardContent>
-				</Card>
-
-				<Card>
-					<CardHeader className="flex flex-row items-center justify-between pb-2">
-						<CardTitle className="text-sm font-medium text-gray-600">
-							Оборачиваемость
-						</CardTitle>
-						<TrendingUp className="w-4 h-4 text-blue-600" />
-					</CardHeader>
-					<CardContent>
-						<div className="text-2xl font-bold text-gray-900">2.8</div>
-						<p className="text-xs text-gray-500 mt-1">Оборота в месяц</p>
-					</CardContent>
-				</Card>
-
-				<Card>
-					<CardHeader className="flex flex-row items-center justify-between pb-2">
-						<CardTitle className="text-sm font-medium text-gray-600">
-							Позиций на складе
-						</CardTitle>
-						<Package className="w-4 h-4 text-blue-600" />
-					</CardHeader>
-					<CardContent>
-						<div className="text-2xl font-bold text-gray-900">147</div>
-						<p className="text-xs text-gray-500 mt-1">Уникальных номенклатур</p>
-					</CardContent>
-				</Card>
-
-				<Card>
-					<CardHeader className="flex flex-row items-center justify-between pb-2">
-						<CardTitle className="text-sm font-medium text-gray-600">
-							Низкий остаток
-						</CardTitle>
-						<AlertCircle className="w-4 h-4 text-amber-600" />
-					</CardHeader>
-					<CardContent>
-						<div className="text-2xl font-bold text-gray-900">
-							{lowStock.length}
-						</div>
-						<p className="text-xs text-gray-500 mt-1">Требуется закупка</p>
-					</CardContent>
-				</Card>
-			</div>
-
-			{/* Category Distribution */}
-			<Card>
-				<CardHeader>
-					<CardTitle>Распределение по категориям</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<div className="space-y-4">
-						{categories.map((cat) => (
-							<div key={cat.name}>
-								<div className="flex items-center justify-between mb-2">
-									<span className="text-sm font-medium text-gray-700">
-										{cat.name}
-									</span>
-									<span className="text-sm text-gray-600">
-										{(cat.value / 1000).toFixed(0)} тыс с ({cat.percent}%)
-									</span>
-								</div>
-								<div className="w-full bg-gray-200 rounded-full h-2">
-									<div
-										className="bg-emerald-600 h-2 rounded-full transition-all"
-										style={{ width: `${cat.percent}%` }}
-									/>
-								</div>
-							</div>
-						))}
+						<h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">
+							Стоимость запасов
+						</h1>
+						<p className="mt-1 max-w-2xl text-sm text-slate-500">
+							Расчет строится по фактическим карточкам склада: остаток, минимальный
+							порог и закупочная цена.
+						</p>
 					</div>
-				</CardContent>
-			</Card>
+					<div className="flex flex-wrap gap-2">
+						<Link href="/warehouse/items">
+							<Button variant="outline" className="gap-2">
+								<Package className="h-4 w-4" />
+								Номенклатура
+							</Button>
+						</Link>
+						<Link href="/warehouse/requests">
+							<Button className="gap-2 bg-slate-950 hover:bg-slate-800">
+								<AlertCircle className="h-4 w-4" />
+								Создать заявку
+							</Button>
+						</Link>
+					</div>
+				</div>
+			</section>
 
-			{/* Low Stock Alert */}
-			<Card>
-				<CardHeader>
-					<CardTitle className="flex items-center gap-2">
-						<AlertCircle className="w-5 h-5 text-amber-600" />
-						Товары с низким остатком
-					</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<div className="space-y-3">
-						{lowStock.map((item) => (
-							<div
-								key={item.name}
-								className="flex items-center justify-between p-3 bg-amber-50 rounded-lg"
-							>
+			<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+				{[
+					{ label: "Стоимость", value: money(totalValue), icon: Wallet, tone: "text-cyan-700 bg-cyan-50" },
+					{ label: "Позиций", value: String(items.length), icon: Boxes, tone: "text-blue-700 bg-blue-50" },
+					{ label: "С ценой", value: String(pricedItems), icon: TrendingUp, tone: "text-emerald-700 bg-emerald-50" },
+					{ label: "Низкий остаток", value: String(lowStock.length), icon: AlertCircle, tone: "text-amber-700 bg-amber-50" },
+				].map((metric) => (
+					<Card key={metric.label} className="rounded-3xl border-slate-200 shadow-sm">
+						<CardContent className="p-5">
+							<div className="flex items-start justify-between">
 								<div>
-									<div className="font-medium text-gray-900">{item.name}</div>
-									<div className="text-sm text-gray-600">
-										Остаток: {item.quantity} {item.unit} / Минимум:{" "}
-										{item.minStock} {item.unit}
-									</div>
+									<p className="text-sm text-slate-500">{metric.label}</p>
+									{isLoading ? (
+										<Skeleton className="mt-3 h-8 w-28" />
+									) : (
+										<div className="mt-2 text-2xl font-black text-slate-950">
+											{metric.value}
+										</div>
+									)}
 								</div>
-								<div className="text-sm font-medium text-amber-600">
-									{Math.round((item.quantity / item.minStock) * 100)}%
+								<div className={`rounded-2xl p-3 ${metric.tone}`}>
+									<metric.icon className="h-5 w-5" />
 								</div>
 							</div>
-						))}
-					</div>
-				</CardContent>
-			</Card>
+						</CardContent>
+					</Card>
+				))}
+			</div>
+
+			<div className="grid gap-5 xl:grid-cols-[1.4fr_1fr]">
+				<Card className="rounded-3xl border-slate-200 shadow-sm">
+					<CardContent className="p-6">
+						<div className="mb-5 flex items-center justify-between">
+							<div>
+								<h2 className="text-lg font-bold text-slate-950">Категории</h2>
+								<p className="text-sm text-slate-500">Доля стоимости по группам склада</p>
+							</div>
+							<Badge variant="outline">{categories.length} групп</Badge>
+						</div>
+						<div className="space-y-4">
+							{isLoading && <Skeleton className="h-32 w-full rounded-2xl" />}
+							{!isLoading && categories.length === 0 && (
+								<div className="rounded-2xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">
+									Создайте товары и укажите закупочные цены, чтобы увидеть стоимость запасов.
+								</div>
+							)}
+							{categories.map((cat) => {
+								const percent = totalValue > 0 ? (cat.value / totalValue) * 100 : 0;
+								return (
+									<div key={cat.name} className="rounded-2xl bg-slate-50 p-4">
+										<div className="flex items-center justify-between gap-3">
+											<div>
+												<div className="font-semibold text-slate-900">{cat.name}</div>
+												<div className="text-xs text-slate-500">{cat.count} позиций</div>
+											</div>
+											<div className="text-right font-mono font-bold text-slate-950">
+												{compact(cat.value)} сом
+											</div>
+										</div>
+										<div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
+											<div
+												className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-emerald-400"
+												style={{ width: `${Math.max(4, (cat.value / maxCategory) * 100)}%` }}
+											/>
+										</div>
+										<div className="mt-1 text-right text-xs text-slate-500">
+											{percent.toFixed(1)}%
+										</div>
+									</div>
+								);
+							})}
+						</div>
+					</CardContent>
+				</Card>
+
+				<Card className="rounded-3xl border-slate-200 shadow-sm">
+					<CardContent className="p-6">
+						<div className="mb-5 flex items-center justify-between">
+							<div>
+								<h2 className="text-lg font-bold text-slate-950">Контроль остатков</h2>
+								<p className="text-sm text-slate-500">Позиции ниже минимального порога</p>
+							</div>
+							<Badge className="bg-amber-100 text-amber-700">{lowStock.length}</Badge>
+						</div>
+						<div className="space-y-3">
+							{isLoading && <Skeleton className="h-28 w-full rounded-2xl" />}
+							{!isLoading && lowStock.length === 0 && (
+								<div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-6 text-sm text-emerald-800">
+									Все складские позиции выше минимального порога.
+								</div>
+							)}
+							{lowStock.slice(0, 8).map((item) => {
+								const ratio = item.minStockNum > 0 ? item.currentStockNum / item.minStockNum : 0;
+								return (
+									<Link key={item.id} href="/warehouse/items">
+										<div className="cursor-pointer rounded-2xl border border-amber-100 bg-amber-50/70 p-4 transition hover:border-amber-300">
+											<div className="flex items-start justify-between gap-3">
+												<div>
+													<div className="font-semibold text-slate-950">{item.name}</div>
+													<div className="text-xs text-slate-500">
+														{item.category} · минимум {item.minStockNum} {item.unit}
+													</div>
+												</div>
+												<div className="font-mono text-sm font-bold text-amber-700">
+													{item.currentStockNum} {item.unit}
+												</div>
+											</div>
+											<div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
+												<div
+													className="h-full rounded-full bg-amber-500"
+													style={{ width: `${Math.max(3, Math.min(100, ratio * 100))}%` }}
+												/>
+											</div>
+										</div>
+									</Link>
+								);
+							})}
+						</div>
+					</CardContent>
+				</Card>
+			</div>
 		</div>
 	);
 }

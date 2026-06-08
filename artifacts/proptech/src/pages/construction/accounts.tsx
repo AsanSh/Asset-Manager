@@ -97,15 +97,15 @@ export default function ConstructionAccounts() {
 	}, 0);
 
 	return (
-		<div>
-			<div className="flex items-center justify-between mb-6">
+		<div className="am-page">
+			<div className="am-page-header">
 				<div>
-					<h1 className="text-2xl font-bold text-gray-900">Счета</h1>
-					<p className="text-gray-500 text-sm mt-0.5">
+					<h1 className="am-page-title text-2xl">Счета</h1>
+					<p className="am-page-subtitle text-sm">
 						Только модуль «Строительство» — счета аренды здесь не отображаются
 					</p>
 				</div>
-				<div className="flex items-center gap-2">
+				<div className="flex flex-wrap items-center gap-2">
 					<CashSummary accounts={accountsArray} />
 					<Button
 						onClick={() => setOpen(true)}
@@ -116,8 +116,8 @@ export default function ConstructionAccounts() {
 				</div>
 			</div>
 
-			<div className="grid grid-cols-3 gap-4 mb-6">
-				<div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm col-span-2">
+			<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 mb-5">
+				<div className="am-kpi-card sm:col-span-2">
 					<div className="flex items-center gap-2 mb-1">
 						<Wallet className="w-4 h-4 text-blue-500" />
 						<span className="text-xs text-gray-500">Общий баланс (KGS)</span>
@@ -126,7 +126,7 @@ export default function ConstructionAccounts() {
 						{fmt(totalBalance)}
 					</div>
 				</div>
-				<div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+				<div className="am-kpi-card">
 					<div className="text-xs text-gray-500 mb-1">Счетов</div>
 					<div className="text-3xl font-bold text-gray-900">
 						{accounts.length}
@@ -134,13 +134,13 @@ export default function ConstructionAccounts() {
 				</div>
 			</div>
 
-			<div className="grid grid-cols-3 gap-4">
+			<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
 				{isLoading ? (
-					<div className="col-span-3 text-center py-12 text-gray-400">
+					<div className="xl:col-span-3 text-center py-12 text-gray-600">
 						Загрузка...
 					</div>
 				) : accountsArray.length === 0 ? (
-					<div className="col-span-3 text-center py-12 text-gray-400">
+					<div className="xl:col-span-3 text-center py-12 text-gray-600">
 						<Landmark className="w-12 h-12 mx-auto mb-3 text-gray-200" />
 						<p>Нет счетов. Нажмите «Добавить счёт»</p>
 					</div>
@@ -172,12 +172,12 @@ export default function ConstructionAccounts() {
 									</div>
 								</div>
 								{acc.bank && (
-									<div className="text-xs text-gray-400 mb-0.5">
+									<div className="text-xs text-gray-600 mb-0.5">
 										Банк: {acc.bank}
 									</div>
 								)}
 								{acc.accountNumber && (
-									<div className="text-xs text-gray-400 font-mono mb-2">
+									<div className="text-xs text-gray-600 font-mono mb-2">
 										{acc.accountNumber}
 									</div>
 								)}
@@ -185,7 +185,7 @@ export default function ConstructionAccounts() {
 									<div className="text-xs text-gray-500">Баланс</div>
 									<div className="text-xl font-bold text-gray-900 mt-0.5">
 										{fmt(acc.currentBalance)}{" "}
-										<span className="text-sm text-gray-400">
+										<span className="text-sm text-gray-600">
 											{acc.currency}
 										</span>
 									</div>
@@ -213,7 +213,7 @@ export default function ConstructionAccounts() {
 								placeholder="Касса стройки / Расчётный счёт"
 							/>
 						</div>
-						<div className="grid grid-cols-2 gap-3">
+						<div className="grid gap-3 sm:grid-cols-2">
 							<div className="flex flex-col">
 								<Label className="text-xs leading-tight mb-1.5">Тип</Label>
 								<Select
@@ -250,7 +250,7 @@ export default function ConstructionAccounts() {
 							</div>
 						</div>
 						{form.type === "bank" && (
-							<div className="grid grid-cols-2 gap-3">
+							<div className="grid gap-3 sm:grid-cols-2">
 								<div className="flex flex-col">
 									<Label className="text-xs leading-tight mb-1.5">Банк</Label>
 									<Input
@@ -272,7 +272,7 @@ export default function ConstructionAccounts() {
 										className="mt-auto h-8 text-sm"
 									/>
 								</div>
-								<div className="col-span-2 flex flex-col">
+								<div className="sm:col-span-2 flex flex-col">
 									<Label className="text-xs leading-tight mb-1.5">Расчётный счёт</Label>
 									<Input
 										value={form.accountNumber}

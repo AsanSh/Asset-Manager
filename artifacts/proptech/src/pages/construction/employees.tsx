@@ -195,7 +195,7 @@ export default function ConstructionEmployees() {
 
 	return (
 		<div className="p-6 space-y-6">
-			<div className="flex items-center justify-between">
+			<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 				<div>
 					<h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
 						<HardHat className="w-6 h-6 text-orange-600" />
@@ -214,7 +214,7 @@ export default function ConstructionEmployees() {
 				</Button>
 			</div>
 
-			<div className="grid grid-cols-3 gap-4">
+			<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
 				<div className="bg-white border rounded-lg p-4">
 					<p className="text-sm text-gray-500">Всего</p>
 					<p className="text-2xl font-bold text-gray-900 mt-1">{users.length}</p>
@@ -241,7 +241,7 @@ export default function ConstructionEmployees() {
 				searchPlaceholder="Поиск по имени, email…"
 				initialSorting={[{ id: "name", desc: false }]}
 				emptyState={
-					<div className="text-center py-8 text-gray-400">
+					<div className="text-center py-8 text-gray-600">
 						<UserCircle className="w-10 h-10 mx-auto mb-3 opacity-30" />
 						<p className="text-sm mb-3">Нет сотрудников</p>
 						<Button size="sm" variant="outline" onClick={openCreate} className="gap-1">
@@ -271,7 +271,7 @@ export default function ConstructionEmployees() {
 						</div>
 
 						<div className="p-5 space-y-4">
-							<div className="grid grid-cols-2 gap-3">
+							<div className="grid gap-3 sm:grid-cols-2">
 								<div className="flex flex-col">
 									<Label className="text-xs font-medium text-gray-600 leading-tight mb-1.5">
 										Имя *
@@ -327,7 +327,7 @@ export default function ConstructionEmployees() {
 									<button
 										type="button"
 										onClick={() => setShowPassword((v) => !v)}
-										className="absolute right-2.5 top-2 text-gray-400 hover:text-gray-600"
+										className="absolute right-2.5 top-2 text-gray-600 hover:text-gray-600"
 									>
 										{showPassword ? (
 											<EyeOff className="w-4 h-4" />

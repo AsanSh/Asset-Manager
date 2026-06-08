@@ -88,7 +88,7 @@ function PropertyFormFields({ form, setField }: { form: FormState; setField: (k:
 				<Label className="text-xs">Проект / здание *</Label>
 				<Input className="mt-1" value={form.projectName} onChange={(e) => setField("projectName", e.target.value)} placeholder="Например, ЖК Центральный" />
 			</div>
-			<div className="grid grid-cols-2 gap-2">
+			<div className="grid gap-2 sm:grid-cols-2">
 				<div className="flex flex-col">
 					<Label className="text-xs leading-tight mb-1.5">Номер / кабинет *</Label>
 					<Input className="mt-auto" value={form.unitNumber} onChange={(e) => setField("unitNumber", e.target.value)} placeholder="101" />
@@ -106,7 +106,7 @@ function PropertyFormFields({ form, setField }: { form: FormState; setField: (k:
 					</Select>
 				</div>
 			</div>
-			<div className="grid grid-cols-3 gap-2">
+			<div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
 				<div className="flex flex-col">
 					<Label className="text-xs leading-tight mb-1.5">Площадь, м²</Label>
 					<Input className="mt-auto" type="number" value={form.area} onChange={(e) => setField("area", e.target.value)} />
@@ -199,7 +199,7 @@ function PropertyOwnersPanel({ propertyId }: { propertyId: number }) {
 		}
 	};
 
-	if (isLoading) return <div className="py-4 text-sm text-gray-400">Загрузка...</div>;
+	if (isLoading) return <div className="py-4 text-sm text-gray-600">Загрузка...</div>;
 
 	return (
 		<div className="space-y-3 pt-1">
@@ -211,14 +211,14 @@ function PropertyOwnersPanel({ propertyId }: { propertyId: number }) {
 
 			{/* Existing investments */}
 			{investments.length === 0 ? (
-				<p className="text-sm text-gray-400 text-center py-2">Владельцы не назначены</p>
+				<p className="text-sm text-gray-600 text-center py-2">Владельцы не назначены</p>
 			) : (
 				<div className="space-y-2">
 					{investments.map((inv: any) => {
 						const investor = allInvestors.find((x) => x.id === inv.investorId);
 						return (
 							<div key={inv.id} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
-								<UserCircle className="w-4 h-4 text-gray-400 flex-shrink-0" />
+								<UserCircle className="w-4 h-4 text-gray-600 flex-shrink-0" />
 								<span className="flex-1 text-sm text-gray-800 truncate">{investor?.fullName ?? `Владелец #${inv.investorId}`}</span>
 								<input
 									type="number" min="0" max="100" step="0.1"
@@ -227,7 +227,7 @@ function PropertyOwnersPanel({ propertyId }: { propertyId: number }) {
 									className="w-20 text-right text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
 								/>
 								<span className="text-gray-500 text-sm">%</span>
-								<button onClick={() => handleDelete(inv.id)} className="text-gray-400 hover:text-rose-500 transition-colors ml-1">
+								<button onClick={() => handleDelete(inv.id)} className="text-gray-600 hover:text-rose-500 transition-colors ml-1">
 									<Trash2 className="w-3.5 h-3.5" />
 								</button>
 							</div>
@@ -321,7 +321,7 @@ function PropTable({ isLoading, sortedProps, propertiesArray, rentedCount, total
 						))
 					) : !propertiesArray.length ? (
 						<tr>
-							<td colSpan={8} className="text-center py-10 text-gray-400">
+							<td colSpan={8} className="text-center py-10 text-gray-600">
 								<p className="text-sm">Объекты не найдены</p>
 								<button className="mt-2 text-blue-600 text-sm hover:underline" onClick={openCreate}>Добавить первый объект</button>
 							</td>
@@ -345,7 +345,7 @@ function PropTable({ isLoading, sortedProps, propertiesArray, rentedCount, total
 										<button type="button" title="Редактировать" className="text-gray-500 hover:text-gray-900" onClick={() => openEdit(p)}>
 											<Pencil className="w-3.5 h-3.5" />
 										</button>
-										<button type="button" title="Удалить" className="text-gray-400 hover:text-rose-600" onClick={() => onDelete(p)}>
+										<button type="button" title="Удалить" className="text-gray-600 hover:text-rose-600" onClick={() => onDelete(p)}>
 											<Trash2 className="w-3.5 h-3.5" />
 										</button>
 									</div>

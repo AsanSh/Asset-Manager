@@ -23,11 +23,11 @@ function LogoMark({ className }: { className?: string }) {
 		>
 			<defs>
 				<linearGradient id={`${MARK_ID}-bg`} x1="4" y1="4" x2="28" y2="28">
-					<stop stopColor="#6366F1" />
-					<stop offset="1" stopColor="#22D3EE" />
+					<stop stopColor="#0EA5E9" />
+					<stop offset="1" stopColor="#14B8A6" />
 				</linearGradient>
 			</defs>
-			<rect width="32" height="32" rx="9" fill={`url(#${MARK_ID}-bg)`} />
+			<rect width="32" height="32" rx="8" fill={`url(#${MARK_ID}-bg)`} />
 			{/* P + ascending bars (plan / analytics) */}
 			<path
 				d="M10 9h6.2c3.1 0 5 1.7 5 4.4 0 2.4-1.5 4-4.1 4H13.2V23H10V9z"
@@ -89,7 +89,7 @@ export function PlanalitycLogo({
 						{BRAND.shortName}
 						<span className={cn("font-semibold", aiClass)}>.ai</span>
 					</p>
-					<p className={cn("text-xs", inverse ? "text-indigo-200" : subClass)}>
+					<p className={cn("text-xs", inverse ? "text-cyan-100/75" : subClass)}>
 						{BRAND.taglineShort}
 					</p>
 				</div>

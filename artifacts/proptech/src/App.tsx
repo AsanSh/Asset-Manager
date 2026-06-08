@@ -8,11 +8,8 @@ import { SonnerToaster } from "@/components/ui/sonner-toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { useModuleAccess } from "@/hooks/use-module-access";
+import { isChunkLoadError, reloadForFreshAssets } from "@/lib/chunk-reload";
 import NotFound from "@/pages/not-found";
-import {
-	isChunkLoadError,
-	reloadOnceOnStaleChunk,
-} from "@/lib/chunk-reload";
 
 class PageErrorBoundary extends React.Component<
 	{ children: React.ReactNode },
@@ -25,34 +22,28 @@ class PageErrorBoundary extends React.Component<
 	static getDerivedStateFromError(error: Error) {
 		return { error };
 	}
-	componentDidCatch(error: Error) {
-		if (isChunkLoadError(error.message)) {
-			reloadOnceOnStaleChunk();
-		}
-	}
 	render() {
 		if (this.state.error) {
-			const staleChunk = isChunkLoadError(this.state.error.message);
+			const isStaleAssetError = isChunkLoadError(this.state.error);
 			return (
 				<div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center p-6">
-					<div className="text-4xl">⚠️</div>
+					<div className="text-4xl">!</div>
 					<h2 className="text-lg font-semibold text-gray-800">
 						Страница не загрузилась
 					</h2>
 					<p className="text-sm text-gray-500 max-w-md">
-						{staleChunk
-							? "Приложение обновилось. Обновите страницу, чтобы загрузить новую версию."
+						{isStaleAssetError
+							? "Версия приложения обновилась. Нажмите кнопку ниже, чтобы загрузить свежие файлы."
 							: this.state.error.message}
 					</p>
 					<button
-						onClick={() =>
-							staleChunk
-								? window.location.reload()
-								: this.setState({ error: null })
-						}
+						onClick={() => {
+							if (reloadForFreshAssets(this.state.error)) return;
+							this.setState({ error: null });
+						}}
 						className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
 					>
-						{staleChunk ? "Обновить страницу" : "Попробовать снова"}
+						{isStaleAssetError ? "Обновить страницу" : "Попробовать снова"}
 					</button>
 				</div>
 			);
@@ -78,7 +69,6 @@ import ConstructionDebt from "@/pages/construction/analytics/debt";
 import ConstructionExpenseAnalysis from "@/pages/construction/analytics/expenses";
 import ConstructionPnL from "@/pages/construction/analytics/pnl";
 import ConstructionBudget from "@/pages/construction/budget";
-import ConstructionCostSummary from "@/pages/construction/cost-summary";
 import ConstructionCashier from "@/pages/construction/cashier";
 import ConstructionChess from "@/pages/construction/chess";
 import ConstructionContractors from "@/pages/construction/contractors";
@@ -90,6 +80,7 @@ import ConstructionEmployees from "@/pages/construction/employees";
 import ConstructionExpenses from "@/pages/construction/expenses";
 import ConstructionMaterials from "@/pages/construction/materials";
 import ConstructionOperations from "@/pages/construction/operations";
+import ConstructionPhotoGallery from "@/pages/construction/photo-gallery";
 import ConstructionApprovals from "@/pages/construction/planning/approvals";
 import ConstructionBroadcast from "@/pages/construction/planning/broadcast";
 import ConstructionForecast from "@/pages/construction/planning/forecast";
@@ -102,7 +93,7 @@ import ConstructionTasks from "@/pages/construction/tasks";
 import { TaskDetailPage } from "@/features/construction-tasks/TaskDetailPage";
 import ConstructionWorkers from "@/pages/construction/workers";
 import Counterparties from "@/pages/counterparties";
-import ClientRelations from "@/pages/client-relations/index";
+import ClientRelations from "@/pages/crm/client-relations";
 import CrmClients from "@/pages/crm/clients";
 // CRM/PropTech module
 import CrmDeals from "@/pages/crm/deals";
@@ -114,6 +105,7 @@ import CrmSalesProperties from "@/pages/crm/sales-properties";
 import Dashboard from "@/pages/dashboard";
 import ImportCenter from "@/pages/import-center";
 import Login from "@/pages/login";
+import ModuleHelp from "@/pages/module-help";
 import PortalLogin from "@/pages/portal-login";
 import ResetPassword from "@/pages/reset-password";
 import ForgotPassword from "@/pages/forgot-password";
@@ -354,9 +346,6 @@ function Router() {
 			<Route path="/counterparties">
 				<ProtectedRoute component={Counterparties} />
 			</Route>
-			<Route path="/client-relations">
-				<ProtectedRoute component={ClientRelations} />
-			</Route>
 			<Route path="/properties/chess">
 				<ProtectedRoute component={ChessBoard} />
 			</Route>
@@ -476,9 +465,6 @@ function Router() {
 			<Route path="/construction/budget">
 				<ProtectedRoute component={ConstructionBudget} />
 			</Route>
-			<Route path="/construction/cost-summary">
-				<ProtectedRoute component={ConstructionCostSummary} />
-			</Route>
 			<Route path="/construction/expenses">
 				<ProtectedRoute component={ConstructionExpenses} />
 			</Route>
@@ -539,9 +525,15 @@ function Router() {
 			<Route path="/construction/planning/broadcast">
 				<ProtectedRoute component={ConstructionBroadcast} />
 			</Route>
+			<Route path="/construction/photo-gallery">
+				<ProtectedRoute component={ConstructionPhotoGallery} />
+			</Route>
 
 			<Route path="/construction/settings">
 				<ProtectedRoute component={ConstructionSettings} />
+			</Route>
+			<Route path="/construction/help">
+				<ProtectedRoute component={ModuleHelp} />
 			</Route>
 
 			{/* ── AI-инструменты ── */}
@@ -585,6 +577,12 @@ function Router() {
 			</Route>
 			<Route path="/crm/clients">
 				<ProtectedRoute component={CrmClients} />
+			</Route>
+			<Route path="/crm/client-relations">
+				<ProtectedRoute component={ClientRelations} />
+			</Route>
+			<Route path="/crm/help">
+				<ProtectedRoute component={ModuleHelp} />
 			</Route>
 			<Route path="/crm/deals">
 				<ProtectedRoute component={CrmDeals} />
@@ -647,6 +645,9 @@ function Router() {
 			<Route path="/rental/settings">
 				<ProtectedRoute component={RentalSettings} />
 			</Route>
+			<Route path="/rental/help">
+				<ProtectedRoute component={ModuleHelp} />
+			</Route>
 			<Route path="/rental/admin/log">
 				<ProtectedRoute component={RentalOperationsLog} />
 			</Route>
@@ -705,6 +706,9 @@ function Router() {
 			</Route>
 			<Route path="/warehouse/settings">
 				<ProtectedRoute component={WarehouseSettings} />
+			</Route>
+			<Route path="/warehouse/help">
+				<ProtectedRoute component={ModuleHelp} />
 			</Route>
 
 			{/* ── Системные настройки ── */}

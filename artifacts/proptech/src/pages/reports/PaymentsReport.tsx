@@ -99,7 +99,7 @@ export default function PaymentsReport() {
 						<RefreshCw className="w-6 h-6 text-blue-500 animate-spin" />
 					</div>
 				) : (rows ?? []).length === 0 ? (
-					<div className="text-center py-16 text-gray-400">
+					<div className="text-center py-16 text-gray-600">
 						<CreditCard className="w-10 h-10 mx-auto mb-3 text-gray-300" />
 						<p>Нет платежей за выбранный период</p>
 					</div>
@@ -156,7 +156,7 @@ export default function PaymentsReport() {
 										<td className="px-6 py-4 text-right font-semibold text-emerald-600">
 											{formatCurrency(p.amount)}
 										</td>
-										<td className="px-6 py-4 text-xs text-gray-400">
+										<td className="px-6 py-4 text-xs text-gray-600">
 											{p.allocations?.length > 0
 												? `${p.allocations.length} начислений`
 												: "—"}

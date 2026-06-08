@@ -37,7 +37,7 @@ function ChatBubble({
 	if (comment.commentType === "status_change") {
 		return (
 			<div className="flex justify-center my-2">
-				<span className="text-[11px] text-gray-400 bg-gray-100 px-3 py-1 rounded-full">
+				<span className="text-[11px] text-gray-600 bg-gray-100 px-3 py-1 rounded-full">
 					{comment.content}
 				</span>
 			</div>
@@ -53,7 +53,7 @@ function ChatBubble({
 				{name.charAt(0).toUpperCase()}
 			</div>
 			<div className={`max-w-[85%] ${isMe ? "text-right" : ""}`}>
-				<span className="text-[10px] text-gray-400 block mb-0.5">{name}</span>
+				<span className="text-[10px] text-gray-600 block mb-0.5">{name}</span>
 				{replyTarget && (
 					<div className="text-[10px] text-gray-500 mb-1">
 						↳ Ответ на: {replyTarget.content.slice(0, 60)}
@@ -71,7 +71,7 @@ function ChatBubble({
 				<div className={`mt-1 ${isMe ? "text-right" : "text-left"}`}>
 					<button
 						type="button"
-						className="inline-flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-700"
+						className="inline-flex items-center gap-1 text-[10px] text-gray-600 hover:text-gray-700"
 						onClick={() => onReply(comment)}
 					>
 						<Reply className="w-3 h-3" />
@@ -179,7 +179,7 @@ export function TaskCommentsPanel({
 		<div className="flex flex-col h-full min-h-[320px]">
 			<div className="flex-1 overflow-y-auto space-y-3 p-1">
 				{comments.length === 0 ? (
-					<div className="text-center py-8 text-gray-400">
+					<div className="text-center py-8 text-gray-600">
 						<MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-20" />
 						<p className="text-sm">Нет сообщений</p>
 					</div>
@@ -210,7 +210,7 @@ export function TaskCommentsPanel({
 							{ type: "return" as const, label: "Вернуть", icon: RotateCcw, show: isCreator },
 						] as const
 					)
-						.filter((b) => b.show !== false)
+							.filter((b) => !("show" in b) || b.show !== false)
 						.map((btn) => {
 							const Icon = btn.icon;
 							return (
@@ -297,7 +297,7 @@ export function TaskCommentsPanel({
 						))}
 					</div>
 				)}
-				<p className="text-[10px] text-gray-400">
+				<p className="text-[10px] text-gray-600">
 					Поддержка @упоминаний: используйте формат @Имя Фамилия
 				</p>
 			</div>

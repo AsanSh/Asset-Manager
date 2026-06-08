@@ -44,7 +44,7 @@ export function TaskSubtasksSection({
 		<section className="space-y-3">
 			<h3 className="text-sm font-semibold text-gray-900">
 				Подзадачи
-				<span className="text-gray-400 font-normal ml-1">({subtasks.length})</span>
+				<span className="text-gray-600 font-normal ml-1">({subtasks.length})</span>
 			</h3>
 			<ul className="space-y-2">
 				{subtasks.map((st) => (
@@ -54,12 +54,12 @@ export function TaskSubtasksSection({
 							onCheckedChange={() => toggleDone(st)}
 						/>
 						<span
-							className={`text-sm flex-1 ${st.status === "done" ? "line-through text-gray-400" : "text-gray-800"}`}
+							className={`text-sm flex-1 ${st.status === "done" ? "line-through text-gray-600" : "text-gray-800"}`}
 						>
 							{st.title}
 						</span>
 						{st.dueDate && (
-							<span className="text-[10px] text-gray-400">
+							<span className="text-[10px] text-gray-600">
 								{new Date(st.dueDate).toLocaleDateString("ru-KG", {
 									day: "numeric",
 									month: "short",

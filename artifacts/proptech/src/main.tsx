@@ -9,9 +9,9 @@ import App from "./App";
 import "./index.css";
 import { setBaseUrl } from "./api-client/custom-fetch";
 import { getApiBase } from "./lib/api-base";
-import { installChunkReloadHandlers } from "./lib/chunk-reload";
+import { installChunkReloadHandler } from "./lib/chunk-reload";
 
 setBaseUrl(getApiBase());
-installChunkReloadHandlers();
+installChunkReloadHandler();
 
 createRoot(document.getElementById("root")!).render(<App />);

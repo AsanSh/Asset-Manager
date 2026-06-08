@@ -63,7 +63,6 @@ export default function WarehouseRequests() {
 	const [statusFilter, setStatusFilter] = useState("all");
 	const [open, setOpen] = useState(false);
 	const [projectId, setProjectId] = useState("");
-	const [constructionTaskId, setConstructionTaskId] = useState("");
 	const [priority, setPriority] = useState("normal");
 	const [neededByDate, setNeededByDate] = useState("");
 	const [notes, setNotes] = useState("");
@@ -86,14 +85,6 @@ export default function WarehouseRequests() {
 			return Array.isArray(data) ? data : data?.items ?? [];
 		},
 	});
-	const { data: tasks = [] } = useQuery<{ id: number; title: string }[]>({
-		queryKey: ["construction-tasks-for-supply", projectId],
-		enabled: !!projectId,
-		queryFn: () =>
-			api
-				.get(`/construction/tasks?projectId=${projectId}`)
-				.then((r) => (Array.isArray(r.data) ? r.data : [])),
-	});
 	const { data: suppliers = [] } = useQuery<Supplier[]>({
 		queryKey: ["warehouse-suppliers-for-requests"],
 		queryFn: () =>
@@ -111,9 +102,6 @@ export default function WarehouseRequests() {
 		mutationFn: async () => {
 			return api.post("/supply/requests", {
 				projectId: projectId ? Number(projectId) : undefined,
-				constructionTaskId: constructionTaskId
-					? Number(constructionTaskId)
-					: undefined,
 				priority,
 				neededByDate: neededByDate || undefined,
 				notes: notes || undefined,
@@ -130,7 +118,6 @@ export default function WarehouseRequests() {
 			toast({ title: "Заявка создана" });
 			setOpen(false);
 			setProjectId("");
-			setConstructionTaskId("");
 			setPriority("normal");
 			setNeededByDate("");
 			setNotes("");
@@ -223,7 +210,7 @@ export default function WarehouseRequests() {
 				</div>
 			</div>
 
-			<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+			<div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4 gap-4">
 				{Object.entries(statusConfig).map(([key, s]) => (
 					<Card key={key} className="p-4">
 						<p className="text-sm text-gray-500">{s.label}</p>
@@ -236,7 +223,7 @@ export default function WarehouseRequests() {
 
 			<div className="flex gap-3">
 				<Select value={statusFilter} onValueChange={setStatusFilter}>
-					<SelectTrigger className="w-56">
+					<SelectTrigger className="w-full sm:w-56">
 						<SelectValue placeholder="Статус" />
 					</SelectTrigger>
 					<SelectContent>
@@ -322,16 +309,10 @@ export default function WarehouseRequests() {
 						<DialogTitle>Новая заявка снабжения</DialogTitle>
 					</DialogHeader>
 					<div className="space-y-4">
-						<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+						<div className="grid grid-cols-1 md:grid-cols-3 gap-3">
 							<div>
 								<Label>Проект</Label>
-								<Select
-									value={projectId || "none"}
-									onValueChange={(v) => {
-										setProjectId(v === "none" ? "" : v);
-										setConstructionTaskId("");
-									}}
-								>
+								<Select value={projectId || "none"} onValueChange={(v) => setProjectId(v === "none" ? "" : v)}>
 									<SelectTrigger><SelectValue placeholder="Выберите проект" /></SelectTrigger>
 									<SelectContent>
 										<SelectItem value="none">Без проекта</SelectItem>
@@ -341,28 +322,6 @@ export default function WarehouseRequests() {
 									</SelectContent>
 								</Select>
 							</div>
-							<div>
-								<Label>Задача WBS (для себестоимости)</Label>
-								<Select
-									value={constructionTaskId || "none"}
-									onValueChange={(v) =>
-										setConstructionTaskId(v === "none" ? "" : v)
-									}
-									disabled={!projectId}
-								>
-									<SelectTrigger><SelectValue placeholder="Не привязана" /></SelectTrigger>
-									<SelectContent>
-										<SelectItem value="none">Не привязана</SelectItem>
-										{tasks.map((t) => (
-											<SelectItem key={t.id} value={String(t.id)}>
-												{t.title}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</div>
-						</div>
-						<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
 							<div>
 								<Label>Приоритет</Label>
 								<Select value={priority} onValueChange={setPriority}>

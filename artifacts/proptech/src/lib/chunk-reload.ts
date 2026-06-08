@@ -1,54 +1,43 @@
-const CHUNK_RELOAD_KEY = "proptech-chunk-reload";
+const CHUNK_RELOAD_STORAGE_KEY = "planalityc:last-chunk-reload";
+const CHUNK_RELOAD_COOLDOWN_MS = 10_000;
 
-const CHUNK_ERROR_RE =
-	/Failed to fetch dynamically imported module|Loading chunk \d+ failed|Importing a module script failed|error loading dynamically imported module/i;
+export function isChunkLoadError(error: unknown): boolean {
+	const message =
+		error instanceof Error
+			? `${error.name} ${error.message}`
+			: typeof error === "string"
+				? error
+				: "";
 
-export function isChunkLoadError(message: string): boolean {
-	return CHUNK_ERROR_RE.test(message);
+	return /Failed to fetch dynamically imported module|Importing a module script failed|Expected a JavaScript module script|module script|text\/html|ChunkLoadError|Loading chunk|vite:preloadError/i.test(message);
 }
 
-/** Один раз перезагрузить страницу после деплоя, когда браузер держит старый JS-бандл. */
-export function reloadOnceOnStaleChunk(): boolean {
-	if (typeof window === "undefined") return false;
-	try {
-		if (sessionStorage.getItem(CHUNK_RELOAD_KEY)) return false;
-		sessionStorage.setItem(CHUNK_RELOAD_KEY, "1");
-		window.location.reload();
-		return true;
-	} catch {
-		window.location.reload();
-		return true;
-	}
+export function reloadForFreshAssets(error: unknown): boolean {
+	if (!isChunkLoadError(error) || typeof window === "undefined") return false;
+
+	const lastReload = Number(window.sessionStorage.getItem(CHUNK_RELOAD_STORAGE_KEY) || 0);
+	const now = Date.now();
+	if (now - lastReload < CHUNK_RELOAD_COOLDOWN_MS) return false;
+
+	window.sessionStorage.setItem(CHUNK_RELOAD_STORAGE_KEY, String(now));
+	window.location.reload();
+	return true;
 }
 
-export function clearChunkReloadFlag(): void {
-	try {
-		sessionStorage.removeItem(CHUNK_RELOAD_KEY);
-	} catch {
-		// ignore
-	}
-}
-
-export function installChunkReloadHandlers(): void {
+export function installChunkReloadHandler() {
 	if (typeof window === "undefined") return;
 
 	window.addEventListener("vite:preloadError", (event) => {
 		event.preventDefault();
-		reloadOnceOnStaleChunk();
+		const payload = (event as unknown as { payload?: unknown }).payload;
+		reloadForFreshAssets(payload);
+	});
+
+	window.addEventListener("error", (event) => {
+		reloadForFreshAssets(event.error || event.message);
 	});
 
 	window.addEventListener("unhandledrejection", (event) => {
-		const reason = event.reason;
-		const message =
-			reason instanceof Error
-				? reason.message
-				: typeof reason === "string"
-					? reason
-					: "";
-		if (!isChunkLoadError(message)) return;
-		event.preventDefault();
-		reloadOnceOnStaleChunk();
+		reloadForFreshAssets(event.reason);
 	});
-
-	clearChunkReloadFlag();
 }

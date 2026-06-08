@@ -214,7 +214,7 @@ function AnalyzeEstimate() {
 
 			{result && (
 				<div className="space-y-4">
-					<div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+					<div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
 						{result.totalAmount && (
 							<Card>
 								<CardContent className="pt-4">
@@ -589,7 +589,7 @@ export default function AITools() {
 			</div>
 
 			<Tabs defaultValue="tz">
-				<TabsList className="grid grid-cols-4 w-full">
+				<TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
 					<TabsTrigger value="tz">
 						<FileText className="w-3 h-3 mr-1" />
 						Генерация ТЗ

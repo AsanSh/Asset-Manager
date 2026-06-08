@@ -23,24 +23,30 @@ interface BaseHeaderProps {
 /** Общий header — h1 + subtitle + primary action. Единый стиль. */
 function PageHeader({ title, subtitle, primaryAction, backLink, breadcrumb }: BaseHeaderProps) {
 	return (
-		<header className="space-y-1">
-			{breadcrumb && <div className="text-xs text-am-text-muted">{breadcrumb}</div>}
-			<div className="flex items-start justify-between gap-4 flex-wrap">
+		<header className="am-page-header">
+			<div className="min-w-0 flex-1 space-y-2">
+				<div className="flex items-center gap-2">
+					<span className="h-2 w-2 rounded-full bg-cyan-500 shadow-[0_0_0_4px_rgba(6,182,212,0.12)]" />
+					<span className="text-[11px] font-bold uppercase tracking-[0.22em] text-cyan-700">
+						Planalityc workspace
+					</span>
+				</div>
+				{breadcrumb && <div className="text-xs text-am-text-muted">{breadcrumb}</div>}
 				<div className="flex items-center gap-3 min-w-0 flex-1">
 					{backLink}
 					<div className="min-w-0">
-						<h1 className="text-[22px] font-bold text-am-text-strong leading-tight tracking-tight truncate">
+						<h1 className="am-page-title text-[24px] sm:text-[30px] truncate">
 							{title}
 						</h1>
 						{subtitle && (
-							<p className="text-[13px] text-am-text-muted mt-0.5">{subtitle}</p>
+							<p className="am-page-subtitle text-[13px] sm:text-sm">{subtitle}</p>
 						)}
 					</div>
 				</div>
-				{primaryAction && (
-					<div className="flex items-center gap-2 flex-shrink-0">{primaryAction}</div>
-				)}
 			</div>
+			{primaryAction && (
+				<div className="flex items-center gap-2 flex-shrink-0">{primaryAction}</div>
+			)}
 		</header>
 	);
 }
@@ -55,11 +61,11 @@ export interface ListShellProps extends BaseHeaderProps {
 
 function ListShell({ title, subtitle, primaryAction, backLink, breadcrumb, kpis, filters, children }: ListShellProps) {
 	return (
-		<div className="space-y-5 max-w-full">
+		<div className="am-page space-y-5 max-w-full">
 			<PageHeader {...{ title, subtitle, primaryAction, backLink, breadcrumb }} />
 			{kpis && <div className="w-full min-w-0">{kpis}</div>}
 			{filters && (
-				<div className="bg-am-bg rounded-lg border border-am-border p-3 flex items-center gap-2 flex-wrap">
+				<div className="am-shell-filter p-2.5 flex items-center gap-2 flex-wrap">
 					{filters}
 				</div>
 			)}
@@ -78,7 +84,7 @@ export interface DetailShellProps extends BaseHeaderProps {
 
 function DetailShell({ title, subtitle, primaryAction, backLink, breadcrumb, tabs, sidebar, children }: DetailShellProps) {
 	return (
-		<div className="space-y-5 max-w-full">
+		<div className="am-page space-y-5 max-w-full">
 			<PageHeader {...{ title, subtitle, primaryAction, backLink, breadcrumb }} />
 			{tabs && <div className="border-b border-am-border">{tabs}</div>}
 			{sidebar ? (
@@ -103,10 +109,10 @@ export interface DashboardShellProps extends BaseHeaderProps {
 
 function DashboardShell({ title, subtitle, primaryAction, backLink, breadcrumb, kpis, filters, children }: DashboardShellProps) {
 	return (
-		<div className="space-y-5 max-w-full">
+		<div className="am-page space-y-5 max-w-full">
 			<PageHeader {...{ title, subtitle, primaryAction, backLink, breadcrumb }} />
 			{filters && (
-				<div className="flex items-center gap-2 flex-wrap">{filters}</div>
+				<div className="am-shell-filter p-2.5 flex items-center gap-2 flex-wrap">{filters}</div>
 			)}
 			{kpis && <div className="w-full min-w-0">{kpis}</div>}
 			<div className="space-y-5">{children}</div>
@@ -125,14 +131,14 @@ export interface ReportShellProps extends BaseHeaderProps {
 
 function ReportShell({ title, subtitle, primaryAction, backLink, breadcrumb, filters, exportAction, summary, children }: ReportShellProps) {
 	return (
-		<div className="space-y-5 max-w-full">
+		<div className="am-page space-y-5 max-w-full">
 			<PageHeader
 				{...{ title, subtitle, primaryAction: exportAction || primaryAction, backLink, breadcrumb }}
 			/>
-			<div className="bg-am-bg rounded-lg border border-am-border p-3 flex items-center gap-2 flex-wrap">
+			<div className="am-shell-filter p-2.5 flex items-center gap-2 flex-wrap">
 				{filters}
 			</div>
-			{summary && <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{summary}</div>}
+			{summary && <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{summary}</div>}
 			<div>{children}</div>
 		</div>
 	);

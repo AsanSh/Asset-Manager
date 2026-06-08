@@ -46,7 +46,7 @@ function KPI({
 	color: string;
 }) {
 	return (
-		<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-5 flex items-start gap-3 sm:gap-4">
+		<div className="bg-white rounded-lg border border-gray-100 shadow-sm p-4 sm:p-5 flex items-start gap-3 sm:gap-4">
 			<div
 				className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${color}`}
 			>
@@ -55,7 +55,7 @@ function KPI({
 			<div className="min-w-0">
 				<p className="text-xs text-gray-500 font-medium">{label}</p>
 				<p className="text-base sm:text-xl font-bold text-gray-900 mt-0.5 break-words">{value}</p>
-				{sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+				{sub && <p className="text-xs text-gray-600 mt-0.5">{sub}</p>}
 			</div>
 		</div>
 	);
@@ -153,7 +153,7 @@ export default function TenantPortal({ previewTenantId }: { previewTenantId?: nu
 						</div>
 						<div>
 							<p className="text-sm font-bold text-gray-900">Planalityc.ai</p>
-							<p className="text-[10px] text-gray-400 -mt-0.5">
+							<p className="text-[10px] text-gray-600 -mt-0.5">
 								Портал арендатора
 							</p>
 						</div>
@@ -192,7 +192,7 @@ export default function TenantPortal({ previewTenantId }: { previewTenantId?: nu
 				</div>
 
 				{/* KPIs */}
-				<div className="grid grid-cols-2 gap-4">
+				<div className="grid gap-4 sm:grid-cols-2">
 					<KPI
 						icon={<Building2 className="w-6 h-6 text-blue-600" />}
 						label="Активных договоров"
@@ -230,13 +230,13 @@ export default function TenantPortal({ previewTenantId }: { previewTenantId?: nu
 				</div>
 
 				{/* Contracts */}
-				<div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+				<div className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden">
 					<div className="flex items-center gap-3 px-4 sm:px-6 py-4 border-b bg-gray-50">
 						<FileText className="w-4 h-4 text-gray-500" />
 						<h2 className="font-semibold text-gray-900">Мои договоры аренды</h2>
 					</div>
 					{contracts.length === 0 ? (
-						<div className="py-12 text-center text-gray-400">
+						<div className="py-12 text-center text-gray-600">
 							<FileText className="w-10 h-10 mx-auto mb-2 opacity-20" />
 							<p className="text-sm">Нет договоров</p>
 						</div>
@@ -252,11 +252,11 @@ export default function TenantPortal({ previewTenantId }: { previewTenantId?: nu
 											{c.propertyName || "Объект"}
 										</p>
 										{c.contractNumber && (
-											<p className="text-xs text-gray-400">
+											<p className="text-xs text-gray-600">
 												Договор {c.contractNumber}
 											</p>
 										)}
-										<p className="text-xs text-gray-400">
+										<p className="text-xs text-gray-600">
 											{fmtDate(c.startDate)} —{" "}
 											{c.endDate ? fmtDate(c.endDate) : "бессрочно"}
 										</p>
@@ -278,7 +278,7 @@ export default function TenantPortal({ previewTenantId }: { previewTenantId?: nu
 				</div>
 
 				{/* Payments reconciliation */}
-				<div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden print:shadow-none">
+				<div className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden print:shadow-none">
 					<div className="flex items-center justify-between gap-2 flex-wrap px-4 sm:px-6 py-4 border-b bg-gray-50">
 						<div className="flex items-center gap-3">
 							<CreditCard className="w-4 h-4 text-gray-500" />
@@ -306,7 +306,7 @@ export default function TenantPortal({ previewTenantId }: { previewTenantId?: nu
 						</div>
 					</div>
 					{payments.length === 0 ? (
-						<div className="py-12 text-center text-gray-400">
+						<div className="py-12 text-center text-gray-600">
 							<CreditCard className="w-10 h-10 mx-auto mb-2 opacity-20" />
 							<p className="text-sm">Нет платежей</p>
 						</div>
@@ -377,7 +377,7 @@ export default function TenantPortal({ previewTenantId }: { previewTenantId?: nu
 					)}
 				</div>
 
-				<div className="text-center text-xs text-gray-400 py-4">
+				<div className="text-center text-xs text-gray-600 py-4">
 					Planalityc.ai — Портал арендатора. Данные обновляются в реальном времени.
 				</div>
 			</div>

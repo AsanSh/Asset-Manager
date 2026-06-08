@@ -164,9 +164,9 @@ export function ContractStatusStepper({
 											flex h-9 w-9 items-center justify-center rounded-full border-2 text-sm font-bold
 											transition-all shadow-sm
 											${current ? "border-amber-500 bg-amber-500 text-white ring-4 ring-amber-100 scale-110" : ""}
-											${done ? "border-emerald-500 bg-emerald-500 text-white" : ""}
-											${upcoming ? "border-gray-300 bg-white text-gray-400 group-hover:border-amber-300 group-hover:text-amber-600" : ""}
-											${!current && !done && !upcoming && currentIdx < 0 ? "border-gray-300 bg-white text-gray-400" : ""}
+											${done ? "border-emerald-500 bg-emerald-600 text-white" : ""}
+											${upcoming ? "border-gray-300 bg-white text-gray-600 group-hover:border-amber-300 group-hover:text-amber-600" : ""}
+											${!current && !done && !upcoming && currentIdx < 0 ? "border-gray-300 bg-white text-gray-600" : ""}
 										`}
 									>
 										{done ? (

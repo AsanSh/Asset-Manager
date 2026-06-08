@@ -124,7 +124,7 @@ function InvestorDialog({
 					</DialogTitle>
 				</DialogHeader>
 				<form onSubmit={handleSubmit} className="space-y-3">
-					<div className="grid grid-cols-2 gap-3">
+					<div className="grid gap-3 sm:grid-cols-2">
 						<div className="col-span-2 flex flex-col">
 							<Label className="leading-tight mb-1.5">ФИО / Название компании *</Label>
 							<Input
@@ -383,7 +383,7 @@ export default function Investors() {
 			</div>
 
 			{/* Stats */}
-			<div className="grid grid-cols-3 gap-4">
+			<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
 				{[
 					{
 						label: "Всего владельцев",

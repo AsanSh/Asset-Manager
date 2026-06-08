@@ -22,7 +22,7 @@ describe("module-access", () => {
 		);
 		assert.equal(
 			detectModuleFromPath("/dashboard?tab=finance"),
-			"construction",
+			"finance",
 		);
 		assert.equal(
 			detectModuleFromPath("/dashboard?tab=control"),
@@ -35,6 +35,8 @@ describe("module-access", () => {
 		assert.equal(detectModuleFromPath("/rental/tenants"), "rental");
 		assert.equal(detectModuleFromPath("/warehouse/items"), "warehouse");
 		assert.equal(detectModuleFromPath("/construction/projects"), "construction");
+		assert.equal(detectModuleFromPath("/construction/accounts"), "finance");
+		assert.equal(detectModuleFromPath("/construction/analytics/cashflow"), "finance");
 	});
 
 	it("rental_manager cannot open finance dashboard tab", () => {
@@ -55,7 +57,16 @@ describe("module-access", () => {
 	it("company_admin can access all module paths", () => {
 		const mods = resolveAllowedModules("company_admin");
 		assert.ok(mods.includes("warehouse"));
+		assert.ok(mods.includes("finance"));
 		assert.equal(canAccessPath("/crm/leads", mods, "company_admin"), true);
 		assert.equal(canAccessPath("/warehouse/marketplace", mods, "company_admin"), true);
+	});
+
+	it("finance role opens finance pages without construction module", () => {
+		const mods = resolveAllowedModules("finance");
+		assert.deepEqual(mods, ["finance"]);
+		assert.equal(canAccessPath("/dashboard?tab=finance", mods, "finance"), true);
+		assert.equal(canAccessPath("/construction/accounts", mods, "finance"), true);
+		assert.equal(canAccessPath("/construction/projects", mods, "finance"), false);
 	});
 });

@@ -14,7 +14,7 @@ export function TaskProgressBar({
 				<div
 					className={cn(
 						"h-full rounded-full transition-all",
-						p >= 100 ? "bg-emerald-500" : p >= 50 ? "bg-amber-500" : "bg-blue-500",
+						p >= 100 ? "bg-emerald-600" : p >= 50 ? "bg-amber-500" : "bg-blue-500",
 					)}
 					style={{ width: `${p}%` }}
 				/>

@@ -44,7 +44,7 @@ function KPI({
 	color: string;
 }) {
 	return (
-		<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-start gap-4">
+		<div className="bg-white rounded-lg border border-gray-100 shadow-sm p-5 flex items-start gap-4">
 			<div
 				className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${color}`}
 			>
@@ -53,7 +53,7 @@ function KPI({
 			<div>
 				<p className="text-xs text-gray-500 font-medium">{label}</p>
 				<p className="text-xl font-bold text-gray-900 mt-0.5">{value}</p>
-				{sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+				{sub && <p className="text-xs text-gray-600 mt-0.5">{sub}</p>}
 			</div>
 		</div>
 	);
@@ -103,7 +103,7 @@ export default function InvestorPortal() {
 						</div>
 						<div>
 							<p className="text-sm font-bold text-gray-900">Planalityc.ai</p>
-							<p className="text-[10px] text-gray-400 -mt-0.5">
+							<p className="text-[10px] text-gray-600 -mt-0.5">
 								Портал владельца
 							</p>
 						</div>
@@ -137,7 +137,7 @@ export default function InvestorPortal() {
 				</div>
 
 				{/* KPIs */}
-				<div className="grid grid-cols-2 gap-4">
+				<div className="grid gap-4 sm:grid-cols-2">
 					<KPI
 						icon={<Wallet className="w-6 h-6 text-blue-600" />}
 						label="Инвестировано"
@@ -169,13 +169,13 @@ export default function InvestorPortal() {
 				</div>
 
 				{/* Investments */}
-				<div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+				<div className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden">
 					<div className="flex items-center gap-3 px-6 py-4 border-b bg-gray-50">
 						<Building2 className="w-4 h-4 text-gray-500" />
 						<h2 className="font-semibold text-gray-900">Мои объекты</h2>
 					</div>
 					{investments.length === 0 ? (
-						<div className="py-12 text-center text-gray-400">
+						<div className="py-12 text-center text-gray-600">
 							<Building2 className="w-10 h-10 mx-auto mb-2 opacity-20" />
 							<p className="text-sm">Нет объектов</p>
 						</div>
@@ -191,11 +191,11 @@ export default function InvestorPortal() {
 											{inv.propertyName || "Объект"}
 										</p>
 										{inv.propertyUnit && (
-											<p className="text-xs text-gray-400">
+											<p className="text-xs text-gray-600">
 												Единица: {inv.propertyUnit}
 											</p>
 										)}
-										<p className="text-xs text-gray-400">
+										<p className="text-xs text-gray-600">
 											{fmtDate(inv.investedAt || inv.createdAt)}
 										</p>
 									</div>
@@ -214,7 +214,7 @@ export default function InvestorPortal() {
 				</div>
 
 				{/* Distributions / Reconciliation */}
-				<div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+				<div className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden">
 					<div className="flex items-center justify-between px-6 py-4 border-b bg-gray-50">
 						<div className="flex items-center gap-3">
 							<CreditCard className="w-4 h-4 text-gray-500" />
@@ -233,7 +233,7 @@ export default function InvestorPortal() {
 					</div>
 
 					{distributions.length === 0 ? (
-						<div className="py-12 text-center text-gray-400">
+						<div className="py-12 text-center text-gray-600">
 							<FileText className="w-10 h-10 mx-auto mb-2 opacity-20" />
 							<p className="text-sm">Нет выплат</p>
 						</div>
@@ -295,7 +295,7 @@ export default function InvestorPortal() {
 					)}
 				</div>
 
-				<div className="text-center text-xs text-gray-400 py-4">
+				<div className="text-center text-xs text-gray-600 py-4">
 					Planalityc.ai — Портал владельца. Данные обновляются в реальном времени.
 				</div>
 			</div>

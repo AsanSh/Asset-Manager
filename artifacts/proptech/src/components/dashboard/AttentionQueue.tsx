@@ -20,7 +20,7 @@ export function AttentionQueue() {
 	const items = data?.attentionItems ?? [];
 
 	return (
-		<div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+		<div className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden">
 			<div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
 				<div className="flex items-center gap-2">
 					<AlertCircle className="w-4 h-4 text-amber-600" />
@@ -48,7 +48,7 @@ export function AttentionQueue() {
 				</div>
 			) : items.length === 0 ? (
 				<div className="px-4 py-8 text-center text-sm text-gray-500 flex flex-col items-center gap-2">
-					<CheckCircle2 className="w-8 h-8 text-emerald-500" />
+					<CheckCircle2 className="w-8 h-8 text-emerald-700" />
 					<span>Критичных пунктов нет — всё под контролем</span>
 				</div>
 			) : (

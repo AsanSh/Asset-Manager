@@ -137,7 +137,7 @@ function CategoryForm({
 					className="h-9"
 				/>
 			</div>
-			<div className="grid grid-cols-2 gap-3">
+			<div className="grid gap-3 sm:grid-cols-2">
 				<div className="flex flex-col">
 					<Label className="text-xs text-gray-600 mb-1.5 block leading-tight">Тип</Label>
 					<Select value={form.type} onValueChange={(v) => set("type", v)}>
@@ -237,9 +237,9 @@ function CategoryRow({
 				>
 					{hasChildren ? (
 						expanded ? (
-							<ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+							<ChevronDown className="w-3.5 h-3.5 text-gray-600" />
 						) : (
-							<ChevronRight className="w-3.5 h-3.5 text-gray-400" />
+							<ChevronRight className="w-3.5 h-3.5 text-gray-600" />
 						)
 					) : (
 						<div className="w-3.5 h-3.5" />
@@ -255,7 +255,7 @@ function CategoryRow({
 					{cat.name}
 				</span>
 				<div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-					<span className="text-[10px] text-gray-400 px-1.5 py-0.5 bg-gray-100 rounded flex items-center gap-1">
+					<span className="text-[10px] text-gray-600 px-1.5 py-0.5 bg-gray-100 rounded flex items-center gap-1">
 						{MODULE_ICONS[cat.module]} {MODULE_LABELS[cat.module]}
 					</span>
 					<button
@@ -426,7 +426,7 @@ export default function SettingsCategories() {
 			</div>
 
 			{isLoading ? (
-				<div className="text-center py-16 text-gray-400 text-sm">
+				<div className="text-center py-16 text-gray-600 text-sm">
 					Загрузка...
 				</div>
 			) : (
@@ -455,7 +455,7 @@ export default function SettingsCategories() {
 							</div>
 							<div className="p-3 space-y-1">
 								{incomeRoots.length === 0 ? (
-									<div className="text-center py-6 text-gray-400 text-sm">
+									<div className="text-center py-6 text-gray-600 text-sm">
 										Нет статей доходов.{" "}
 										<button
 											onClick={() => openNew("income")}
@@ -504,7 +504,7 @@ export default function SettingsCategories() {
 							</div>
 							<div className="p-3 space-y-1">
 								{expenseRoots.length === 0 ? (
-									<div className="text-center py-6 text-gray-400 text-sm">
+									<div className="text-center py-6 text-gray-600 text-sm">
 										Нет статей расходов.{" "}
 										<button
 											onClick={() => openNew("expense")}

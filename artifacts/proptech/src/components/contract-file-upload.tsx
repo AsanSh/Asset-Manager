@@ -150,7 +150,7 @@ export function ContractFileUpload({
 						<FileText className="w-4 h-4 text-amber-600 flex-shrink-0" />
 						<div className="flex-1 min-w-0">
 							<p className="font-medium truncate">{contractDocument.fileName}</p>
-							<p className="text-xs text-gray-400">
+							<p className="text-xs text-gray-600">
 								{new Date(contractDocument.uploadedAt).toLocaleString("ru-KG")}
 							</p>
 						</div>
@@ -175,7 +175,7 @@ export function ContractFileUpload({
 						</Button>
 					</div>
 				) : (
-					<p className="text-xs text-gray-400">
+					<p className="text-xs text-gray-600">
 						{entityId
 							? "PDF, DOC, DOCX, JPG или PNG до 5 МБ"
 							: "После сохранения можно загрузить договор"}

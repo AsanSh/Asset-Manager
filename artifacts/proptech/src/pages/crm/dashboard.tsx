@@ -1,12 +1,21 @@
 import {
 	Activity,
+	BadgeDollarSign,
 	Calendar,
+	ClipboardList,
 	DollarSign,
+	FileSignature,
+	Home,
+	LayoutGrid,
+	Megaphone,
+	PhoneCall,
 	Target,
 	TrendingUp,
+	UserRoundCheck,
 	Users,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { ModuleCommandCenter } from "@/components/dashboard/module-command-center";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -90,16 +99,151 @@ export default function CRMDashboard() {
 		return <div className="text-center py-12 text-gray-500">Нет данных</div>;
 	}
 
+	const totalDeals =
+		data?.dealsByStage?.reduce((sum, stage) => sum + stage.count, 0) || 0;
+	const crmMetrics = [
+		{
+			label: "Активные лиды",
+			value: data.activeLeads,
+			description: "новые обращения и квалификация",
+			href: "/crm/leads",
+			icon: Users,
+			tone: "blue" as const,
+		},
+		{
+			label: "Конверсия",
+			value: `${data?.conversionRate?.toFixed(1) || "0"}%`,
+			description: "переход лида в клиента",
+			href: "/crm/deals",
+			icon: TrendingUp,
+			tone: "emerald" as const,
+		},
+		{
+			label: "Прогноз",
+			value: data?.revenueForecast?.total
+				? formatCurrency(
+						data.revenueForecast.total,
+						data.revenueForecast.currency,
+					)
+				: "0",
+			description: "взвешенная выручка",
+			href: "/crm/deals",
+			icon: BadgeDollarSign,
+			tone: "amber" as const,
+		},
+		{
+			label: "Сделки",
+			value: totalDeals,
+			description: "в работе у отдела продаж",
+			href: "/crm/deals",
+			icon: Activity,
+			tone: "cyan" as const,
+		},
+	];
+	const crmSteps = [
+		{
+			title: "Прием лидов",
+			description: "Единая точка для заявок, форм, рекламы и входящих обращений.",
+			href: "/crm/leads/intake",
+			icon: Megaphone,
+			meta: "источники",
+			tone: "blue" as const,
+		},
+		{
+			title: "Лиды",
+			description: "Квалификация клиента, интерес, бюджет и следующий контакт.",
+			href: "/crm/leads",
+			icon: PhoneCall,
+			meta: "первичный контакт",
+			tone: "cyan" as const,
+		},
+		{
+			title: "Клиенты",
+			description: "Профиль покупателя, история общения и документы.",
+			href: "/crm/clients",
+			icon: UserRoundCheck,
+			meta: "карточка клиента",
+			tone: "emerald" as const,
+		},
+		{
+			title: "Шахматка",
+			description: "Объекты доступны продажникам только после цены и коэффициента.",
+			href: "/crm/chess",
+			icon: LayoutGrid,
+			meta: "наличие и бронь",
+			tone: "violet" as const,
+		},
+		{
+			title: "Сделка",
+			description: "Фиксируем объект, этап, сумму, менеджера и вероятность.",
+			href: "/crm/deals",
+			icon: Target,
+			meta: "воронка",
+			tone: "amber" as const,
+		},
+		{
+			title: "Договор",
+			description: "Договор запускает начисления и дальнейшую работу финансов.",
+			href: "/crm/contracts-sales",
+			icon: FileSignature,
+			meta: "начисления",
+			tone: "cyan" as const,
+		},
+	];
+	const crmLanes = [
+		{
+			title: "Маркетинг",
+			description: "источники и входящие лиды",
+			value: `${data.activeLeads}`,
+			progress: Math.min(100, data.activeLeads * 6),
+		},
+		{
+			title: "Продажники",
+			description: "звонки, показы, сделки",
+			value: `${totalDeals}`,
+			progress: Math.min(100, totalDeals * 10),
+		},
+		{
+			title: "Отдел связи",
+			description: "портал, новости, акции",
+			value: "CRM",
+			progress: 68,
+		},
+	];
+	const crmQuickLinks = [
+		{
+			title: "Клиентский портал",
+			description: "объявления, акции, сервисы",
+			href: "/crm/client-relations",
+			icon: Home,
+		},
+		{
+			title: "Объекты продаж",
+			description: "остатки, цены, статусы",
+			href: "/crm/sales-properties",
+			icon: LayoutGrid,
+		},
+		{
+			title: "Сотрудники",
+			description: "команда и ответственность",
+			href: "/crm/employees",
+			icon: ClipboardList,
+		},
+	];
+
 	return (
 		<div className="space-y-6">
-			<div>
-				<h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-					<Target className="w-6 h-6 text-blue-600" /> CRM Дашборд
-				</h1>
-				<p className="text-sm text-gray-500 mt-1">
-					Обзор продаж и воронки лидов
-				</p>
-			</div>
+			<ModuleCommandCenter
+				eyebrow="CRM и клиентский сервис"
+				title="От лида до шахматки, договора и клиентского портала"
+				description="Продажи должны идти по одному маршруту: входящий лид, клиент, объект, сделка, договор и сопровождение. Это убирает риск двойной продажи и потерянных действий."
+				primaryHref="/crm/leads"
+				primaryLabel="Открыть лиды"
+				metrics={crmMetrics}
+				steps={crmSteps}
+				lanes={crmLanes}
+				quickLinks={crmQuickLinks}
+			/>
 
 			{/* KPI Cards */}
 			<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

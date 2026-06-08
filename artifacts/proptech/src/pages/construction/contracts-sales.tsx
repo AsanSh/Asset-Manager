@@ -130,7 +130,7 @@ function ContractDetailSummary({
 
 	return (
 		<div className="space-y-4 mt-4">
-			<div className="grid grid-cols-2 gap-3 text-sm">
+			<div className="grid gap-3 sm:grid-cols-2 text-sm">
 				<div>
 					<span className="text-gray-500">Покупатель:</span>{" "}
 					<span className="font-medium">{contract.buyerName}</span>
@@ -148,7 +148,7 @@ function ContractDetailSummary({
 					<span>{contract.contractDate}</span>
 				</div>
 			</div>
-			<div className="grid grid-cols-3 gap-2 bg-gray-50 rounded-xl p-3 text-center text-sm">
+			<div className="grid gap-2 sm:grid-cols-3 bg-gray-50 rounded-xl p-3 text-center text-sm">
 				<div>
 					<div className="text-xs text-gray-500">Сумма</div>
 					<div className="font-bold">
@@ -242,8 +242,8 @@ function ContractDetailSummary({
 							ℹ️ При создании аккаунта покупатель будет автоматически добавлен в справочник контрагентов
 						</p>
 					)}
-					<div className="grid grid-cols-2 gap-3">
-						<div className="col-span-2 flex flex-col">
+					<div className="grid gap-3 sm:grid-cols-2">
+						<div className="sm:col-span-2 flex flex-col">
 							<Label className="leading-tight mb-1.5">Телефон *</Label>
 							<Input
 								className="mt-auto"
@@ -254,7 +254,7 @@ function ContractDetailSummary({
 									setPortalForm((p) => ({ ...p, phone: e.target.value }))
 								}
 							/>
-							<p className="text-[10px] text-gray-400 mt-1">Покупатель войдёт по этому номеру и SMS-коду</p>
+							<p className="text-[10px] text-gray-600 mt-1">Покупатель войдёт по этому номеру и SMS-коду</p>
 						</div>
 						<div className="flex flex-col">
 							<Label className="leading-tight mb-1.5">Имя *</Label>
@@ -276,7 +276,7 @@ function ContractDetailSummary({
 								}
 							/>
 						</div>
-						<div className="col-span-2 flex flex-col">
+						<div className="sm:col-span-2 flex flex-col">
 							<Label className="leading-tight mb-1.5">Email (необязательно)</Label>
 							<Input
 								className="mt-auto"
@@ -473,7 +473,7 @@ export default function ConstructionContractsSales() {
 							{row.original.buyerName || "—"}
 						</div>
 						{row.original.buyerPhone && (
-							<div className="text-xs text-gray-400">
+							<div className="text-xs text-gray-600">
 								{row.original.buyerPhone}
 							</div>
 						)}
@@ -568,7 +568,7 @@ export default function ConstructionContractsSales() {
 				size: 100,
 				meta: { exportLabel: "Дата" },
 				cell: ({ row }) => (
-					<span className="text-gray-400 text-xs">
+					<span className="text-gray-600 text-xs">
 						{row.original.contractDate}
 					</span>
 				),
@@ -610,7 +610,7 @@ export default function ConstructionContractsSales() {
 				</Button>
 			}
 			kpis={
-				<div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+				<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
 					{[
 						{
 							label: "Всего договоров",
@@ -807,7 +807,7 @@ export default function ConstructionContractsSales() {
 							</Field>
 							{form.totalAmount && (
 								<div className="col-span-12 bg-am-brand-surface border border-am-border rounded-lg px-4 py-3">
-									<div className="grid grid-cols-3 gap-4 text-center text-sm">
+									<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 text-center text-sm">
 										<div>
 											<p className="text-xs text-am-text-muted">Остаток</p>
 											<p className="font-semibold text-am-brand tabular-nums">

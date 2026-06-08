@@ -268,7 +268,7 @@ export function TaskDetailPage({ taskId }: { taskId: number }) {
 
 					<section className="grid grid-cols-2 gap-3 text-sm">
 						<div>
-							<span className="text-gray-400 text-xs">План начала</span>
+							<span className="text-gray-600 text-xs">План начала</span>
 							<p className="font-medium">
 								{task.plannedStartDate
 									? new Date(task.plannedStartDate).toLocaleDateString("ru-KG")
@@ -276,7 +276,7 @@ export function TaskDetailPage({ taskId }: { taskId: number }) {
 							</p>
 						</div>
 						<div>
-							<span className="text-gray-400 text-xs">План окончания</span>
+							<span className="text-gray-600 text-xs">План окончания</span>
 							<p className="font-medium">
 								{task.plannedEndDate
 									? new Date(task.plannedEndDate).toLocaleDateString("ru-KG")
@@ -286,7 +286,7 @@ export function TaskDetailPage({ taskId }: { taskId: number }) {
 							</p>
 						</div>
 						<div>
-							<span className="text-gray-400 text-xs">Исполнитель</span>
+							<span className="text-gray-600 text-xs">Исполнитель</span>
 							<p className="font-medium">
 								{task.assignedTo && userMap[task.assignedTo]
 									? `${userMap[task.assignedTo].firstName} ${userMap[task.assignedTo].lastName}`
@@ -294,7 +294,7 @@ export function TaskDetailPage({ taskId }: { taskId: number }) {
 							</p>
 						</div>
 						<div>
-							<span className="text-gray-400 text-xs">План часов</span>
+							<span className="text-gray-600 text-xs">План часов</span>
 							<p className="font-medium">{task.estimatedHours || "—"}</p>
 						</div>
 					</section>
@@ -503,7 +503,7 @@ export function TaskDetailPage({ taskId }: { taskId: number }) {
 							</div>
 						)}
 						{setProgressMode.isPending && (
-							<Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+							<Loader2 className="w-4 h-4 animate-spin text-gray-600" />
 						)}
 					</section>
 

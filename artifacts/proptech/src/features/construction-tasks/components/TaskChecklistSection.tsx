@@ -55,7 +55,7 @@ export function TaskChecklistSection({
 			<div className="flex items-center justify-between">
 				<h3 className="text-sm font-semibold text-gray-900">
 					Чек-лист
-					<span className="text-gray-400 font-normal ml-1">
+					<span className="text-gray-600 font-normal ml-1">
 						({done}/{items.length})
 					</span>
 				</h3>
@@ -73,7 +73,7 @@ export function TaskChecklistSection({
 							className="mt-0.5"
 						/>
 						<span
-							className={`flex-1 text-sm ${item.isDone ? "line-through text-gray-400" : "text-gray-800"}`}
+							className={`flex-1 text-sm ${item.isDone ? "line-through text-gray-600" : "text-gray-800"}`}
 						>
 							{item.title}
 						</span>

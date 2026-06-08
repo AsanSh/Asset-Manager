@@ -56,7 +56,7 @@ const STATUS_CONFIG: Record<
 	inactive: {
 		label: "Неактив.",
 		bg: "bg-gray-50",
-		text: "text-gray-400",
+		text: "text-gray-600",
 		border: "border-gray-200",
 	},
 };
@@ -177,7 +177,7 @@ export default function ChessBoard() {
 				<div className="bg-white rounded-xl border border-gray-200 py-20 text-center">
 					<Grid3X3 className="w-12 h-12 text-gray-200 mx-auto mb-3" />
 					<p className="text-gray-500 font-medium">Нет объектов</p>
-					<p className="text-sm text-gray-400 mt-1">
+					<p className="text-sm text-gray-600 mt-1">
 						Добавьте объекты в реестре
 					</p>
 				</div>
@@ -200,7 +200,7 @@ export default function ChessBoard() {
 								return (
 									<div key={block}>
 										{block !== "—" && (
-											<p className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider">
+											<p className="text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wider">
 												Блок {block}
 											</p>
 										)}
@@ -208,7 +208,7 @@ export default function ChessBoard() {
 											{sortedFloors.map(({ floor, units }) => (
 												<div key={floor} className="flex items-start gap-3">
 													<div className="w-12 text-right pt-1 flex-shrink-0">
-														<span className="text-xs text-gray-400 font-medium">
+														<span className="text-xs text-gray-600 font-medium">
 															{floor === 0 ? "—" : `${floor} эт.`}
 														</span>
 													</div>

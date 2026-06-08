@@ -107,12 +107,6 @@ export default function Settings() {
 	const isAdmin =
 		userRole === "super_admin" || userRole === "company_admin";
 
-	// Debug: log user role for troubleshooting
-	useEffect(() => {
-		console.log("Settings page - full user object:", user);
-		console.log("Settings page - user role:", userRole, "isAdmin:", isAdmin);
-	}, [user, userRole, isAdmin]);
-
 	const [org, setOrg] = useState<Company | null>(null);
 	const [form, setForm] = useState({
 		name: "",
@@ -140,14 +134,6 @@ export default function Settings() {
 	const [showPasswords, setShowPasswords] = useState(false);
 
 	useEffect(() => {
-		// Verify user role by checking API directly
-		apiFetch("/auth/me")
-			.then((data: any) => {
-				console.log("Settings - User from API:", data);
-				console.log("Settings - User role from API:", data.role);
-			})
-			.catch((err) => console.error("Failed to fetch user:", err));
-
 		apiFetch("/companies/my")
 			.then((data: Company) => {
 				setOrg(data);
@@ -388,7 +374,7 @@ export default function Settings() {
 
 			{/* Org tab */}
 			{activeTab === "org" && (
-				<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+				<div className="bg-white rounded-lg border border-gray-100 shadow-sm p-6">
 					{loading ? (
 						<div className="flex items-center justify-center py-12">
 							<Loader2 className="h-6 w-6 animate-spin text-blue-500" />
@@ -435,7 +421,7 @@ export default function Settings() {
 											className="mt-1.5 h-11 rounded-xl border-gray-200 bg-gray-50 focus:bg-white"
 										/>
 									</div>
-									<div className="grid grid-cols-2 gap-4">
+									<div className="grid gap-4 sm:grid-cols-2">
 										<div className="flex flex-col">
 											<Label className="text-sm font-medium text-gray-700 leading-tight mb-1.5">
 												ИНН / ИНО
@@ -503,7 +489,7 @@ export default function Settings() {
 												<SelectItem value="KZT">Тенге (KZT)</SelectItem>
 											</SelectContent>
 										</Select>
-										<p className="text-xs text-gray-400 mt-1">
+										<p className="text-xs text-gray-600 mt-1">
 											Используется для сводного итога по кассам
 										</p>
 									</div>
@@ -560,7 +546,7 @@ export default function Settings() {
 			{activeTab === "profile" && (
 				<div className="space-y-5">
 					{/* Header card */}
-					<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+					<div className="bg-white rounded-lg border border-gray-100 shadow-sm p-6">
 						<div className="flex items-center gap-4">
 							<div className="h-16 w-16 rounded-full bg-blue-100 flex items-center justify-center text-2xl font-bold text-blue-700 flex-shrink-0">
 								{profileForm.firstName?.[0]}
@@ -582,7 +568,7 @@ export default function Settings() {
 					</div>
 
 					{/* Edit profile form */}
-					<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+					<div className="bg-white rounded-lg border border-gray-100 shadow-sm p-6">
 						<h3 className="font-semibold text-gray-900 mb-5 flex items-center gap-2">
 							<User className="w-4 h-4 text-blue-500" />
 							Личные данные
@@ -595,13 +581,13 @@ export default function Settings() {
 								<Input
 									value={(user as any)?.email || ""}
 									disabled
-									className="mt-1.5 h-11 rounded-xl bg-gray-50 border-gray-200 text-gray-400"
+									className="mt-1.5 h-11 rounded-xl bg-gray-50 border-gray-200 text-gray-600"
 								/>
-								<p className="text-xs text-gray-400 mt-1">
+								<p className="text-xs text-gray-600 mt-1">
 									Email изменить нельзя
 								</p>
 							</div>
-							<div className="grid grid-cols-2 gap-4">
+							<div className="grid gap-4 sm:grid-cols-2">
 								<div className="flex flex-col">
 									<Label className="text-sm font-medium text-gray-700 leading-tight mb-1.5">
 										Имя *
@@ -660,7 +646,7 @@ export default function Settings() {
 					</div>
 
 					{/* Change password form */}
-					<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+					<div className="bg-white rounded-lg border border-gray-100 shadow-sm p-6">
 						<h3 className="font-semibold text-gray-900 mb-5 flex items-center gap-2">
 							<KeyRound className="w-4 h-4 text-blue-500" />
 							Изменить пароль
@@ -683,7 +669,7 @@ export default function Settings() {
 									<button
 										type="button"
 										onClick={() => setShowPasswords((v) => !v)}
-										className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+										className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-600"
 									>
 										{showPasswords ? (
 											<EyeOff className="w-4 h-4" />
@@ -764,7 +750,7 @@ export default function Settings() {
 							{[1, 2, 3].map((i) => (
 								<div
 									key={i}
-									className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-4 animate-pulse"
+									className="bg-white rounded-lg border border-gray-100 shadow-sm p-4 flex items-center gap-4 animate-pulse"
 								>
 									<div className="w-10 h-10 bg-gray-200 rounded-xl flex-shrink-0" />
 									<div className="flex-1 space-y-2">
@@ -792,10 +778,10 @@ export default function Settings() {
 						Object.entries(groupedModules).map(([category, mods]) => (
 							<div
 								key={category}
-								className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
+								className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden"
 							>
 								<div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
-									<p className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+									<p className="text-xs font-semibold uppercase tracking-wider text-gray-600">
 										{CATEGORY_LABELS[category] || category}
 									</p>
 								</div>
@@ -818,7 +804,7 @@ export default function Settings() {
 													<IconComp
 														className={cn(
 															"w-5 h-5",
-															m.isEnabled ? "text-blue-600" : "text-gray-400",
+															m.isEnabled ? "text-blue-600" : "text-gray-600",
 														)}
 													/>
 												</div>
@@ -843,7 +829,7 @@ export default function Settings() {
 															<CheckCircle2 className="w-3.5 h-3.5" /> Включён
 														</span>
 													) : (
-														<span className="flex items-center gap-1 text-xs text-gray-400">
+														<span className="flex items-center gap-1 text-xs text-gray-600">
 															<XCircle className="w-3.5 h-3.5" /> Выключен
 														</span>
 													)}

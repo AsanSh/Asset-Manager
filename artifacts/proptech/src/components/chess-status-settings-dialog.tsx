@@ -153,7 +153,7 @@ export function ChessStatusSettingsDialog({
 				</p>
 
 				{isLoading ? (
-					<p className="text-sm text-gray-400 py-4">Загрузка...</p>
+					<p className="text-sm text-gray-600 py-4">Загрузка...</p>
 				) : (
 					<ul className="space-y-2 border rounded-lg p-2 max-h-48 overflow-y-auto">
 						{statuses.map((s) => {
@@ -224,7 +224,7 @@ export function ChessStatusSettingsDialog({
 							placeholder="Например: На согласовании"
 						/>
 					</div>
-					<div className="grid grid-cols-2 gap-3">
+					<div className="grid gap-3 sm:grid-cols-2">
 						<div className="flex flex-col">
 							<Label className="leading-tight mb-1.5">Цвет</Label>
 							<Select

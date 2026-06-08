@@ -204,7 +204,7 @@ function ExpenseDialog({ open, expense, onClose }: ExpenseDialogProps) {
 							</SelectContent>
 						</Select>
 					</div>
-					<div className="grid grid-cols-3 gap-3">
+					<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
 						<div className="col-span-2 flex flex-col">
 							<Label className="leading-tight mb-1.5">Сумма *</Label>
 							<Input
@@ -340,7 +340,7 @@ export default function Expenses() {
 				type="button"
 				title="Редактировать"
 				onClick={() => openEdit(expense)}
-				className="inline-flex items-center justify-center w-7 h-7 rounded-md text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+				className="inline-flex items-center justify-center w-7 h-7 rounded-md text-gray-600 hover:text-blue-600 hover:bg-blue-50 transition-colors"
 			>
 				<Pencil className="w-3.5 h-3.5" />
 			</button>
@@ -348,7 +348,7 @@ export default function Expenses() {
 				type="button"
 				title="Удалить"
 				onClick={() => handleDelete(expense)}
-				className="inline-flex items-center justify-center w-7 h-7 rounded-md text-gray-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+				className="inline-flex items-center justify-center w-7 h-7 rounded-md text-gray-600 hover:text-rose-600 hover:bg-rose-50 transition-colors"
 			>
 				<Trash2 className="w-3.5 h-3.5" />
 			</button>

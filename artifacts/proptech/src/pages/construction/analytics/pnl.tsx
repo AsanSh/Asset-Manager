@@ -2,13 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
+	DateRangePicker,
+	defaultPeriod,
+	type PeriodValue,
+} from "@/components/am/DateRangePicker";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 const fmt2 = (v: number) =>
 	new Intl.NumberFormat("ru-KG", {
@@ -59,6 +58,32 @@ interface Row {
 	parentId?: string;
 }
 
+function yearFromPeriod(period: PeriodValue) {
+	return String(new Date(`${period.from}T00:00:00`).getFullYear());
+}
+
+function monthIndexesInPeriod(period: PeriodValue, year: string) {
+	const from = new Date(`${period.from}T00:00:00`);
+	const to = new Date(`${period.to}T00:00:00`);
+	return MONTH_SHORT.map((_, month) => {
+		const monthStart = new Date(Number(year), month, 1);
+		const monthEnd = new Date(Number(year), month + 1, 0);
+		return monthEnd >= from && monthStart <= to ? month : -1;
+	}).filter((month) => month >= 0);
+}
+
+function selectedTotal(row: Row, months: number[]) {
+	return months.reduce((sum, month) => sum + (row.values[month] || 0), 0);
+}
+
+function selectedDisplayTotal(row: Row, months: number[]) {
+	if (row.type !== "percent") return selectedTotal(row, months);
+	const values = months.map((month) => row.values[month] || 0);
+	const meaningful = values.filter((value) => value !== 0);
+	if (meaningful.length === 0) return 0;
+	return meaningful.reduce((sum, value) => sum + value, 0) / meaningful.length;
+}
+
 const CONST_EXPENSE_CATS: Record<string, string> = {
 	materials: "Материалы",
 	labor: "Оплата труда",
@@ -73,8 +98,8 @@ const CONST_EXPENSE_CATS: Record<string, string> = {
 };
 
 export default function ConstructionPnL() {
-	const curYear = new Date().getFullYear();
-	const [year, setYear] = useState(String(curYear));
+	const [period, setPeriod] = useState<PeriodValue>(() => defaultPeriod("year"));
+	const year = yearFromPeriod(period);
 	const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 	const toggle = (id: string) =>
 		setCollapsed((prev) => {
@@ -439,6 +464,23 @@ export default function ConstructionPnL() {
 	);
 
 	const curMonth = new Date().getMonth();
+	const visibleMonths = useMemo(() => {
+		const months = monthIndexesInPeriod(period, year);
+		return months.length ? months : Array.from({ length: 12 }, (_, i) => i);
+	}, [period, year]);
+	const periodTotals = useMemo(() => {
+		const byId = (id: string) => {
+			const row = rows.find((r) => r.id === id);
+			return row ? selectedDisplayTotal(row, visibleMonths) : 0;
+		};
+		return {
+			revenue: byId("revenue"),
+			costs: byId("direct_costs"),
+			gross: byId("gross_profit"),
+			margin: byId("gp_pct"),
+			net: byId("net_profit"),
+		};
+	}, [rows, visibleMonths]);
 	const labelPad = [0, 12, 24, 36];
 	const stickyBg: Record<string, string> = {
 		section: "bg-gray-100",
@@ -465,55 +507,67 @@ export default function ConstructionPnL() {
 	}
 
 	return (
-		<div className="h-full flex flex-col">
-			<div className="flex items-center justify-between mb-4 flex-shrink-0">
+		<div className="h-full flex flex-col rounded-[28px] bg-gradient-to-br from-slate-50 via-white to-emerald-50/40 p-4">
+			<div className="mb-4 flex flex-shrink-0 flex-col gap-4 rounded-[24px] border border-white bg-white/80 p-4 shadow-sm backdrop-blur xl:flex-row xl:items-center xl:justify-between">
 				<div>
-					<h1 className="text-2xl font-bold text-gray-900">ОПУ</h1>
-					<p className="text-gray-500 text-sm mt-0.5">
+					<p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+						Финансовая матрица
+					</p>
+					<h1 className="mt-1 text-3xl font-semibold text-slate-950">ОПУ</h1>
+					<p className="mt-1 text-sm text-slate-500">
 						Отчёт о прибылях и убытках
 					</p>
 				</div>
-				<Select value={year} onValueChange={setYear}>
-					<SelectTrigger className="w-28 h-8 text-sm">
-						<SelectValue />
-					</SelectTrigger>
-					<SelectContent>
-						{[2024, 2025, 2026, 2027].map((y) => (
-							<SelectItem key={y} value={String(y)}>
-								{y}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
+				<div className="flex flex-wrap items-center gap-2">
+					<DateRangePicker value={period} onChange={setPeriod} />
+				</div>
 			</div>
-			<div className="flex-1 overflow-auto border border-gray-200 rounded-lg bg-white">
+			<div className="mb-4 grid gap-3 md:grid-cols-5">
+				{[
+					{ label: "Выручка", value: fmt2(periodTotals.revenue), tone: "text-cyan-700", bg: "bg-cyan-50 border-cyan-100" },
+					{ label: "Расходы", value: fmt2(Math.abs(periodTotals.costs)), tone: "text-rose-700", bg: "bg-rose-50 border-rose-100" },
+					{ label: "Валовая прибыль", value: fmt2(periodTotals.gross), tone: periodTotals.gross < 0 ? "text-rose-700" : "text-emerald-700", bg: "bg-white border-slate-200" },
+					{ label: "Маржа", value: fmtPct(periodTotals.margin), tone: periodTotals.margin < 0 ? "text-rose-700" : "text-blue-700", bg: "bg-white border-slate-200" },
+					{ label: "Чистая прибыль", value: fmt2(periodTotals.net), tone: periodTotals.net < 0 ? "text-rose-700" : "text-white", bg: "bg-slate-950 border-slate-950" },
+				].map((card) => (
+					<div key={card.label} className={`am-kpi-card ${card.bg}`}>
+						<div className={cn("text-xs font-semibold uppercase tracking-wide", card.bg.includes("slate-950") ? "text-white/55" : "text-slate-400")}>
+							{card.label}
+						</div>
+						<div className={cn("mt-2 font-mono text-xl font-black", card.tone)}>
+							{card.value}
+						</div>
+					</div>
+				))}
+			</div>
+			<div className="am-card flex-1 overflow-auto rounded-[28px] border border-white/80 bg-white/78 shadow-2xl shadow-slate-950/8 backdrop-blur-xl">
 				<table
 					className="text-sm border-collapse"
-					style={{ minWidth: "1400px" }}
+					style={{ minWidth: `${360 + visibleMonths.length * 112 + 128}px` }}
 				>
 					<thead>
-						<tr className="bg-gray-200 text-gray-700 text-xs font-semibold sticky top-0 z-20">
+						<tr className="sticky top-0 z-20 bg-slate-950 text-xs font-semibold text-white/75">
 							<th
-								className="text-left py-2 px-3 sticky left-0 bg-gray-200 z-30 border-r border-gray-300"
+								className="sticky left-0 z-30 border-r border-white/10 bg-slate-950 px-4 py-3 text-left text-white/85"
 								style={{ minWidth: "240px", width: "240px" }}
 							>
 								Статья
 							</th>
+							{visibleMonths.map((i) => (
+								<th
+									key={i}
+									className={`border-r border-white/10 px-3 py-3 text-right ${i === curMonth && String(new Date().getFullYear()) === year ? "bg-cyan-500/18 text-cyan-100" : ""}`}
+									style={{ minWidth: "112px" }}
+								>
+									{MONTH_SHORT[i].slice(0, 3)} {year.slice(2)}
+								</th>
+							))}
 							<th
-								className="text-right py-2 px-3 border-r border-gray-300 bg-gray-300 font-bold"
-								style={{ minWidth: "90px" }}
+								className="sticky right-0 z-30 border-l border-slate-300 bg-slate-950 px-4 py-3 text-right font-bold text-white shadow-[-12px_0_24px_-20px_rgba(15,23,42,0.9)]"
+								style={{ minWidth: "128px" }}
 							>
 								ИТОГО
 							</th>
-							{MONTH_SHORT.map((m, i) => (
-								<th
-									key={i}
-									className={`text-right py-2 px-3 border-r border-gray-200 ${i === curMonth && String(new Date().getFullYear()) === year ? "bg-amber-100 text-amber-800" : ""}`}
-									style={{ minWidth: "90px" }}
-								>
-									{m.slice(0, 3)} {year.slice(2)}
-								</th>
-							))}
 						</tr>
 					</thead>
 					<tbody>
@@ -523,19 +577,19 @@ export default function ConstructionPnL() {
 							return (
 								<tr
 									key={row.id}
-									className={`${rowClass(row)} hover:brightness-95`}
+									className={`${rowClass(row)} hover:brightness-[0.98]`}
 								>
 									<td
-										className={`py-1.5 pr-3 sticky left-0 z-10 border-r border-gray-200 ${stickyBg[row.type] || "bg-white"}`}
+										className={`sticky left-0 z-10 border-r border-slate-200 py-2.5 pr-3 ${stickyBg[row.type] || "bg-white"}`}
 										style={{
-											paddingLeft: `${(labelPad[Math.min(row.indent, 3)] || 0) + 8}px`,
+											paddingLeft: `${(labelPad[Math.min(row.indent, 3)] || 0) + 14}px`,
 										}}
 									>
 										<div className="flex items-center gap-1">
 											{hasChildren && row.collapsible ? (
 												<button
 													onClick={() => toggle(row.id)}
-													className="w-4 h-4 flex items-center justify-center flex-shrink-0 text-gray-400 hover:text-gray-700"
+													className="w-4 h-4 flex items-center justify-center flex-shrink-0 text-gray-600 hover:text-gray-700"
 												>
 													{isCollapsed ? (
 														<ChevronRight className="w-3 h-3" />
@@ -553,21 +607,24 @@ export default function ConstructionPnL() {
 											</span>
 										</div>
 									</td>
-									<td
-										className={`py-1.5 px-3 text-right border-r border-gray-300 bg-gray-50 font-semibold text-xs ${row.total < 0 ? "text-rose-700" : row.type === "percent" ? "text-blue-700" : ""}`}
-									>
-										{row.type === "percent"
-											? fmtPct(row.total)
-											: fmt2(row.total)}
-									</td>
-									{row.values.map((v, i) => (
+									{visibleMonths.map((i) => {
+										const v = row.values[i] || 0;
+										return (
 										<td
 											key={i}
-											className={`py-1.5 px-3 text-right border-r border-gray-100 text-xs ${i === curMonth && String(new Date().getFullYear()) === year ? "bg-amber-50" : ""} ${v < 0 ? "text-rose-700" : row.type === "percent" ? "text-blue-700" : ""}`}
+											className={`border-r border-slate-100 px-3 py-2.5 text-right text-xs ${i === curMonth && String(new Date().getFullYear()) === year ? "bg-lime-50" : ""} ${v < 0 ? "text-rose-700" : row.type === "percent" ? "text-blue-700" : ""}`}
 										>
 											{row.type === "percent" ? fmtPct(v) : fmt2(v)}
 										</td>
-									))}
+										);
+									})}
+									<td
+										className={`sticky right-0 z-10 border-l border-slate-200 bg-white px-4 py-2.5 text-right text-xs font-bold shadow-[-12px_0_24px_-22px_rgba(15,23,42,0.8)] ${selectedDisplayTotal(row, visibleMonths) < 0 ? "text-rose-700" : row.type === "percent" ? "text-blue-700" : "text-slate-950"}`}
+									>
+										{row.type === "percent"
+											? fmtPct(selectedDisplayTotal(row, visibleMonths))
+											: fmt2(selectedDisplayTotal(row, visibleMonths))}
+									</td>
 								</tr>
 							);
 						})}

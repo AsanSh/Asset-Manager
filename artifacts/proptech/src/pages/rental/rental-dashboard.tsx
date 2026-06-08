@@ -1,11 +1,20 @@
 import {
 	AlertTriangle,
+	Banknote,
+	BarChart3,
 	Building2,
 	CheckCircle2,
+	ClipboardCheck,
 	Clock,
+	FileSignature,
 	FileText,
+	Home,
+	KeyRound,
 	Receipt,
+	ReceiptText,
+	ShieldCheck,
 	TrendingUp,
+	UserRound,
 	Users,
 } from "lucide-react";
 import { Link } from "wouter";
@@ -16,6 +25,7 @@ import {
 	useListProperties,
 	useListTenants,
 } from "@/api-client";
+import { ModuleCommandCenter } from "@/components/dashboard/module-command-center";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function formatCurrency(amount: number | string) {
@@ -67,7 +77,7 @@ function KpiCard({
 			) : (
 				<>
 					<p className="text-2xl font-bold text-gray-900">{value}</p>
-					{sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
+					{sub && <p className="text-xs text-gray-600 mt-1">{sub}</p>}
 				</>
 			)}
 		</div>
@@ -119,18 +129,147 @@ export default function RentalDashboard() {
 	const leaseMap = Object.fromEntries(
 		leasesArray.map((l) => [l.id, l.contractNumber]),
 	);
+	const rentalMetrics = [
+		{
+			label: "Договоры",
+			value: activeLeases.length,
+			description: `из ${leasesArray.length} в портфеле`,
+			href: "/rental/contracts",
+			icon: FileText,
+			tone: "blue" as const,
+		},
+		{
+			label: "Арендаторы",
+			value: tenantsArray.filter((t) => t.status === "active").length,
+			description: "активные карточки",
+			href: "/rental/tenants",
+			icon: Users,
+			tone: "cyan" as const,
+		},
+		{
+			label: "Получено",
+			value: formatCurrency(totalPaid),
+			description: "платежи аренды",
+			href: "/rental/payments",
+			icon: TrendingUp,
+			tone: "emerald" as const,
+		},
+		{
+			label: "Задолженность",
+			value: formatCurrency(totalBalance),
+			description: totalBalance > 0 ? "к погашению" : "нет долга",
+			href: "/rental/analytics/debt",
+			icon: AlertTriangle,
+			tone: totalBalance > 0 ? ("amber" as const) : ("emerald" as const),
+		},
+	];
+	const rentalSteps = [
+		{
+			title: "Объект",
+			description: "Помещение, ставка, статус, владелец и готовность к аренде.",
+			href: "/rental/properties",
+			icon: Home,
+			meta: "портфель",
+			tone: "blue" as const,
+		},
+		{
+			title: "Арендатор",
+			description: "Контакты, документы, история платежей и ответственность.",
+			href: "/rental/tenants",
+			icon: UserRound,
+			meta: "карточка",
+			tone: "cyan" as const,
+		},
+		{
+			title: "Договор",
+			description: "Срок, ставка, депозит и правила автоматических начислений.",
+			href: "/rental/contracts",
+			icon: FileSignature,
+			meta: "условия",
+			tone: "violet" as const,
+		},
+		{
+			title: "Начисление",
+			description: "Система создает ежемесячные обязательства по договору.",
+			href: "/rental/accruals",
+			icon: ReceiptText,
+			meta: "график",
+			tone: "amber" as const,
+		},
+		{
+			title: "Платеж",
+			description: "Поступление закрывает задолженность и попадает в ОДДС.",
+			href: "/rental/payments",
+			icon: Banknote,
+			meta: "касса",
+			tone: "emerald" as const,
+		},
+		{
+			title: "Акт владельцу",
+			description: "Сверка, распределение и отчетность для собственника.",
+			href: "/rental/statements",
+			icon: ClipboardCheck,
+			meta: "закрытие",
+			tone: "cyan" as const,
+		},
+	];
+	const rentalLanes = [
+		{
+			title: "Менеджер аренды",
+			description: "объекты, арендаторы, договоры",
+			value: `${activeLeases.length}`,
+			progress: Math.min(100, activeLeases.length * 10),
+		},
+		{
+			title: "Финансист",
+			description: "начисления, платежи, долги",
+			value: `${pendingAccruals.length}`,
+			progress: Math.min(100, pendingAccruals.length * 18),
+		},
+		{
+			title: "Собственник",
+			description: "акты, распределения, отчеты",
+			value: `${rentedProps}`,
+			progress: Math.min(100, rentedProps * 12),
+		},
+	];
+	const rentalQuickLinks = [
+		{
+			title: "Депозиты",
+			description: "обеспечение по договорам",
+			href: "/rental/deposits",
+			icon: ShieldCheck,
+		},
+		{
+			title: "ОДДС аренды",
+			description: "движение денег по месяцам",
+			href: "/rental/analytics/odds",
+			icon: BarChart3,
+		},
+		{
+			title: "Просрочки",
+			description: "контроль сроков оплаты",
+			href: "/rental/planning/overdue",
+			icon: KeyRound,
+		},
+	];
 
 	return (
 		<div className="space-y-6">
-			<div>
-				<h1 className="text-2xl font-bold text-gray-900">Дашборд аренды</h1>
-				<p className="text-sm text-gray-500 mt-1">
-					Сводная информация по арендному портфелю
-				</p>
-			</div>
+			<ModuleCommandCenter
+				eyebrow="Контур аренды"
+				title="От объекта и арендатора до начислений, платежей и актов"
+				description="Аренда должна работать как отдельный производственный цикл: объект, договор, автоматические начисления, платежи, долги, акты владельцам и рассылки."
+				primaryHref="/rental/properties"
+				primaryLabel="Открыть объекты"
+				metrics={rentalMetrics}
+				steps={rentalSteps}
+				lanes={rentalLanes}
+				quickLinks={rentalQuickLinks}
+			/>
 
 			{/* KPI Row 1 */}
-			<div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 				<KpiCard
 					label="Активных договоров"
 					value={activeLeases.length}
@@ -171,7 +310,7 @@ export default function RentalDashboard() {
 			</div>
 
 			{/* KPI Row 2 - Financial */}
-			<div className="grid grid-cols-3 gap-4">
+			<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
 				<KpiCard
 					label="Начислено всего"
 					value={formatCurrency(totalCharged)}
@@ -201,9 +340,9 @@ export default function RentalDashboard() {
 				/>
 			</div>
 
-			<div className="grid grid-cols-2 gap-4">
+			<div className="grid gap-4 sm:grid-cols-2">
 				{/* Pending Accruals */}
-				<div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+				<div className="bg-white rounded-lg border border-gray-100 shadow-sm">
 					<div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
 						<h2 className="text-sm font-semibold text-gray-900">
 							Ожидают подтверждения
@@ -219,7 +358,7 @@ export default function RentalDashboard() {
 							))}
 						</div>
 					) : pendingAccruals.length === 0 ? (
-						<div className="py-10 text-center text-gray-400 text-sm">
+						<div className="py-10 text-center text-gray-600 text-sm">
 							<CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-emerald-600" />
 							Все начисления подтверждены
 						</div>
@@ -234,7 +373,7 @@ export default function RentalDashboard() {
 										<p className="text-sm text-gray-800">
 											Договор #{a.leaseContractId} — {a.period}
 										</p>
-										<p className="text-xs text-gray-400">
+										<p className="text-xs text-gray-600">
 											До {new Date(a.dueDate).toLocaleDateString("ru-KG")}
 										</p>
 									</div>
@@ -258,7 +397,7 @@ export default function RentalDashboard() {
 				</div>
 
 				{/* Recent Payments */}
-				<div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+				<div className="bg-white rounded-lg border border-gray-100 shadow-sm">
 					<div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
 						<h2 className="text-sm font-semibold text-gray-900">
 							Последние платежи
@@ -277,7 +416,7 @@ export default function RentalDashboard() {
 							))}
 						</div>
 					) : recentPayments.length === 0 ? (
-						<div className="py-10 text-center text-gray-400 text-sm">
+						<div className="py-10 text-center text-gray-600 text-sm">
 							<Clock className="w-8 h-8 mx-auto mb-2 text-gray-300" />
 							Платежей пока нет
 						</div>
@@ -293,7 +432,7 @@ export default function RentalDashboard() {
 											{leaseMap[p.leaseContractId] ||
 												`Договор #${p.leaseContractId}`}
 										</p>
-										<p className="text-xs text-gray-400">
+										<p className="text-xs text-gray-600">
 											{new Date(p.paymentDate).toLocaleDateString("ru-KG")}
 										</p>
 									</div>
@@ -308,7 +447,7 @@ export default function RentalDashboard() {
 			</div>
 
 			{/* Active Leases Table */}
-			<div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+			<div className="bg-white rounded-lg border border-gray-100 shadow-sm">
 				<div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
 					<h2 className="text-sm font-semibold text-gray-900">
 						Активные договоры
@@ -327,7 +466,7 @@ export default function RentalDashboard() {
 						))}
 					</div>
 				) : activeLeases.length === 0 ? (
-					<div className="py-10 text-center text-gray-400 text-sm">
+					<div className="py-10 text-center text-gray-600 text-sm">
 						Нет активных договоров аренды
 					</div>
 				) : (
@@ -341,7 +480,7 @@ export default function RentalDashboard() {
 									<p className="text-sm font-medium text-gray-800">
 										{l.contractNumber}
 									</p>
-									<p className="text-xs text-gray-400">
+									<p className="text-xs text-gray-600">
 										{l.tenantName || `Арендатор #${l.tenantId}`} ·{" "}
 										{l.propertyUnitNumber || `Объект #${l.propertyId}`}
 									</p>
@@ -350,7 +489,7 @@ export default function RentalDashboard() {
 									<p className="text-sm font-semibold text-gray-900">
 										{formatCurrency(parseFloat(String(l.rentAmount)))}
 									</p>
-									<p className="text-xs text-gray-400">
+									<p className="text-xs text-gray-600">
 										{l.endDate
 											? `до ${new Date(l.endDate).toLocaleDateString("ru-KG")}`
 											: "бессрочный"}

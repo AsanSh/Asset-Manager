@@ -110,9 +110,9 @@ export function TaskPhotosSection({ taskId }: { taskId: number }) {
 			<div className="flex items-center justify-between">
 				<h3 className="text-sm font-semibold text-gray-900">Фотоотчёт</h3>
 				{isLoading ? (
-					<Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+					<Loader2 className="w-4 h-4 animate-spin text-gray-600" />
 				) : (
-					<span className="text-xs text-gray-400">
+					<span className="text-xs text-gray-600">
 						{photos.length} фото
 					</span>
 				)}
@@ -124,7 +124,7 @@ export function TaskPhotosSection({ taskId }: { taskId: number }) {
 						<div className="flex items-center justify-between">
 							<div className="flex items-center gap-2">
 								<Badge variant="outline">{PHOTO_TYPE_LABELS[t]}</Badge>
-								<span className="text-xs text-gray-400">
+								<span className="text-xs text-gray-600">
 									{grouped[t].length}
 								</span>
 							</div>
@@ -157,7 +157,7 @@ export function TaskPhotosSection({ taskId }: { taskId: number }) {
 						</div>
 
 						{grouped[t].length === 0 ? (
-							<p className="text-xs text-gray-400">Пока нет фото</p>
+							<p className="text-xs text-gray-600">Пока нет фото</p>
 						) : (
 							<div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
 								{grouped[t].slice(0, 12).map((p) => (
@@ -178,7 +178,7 @@ export function TaskPhotosSection({ taskId }: { taskId: number }) {
 				))}
 			</div>
 
-			<p className="text-xs text-gray-400">
+			<p className="text-xs text-gray-600">
 				Загружаемые фото используются для контроля прогресса работ (Фаза 1).
 			</p>
 		</section>

@@ -119,7 +119,9 @@ export default function NotificationsPanel() {
 		<div ref={panelRef} className="relative">
 			<button
 				onClick={() => setOpen((v) => !v)}
-				className="relative w-9 h-9 flex items-center justify-center hover:bg-gray-100 rounded-lg transition-colors"
+				className="relative min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-gray-100 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-1"
+				aria-label={`Уведомления${unread.length > 0 ? ` (${unread.length} непрочитанных)` : ''}`}
+				aria-expanded={open}
 			>
 				<Bell className="w-[18px] h-[18px] text-gray-500" />
 				{unread.length > 0 && (
@@ -147,16 +149,18 @@ export default function NotificationsPanel() {
 							{unread.length > 0 && (
 								<button
 									onClick={markAllRead}
-									className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 px-2 py-1 hover:bg-blue-50 rounded-lg"
+									className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 px-2 py-1 hover:bg-blue-50 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-1"
+									aria-label="Отметить все как прочитанные"
 								>
 									<CheckCheck className="w-3.5 h-3.5" /> Прочитать все
 								</button>
 							)}
 							<button
 								onClick={() => setOpen(false)}
-								className="p-1 hover:bg-gray-100 rounded-lg"
+								className="min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-1"
+								aria-label="Закрыть уведомления"
 							>
-								<X className="w-4 h-4 text-gray-400" />
+								<X className="w-4 h-4 text-gray-600" />
 							</button>
 						</div>
 					</div>
@@ -170,7 +174,9 @@ export default function NotificationsPanel() {
 							<button
 								key={key}
 								onClick={() => setTab(key as any)}
-								className={`flex-1 py-2 text-xs font-medium transition-colors ${tab === key ? "border-b-2 border-blue-600 text-blue-700" : "text-gray-500 hover:text-gray-700"}`}
+								className={`flex-1 py-2 min-h-[44px] text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-inset ${tab === key ? "border-b-2 border-blue-600 text-blue-700" : "text-gray-500 hover:text-gray-700"}`}
+								role="tab"
+								aria-selected={tab === key}
 							>
 								{label}
 								{key === "unread" && unread.length > 0 && (
@@ -185,7 +191,7 @@ export default function NotificationsPanel() {
 					{/* List */}
 					<div className="overflow-y-auto flex-1">
 						{displayed.length === 0 ? (
-							<div className="flex flex-col items-center justify-center py-12 text-gray-400">
+							<div className="flex flex-col items-center justify-center py-12 text-gray-600">
 								<Bell className="w-8 h-8 mb-2 opacity-30" />
 								<p className="text-sm">
 									{tab === "unread" ? "Нет непрочитанных" : "Нет уведомлений"}
@@ -219,7 +225,7 @@ export default function NotificationsPanel() {
 													}}
 													className="p-0.5 hover:bg-gray-200 rounded flex-shrink-0 opacity-0 group-hover:opacity-100 ml-1"
 												>
-													<X className="w-3 h-3 text-gray-400" />
+													<X className="w-3 h-3 text-gray-600" />
 												</button>
 											</div>
 											{n.body && (
@@ -228,7 +234,7 @@ export default function NotificationsPanel() {
 												</p>
 											)}
 											<div className="flex items-center gap-2 mt-1">
-												<span className="text-[10px] text-gray-400">
+												<span className="text-[10px] text-gray-600">
 													{timeAgo(n.createdAt)}
 												</span>
 												{!n.isRead && (

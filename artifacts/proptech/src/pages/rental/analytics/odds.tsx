@@ -15,12 +15,10 @@ import { ChevronDown, ChevronRight, Eye, EyeOff } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
+	DateRangePicker,
+	defaultPeriod,
+	type PeriodValue,
+} from "@/components/am/DateRangePicker";
 import { api } from "@/lib/api";
 
 const fmt2 = (v: number) =>
@@ -49,6 +47,24 @@ function getMonthIdx(dateStr: string, year: string) {
 	return parseInt(dateStr.slice(5, 7), 10) - 1;
 }
 
+function yearFromPeriod(period: PeriodValue) {
+	return String(new Date(`${period.from}T00:00:00`).getFullYear());
+}
+
+function monthIndexesInPeriod(period: PeriodValue, year: string) {
+	const from = new Date(`${period.from}T00:00:00`);
+	const to = new Date(`${period.to}T00:00:00`);
+	return MONTH_SHORT.map((_, month) => {
+		const monthStart = new Date(Number(year), month, 1);
+		const monthEnd = new Date(Number(year), month + 1, 0);
+		return monthEnd >= from && monthStart <= to ? month : -1;
+	}).filter((month) => month >= 0);
+}
+
+function selectedTotal(row: { values: number[] }, months: number[]) {
+	return months.reduce((sum, month) => sum + (row.values[month] || 0), 0);
+}
+
 type RowType = "section" | "group" | "item" | "subitem" | "total" | "balance";
 
 interface ODDSRow {
@@ -63,8 +79,8 @@ interface ODDSRow {
 }
 
 export default function RentalODDS() {
-	const curYear = new Date().getFullYear();
-	const [year, setYear] = useState(String(curYear));
+	const [period, setPeriod] = useState<PeriodValue>(() => defaultPeriod("year"));
+	const year = yearFromPeriod(period);
 	const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 	const [hideZero, setHideZero] = useState(true);
 
@@ -488,6 +504,11 @@ export default function RentalODDS() {
 		});
 	}, [rows, collapsed, hideZero]);
 
+	const visibleMonths = useMemo(() => {
+		const months = monthIndexesInPeriod(period, year);
+		return months.length ? months : Array.from({ length: 12 }, (_, i) => i);
+	}, [period, year]);
+
 	const curMonth = new Date().getMonth();
 
 	function rowClass(row: ODDSRow) {
@@ -518,71 +539,67 @@ export default function RentalODDS() {
 	};
 
 	return (
-		<div className="h-full flex flex-col">
-			<div className="flex items-center justify-between mb-4 flex-shrink-0">
-				<div>
-					<h1 className="text-2xl font-bold text-gray-900">ОДДС</h1>
-					<p className="text-gray-500 text-sm mt-0.5">
-						Отчёт о движении денежных средств
-					</p>
-				</div>
-				<div className="flex items-center gap-2">
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={() => setHideZero((h) => !h)}
-						className="gap-1.5 h-8 text-xs"
-					>
-						{hideZero ? (
-							<Eye className="w-3.5 h-3.5" />
-						) : (
-							<EyeOff className="w-3.5 h-3.5" />
-						)}
-						{hideZero ? "Показать нули" : "Скрыть нули"}
-					</Button>
-					<Select value={year} onValueChange={setYear}>
-						<SelectTrigger className="w-28 h-8 text-sm">
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							{[2024, 2025, 2026, 2027].map((y) => (
-								<SelectItem key={y} value={String(y)}>
-									{y}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
+		<div className="min-h-full rounded-[28px] bg-gradient-to-br from-slate-50 via-white to-cyan-50/40 p-4">
+			<div className="mb-4 rounded-[24px] border border-slate-200 bg-white/90 p-5 shadow-sm backdrop-blur">
+				<div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+					<div>
+						<p className="text-xs font-bold uppercase tracking-[0.12em] text-cyan-700">
+							Финансовая матрица
+						</p>
+						<h1 className="mt-1 text-3xl font-black tracking-tight text-slate-950">
+							ОДДС
+						</h1>
+						<p className="mt-1 text-sm text-slate-500">
+							Отчёт о движении денежных средств
+						</p>
+					</div>
+					<div className="flex flex-wrap items-center gap-2">
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => setHideZero((h) => !h)}
+							className="h-10 gap-2 rounded-xl border-slate-200 bg-white text-sm"
+						>
+							{hideZero ? (
+								<Eye className="h-4 w-4" />
+							) : (
+								<EyeOff className="h-4 w-4" />
+							)}
+							{hideZero ? "Показать нули" : "Скрыть нули"}
+						</Button>
+						<DateRangePicker value={period} onChange={setPeriod} />
+					</div>
 				</div>
 			</div>
 
-			<div className="flex-1 overflow-auto border border-gray-200 rounded-lg bg-white">
+			<div className="overflow-auto rounded-[24px] border border-slate-200 bg-white shadow-sm">
 				<table
-					className="text-sm border-collapse"
-					style={{ minWidth: "1400px" }}
+					className="border-collapse text-sm"
+					style={{ minWidth: `${360 + visibleMonths.length * 112 + 128}px` }}
 				>
 					<thead>
-						<tr className="bg-gray-200 text-gray-700 text-xs font-semibold sticky top-0 z-20">
+						<tr className="sticky top-0 z-20 bg-slate-100 text-xs font-bold uppercase tracking-[0.04em] text-slate-600">
 							<th
-								className="text-left py-2 px-3 sticky left-0 bg-gray-200 z-30 border-r border-gray-300"
+								className="sticky left-0 z-30 border-r border-slate-200 bg-slate-100 px-4 py-3 text-left"
 								style={{ minWidth: "260px", width: "260px" }}
 							>
 								Статья
 							</th>
+							{visibleMonths.map((i) => (
+								<th
+									key={i}
+									className={`border-r border-slate-200 px-4 py-3 text-right ${i === curMonth && String(new Date().getFullYear()) === year ? "bg-cyan-50 text-cyan-800" : ""}`}
+									style={{ minWidth: "112px" }}
+								>
+									{MONTH_SHORT[i].slice(0, 3)} {year.slice(2)}
+								</th>
+							))}
 							<th
-								className="text-right py-2 px-3 border-r border-gray-300 bg-gray-300 font-bold"
-								style={{ minWidth: "90px" }}
+								className="sticky right-0 z-30 border-l border-slate-300 bg-slate-950 px-4 py-3 text-right font-bold text-white shadow-[-12px_0_24px_-20px_rgba(15,23,42,0.9)]"
+								style={{ minWidth: "128px" }}
 							>
 								ИТОГО
 							</th>
-							{MONTH_SHORT.map((m, i) => (
-								<th
-									key={i}
-									className={`text-right py-2 px-3 border-r border-gray-200 ${i === curMonth && String(new Date().getFullYear()) === year ? "bg-amber-100 text-amber-800" : ""}`}
-									style={{ minWidth: "90px" }}
-								>
-									{m.slice(0, 3)} {year.slice(2)}
-								</th>
-							))}
 						</tr>
 					</thead>
 					<tbody>
@@ -604,7 +621,7 @@ export default function RentalODDS() {
 											{hasChildren && row.collapsible ? (
 												<button
 													onClick={() => toggle(row.id)}
-													className="w-4 h-4 flex items-center justify-center flex-shrink-0 text-gray-400 hover:text-gray-700"
+													className="w-4 h-4 flex items-center justify-center flex-shrink-0 text-gray-600 hover:text-gray-700"
 												>
 													{isCollapsed ? (
 														<ChevronRight className="w-3 h-3" />
@@ -618,12 +635,9 @@ export default function RentalODDS() {
 											<span className="text-xs leading-tight">{row.label}</span>
 										</div>
 									</td>
-									<td
-										className={`py-1.5 px-3 text-right border-r border-gray-300 bg-gray-50 font-semibold text-xs ${row.total < 0 ? "text-rose-700" : ""}`}
-									>
-										{fmt2(row.total)}
-									</td>
-									{row.values.map((v, i) => (
+									{visibleMonths.map((i) => {
+										const v = row.values[i] || 0;
+										return (
 										<td
 											key={i}
 											className={`py-1.5 px-3 text-right border-r border-gray-100 text-xs ${
@@ -635,7 +649,13 @@ export default function RentalODDS() {
 										>
 											{fmt2(v)}
 										</td>
-									))}
+										);
+									})}
+									<td
+										className={`sticky right-0 z-10 border-l border-slate-200 bg-white px-4 py-1.5 text-right text-xs font-bold shadow-[-12px_0_24px_-22px_rgba(15,23,42,0.9)] ${selectedTotal(row, visibleMonths) < 0 ? "text-rose-700" : "text-slate-950"}`}
+									>
+										{fmt2(selectedTotal(row, visibleMonths))}
+									</td>
 								</tr>
 							);
 						})}

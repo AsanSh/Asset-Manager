@@ -218,7 +218,7 @@ export default function SnipCheck() {
 			{result && (
 				<div className="space-y-4">
 					{counts && (
-						<div className="grid grid-cols-3 gap-4">
+						<div className="grid gap-4 sm:grid-cols-3">
 							<Card className="border-green-200 bg-green-50 dark:bg-green-950">
 								<CardContent className="pt-4 text-center">
 									<p className="text-3xl font-bold text-green-600">

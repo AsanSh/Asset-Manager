@@ -98,7 +98,7 @@ function MarketValueCell({ propertyId, value, onSaved }: { propertyId: number; v
 				onKeyDown={e => { if (e.key === "Enter") save(); if (e.key === "Escape") setEditing(false); }}
 				className="w-24 text-xs border border-blue-400 rounded px-1 py-0.5 outline-none tabular-nums text-right" />
 			<button onClick={save} disabled={saving} className="text-emerald-600"><Check className="w-3 h-3" /></button>
-			<button onClick={() => setEditing(false)} className="text-gray-400"><X className="w-3 h-3" /></button>
+			<button onClick={() => setEditing(false)} className="text-gray-600"><X className="w-3 h-3" /></button>
 		</div>
 	);
 	return (
@@ -180,7 +180,7 @@ function ImportModal({ rows, onClose, onDone }: { rows: ImportRow[]; onClose: ()
 						{step === "done" && "Импорт завершён"}
 					</h2>
 					{step !== "progress" && (
-						<button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+						<button onClick={onClose} className="text-gray-600 hover:text-gray-600"><X className="w-5 h-5" /></button>
 					)}
 				</div>
 
@@ -199,7 +199,7 @@ function ImportModal({ rows, onClose, onDone }: { rows: ImportRow[]; onClose: ()
 								<tbody>
 									{rows.map((r, i) => (
 										<tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-											<td className="border border-gray-200 px-2 py-1 text-gray-400">{r.rowNum}</td>
+											<td className="border border-gray-200 px-2 py-1 text-gray-600">{r.rowNum}</td>
 											<td className="border border-gray-200 px-2 py-1 font-medium text-gray-800 whitespace-nowrap">{r.tenantName}</td>
 											<td className="border border-gray-200 px-2 py-1 text-gray-500">{r.phone}</td>
 											<td className="border border-gray-200 px-2 py-1 text-gray-600 max-w-[160px] truncate">{r.projectName}</td>
@@ -233,7 +233,7 @@ function ImportModal({ rows, onClose, onDone }: { rows: ImportRow[]; onClose: ()
 									</span>
 								</div>
 								<div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-									<div className="h-full bg-emerald-500 rounded-full transition-all"
+									<div className="h-full bg-emerald-600 rounded-full transition-all"
 										style={{ width: `${(progress.done / progress.total) * 100}%` }} />
 								</div>
 							</div>
@@ -351,14 +351,14 @@ function EditRowDialog({ row, onClose, onSaved }: { row: EditRow; onClose: () =>
 			<div className="bg-white rounded-xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
 				<div className="flex items-center justify-between px-5 py-4 border-b">
 					<h2 className="font-semibold text-gray-900 text-sm">Редактирование строки</h2>
-					<button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+					<button onClick={onClose} className="text-gray-600 hover:text-gray-600"><X className="w-5 h-5" /></button>
 				</div>
 				<div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-					<p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Арендатор</p>
+					<p className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide">Арендатор</p>
 					<F label="ФИО / Название" name="tenantName" />
 
-					<p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Объект</p>
-					<div className="grid grid-cols-2 gap-3">
+					<p className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide">Объект</p>
+					<div className="grid gap-3 sm:grid-cols-2">
 						<F label="Проект / Адрес" name="projectName" />
 						<F label="Номер (кабинет)" name="unitNumber" />
 						<F label="Корпус / Блок" name="block" />
@@ -367,8 +367,8 @@ function EditRowDialog({ row, onClose, onSaved }: { row: EditRow; onClose: () =>
 						<F label="Рын. стоимость" name="marketValue" type="number" />
 					</div>
 
-					<p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Договор</p>
-					<div className="grid grid-cols-2 gap-3">
+					<p className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide">Договор</p>
+					<div className="grid gap-3 sm:grid-cols-2">
 						<div className="col-span-2"><F label="Номер договора" name="contractNumber" /></div>
 						<F label="Взнос" name="rentAmount" type="number" />
 						<F label="Валюта" name="currency" options={[
@@ -634,38 +634,38 @@ export default function RentalSummary() {
 				<p className="text-sm text-gray-500 mt-0.5">Сводная таблица арендного портфеля</p>
 			</div>
 
-			<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 flex-shrink-0">
+			<div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 flex-shrink-0">
 				<div className="bg-white rounded-xl border border-gray-200 p-4">
 					<div className="flex items-center gap-2 mb-1.5"><Building2 className="w-4 h-4 text-blue-500" /><span className="text-xs text-gray-500">Объектов</span></div>
 					<p className="text-2xl font-bold text-gray-900">{totalProps}</p>
-					<p className="text-xs text-gray-400 mt-0.5">{activeRows.length} арендуется</p>
+					<p className="text-xs text-gray-600 mt-0.5">{activeRows.length} арендуется</p>
 				</div>
 				<div className="bg-white rounded-xl border border-gray-200 p-4">
-					<div className="flex items-center gap-2 mb-1.5"><Percent className="w-4 h-4 text-emerald-500" /><span className="text-xs text-gray-500">Заполн.</span></div>
+					<div className="flex items-center gap-2 mb-1.5"><Percent className="w-4 h-4 text-emerald-700" /><span className="text-xs text-gray-500">Заполн.</span></div>
 					<p className="text-2xl font-bold text-emerald-700">{occupancy}%</p>
-					<div className="mt-1.5 bg-gray-100 rounded-full h-1.5"><div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${occupancy}%` }} /></div>
+					<div className="mt-1.5 bg-gray-100 rounded-full h-1.5"><div className="bg-emerald-600 h-1.5 rounded-full" style={{ width: `${occupancy}%` }} /></div>
 				</div>
 				<div className="bg-white rounded-xl border border-gray-200 p-4">
 					<div className="flex items-center gap-2 mb-1.5"><TrendingUp className="w-4 h-4 text-blue-500" /><span className="text-xs text-gray-500">Взносы/мес</span></div>
 					<p className="text-lg font-bold text-gray-900 truncate">{fmtNum(totalRent)} с</p>
-					<p className="text-xs text-gray-400 mt-0.5">актив. договоры</p>
+					<p className="text-xs text-gray-600 mt-0.5">актив. договоры</p>
 				</div>
 				<div className="bg-white rounded-xl border border-gray-200 p-4">
-					<div className="flex items-center gap-2 mb-1.5"><Users className="w-4 h-4 text-purple-500" /><span className="text-xs text-gray-500">Договоров</span></div>
+					<div className="flex items-center gap-2 mb-1.5"><Users className="w-4 h-4 text-purple-700" /><span className="text-xs text-gray-500">Договоров</span></div>
 					<p className="text-2xl font-bold text-gray-900">{rows.length}</p>
-					<p className="text-xs text-gray-400 mt-0.5">{activeRows.length} активных</p>
+					<p className="text-xs text-gray-600 mt-0.5">{activeRows.length} активных</p>
 				</div>
 				<div className={cn("rounded-xl border p-4", expiringIn30 > 0 ? "bg-amber-50 border-amber-200" : "bg-white border-gray-200")}>
 					<div className="flex items-center gap-2 mb-1.5"><AlertTriangle className={cn("w-4 h-4", expiringIn30 > 0 ? "text-amber-500" : "text-gray-300")} /><span className="text-xs text-gray-500">Истекают ≤30д</span></div>
 					<p className={cn("text-2xl font-bold", expiringIn30 > 0 ? "text-amber-700" : "text-gray-300")}>{expiringIn30}</p>
-					<p className="text-xs text-gray-400 mt-0.5">договоров</p>
+					<p className="text-xs text-gray-600 mt-0.5">договоров</p>
 				</div>
 				<div className="bg-white rounded-xl border border-gray-200 p-4">
 					<div className="flex items-center gap-2 mb-1.5"><Percent className="w-4 h-4 text-green-500" /><span className="text-xs text-gray-500">Ср. ROI мес</span></div>
 					<p className={cn("text-2xl font-bold", avgRoi != null ? "text-emerald-700" : "text-gray-300")}>
 						{avgRoi != null ? `${avgRoi.toFixed(2)}%` : "—"}
 					</p>
-					<p className="text-xs text-gray-400 mt-0.5">{roiRows.length} объектов</p>
+					<p className="text-xs text-gray-600 mt-0.5">{roiRows.length} объектов</p>
 				</div>
 			</div>
 
@@ -675,7 +675,7 @@ export default function RentalSummary() {
 					{sorted.length} записей · взносы{" "}
 					{Array.from(rentByCurrency.entries()).map(([cur, amt], i) => (
 						<span key={cur}>
-							{i > 0 && <span className="mx-1 text-gray-400">|</span>}
+							{i > 0 && <span className="mx-1 text-gray-600">|</span>}
 							<span className="font-medium text-gray-800">{fmtNum(amt)} {cur}</span>
 						</span>
 					))}
@@ -791,7 +791,7 @@ export default function RentalSummary() {
 								</tr>
 							))
 						) : sorted.length === 0 ? (
-							<tr><td colSpan={visibleDefs.length + 1} className="border border-gray-200 text-center text-gray-400 py-20">
+							<tr><td colSpan={visibleDefs.length + 1} className="border border-gray-200 text-center text-gray-600 py-20">
 								Нет данных · используйте <b>Импорт Excel</b> для загрузки
 							</td></tr>
 						) : sorted.map((row, i) => {
@@ -800,7 +800,7 @@ export default function RentalSummary() {
 							const isEndingSoon = row.daysLeft != null && row.daysLeft >= 0 && row.daysLeft <= 30;
 							return (
 								<tr key={row.id} className={cn(bg, "hover:bg-[#EEF2FF] transition-colors group/row")}>
-									<td className="border border-gray-200 text-center text-gray-400 py-1 px-2 sticky left-0 z-10 select-none" style={{ background: "inherit" }}>
+									<td className="border border-gray-200 text-center text-gray-600 py-1 px-2 sticky left-0 z-10 select-none" style={{ background: "inherit" }}>
 										<span className="inline-flex items-center gap-1">
 											{i + 1}
 											<button type="button" onClick={() => setEditRow({
@@ -870,7 +870,7 @@ export default function RentalSummary() {
 											<td key={col.key} className={cn("border border-gray-300 py-1.5 px-2 text-gray-800 tabular-nums whitespace-nowrap", ac)}>
 												<span className="font-bold">{fmtNum(totalRentKgs)}</span>
 												<span className="text-gray-500 ml-1 text-[11px]">KGS</span>
-												<span className="text-gray-400 mx-2">|</span>
+												<span className="text-gray-600 mx-2">|</span>
 												<span className="font-bold">{fmtNum(totalUsd)}</span>
 												<span className="text-gray-500 ml-1 text-[11px]">USD</span>
 											</td>
@@ -880,7 +880,7 @@ export default function RentalSummary() {
 										<td key={col.key} className={cn("border border-gray-300 py-1.5 px-2 text-gray-700 tabular-nums", ac)}>
 											{Array.from(depositByCurrency.entries()).filter(([, amt]) => amt > 0).map(([cur, amt], i) => (
 												<span key={cur}>
-													{i > 0 && <span className="text-gray-400 mx-1">|</span>}
+													{i > 0 && <span className="text-gray-600 mx-1">|</span>}
 													<span>{fmtNum(amt)}</span>
 													<span className="text-gray-500 ml-1 text-[11px]">{cur}</span>
 												</span>
@@ -898,7 +898,7 @@ export default function RentalSummary() {
 				</table>
 			</MatrixTableFrame>
 
-			<p className="text-[11px] text-gray-400 flex-shrink-0">
+			<p className="text-[11px] text-gray-600 flex-shrink-0">
 				* Рыночная стоимость — нажмите на ячейку для ввода · ROI = Взнос ÷ Рын. стоимость × 100% · Красный = просрочен · Жёлтый = &lt;30 дней
 			</p>
 

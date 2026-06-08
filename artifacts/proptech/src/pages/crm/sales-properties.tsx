@@ -247,7 +247,7 @@ export default function SalesProperties() {
 								</Select>
 							</div>
 						)}
-						<div className="grid grid-cols-2 gap-4">
+						<div className="grid gap-4 sm:grid-cols-2">
 							<div className="flex flex-col">
 								<Label className="leading-tight mb-1.5" htmlFor="salePrice">Цена продажи *</Label>
 								<Input
@@ -277,7 +277,7 @@ export default function SalesProperties() {
 								</Select>
 							</div>
 						</div>
-						<div className="grid grid-cols-2 gap-4">
+						<div className="grid gap-4 sm:grid-cols-2">
 							<div className="flex flex-col">
 								<Label className="leading-tight mb-1.5" htmlFor="status">Статус *</Label>
 								<Select

@@ -21,7 +21,6 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PageShell } from "@/components/am/PageShell";
 import {
 	Table,
 	TableBody,
@@ -335,11 +334,18 @@ export default function PlatformAdminMarketplace() {
 	};
 
 	return (
-		<PageShell.List
-			title="Маркетплейс материалов"
-			subtitle="Поставщики, импорт прайс-листов Excel, каталог для всех компаний"
-			primaryAction={
-				<div className="flex gap-2 flex-wrap">
+		<div className="space-y-6">
+			<div className="flex items-center justify-between flex-wrap gap-3">
+				<div>
+					<h1 className="text-2xl font-bold flex items-center gap-2">
+						<Package className="w-7 h-7 text-violet-600" />
+						Маркетплейс материалов
+					</h1>
+					<p className="text-gray-500 mt-1">
+						Поставщики, импорт прайс-листов Excel, каталог для всех компаний
+					</p>
+				</div>
+				<div className="flex gap-2">
 					<Button variant="outline" onClick={() => downloadMarketplacePriceTemplate()}>
 						<Download className="w-4 h-4 mr-2" />
 						Шаблон Excel
@@ -349,8 +355,8 @@ export default function PlatformAdminMarketplace() {
 						Поставщик
 					</Button>
 				</div>
-			}
-		>
+			</div>
+
 			<Tabs value={tab} onValueChange={setTab}>
 				<TabsList>
 					<TabsTrigger value="import">Импорт прайса</TabsTrigger>
@@ -500,7 +506,7 @@ export default function PlatformAdminMarketplace() {
 				<TabsContent value="catalog" className="mt-4 space-y-3">
 					<div className="flex flex-wrap gap-2 items-center justify-between">
 						<Select value={supplierFilter} onValueChange={setSupplierFilter}>
-							<SelectTrigger className="w-56">
+							<SelectTrigger className="w-full sm:w-56">
 								<SelectValue placeholder="Все поставщики" />
 							</SelectTrigger>
 							<SelectContent>
@@ -770,7 +776,7 @@ export default function PlatformAdminMarketplace() {
 						<p className="text-xs text-muted-foreground">
 							Телефон → вход через /portal-login (SMS). Email + пароль → обычный /login.
 						</p>
-						<div className="grid grid-cols-2 gap-3">
+						<div className="grid gap-3 sm:grid-cols-2">
 							<div>
 								<Label>Имя</Label>
 								<Input
@@ -869,7 +875,7 @@ export default function PlatformAdminMarketplace() {
 								}
 							/>
 						</div>
-						<div className="grid grid-cols-2 gap-3">
+						<div className="grid gap-3 sm:grid-cols-2">
 							<div>
 								<Label>Цена (сом)</Label>
 								<Input
@@ -912,6 +918,6 @@ export default function PlatformAdminMarketplace() {
 					}}
 				/>
 			)}
-		</PageShell.List>
+		</div>
 	);
 }

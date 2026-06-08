@@ -103,7 +103,7 @@ export default function RentalCashflow() {
 				</Select>
 			</div>
 
-			<div className="grid grid-cols-3 gap-4 mb-6">
+			<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 mb-6">
 				<div className="bg-white border rounded-lg p-4">
 					<div className="flex items-center gap-2 mb-1">
 						<ArrowUpRight className="w-4 h-4 text-emerald-600" />
@@ -172,7 +172,7 @@ export default function RentalCashflow() {
 									}}
 								/>
 							</div>
-							<span className="text-xs text-gray-400">
+							<span className="text-xs text-gray-600">
 								{MONTHS[parseInt(mon, 10) - 1]}
 							</span>
 						</div>

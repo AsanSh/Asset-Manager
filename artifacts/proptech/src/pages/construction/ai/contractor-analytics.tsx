@@ -114,7 +114,7 @@ export default function ContractorAnalytics() {
 			</div>
 
 			{/* Сводка */}
-			<div className="grid grid-cols-3 gap-4">
+			<div className="grid gap-4 sm:grid-cols-3">
 				<Card className="border-green-200 bg-green-50 dark:bg-green-950">
 					<CardContent className="pt-4 text-center">
 						<p className="text-3xl font-bold text-green-600">{counts.low}</p>
@@ -173,7 +173,7 @@ export default function ContractorAnalytics() {
 									</div>
 									{riskBadge(c.riskLevel)}
 								</div>
-								<div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+								<div className="grid gap-3 text-sm sm:grid-cols-2 md:grid-cols-3">
 									<div>
 										<p className="text-xs text-muted-foreground">Выплачено</p>
 										<p className="font-medium">

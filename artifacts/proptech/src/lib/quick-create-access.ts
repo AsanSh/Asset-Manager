@@ -1,211 +1,34 @@
-import {
-	canAccessPath,
-	isFullAdmin,
-	type ModuleId,
-} from "./module-access";
+import type { ModuleId } from "./module-access";
+import { parseCustomRoleId } from "./custom-role-id";
 
-export type QuickCreateAction = {
+export type QuickAction = {
 	label: string;
 	href: string;
-	/** Любое из перечисленных прав даёт доступ к пункту */
-	anyPermissions: string[];
-	/** Только доступ к модулю (нет гранулярных прав в ролях) */
-	moduleOnly?: boolean;
+	module: ModuleId;
+	permission?: string;
+	roles?: string[];
 };
 
-export type QuickCreateActionView = Pick<QuickCreateAction, "label" | "href">;
+const QUICK_ACTIONS: QuickAction[] = [
+	{ module: "construction", label: "Проект", href: "/construction/projects?create=1", permission: "construction.projects.create", roles: ["company_admin", "admin", "sales_manager"] },
+	{ module: "construction", label: "Договор", href: "/construction/contracts-sales", permission: "construction.sales.create", roles: ["company_admin", "admin", "sales_manager"] },
+	{ module: "construction", label: "Задача", href: "/construction/tasks?new=1", permission: "construction.tasks.create", roles: ["company_admin", "admin", "pto", "engineer"] },
+	{ module: "finance", label: "Операция", href: "/construction/operations?new=1", permission: "finance.operations.create", roles: ["company_admin", "admin", "finance"] },
+	{ module: "rental", label: "Договор аренды", href: "/rental/contracts?new=1", permission: "rental.contracts.create", roles: ["company_admin", "admin", "rental_manager"] },
+	{ module: "rental", label: "Платёж аренды", href: "/rental/payments?new=1", permission: "rental.payments.create", roles: ["company_admin", "admin", "rental_manager", "finance"] },
+	{ module: "proptech", label: "Лид", href: "/crm/leads?new=1", permission: "crm.leads.create", roles: ["company_admin", "admin", "sales_manager"] },
+	{ module: "warehouse", label: "Поступление", href: "/warehouse/receipts?new=1", permission: "warehouse.receipts.create", roles: ["company_admin", "admin"] },
+	{ module: "consolidated", label: "Контрагент", href: "/counterparties?new=1", permission: "counterparties.create", roles: ["company_admin", "admin", "finance"] },
+];
 
-/** Эффективные права системных ролей (кастомные роли берут permissions из API) */
-const SYSTEM_ROLE_EFFECTIVE_PERMISSIONS: Record<string, string[] | "all"> = {
-	company_admin: "all",
-	admin: "all",
-	super_admin: "all",
-	finance: [
-		"finance.read",
-		"finance.write",
-		"finance.reports",
-		"counterparties.read",
-		"counterparties.write",
-	],
-	rental_manager: [
-		"rental.read",
-		"rental.write",
-		"rental.payments",
-		"counterparties.read",
-		"counterparties.write",
-		"properties.read",
-		"properties.write",
-	],
-	sales_manager: [
-		"properties.read",
-		"properties.write",
-		"counterparties.read",
-		"counterparties.write",
-	],
-	pto: [
-		"construction.read",
-		"construction.write",
-		"construction.finance",
-		"counterparties.read",
-		"counterparties.write",
-	],
-	engineer: [
-		"construction.read",
-		"construction.write",
-		"counterparties.read",
-	],
-	staff: ["properties.read", "finance.read"],
-};
-
-export const MODULE_QUICK_CREATE_ACTIONS: Record<ModuleId, QuickCreateAction[]> =
-	{
-		construction: [
-			{
-				label: "Новая операция",
-				href: "/construction/operations",
-				anyPermissions: [
-					"finance.write",
-					"construction.write",
-					"construction.finance",
-				],
-			},
-			{
-				label: "Новый договор",
-				href: "/construction/contracts-sales",
-				anyPermissions: ["construction.write"],
-			},
-			{
-				label: "Новый проект",
-				href: "/construction/projects",
-				anyPermissions: ["construction.write"],
-			},
-			{
-				label: "Согласование",
-				href: "/construction/planning/approvals",
-				anyPermissions: ["construction.write", "finance.write"],
-			},
-			{
-				label: "Новый контрагент",
-				href: "/counterparties?create=1",
-				anyPermissions: ["counterparties.write"],
-			},
-		],
-		rental: [
-			{
-				label: "Новый объект",
-				href: "/rental/properties?create=1",
-				anyPermissions: ["rental.write", "properties.write"],
-			},
-			{
-				label: "Новый арендатор",
-				href: "/rental/tenants?create=1",
-				anyPermissions: ["rental.write"],
-			},
-			{
-				label: "Новый договор",
-				href: "/rental/contracts",
-				anyPermissions: ["rental.write"],
-			},
-			{
-				label: "Новый платёж",
-				href: "/rental/payments",
-				anyPermissions: ["rental.payments", "finance.write"],
-			},
-		],
-		proptech: [
-			{
-				label: "Шахматка",
-				href: "/crm/chess",
-				anyPermissions: ["properties.read", "properties.write"],
-			},
-			{
-				label: "Новый лид",
-				href: "/crm/leads",
-				anyPermissions: ["properties.write"],
-			},
-			{
-				label: "Новый договор",
-				href: "/crm/contracts-sales",
-				anyPermissions: ["properties.write", "construction.write"],
-			},
-			{
-				label: "Новый клиент",
-				href: "/crm/clients",
-				anyPermissions: ["properties.write", "counterparties.write"],
-			},
-		],
-		warehouse: [
-			{
-				label: "Новый заказ",
-				href: "/warehouse/orders",
-				anyPermissions: ["admin.all"],
-				moduleOnly: true,
-			},
-			{
-				label: "Новая заявка",
-				href: "/warehouse/requests",
-				anyPermissions: ["admin.all"],
-				moduleOnly: true,
-			},
-			{
-				label: "Поставщик",
-				href: "/warehouse/suppliers",
-				anyPermissions: ["admin.all"],
-				moduleOnly: true,
-			},
-		],
-		consolidated: [
-			{
-				label: "Новый объект",
-				href: "/properties",
-				anyPermissions: ["properties.write"],
-			},
-			{
-				label: "Новый контрагент",
-				href: "/counterparties",
-				anyPermissions: ["counterparties.write"],
-			},
-		],
-	};
-
-function resolveEffectivePermissions(
-	role: string,
-	customPermissions: string[],
-): string[] | "all" {
-	if (customPermissions.length > 0) {
-		return customPermissions;
+function canUseAction(action: QuickAction, role: string, permissions: string[]): boolean {
+	if (role === "company_admin" || role === "admin" || role === "super_admin") return true;
+	if (action.roles?.includes(role)) return true;
+	if (parseCustomRoleId(role)) {
+		if (permissions.includes("admin.all")) return true;
+		return action.permission ? permissions.includes(action.permission) : false;
 	}
-	const system = SYSTEM_ROLE_EFFECTIVE_PERMISSIONS[role];
-	if (system === "all") return "all";
-	if (system) return system;
-	return [];
-}
-
-export function canQuickCreateAction(
-	action: QuickCreateAction,
-	role: string,
-	permissions: string[],
-	allowedModules: ModuleId[],
-): boolean {
-	if (isFullAdmin(role)) return true;
-
-	const effective = resolveEffectivePermissions(role, permissions);
-	if (effective === "all") return true;
-	if (permissions.includes("admin.all")) return true;
-
-	if (
-		!canAccessPath(action.href, allowedModules, role, permissions)
-	) {
-		return false;
-	}
-
-	if (action.moduleOnly) {
-		return effective.some((p) => action.anyPermissions.includes(p));
-	}
-
-	if (effective.length === 0) return false;
-
-	return action.anyPermissions.some((p) => effective.includes(p));
+	return false;
 }
 
 export function resolveQuickActions(
@@ -213,10 +36,11 @@ export function resolveQuickActions(
 	role: string,
 	permissions: string[],
 	allowedModules: ModuleId[],
-): QuickCreateActionView[] {
-	return MODULE_QUICK_CREATE_ACTIONS[moduleId]
-		.filter((action) =>
-			canQuickCreateAction(action, role, permissions, allowedModules),
-		)
-		.map(({ label, href }) => ({ label, href }));
+): QuickAction[] {
+	return QUICK_ACTIONS.filter(
+		(action) =>
+			action.module === moduleId &&
+			allowedModules.includes(action.module) &&
+			canUseAction(action, role, permissions),
+	);
 }

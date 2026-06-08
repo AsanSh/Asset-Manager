@@ -322,7 +322,7 @@ function PropertyDialog({
 				</DialogHeader>
 				<form onSubmit={handleSubmit} className="space-y-4 pt-4">
 					<div className="grid gap-4">
-						<div className="grid grid-cols-2 gap-4">
+						<div className="grid gap-4 sm:grid-cols-2">
 							<div className="space-y-2 flex flex-col">
 								<Label className="leading-tight mb-1.5" htmlFor="projectName">Проект *</Label>
 								<Input
@@ -349,7 +349,7 @@ function PropertyDialog({
 							</div>
 						</div>
 
-						<div className="grid grid-cols-2 gap-4">
+						<div className="grid gap-4 sm:grid-cols-2">
 							<div className="space-y-2 flex flex-col">
 								<Label className="leading-tight mb-1.5" htmlFor="type">Тип *</Label>
 								<Select
@@ -394,7 +394,7 @@ function PropertyDialog({
 							</div>
 						</div>
 
-						<div className="grid grid-cols-3 gap-4">
+						<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
 							<div className="space-y-2 flex flex-col">
 								<Label className="leading-tight mb-1.5" htmlFor="block">Секция</Label>
 								<Input

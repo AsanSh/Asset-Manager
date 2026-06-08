@@ -18,7 +18,6 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { getApiErrorMessage } from "@/lib/api-error";
 import { api } from "@/lib/api";
 import {
 	downloadUnitsTemplate,
@@ -49,7 +48,31 @@ export function ChessUnitsImportDialog({
 		errors: { row: number; message: string }[];
 	} | null>(null);
 
+	const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+	const ALLOWED_TYPES = ['.xlsx', '.xls'];
+
 	const handleFile = async (file: File) => {
+		// Проверка размера
+		if (file.size > MAX_FILE_SIZE) {
+			toast({
+				title: "Файл слишком большой",
+				description: `Максимум ${MAX_FILE_SIZE / 1024 / 1024}MB. У вас: ${(file.size / 1024 / 1024).toFixed(2)}MB`,
+				variant: "destructive",
+			});
+			return;
+		}
+
+		// Проверка типа
+		const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+		if (!ALLOWED_TYPES.includes(ext)) {
+			toast({
+				title: "Неверный формат файла",
+				description: "Поддерживаются только .xlsx и .xls",
+				variant: "destructive",
+			});
+			return;
+		}
+
 		try {
 			const parsed = await parseUnitsFile(file);
 			setRows(parsed);
@@ -76,26 +99,24 @@ export function ChessUnitsImportDialog({
 				errors: { row: number; message: string }[];
 			}>("/construction/units/import", { projectId, rows });
 			setResult(data);
-			const touched = data.created + data.updated;
-			if (touched === 0) {
-				toast({
-					title: "Ничего не импортировано",
-					description:
-						data.errors.length > 0
-							? `Ошибок: ${data.errors.length}. Проверьте файл и права доступа.`
-							: "Проверьте номера квартир и формат колонок в файле.",
-					variant: "destructive",
-				});
-			} else {
+			if (data.created > 0 || data.updated > 0) {
 				toast({
 					title: "Импорт завершён",
-					description: `Создано: ${data.created}, обновлено: ${data.updated}`,
+					description: `Создано: ${data.created}, обновлено: ${data.updated}${data.errors.length > 0 ? `, ошибок: ${data.errors.length}` : ""}`,
+				});
+				onImported();
+			} else if (data.errors.length > 0) {
+				toast({
+					title: "Импорт завершён с ошибками",
+					description: `${data.errors.length} строк не удалось обработать`,
+					variant: "destructive",
 				});
 			}
-			if (touched > 0) onImported();
-		} catch (err: unknown) {
+		} catch (e: unknown) {
+			const msg = e instanceof Error ? e.message : "Неизвестная ошибка";
 			toast({
-				title: getApiErrorMessage(err, "Ошибка импорта"),
+				title: "Ошибка импорта",
+				description: msg,
 				variant: "destructive",
 			});
 		} finally {

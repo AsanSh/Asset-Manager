@@ -14,12 +14,12 @@ interface PieChartProps {
 }
 
 const COLORS = [
-	"#8b5cf6",
+	"#0ea5e9",
 	"#14b8a6",
-	"#fb923c",
-	"#ef4444",
+	"#2563eb",
 	"#22c55e",
 	"#eab308",
+	"#ef4444",
 ];
 
 export function PieChart({

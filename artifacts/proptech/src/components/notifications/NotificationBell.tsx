@@ -8,6 +8,7 @@ import {
 	Check,
 	CheckCircle,
 	Info,
+	Loader2,
 	X,
 } from "lucide-react";
 import { useState } from "react";
@@ -67,7 +68,12 @@ export function NotificationBell() {
 	});
 
 	// Get notifications
-	const { data: notifications = [] } = useQuery<Notification[]>({
+	const {
+		data: notifications = [],
+		isLoading,
+		isError,
+		refetch,
+	} = useQuery<Notification[]>({
 		queryKey: ["notifications"],
 		queryFn: () =>
 			api
@@ -125,42 +131,92 @@ export function NotificationBell() {
 	return (
 		<DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
 			<DropdownMenuTrigger asChild>
-				<Button variant="ghost" size="icon" className="relative">
+				<Button
+					variant="ghost"
+					size="icon"
+					className="relative h-11 w-11 rounded-2xl border border-transparent text-slate-700 hover:border-cyan-100 hover:bg-cyan-50"
+					aria-label="Уведомления"
+				>
 					<Bell className="h-5 w-5" />
 					{unreadCount > 0 && (
 						<Badge
 							variant="destructive"
-							className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
+							className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-white bg-rose-500 p-0 px-1 text-[10px] font-bold text-white"
 						>
 							{unreadCount > 99 ? "99+" : unreadCount}
 						</Badge>
 					)}
 				</Button>
 			</DropdownMenuTrigger>
-			<DropdownMenuContent align="end" className="w-[380px] p-0">
-				<div className="flex items-center justify-between px-4 py-3 border-b">
-					<h3 className="font-semibold">Уведомления</h3>
+			<DropdownMenuContent
+				align="end"
+				className="w-[min(420px,calc(100vw-24px))] overflow-hidden rounded-[28px] border border-white/80 bg-white/94 p-0 shadow-2xl shadow-slate-950/18 backdrop-blur-xl"
+			>
+				<div className="border-b border-slate-100 bg-gradient-to-br from-slate-950 to-cyan-950 px-5 py-4 text-white">
+					<div className="flex items-center justify-between gap-3">
+						<div>
+							<p className="text-[11px] font-bold uppercase tracking-[0.18em] text-cyan-200">
+								Action center
+							</p>
+							<h3 className="mt-1 text-lg font-bold">Уведомления</h3>
+							<p className="mt-0.5 text-xs text-white/55">
+								События, согласования и системные напоминания
+							</p>
+						</div>
 					{unreadCount > 0 && (
 						<Button
 							variant="ghost"
 							size="sm"
 							onClick={() => markAllReadMutation.mutate()}
-							className="h-8 text-xs"
+							className="h-9 rounded-full bg-white/10 px-3 text-xs text-white hover:bg-white/18 hover:text-white"
 						>
 							<Check className="h-3 w-3 mr-1" />
 							Прочитать все
 						</Button>
 					)}
+					</div>
 				</div>
 
-				<ScrollArea className="h-[400px]">
-					{notificationsArray.length === 0 ? (
-						<div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-							<Bell className="h-12 w-12 mb-2 opacity-20" />
-							<p className="text-sm">Нет уведомлений</p>
+				<ScrollArea className="h-[430px]">
+					{isLoading ? (
+						<div className="flex flex-col items-center justify-center py-14 text-slate-500">
+							<Loader2 className="mb-3 h-7 w-7 animate-spin text-cyan-700" />
+							<p className="text-sm font-medium">Загружаю уведомления…</p>
+						</div>
+					) : isError ? (
+						<div className="flex flex-col items-center justify-center px-8 py-14 text-center">
+							<div className="grid h-14 w-14 place-items-center rounded-3xl border border-amber-200 bg-amber-50 text-amber-700">
+								<AlertTriangle className="h-6 w-6" />
+							</div>
+							<p className="mt-3 text-sm font-semibold text-slate-900">
+								Не удалось загрузить уведомления
+							</p>
+							<p className="mt-1 text-xs text-slate-500">
+								Проверьте подключение к серверу и повторите попытку.
+							</p>
+							<Button
+								variant="outline"
+								size="sm"
+								className="mt-4 rounded-full"
+								onClick={() => refetch()}
+							>
+								Повторить
+							</Button>
+						</div>
+					) : notificationsArray.length === 0 ? (
+						<div className="flex flex-col items-center justify-center px-8 py-14 text-center text-slate-500">
+							<div className="grid h-16 w-16 place-items-center rounded-[28px] border border-cyan-100 bg-cyan-50 text-cyan-700">
+								<Bell className="h-7 w-7" />
+							</div>
+							<p className="mt-3 text-sm font-semibold text-slate-900">
+								Все спокойно
+							</p>
+							<p className="mt-1 text-xs text-slate-500">
+								Новые задачи, просрочки и согласования появятся здесь.
+							</p>
 						</div>
 					) : (
-						<div className="divide-y">
+						<div className="space-y-2 p-2">
 							{notificationsArray.map((notification) => {
 								const IconComponent =
 									iconMap[notification.icon || "info"] || Info;
@@ -171,12 +227,14 @@ export function NotificationBell() {
 								return (
 									<div
 										key={notification.id}
-										className={`px-4 py-3 hover:bg-muted/50 transition-colors ${
-											!notification.isRead ? "bg-blue-50/50" : ""
+										className={`rounded-3xl border px-3.5 py-3 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-950/8 ${
+											!notification.isRead
+												? "border-cyan-100 bg-cyan-50/80"
+												: "border-slate-100 bg-white/78"
 										}`}
 									>
 										<div className="flex gap-3">
-											<div className={`flex-shrink-0 mt-1 ${iconColor}`}>
+											<div className={`mt-0.5 grid h-9 w-9 flex-shrink-0 place-items-center rounded-2xl bg-white shadow-sm ${iconColor}`}>
 												<IconComponent className="h-5 w-5" />
 											</div>
 
@@ -189,15 +247,15 @@ export function NotificationBell() {
 															}
 															className="text-left w-full"
 														>
-															<p className="font-medium text-sm">
+															<p className="text-sm font-semibold text-slate-950">
 																{notification.title}
 															</p>
 															{message && (
-																<p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+																<p className="mt-1 line-clamp-2 text-xs text-slate-500">
 																	{message}
 																</p>
 															)}
-															<p className="text-xs text-muted-foreground mt-1">
+															<p className="mt-2 text-[11px] font-medium text-slate-400">
 																{formatDistanceToNow(
 																	new Date(notification.createdAt),
 																	{
@@ -210,15 +268,15 @@ export function NotificationBell() {
 													</Link>
 												) : (
 													<div>
-														<p className="font-medium text-sm">
+														<p className="text-sm font-semibold text-slate-950">
 															{notification.title}
 														</p>
 														{message && (
-															<p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+															<p className="mt-1 line-clamp-2 text-xs text-slate-500">
 																{message}
 															</p>
 														)}
-														<p className="text-xs text-muted-foreground mt-1">
+														<p className="mt-2 text-[11px] font-medium text-slate-400">
 															{formatDistanceToNow(
 																new Date(notification.createdAt),
 																{
@@ -236,7 +294,7 @@ export function NotificationBell() {
 													<Button
 														variant="ghost"
 														size="icon"
-														className="h-6 w-6"
+														className="h-7 w-7 rounded-full text-emerald-700 hover:bg-emerald-50"
 														onClick={(e) => {
 															e.stopPropagation();
 															markReadMutation.mutate(notification.id);
@@ -248,7 +306,7 @@ export function NotificationBell() {
 												<Button
 													variant="ghost"
 													size="icon"
-													className="h-6 w-6 text-muted-foreground hover:text-destructive"
+													className="h-7 w-7 rounded-full text-slate-400 hover:bg-rose-50 hover:text-rose-600"
 													onClick={(e) => {
 														e.stopPropagation();
 														deleteMutation.mutate(notification.id);

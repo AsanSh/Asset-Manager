@@ -245,7 +245,7 @@ function LogRow({
 								<span className="flex items-center gap-1 text-xs text-gray-500">
 									<EntityIcon className="w-3 h-3" /> {ec.label}
 									{entry.entityId && (
-										<span className="font-mono text-gray-400">
+										<span className="font-mono text-gray-600">
 											#{entry.entityId}
 										</span>
 									)}
@@ -271,14 +271,14 @@ function LogRow({
 							{entry.description}
 						</p>
 						<div className="flex items-center gap-3 mt-1.5">
-							<span className="text-xs text-gray-400 flex items-center gap-1">
+							<span className="text-xs text-gray-600 flex items-center gap-1">
 								<Clock className="w-3 h-3" />
 								{fmtTime(entry.createdAt)}
 							</span>
 							{entry.snapshot && (
 								<button
 									onClick={() => setExpanded((e) => !e)}
-									className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-0.5 transition-colors"
+									className="text-xs text-gray-600 hover:text-gray-600 flex items-center gap-0.5 transition-colors"
 								>
 									{expanded ? (
 										<ChevronDown className="w-3 h-3" />
@@ -370,14 +370,14 @@ function DateGroup({
 				className="flex items-center gap-2 mb-2 w-full group"
 			>
 				{open ? (
-					<ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+					<ChevronDown className="w-3.5 h-3.5 text-gray-600" />
 				) : (
-					<ChevronRight className="w-3.5 h-3.5 text-gray-400" />
+					<ChevronRight className="w-3.5 h-3.5 text-gray-600" />
 				)}
 				<span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
 					{date}
 				</span>
-				<span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+				<span className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">
 					{items.length}
 				</span>
 				<div className="flex-1 h-px bg-gray-100 ml-1" />
@@ -444,7 +444,7 @@ export default function RentalOperationsLog() {
 			</div>
 
 			{/* Stats */}
-			<div className="grid grid-cols-3 gap-3 mb-5">
+			<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 mb-5">
 				<div className="rounded-xl border border-gray-200 bg-white p-4 flex items-center gap-3">
 					<div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center">
 						<Clock className="w-4.5 h-4.5 text-gray-500" />
@@ -514,16 +514,16 @@ export default function RentalOperationsLog() {
 
 			{/* Log */}
 			{isLoading ? (
-				<div className="text-center py-16 text-gray-400 text-sm">
+				<div className="text-center py-16 text-gray-600 text-sm">
 					Загрузка...
 				</div>
 			) : groups.length === 0 ? (
 				<div className="text-center py-16">
 					<Clock className="w-10 h-10 mx-auto mb-3 text-gray-300" />
-					<p className="text-sm text-gray-400 font-medium">
+					<p className="text-sm text-gray-600 font-medium">
 						Нет записей в логе
 					</p>
-					<p className="text-xs text-gray-400 mt-1">
+					<p className="text-xs text-gray-600 mt-1">
 						Операции с данными будут отображаться здесь
 					</p>
 				</div>

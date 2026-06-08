@@ -116,7 +116,7 @@ export default function WarehouseOrders() {
 				</Button>
 			</div>
 
-			<div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+			<div className="grid gap-4 sm:grid-cols-2 md:grid-cols-5 gap-4">
 				{ORDER_STATUSES.map((s) => (
 					<Card key={s} className="p-4">
 						<p className="text-xs text-gray-500">{statusConfig[s].label}</p>
@@ -127,7 +127,7 @@ export default function WarehouseOrders() {
 
 			<div className="flex gap-3">
 				<Select value={statusFilter} onValueChange={setStatusFilter}>
-					<SelectTrigger className="w-56">
+					<SelectTrigger className="w-full sm:w-56">
 						<SelectValue placeholder="Статус" />
 					</SelectTrigger>
 					<SelectContent>
@@ -235,7 +235,7 @@ export default function WarehouseOrders() {
 								</SelectContent>
 							</Select>
 						</div>
-						<div className="grid grid-cols-2 gap-2">
+						<div className="grid gap-2 sm:grid-cols-2">
 							<div>
 								<Label>Тип оплаты</Label>
 								<Select value={paymentType} onValueChange={setPaymentType}>

@@ -158,7 +158,7 @@ export function OperationQuickWizard({
 									? "bg-amber-50 border-amber-200 text-amber-800 font-medium"
 									: i < step
 										? "bg-emerald-50 border-emerald-100 text-emerald-700"
-										: "bg-gray-50 border-gray-100 text-gray-400",
+										: "bg-gray-50 border-gray-100 text-gray-600",
 							)}
 						>
 							{i + 1}. {label}
@@ -167,7 +167,7 @@ export function OperationQuickWizard({
 				</div>
 
 				{step === 0 && (
-					<div className="grid grid-cols-3 gap-2">
+					<div className="grid gap-2 sm:grid-cols-3">
 						{(
 							[
 								["income", "Приход", TrendingUp, "text-emerald-600 bg-emerald-50 border-emerald-200"],

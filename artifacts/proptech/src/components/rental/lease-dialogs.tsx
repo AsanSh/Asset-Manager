@@ -291,7 +291,7 @@ function LeaseFormFields({
 	return (
 		<div className="space-y-3">
 			{/* Объект и Арендатор */}
-			<div className="grid grid-cols-2 gap-3">
+			<div className="grid gap-3 sm:grid-cols-2">
 				<div className="flex flex-col">
 					<Label className="leading-tight mb-1.5">Объект {mode === "create" && "*"}</Label>
 					<Select
@@ -348,7 +348,7 @@ function LeaseFormFields({
 				<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
 					Даты договора
 				</p>
-				<div className="grid grid-cols-2 gap-3">
+				<div className="grid gap-3 sm:grid-cols-2">
 					<div className="flex flex-col">
 						<Label className="text-sm leading-tight mb-1.5">
 							Начало начислений <span className="text-destructive">*</span>
@@ -387,7 +387,7 @@ function LeaseFormFields({
 			</div>
 
 			{/* Сумма */}
-			<div className="grid grid-cols-3 gap-3">
+			<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
 				<div className="col-span-2 flex flex-col">
 					<Label className="leading-tight mb-1.5">Сумма аренды в месяц *</Label>
 					<Input
@@ -425,7 +425,7 @@ function LeaseFormFields({
 				currency={form.currency}
 			/>
 
-			<div className="grid grid-cols-2 gap-3">
+			<div className="grid gap-3 sm:grid-cols-2">
 				<div className="flex flex-col">
 					<Label className="leading-tight mb-1.5">Депозит</Label>
 					<Input
@@ -974,7 +974,7 @@ export function LeaseTable({ isLoading, leasesArray, sortedLeases, sortKey, sort
 							<tr key={i}>{Array.from({ length: 9 }).map((_, j) => <td key={j} className={TD}><Skeleton className="h-3 w-full" /></td>)}</tr>
 						))
 					) : !leasesArray.length ? (
-						<tr><td colSpan={9} className="text-center text-gray-400 py-8 text-sm">Договоры аренды не найдены</td></tr>
+						<tr><td colSpan={9} className="text-center text-gray-600 py-8 text-sm">Договоры аренды не найдены</td></tr>
 					) : (
 						sortedLeases.map((lease, idx) => (
 							<tr key={lease.id} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>

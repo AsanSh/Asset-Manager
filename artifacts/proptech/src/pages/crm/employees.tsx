@@ -204,7 +204,7 @@ export default function CrmEmployees() {
 				</Button>
 			</div>
 
-			<div className="grid grid-cols-2 gap-4 max-w-md">
+			<div className="grid gap-4 sm:grid-cols-2 max-w-md">
 				<div className="bg-white border rounded-lg p-4">
 					<p className="text-sm text-gray-500">В CRM-команде</p>
 					<p className="text-2xl font-bold text-gray-900 mt-1">{crmUsers.length}</p>
@@ -248,7 +248,7 @@ export default function CrmEmployees() {
 							</button>
 						</div>
 						<div className="p-5 space-y-4">
-							<div className="grid grid-cols-2 gap-3">
+							<div className="grid gap-3 sm:grid-cols-2">
 								<div className="flex flex-col">
 									<Label className="leading-tight mb-1.5">Имя *</Label>
 									<Input className="mt-auto h-9" value={form.firstName} onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))} />
@@ -266,7 +266,7 @@ export default function CrmEmployees() {
 								<Label className="leading-tight mb-1.5">{editingId ? "Новый пароль" : "Пароль *"}</Label>
 								<div className="relative mt-auto">
 									<Input className="h-9 pr-10" type={showPassword ? "text" : "password"} value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} />
-									<button type="button" onClick={() => setShowPassword((v) => !v)} className="absolute right-2.5 top-2 text-gray-400">
+									<button type="button" onClick={() => setShowPassword((v) => !v)} className="absolute right-2.5 top-2 text-gray-600">
 										{showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
 									</button>
 								</div>

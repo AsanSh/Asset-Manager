@@ -91,9 +91,9 @@ export function TaskAttachmentsSection({
 			<div className="flex items-center justify-between">
 				<h3 className="text-sm font-semibold text-gray-900">Вложения</h3>
 				{isLoading ? (
-					<Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+					<Loader2 className="w-4 h-4 animate-spin text-gray-600" />
 				) : (
-					<span className="text-xs text-gray-400">
+					<span className="text-xs text-gray-600">
 						{attachments.length} шт · {totalSizeKb} КБ
 					</span>
 				)}
@@ -125,7 +125,7 @@ export function TaskAttachmentsSection({
 			</div>
 
 			{attachments.length === 0 ? (
-				<p className="text-xs text-gray-400">Пока нет вложений</p>
+				<p className="text-xs text-gray-600">Пока нет вложений</p>
 			) : (
 				<ul className="space-y-2">
 					{attachments.map((a) => (

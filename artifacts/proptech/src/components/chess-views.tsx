@@ -47,6 +47,11 @@ export type OverviewUnit = {
 	area?: string | null;
 	pricePerSqm?: string | null;
 	totalPrice?: string | null;
+	basePricePerSqm?: string | null;
+	saleCoefficient?: string | null;
+	approvedSalePricePerSqm?: string | null;
+	approvedTotalPrice?: string | null;
+	isPublishedForSale?: boolean | null;
 	currency: string;
 	status: string;
 	notes?: string | null;
@@ -235,7 +240,7 @@ export function ChessByUnitView({
 			data={sorted}
 			enableSearch
 			searchPlaceholder="Поиск квартиры, контрагента…"
-			onRowClick={(row) => onSelectUnit(row.original)}
+			onRowClick={onSelectUnit}
 			initialSorting={[{ id: "unitNumber", desc: false }]}
 			emptyState={<p className="py-12 text-center text-am-text-muted">Нет квартир</p>}
 		/>
@@ -320,7 +325,7 @@ export function ChessByCounterpartyView({
 
 	if (groups.length === 0) {
 		return (
-			<div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">
+			<div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-600">
 				<p>Нет проданных или забронированных квартир с покупателем</p>
 				<p className="text-sm mt-1">
 					Оформите бронь или продажу через карточку квартиры
@@ -332,7 +337,7 @@ export function ChessByCounterpartyView({
 	return (
 		<div className="space-y-3">
 			<div className="relative max-w-sm">
-				<Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+				<Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" />
 				<Input
 					placeholder="Поиск покупателя, телефона, квартиры..."
 					className="pl-9 h-9"
@@ -357,7 +362,7 @@ export function ChessByCounterpartyView({
 					<TableBody>
 						{filtered.length === 0 ? (
 							<TableRow>
-								<TableCell colSpan={6} className="text-center py-8 text-gray-400">
+								<TableCell colSpan={6} className="text-center py-8 text-gray-600">
 									Ничего не найдено
 								</TableCell>
 							</TableRow>
@@ -391,7 +396,7 @@ export function ChessByCounterpartyView({
 											<TableCell>
 												<p className="font-medium">{g.name}</p>
 												{g.phone && (
-													<p className="text-xs text-gray-400">{g.phone}</p>
+													<p className="text-xs text-gray-600">{g.phone}</p>
 												)}
 											</TableCell>
 											<TableCell>{g.units.length}</TableCell>

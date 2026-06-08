@@ -696,7 +696,7 @@ export function AccrualActionButtons({
 				<button
 					type="button"
 					disabled={isBusy}
-					className="inline-flex items-center justify-center w-7 h-7 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50"
+					className="inline-flex items-center justify-center w-7 h-7 rounded-md text-gray-600 hover:text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50"
 					title="Действия"
 				>
 					<Settings className="w-4 h-4" />

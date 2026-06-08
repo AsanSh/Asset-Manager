@@ -193,7 +193,7 @@ export function WbsStageDialog({
 						<Label>Описание</Label>
 						<Input className="mt-1" value={form.description} onChange={(e) => set("description", e.target.value)} />
 					</div>
-					<div className="grid grid-cols-2 gap-3">
+					<div className="grid gap-3 sm:grid-cols-2">
 						<div>
 							<Label>Статус</Label>
 							<Select value={form.status} onValueChange={(v) => set("status", v)}>
@@ -221,7 +221,7 @@ export function WbsStageDialog({
 							/>
 						</div>
 					</div>
-					<div className="grid grid-cols-2 gap-3">
+					<div className="grid gap-3 sm:grid-cols-2">
 						<div>
 							<Label>Начало</Label>
 							<Input className="mt-1" type="date" value={form.startDate} onChange={(e) => set("startDate", e.target.value)} />

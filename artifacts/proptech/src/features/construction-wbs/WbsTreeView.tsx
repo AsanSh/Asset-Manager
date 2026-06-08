@@ -70,7 +70,7 @@ function WbsRowContent({
 			tabIndex={0}
 		>
 			<div className="flex items-center gap-2 min-w-0 flex-1">
-				<span className="text-[11px] font-mono text-gray-400 w-10 shrink-0">{node.wbsCode}</span>
+				<span className="text-[11px] font-mono text-gray-600 w-10 shrink-0">{node.wbsCode}</span>
 				<p className={`text-sm font-medium truncate ${behind ? "text-rose-800" : "text-gray-900"}`}>
 					{node.stage.name}
 				</p>
@@ -105,7 +105,7 @@ function WbsRowContent({
 					<span className="text-rose-600 font-semibold">Проблемы: {node.metrics.issueCount}</span>
 				)}
 				{node.childrenCount > 0 && (
-					<span className="text-gray-400">Подэтапы: {node.childrenCount}</span>
+					<span className="text-gray-600">Подэтапы: {node.childrenCount}</span>
 				)}
 			</div>
 			{!isOverlay && (
@@ -272,7 +272,7 @@ export function WbsTreeView({
 				<span>Бюджет / освоение</span>
 				<span>Задачи</span>
 			</div>
-			<p className="md:hidden px-3 py-1.5 text-[10px] text-gray-400 border-b border-gray-100">
+			<p className="md:hidden px-3 py-1.5 text-[10px] text-gray-600 border-b border-gray-100">
 				Перетащите влево/вправо для смены уровня вложенности
 			</p>
 			<DndContext

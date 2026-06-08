@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
 	AlertCircle,
 	Building2,
@@ -8,20 +8,13 @@ import {
 	FileText,
 	Home,
 	LogOut,
-	Newspaper,
 	Printer,
-	Send,
 	Share2,
 	Wallet,
 } from "lucide-react";
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { getApiErrorMessage } from "@/lib/api-error";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { shareAct } from "@/lib/share-act";
@@ -57,7 +50,7 @@ function KPI({
 	color: string;
 }) {
 	return (
-		<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-5 flex items-start gap-3 sm:gap-4">
+		<div className="bg-white rounded-lg border border-gray-100 shadow-sm p-4 sm:p-5 flex items-start gap-3 sm:gap-4">
 			<div
 				className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${color}`}
 			>
@@ -66,7 +59,7 @@ function KPI({
 			<div className="min-w-0">
 				<p className="text-xs text-gray-500 font-medium">{label}</p>
 				<p className="text-base sm:text-xl font-bold text-gray-900 mt-0.5 break-words">{value}</p>
-				{sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+				{sub && <p className="text-xs text-gray-600 mt-0.5">{sub}</p>}
 			</div>
 		</div>
 	);
@@ -83,10 +76,7 @@ const STATUS_LABELS: Record<string, string> = {
 export default function BuyerPortal({ previewBuyerId }: { previewBuyerId?: number } = {}) {
 	const { user, logout } = useAuth();
 	const { toast } = useToast();
-	const qc = useQueryClient();
 	const isPreview = !!previewBuyerId;
-	const [appealSubject, setAppealSubject] = useState("");
-	const [appealMessage, setAppealMessage] = useState("");
 
 	const { data, isLoading } = useQuery({
 		queryKey: isPreview ? ["portal-buyer-preview", previewBuyerId] : ["portal-buyer-me"],
@@ -115,26 +105,6 @@ export default function BuyerPortal({ previewBuyerId }: { previewBuyerId?: numbe
 			toast({ title: "Договор не загружен", variant: "destructive" });
 		}
 	};
-
-	const sendAppeal = useMutation({
-		mutationFn: () =>
-			api.post("/portal/buyer/appeals", {
-				subject: appealSubject,
-				message: appealMessage,
-			}),
-		onSuccess: () => {
-			toast({ title: "Обращение отправлено" });
-			setAppealSubject("");
-			setAppealMessage("");
-			qc.invalidateQueries({ queryKey: ["portal-buyer-me"] });
-		},
-		onError: (e) =>
-			toast({
-				title: "Не удалось отправить",
-				description: getApiErrorMessage(e),
-				variant: "destructive",
-			}),
-	});
 
 	const handleShare = async () => {
 		const res = await shareAct({
@@ -174,9 +144,6 @@ export default function BuyerPortal({ previewBuyerId }: { previewBuyerId?: numbe
 	const summary = data?.summary ?? {};
 	const reconciliation = data?.reconciliation ?? {};
 	const lines = Array.isArray(reconciliation.lines) ? reconciliation.lines : [];
-	const publications = Array.isArray(data?.publications) ? data.publications : [];
-	const appeals = Array.isArray(data?.appeals) ? data.appeals : [];
-	const unitPricing = data?.unitPricing;
 	const currency = summary.currency ?? "KGS";
 	const outstanding = parseFloat(String(summary.outstanding ?? 0));
 
@@ -194,7 +161,7 @@ export default function BuyerPortal({ previewBuyerId }: { previewBuyerId?: numbe
 						</div>
 						<div>
 							<p className="text-sm font-bold text-gray-900">Planalityc.ai</p>
-							<p className="text-[10px] text-gray-400 -mt-0.5">Портал покупателя</p>
+							<p className="text-[10px] text-gray-600 -mt-0.5">Портал покупателя</p>
 						</div>
 					</div>
 					<div className="flex items-center gap-2 sm:gap-3">
@@ -225,7 +192,7 @@ export default function BuyerPortal({ previewBuyerId }: { previewBuyerId?: numbe
 					<p className="text-sm opacity-70 mt-1">Личный кабинет покупателя</p>
 				</div>
 
-				<div className="grid grid-cols-2 gap-4">
+				<div className="grid gap-4 sm:grid-cols-2">
 					<KPI
 						icon={<Building2 className="w-6 h-6 text-blue-600" />}
 						label="Договоров"
@@ -262,65 +229,13 @@ export default function BuyerPortal({ previewBuyerId }: { previewBuyerId?: numbe
 					/>
 				</div>
 
-				{unitPricing && (
-					<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6">
-						<h2 className="font-semibold text-gray-900 mb-3">Ваша квартира</h2>
-						<p className="text-sm text-gray-600">
-							{unitPricing.projectName} · №{unitPricing.unitNumber} · {unitPricing.area} м²
-						</p>
-						<div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 text-sm">
-							<div>
-								<p className="text-gray-500 text-xs">База за м²</p>
-								<p className="font-semibold">{fmt(unitPricing.basePricePerSqm)} сом</p>
-							</div>
-							<div>
-								<p className="text-gray-500 text-xs">Коэффициент</p>
-								<p className="font-semibold">{unitPricing.coefficient}</p>
-							</div>
-							<div>
-								<p className="text-gray-500 text-xs">Списочная цена</p>
-								<p className="font-semibold">{fmt(unitPricing.listPrice)} сом</p>
-							</div>
-							<div>
-								<p className="text-gray-500 text-xs">Утверждение</p>
-								<Badge
-									className={
-										unitPricing.approved
-											? "bg-emerald-100 text-emerald-700"
-											: "bg-amber-100 text-amber-700"
-									}
-								>
-									{unitPricing.approved ? "Утверждена" : "На согласовании"}
-								</Badge>
-							</div>
-						</div>
-					</div>
-				)}
-
-				{publications.length > 0 && (
-					<div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-						<div className="flex items-center gap-3 px-4 sm:px-6 py-4 border-b bg-gray-50">
-							<Newspaper className="w-4 h-4 text-gray-500" />
-							<h2 className="font-semibold text-gray-900">Новости застройщика</h2>
-						</div>
-						<div className="divide-y">
-							{publications.map((p: { id: number; title: string; body: string }) => (
-								<div key={p.id} className="px-4 sm:px-6 py-4">
-									<p className="font-medium text-gray-900">{p.title}</p>
-									<p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{p.body}</p>
-								</div>
-							))}
-						</div>
-					</div>
-				)}
-
-				<div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+				<div className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden">
 					<div className="flex items-center gap-3 px-4 sm:px-6 py-4 border-b bg-gray-50">
 						<FileText className="w-4 h-4 text-gray-500" />
 						<h2 className="font-semibold text-gray-900">Мои договоры</h2>
 					</div>
 					{contracts.length === 0 ? (
-						<div className="py-12 text-center text-gray-400">
+						<div className="py-12 text-center text-gray-600">
 							<FileText className="w-10 h-10 mx-auto mb-2 opacity-20" />
 							<p className="text-sm">Нет договоров</p>
 						</div>
@@ -364,13 +279,13 @@ export default function BuyerPortal({ previewBuyerId }: { previewBuyerId?: numbe
 					)}
 				</div>
 
-				<div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+				<div className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden">
 					<div className="flex items-center gap-3 px-4 sm:px-6 py-4 border-b bg-gray-50">
 						<CreditCard className="w-4 h-4 text-gray-500" />
 						<h2 className="font-semibold text-gray-900">График платежей</h2>
 					</div>
 					{accruals.length === 0 ? (
-						<div className="py-10 text-center text-gray-400 text-sm">
+						<div className="py-10 text-center text-gray-600 text-sm">
 							График ещё не сформирован
 						</div>
 					) : (
@@ -409,56 +324,7 @@ export default function BuyerPortal({ previewBuyerId }: { previewBuyerId?: numbe
 					)}
 				</div>
 
-				{!isPreview && (
-					<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6 space-y-4">
-						<h2 className="font-semibold text-gray-900">Обращение в застройщика</h2>
-						<div>
-							<Label>Тема</Label>
-							<Input
-								className="mt-1"
-								value={appealSubject}
-								onChange={(e) => setAppealSubject(e.target.value)}
-							/>
-						</div>
-						<div>
-							<Label>Сообщение</Label>
-							<Textarea
-								className="mt-1 min-h-[80px]"
-								value={appealMessage}
-								onChange={(e) => setAppealMessage(e.target.value)}
-							/>
-						</div>
-						<Button
-							className="gap-2"
-							disabled={
-								!appealSubject.trim() ||
-								!appealMessage.trim() ||
-								sendAppeal.isPending
-							}
-							onClick={() => sendAppeal.mutate()}
-						>
-							<Send className="w-4 h-4" /> Отправить
-						</Button>
-						{appeals.length > 0 && (
-							<div className="border-t pt-4 space-y-2">
-								<p className="text-xs font-medium text-gray-500 uppercase">
-									Мои обращения
-								</p>
-								{appeals.map((a: { id: number; subject: string; status: string; response?: string }) => (
-									<div key={a.id} className="text-sm rounded-lg bg-gray-50 p-3">
-										<p className="font-medium">{a.subject}</p>
-										<p className="text-gray-500 text-xs mt-0.5">{a.status}</p>
-										{a.response && (
-											<p className="text-emerald-800 mt-2">{a.response}</p>
-										)}
-									</div>
-								))}
-							</div>
-						)}
-					</div>
-				)}
-
-				<div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden print:shadow-none">
+				<div className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden print:shadow-none">
 					<div className="flex items-center justify-between gap-2 flex-wrap px-4 sm:px-6 py-4 border-b bg-gray-50">
 						<div className="flex items-center gap-3">
 							<CreditCard className="w-4 h-4 text-gray-500" />
@@ -483,7 +349,7 @@ export default function BuyerPortal({ previewBuyerId }: { previewBuyerId?: numbe
 							</Button>
 						</div>
 					</div>
-					<div className="px-4 sm:px-6 py-4 border-b bg-gray-50/50 text-sm grid grid-cols-3 gap-4">
+					<div className="px-4 sm:px-6 py-4 border-b bg-gray-50/50 text-sm grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
 						<div>
 							<p className="text-gray-500 text-xs">По графику</p>
 							<p className="font-semibold">{fmt(summary.totalCharged)} {currency}</p>
@@ -504,7 +370,7 @@ export default function BuyerPortal({ previewBuyerId }: { previewBuyerId?: numbe
 						</div>
 					</div>
 					{lines.length === 0 ? (
-						<div className="py-12 text-center text-gray-400">
+						<div className="py-12 text-center text-gray-600">
 							<p className="text-sm">Нет операций</p>
 						</div>
 					) : (

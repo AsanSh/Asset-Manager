@@ -48,7 +48,7 @@ export function WbsStageDrawer({
 				<SheetHeader className="px-4 pt-4 pb-2 border-b border-gray-100">
 					<div className="flex items-start justify-between gap-2 pr-8">
 						<div className="min-w-0">
-							<p className="text-[11px] font-mono text-gray-400">{node.wbsCode}</p>
+							<p className="text-[11px] font-mono text-gray-600">{node.wbsCode}</p>
 							<SheetTitle className="text-left truncate">{node.stage.name}</SheetTitle>
 							<SheetDescription className="text-left">{projectName}</SheetDescription>
 						</div>
@@ -97,7 +97,7 @@ export function WbsStageDrawer({
 								<Progress value={node.metrics.effectiveProgress} className="h-2 mb-1" />
 								<p className="text-sm font-semibold">{node.metrics.effectiveProgress}%</p>
 							</div>
-							<div className="grid grid-cols-2 gap-3 text-sm">
+							<div className="grid gap-3 sm:grid-cols-2 text-sm">
 								<div>
 									<p className="text-xs text-gray-500">Начало</p>
 									<p>{node.stage.startDate || "—"}</p>
@@ -125,7 +125,7 @@ export function WbsStageDrawer({
 
 						<TabsContent value="tasks" className="mt-4 space-y-2">
 							{stageTasks.length === 0 ? (
-								<p className="text-sm text-gray-400 py-4 text-center">Нет задач на этом этапе</p>
+								<p className="text-sm text-gray-600 py-4 text-center">Нет задач на этом этапе</p>
 							) : (
 								stageTasks.slice(0, 20).map((t) => (
 									<Link
@@ -134,7 +134,7 @@ export function WbsStageDrawer({
 										className="flex items-center justify-between rounded-lg border border-gray-100 px-3 py-2 text-sm hover:bg-gray-50"
 									>
 										<span>Задача #{t.id}</span>
-										<span className="text-xs text-gray-400">{t.status}</span>
+										<span className="text-xs text-gray-600">{t.status}</span>
 									</Link>
 								))
 							)}
@@ -165,7 +165,7 @@ export function WbsStageDrawer({
 									<span className="text-gray-500">Отклонение</span>
 									<span>{fmt(node.metrics.deviationKgs)}</span>
 								</div>
-								<div className="flex justify-between text-xs text-gray-400 pt-1 border-t">
+								<div className="flex justify-between text-xs text-gray-600 pt-1 border-t">
 									<span>План {node.metrics.planPct}%</span>
 									<span>Факт {node.metrics.factPct}%</span>
 								</div>
@@ -196,7 +196,7 @@ export function WbsStageDrawer({
 								<Link key={link.href} href={link.href}>
 									<Button variant="ghost" size="sm" className="w-full justify-between h-9">
 										{link.label}
-										<ExternalLink className="w-3.5 h-3.5 text-gray-400" />
+										<ExternalLink className="w-3.5 h-3.5 text-gray-600" />
 									</Button>
 								</Link>
 							))}

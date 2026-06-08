@@ -156,7 +156,7 @@ export default function RentalBroadcast() {
 				<div className="col-span-2 space-y-5">
 					<div className="bg-white border rounded-lg p-5">
 						<h3 className="font-semibold text-gray-800 mb-4">Получатели</h3>
-						<div className="grid grid-cols-2 gap-3">
+						<div className="grid gap-3 sm:grid-cols-2">
 							<div className="flex flex-col">
 								<Label className="text-sm font-medium mb-1.5 block leading-tight">
 									Аудитория
@@ -223,7 +223,7 @@ export default function RentalBroadcast() {
 							className="resize-none"
 						/>
 						<div className="flex items-center justify-between mt-2">
-							<span className="text-xs text-gray-400">
+							<span className="text-xs text-gray-600">
 								{message.length} символов
 							</span>
 							{channel === "sms" && message.length > 160 && (
@@ -252,7 +252,7 @@ export default function RentalBroadcast() {
 							Список получателей
 						</h4>
 						{recipients.length === 0 ? (
-							<p className="text-xs text-gray-400 text-center py-4">
+							<p className="text-xs text-gray-600 text-center py-4">
 								Нет получателей
 							</p>
 						) : (
@@ -269,7 +269,7 @@ export default function RentalBroadcast() {
 												{label}
 											</p>
 											{t.phone && (
-												<p className="text-[10px] text-gray-400 truncate">{t.phone}</p>
+												<p className="text-[10px] text-gray-600 truncate">{t.phone}</p>
 											)}
 											{overdueTenantIds.has(t.id) && (
 												<Badge className="text-[10px] px-1 py-0 bg-rose-100 text-rose-600">

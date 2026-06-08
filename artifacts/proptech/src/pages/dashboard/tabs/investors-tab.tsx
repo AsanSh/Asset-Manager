@@ -15,7 +15,7 @@ export default function InvestorsDashboardTab() {
 
 	return (
 		<div className="space-y-4">
-			<div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+			<div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 gap-3">
 				<div className="bg-white rounded-xl border p-4">
 					<Users className="w-4 h-4 text-blue-600 mb-2" />
 					{isLoading ? (
@@ -33,7 +33,7 @@ export default function InvestorsDashboardTab() {
 				<div className="bg-white rounded-xl border p-4">
 					<TrendingUp className="w-4 h-4 text-amber-600 mb-2" />
 					<p className="text-sm font-medium text-gray-700">Выплаты и доли</p>
-					<p className="text-xs text-gray-400 mt-1">Детали в модуле</p>
+					<p className="text-xs text-gray-600 mt-1">Детали в модуле</p>
 				</div>
 			</div>
 
@@ -55,7 +55,7 @@ export default function InvestorsDashboardTab() {
 			</Link>
 
 			{!isLoading && list.length === 0 && (
-				<p className="text-sm text-gray-400 text-center py-8">
+				<p className="text-sm text-gray-600 text-center py-8">
 					Инвесторы не добавлены. Перейдите в модуль «Аренда» → Инвесторы.
 				</p>
 			)}

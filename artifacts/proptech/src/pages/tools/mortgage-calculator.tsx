@@ -391,7 +391,7 @@ export default function MortgageCalculator() {
 									height={280}
 								/>
 							) : (
-								<div className="h-64 flex items-center justify-center text-gray-400">
+								<div className="h-64 flex items-center justify-center text-gray-600">
 									Введите параметры для расчета
 								</div>
 							)}

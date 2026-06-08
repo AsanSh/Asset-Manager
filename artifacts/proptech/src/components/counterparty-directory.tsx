@@ -413,7 +413,7 @@ function CounterpartyDialog({
 						/>
 					</div>
 
-					<div className="grid grid-cols-2 gap-3">
+					<div className="grid gap-3 sm:grid-cols-2">
 						<div>
 							<Label className="text-sm">ИИН / ИНН</Label>
 							<Input className="mt-1" value={form.iin} onChange={(e) => setForm({ ...form, iin: e.target.value })} />

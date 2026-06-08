@@ -1,219 +1,321 @@
-import {
-	BarChart,
-	Calendar,
-	Download,
-	FileText,
-	Package,
-	TrendingUp,
-} from "lucide-react";
-import { useState } from "react";
-import { defaultPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
+import { useQuery } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
+import { ArrowDownCircle, ArrowUpCircle, BarChart, Download, FileText, Package, TrendingUp } from "lucide-react";
+import { useMemo, useState } from "react";
+import { DataTable } from "@/components/data-table";
+import { defaultPeriod, inPeriod, PeriodPicker, type PeriodValue } from "@/components/period-picker";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
+import { Card, CardContent } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { api } from "@/lib/api";
+
+type WarehouseItem = {
+	id: number;
+	name: string;
+	category?: string | null;
+	unit?: string | null;
+	currentStock?: number | string | null;
+	minStock?: number | string | null;
+	unitPrice?: number | string | null;
+	currency?: string | null;
+};
+
+type IncomingOperation = {
+	id: number;
+	date: string;
+	itemId?: number | null;
+	itemName?: string | null;
+	quantity?: number | string | null;
+	totalPrice?: number | string | null;
+	currency?: string | null;
+	supplierName?: string | null;
+	documentNumber?: string | null;
+};
+
+type OutgoingOperation = {
+	id: number;
+	date: string;
+	itemId?: number | null;
+	itemName?: string | null;
+	quantity?: number | string | null;
+	recipientName?: string | null;
+	purpose?: string | null;
+};
+
+type MovementRow = {
+	id: string;
+	date: string;
+	item: string;
+	type: "incoming" | "outgoing";
+	quantity: number;
+	amount: number;
+	counterparty: string;
+	document: string;
+};
+
+function num(value: unknown) {
+	const n = Number(value ?? 0);
+	return Number.isFinite(n) ? n : 0;
+}
+
+function formatDate(date: string) {
+	return date ? new Date(date).toLocaleDateString("ru-RU") : "—";
+}
+
+function money(amount: number, currency = "KGS") {
+	return new Intl.NumberFormat("ru-KG", {
+		style: "currency",
+		currency,
+		maximumFractionDigits: 0,
+	}).format(amount);
+}
+
+function downloadCsv(filename: string, rows: MovementRow[]) {
+	const header = ["Дата", "Тип", "Товар", "Количество", "Сумма", "Контрагент", "Документ"];
+	const body = rows.map((row) => [
+		formatDate(row.date),
+		row.type === "incoming" ? "Поступление" : "Списание",
+		row.item,
+		String(row.quantity),
+		String(row.amount),
+		row.counterparty,
+		row.document,
+	]);
+	const csv = [header, ...body]
+		.map((line) => line.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(";"))
+		.join("\n");
+	const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+	const url = URL.createObjectURL(blob);
+	const a = document.createElement("a");
+	a.href = url;
+	a.download = filename;
+	a.click();
+	URL.revokeObjectURL(url);
+}
 
 export default function WarehouseReports() {
+	const { toast } = useToast();
 	const [reportType, setReportType] = useState("movements");
 	const [period, setPeriod] = useState<PeriodValue>(defaultPeriod());
 
-	const reportTypes = [
-		{ value: "movements", label: "Движение товаров", icon: TrendingUp },
-		{ value: "inventory", label: "Остатки на складе", icon: Package },
-		{ value: "turnover", label: "Оборачиваемость", icon: BarChart },
-		{ value: "suppliers", label: "Закупки у поставщиков", icon: FileText },
-	];
+	const { data: items = [], isLoading: itemsLoading } = useQuery<WarehouseItem[]>({
+		queryKey: ["warehouse-items"],
+		queryFn: () => api.get("/warehouse/items").then((r) => (Array.isArray(r.data) ? r.data : [])),
+	});
+	const { data: incoming = [], isLoading: incomingLoading } = useQuery<IncomingOperation[]>({
+		queryKey: ["warehouse-incoming"],
+		queryFn: () => api.get("/warehouse/incoming").then((r) => (Array.isArray(r.data) ? r.data : [])),
+	});
+	const { data: outgoing = [], isLoading: outgoingLoading } = useQuery<OutgoingOperation[]>({
+		queryKey: ["warehouse-outgoing"],
+		queryFn: () => api.get("/warehouse/outgoing").then((r) => (Array.isArray(r.data) ? r.data : [])),
+	});
 
-	// Mock data for movements report
-	const movements = [
-		{
-			date: "2026-05-01",
-			item: "Цемент М500",
-			incoming: 50,
-			outgoing: 35,
-			balance: 115,
-		},
-		{
-			date: "2026-05-02",
-			item: "Арматура 12мм",
-			incoming: 200,
-			outgoing: 150,
-			balance: 230,
-		},
-		{
-			date: "2026-05-03",
-			item: "Кирпич красный",
-			incoming: 5000,
-			outgoing: 3500,
-			balance: 4800,
-		},
-		{
-			date: "2026-05-04",
-			item: "Песок речной",
-			incoming: 80,
-			outgoing: 60,
-			balance: 140,
-		},
-		{
-			date: "2026-05-05",
-			item: "Щебень фр. 20-40",
-			incoming: 100,
-			outgoing: 75,
-			balance: 185,
-		},
-	];
+	const movementRows = useMemo<MovementRow[]>(() => {
+		const ins = incoming.map((op) => ({
+			id: `in-${op.id}`,
+			date: op.date,
+			item: op.itemName || `Товар #${op.itemId ?? "—"}`,
+			type: "incoming" as const,
+			quantity: num(op.quantity),
+			amount: num(op.totalPrice),
+			counterparty: op.supplierName || "Поставщик не указан",
+			document: op.documentNumber || "—",
+		}));
+		const outs = outgoing.map((op) => ({
+			id: `out-${op.id}`,
+			date: op.date,
+			item: op.itemName || `Товар #${op.itemId ?? "—"}`,
+			type: "outgoing" as const,
+			quantity: num(op.quantity),
+			amount: 0,
+			counterparty: op.recipientName || op.purpose || "Получатель не указан",
+			document: "—",
+		}));
+		return [...ins, ...outs]
+			.filter((row) => inPeriod(row.date, period))
+			.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+	}, [incoming, outgoing, period]);
+
+	const totalIncomingQty = movementRows
+		.filter((row) => row.type === "incoming")
+		.reduce((sum, row) => sum + row.quantity, 0);
+	const totalOutgoingQty = movementRows
+		.filter((row) => row.type === "outgoing")
+		.reduce((sum, row) => sum + row.quantity, 0);
+	const totalIncomingAmount = movementRows.reduce((sum, row) => sum + row.amount, 0);
+	const inventoryValue = items.reduce(
+		(sum, item) => sum + num(item.currentStock) * num(item.unitPrice),
+		0,
+	);
+
+	const columns = useMemo<ColumnDef<MovementRow, unknown>[]>(
+		() => [
+			{
+				id: "date",
+				header: "Дата",
+				size: 110,
+				accessorFn: (row) => row.date,
+				meta: { exportLabel: "Дата", pinned: "left" },
+				cell: ({ row }) => formatDate(row.original.date),
+			},
+			{
+				id: "type",
+				header: "Тип",
+				size: 130,
+				accessorFn: (row) => row.type,
+				meta: { exportLabel: "Тип" },
+				cell: ({ row }) => (
+					<Badge
+						className={
+							row.original.type === "incoming"
+								? "bg-emerald-100 text-emerald-700"
+								: "bg-rose-100 text-rose-700"
+						}
+					>
+						{row.original.type === "incoming" ? "Поступление" : "Списание"}
+					</Badge>
+				),
+			},
+			{
+				accessorKey: "item",
+				header: "Товар",
+				size: 220,
+				meta: { exportLabel: "Товар" },
+				cell: ({ row }) => <span className="font-semibold">{row.original.item}</span>,
+			},
+			{
+				id: "quantity",
+				header: "Количество",
+				size: 120,
+				accessorFn: (row) => row.quantity,
+				meta: { exportLabel: "Количество", align: "right" },
+				cell: ({ row }) => <span className="font-mono">{row.original.quantity}</span>,
+			},
+			{
+				id: "amount",
+				header: "Сумма",
+				size: 130,
+				accessorFn: (row) => row.amount,
+				meta: { exportLabel: "Сумма", align: "right" },
+				cell: ({ row }) => (
+					<span className="font-mono font-semibold">
+						{row.original.amount > 0 ? money(row.original.amount) : "—"}
+					</span>
+				),
+			},
+			{
+				accessorKey: "counterparty",
+				header: "Контрагент / получатель",
+				size: 220,
+				meta: { exportLabel: "Контрагент / получатель" },
+			},
+			{
+				accessorKey: "document",
+				header: "Документ",
+				size: 120,
+				meta: { exportLabel: "Документ" },
+			},
+		],
+		[],
+	);
+
+	const isLoading = itemsLoading || incomingLoading || outgoingLoading;
 
 	return (
-		<div className="p-6 space-y-6">
-			{/* Header */}
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="text-3xl font-bold text-gray-900">Отчёты по складу</h1>
-					<p className="text-gray-500 mt-1">
-						Аналитические отчёты и статистика
-					</p>
+		<div className="space-y-6">
+			<section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+				<div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+					<div>
+						<div className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-700">
+							Складская аналитика
+						</div>
+						<h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">
+							Отчёты по складу
+						</h1>
+						<p className="mt-1 max-w-2xl text-sm text-slate-500">
+							Единый отчет по движению, остаткам и закупочной стоимости без
+							демо-строк.
+						</p>
+					</div>
+					<Button
+						variant="outline"
+						className="gap-2"
+						onClick={() => {
+							if (movementRows.length === 0) {
+								toast({ title: "Нет данных для экспорта" });
+								return;
+							}
+							downloadCsv("warehouse-report.csv", movementRows);
+						}}
+					>
+						<Download className="h-4 w-4" />
+						Экспорт CSV
+					</Button>
 				</div>
-				<Button className="gap-2">
-					<Download className="w-4 h-4" />
-					Экспорт в Excel
-				</Button>
-			</div>
+			</section>
 
-			{/* Filters */}
-			<Card>
-				<CardContent className="pt-6 space-y-4">
+			<Card className="rounded-3xl border-slate-200 shadow-sm">
+				<CardContent className="flex flex-col gap-4 p-5 xl:flex-row xl:items-center">
 					<PeriodPicker value={period} onChange={setPeriod} />
-					<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-						<div className="space-y-2 flex flex-col">
-							<label className="text-sm font-medium text-gray-700 leading-tight mb-1.5">
-								Тип отчёта
-							</label>
-							<Select value={reportType} onValueChange={setReportType}>
-								<SelectTrigger className="mt-auto">
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									{reportTypes.map((type) => (
-										<SelectItem key={type.value} value={type.value}>
-											<div className="flex items-center gap-2">
-												<type.icon className="w-4 h-4" />
-												{type.label}
-											</div>
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</div>
-
-						<div className="flex items-end">
-							<Button className="w-full gap-2">
-								<Calendar className="w-4 h-4" />
-								Сформировать отчёт
-							</Button>
-						</div>
-					</div>
+					<Select value={reportType} onValueChange={setReportType}>
+						<SelectTrigger className="w-full xl:w-64">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="movements">
+								<div className="flex items-center gap-2"><TrendingUp className="h-4 w-4" />Движение товаров</div>
+							</SelectItem>
+							<SelectItem value="inventory">
+								<div className="flex items-center gap-2"><Package className="h-4 w-4" />Остатки на складе</div>
+							</SelectItem>
+							<SelectItem value="turnover">
+								<div className="flex items-center gap-2"><BarChart className="h-4 w-4" />Оборачиваемость</div>
+							</SelectItem>
+							<SelectItem value="suppliers">
+								<div className="flex items-center gap-2"><FileText className="h-4 w-4" />Закупки у поставщиков</div>
+							</SelectItem>
+						</SelectContent>
+					</Select>
 				</CardContent>
 			</Card>
 
-			{/* Report Content */}
-			<Card>
-				<CardHeader>
-					<CardTitle>Движение товаров за май 2026</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<div className="overflow-x-auto">
-						<table className="w-full">
-							<thead>
-								<tr className="border-b border-gray-200">
-									<th className="text-left py-3 px-4 text-sm font-medium text-gray-600">
-										Дата
-									</th>
-									<th className="text-left py-3 px-4 text-sm font-medium text-gray-600">
-										Товар
-									</th>
-									<th className="text-right py-3 px-4 text-sm font-medium text-gray-600">
-										Поступило
-									</th>
-									<th className="text-right py-3 px-4 text-sm font-medium text-gray-600">
-										Списано
-									</th>
-									<th className="text-right py-3 px-4 text-sm font-medium text-gray-600">
-										Остаток
-									</th>
-								</tr>
-							</thead>
-							<tbody>
-								{movements.map((mov, idx) => (
-									<tr
-										key={idx}
-										className="border-b border-gray-100 hover:bg-gray-50"
-									>
-										<td className="py-3 px-4 text-sm text-gray-600">
-											{new Date(mov.date).toLocaleDateString("ru-RU")}
-										</td>
-										<td className="py-3 px-4 text-sm font-medium text-gray-900">
-											{mov.item}
-										</td>
-										<td className="py-3 px-4 text-sm text-right text-emerald-600 font-medium">
-											+{mov.incoming}
-										</td>
-										<td className="py-3 px-4 text-sm text-right text-rose-600 font-medium">
-											-{mov.outgoing}
-										</td>
-										<td className="py-3 px-4 text-sm text-right font-medium text-gray-900">
-											{mov.balance}
-										</td>
-									</tr>
-								))}
-							</tbody>
-						</table>
-					</div>
-				</CardContent>
-			</Card>
-
-			{/* Quick Stats */}
-			<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-				<Card>
-					<CardHeader className="pb-3">
-						<CardTitle className="text-sm font-medium text-gray-600">
-							Всего поступило
-						</CardTitle>
-					</CardHeader>
-					<CardContent>
-						<div className="text-2xl font-bold text-emerald-600">5,430 ед.</div>
-						<p className="text-xs text-gray-500 mt-1">За выбранный период</p>
-					</CardContent>
-				</Card>
-
-				<Card>
-					<CardHeader className="pb-3">
-						<CardTitle className="text-sm font-medium text-gray-600">
-							Всего списано
-						</CardTitle>
-					</CardHeader>
-					<CardContent>
-						<div className="text-2xl font-bold text-rose-600">3,820 ед.</div>
-						<p className="text-xs text-gray-500 mt-1">За выбранный период</p>
-					</CardContent>
-				</Card>
-
-				<Card>
-					<CardHeader className="pb-3">
-						<CardTitle className="text-sm font-medium text-gray-600">
-							Чистое изменение
-						</CardTitle>
-					</CardHeader>
-					<CardContent>
-						<div className="text-2xl font-bold text-blue-600">+1,610 ед.</div>
-						<p className="text-xs text-gray-500 mt-1">Увеличение запасов</p>
-					</CardContent>
-				</Card>
+			<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+				{[
+					{ label: "Поступило", value: totalIncomingQty, caption: money(totalIncomingAmount), icon: ArrowDownCircle, tone: "text-emerald-700 bg-emerald-50" },
+					{ label: "Списано", value: totalOutgoingQty, caption: "единиц за период", icon: ArrowUpCircle, tone: "text-rose-700 bg-rose-50" },
+					{ label: "Движений", value: movementRows.length, caption: "операций", icon: TrendingUp, tone: "text-cyan-700 bg-cyan-50" },
+					{ label: "Стоимость остатков", value: money(inventoryValue), caption: `${items.length} позиций`, icon: Package, tone: "text-blue-700 bg-blue-50" },
+				].map((metric) => (
+					<Card key={metric.label} className="rounded-3xl border-slate-200 shadow-sm">
+						<CardContent className="p-5">
+							<div className="flex items-start justify-between gap-3">
+								<div>
+									<p className="text-sm text-slate-500">{metric.label}</p>
+									<div className="mt-2 text-2xl font-black text-slate-950">{metric.value}</div>
+									<p className="mt-1 text-xs text-slate-500">{metric.caption}</p>
+								</div>
+								<div className={`rounded-2xl p-3 ${metric.tone}`}>
+									<metric.icon className="h-5 w-5" />
+								</div>
+							</div>
+						</CardContent>
+					</Card>
+				))}
 			</div>
+
+			<DataTable
+				tableId="warehouse-reports"
+				columns={columns}
+				data={movementRows}
+				isLoading={isLoading}
+				enableSearch
+				searchPlaceholder="Поиск по товару, контрагенту, документу..."
+				initialSorting={[{ id: "date", desc: true }]}
+				emptyState="За выбранный период движений по складу нет"
+			/>
 		</div>
 	);
 }

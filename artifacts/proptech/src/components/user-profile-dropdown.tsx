@@ -178,10 +178,10 @@ export default function UserProfileDropdown() {
 						<div className="text-sm font-semibold text-gray-900 leading-none">
 							{u?.firstName || "Администратор"}
 						</div>
-						<div className="text-[10px] text-gray-400 mt-0.5">{roleLabel}</div>
+						<div className="text-[10px] text-gray-600 mt-0.5">{roleLabel}</div>
 					</div>
 					<ChevronDown
-						className={`w-3.5 h-3.5 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`}
+						className={`w-3.5 h-3.5 text-gray-600 transition-transform ${open ? "rotate-180" : ""}`}
 					/>
 				</div>
 
@@ -215,7 +215,7 @@ export default function UserProfileDropdown() {
 									onClick={openSystemSettings}
 									className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 text-sm text-gray-700 transition-colors"
 								>
-									<Settings className="w-4 h-4 text-gray-400" />
+									<Settings className="w-4 h-4 text-gray-600" />
 									Настройки системы
 								</button>
 							)}
@@ -223,14 +223,14 @@ export default function UserProfileDropdown() {
 								onClick={openProfile}
 								className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 text-sm text-gray-700 transition-colors"
 							>
-								<User className="w-4 h-4 text-gray-400" />
+								<User className="w-4 h-4 text-gray-600" />
 								Редактировать профиль
 							</button>
 							<button
 								onClick={openPassword}
 								className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 text-sm text-gray-700 transition-colors"
 							>
-								<Key className="w-4 h-4 text-gray-400" />
+								<Key className="w-4 h-4 text-gray-600" />
 								Изменить пароль
 							</button>
 						</div>
@@ -264,7 +264,7 @@ export default function UserProfileDropdown() {
 							</button>
 						</div>
 						<div className="p-5 space-y-4">
-							<div className="grid grid-cols-2 gap-3">
+							<div className="grid gap-3 sm:grid-cols-2">
 								<div>
 									<Label className="text-xs font-medium text-gray-600">
 										Имя
@@ -305,7 +305,7 @@ export default function UserProfileDropdown() {
 									value={u?.email || ""}
 									disabled
 								/>
-								<p className="text-[10px] text-gray-400 mt-1">
+								<p className="text-[10px] text-gray-600 mt-1">
 									Email нельзя изменить
 								</p>
 							</div>
@@ -373,7 +373,7 @@ export default function UserProfileDropdown() {
 									<button
 										type="button"
 										onClick={() => setShowPw((v) => !v)}
-										className="absolute right-2.5 top-2 text-gray-400 hover:text-gray-600"
+										className="absolute right-2.5 top-2 text-gray-600 hover:text-gray-600"
 									>
 										{showPw ? (
 											<EyeOff className="w-4 h-4" />

@@ -111,7 +111,7 @@ export default function WarehouseMarketplace() {
 			api.get<MarketplaceOrder[]>("/marketplace/orders").then((r) => r.data),
 	});
 
-	const { data: projects } = useQuery({
+	const { data: projects = [] } = useQuery<Project[]>({
 		queryKey: ["construction-projects-marketplace"],
 		queryFn: () =>
 			api

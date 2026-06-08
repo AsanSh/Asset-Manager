@@ -395,7 +395,7 @@ export default function ConstructionOperations() {
 				size: 120,
 				meta: { exportLabel: "Дата" },
 				cell: ({ row }) => (
-					<span className="text-gray-400 text-xs whitespace-nowrap">
+					<span className="text-gray-600 text-xs whitespace-nowrap">
 						{relDate(row.original.date)}
 					</span>
 				),
@@ -411,7 +411,7 @@ export default function ConstructionOperations() {
 							{row.original.description}
 						</div>
 						{row.original.category && (
-							<div className="text-xs text-gray-400 mt-0.5">
+							<div className="text-xs text-gray-600 mt-0.5">
 								{row.original.category}
 							</div>
 						)}
@@ -454,7 +454,7 @@ export default function ConstructionOperations() {
 					projects.find((p: any) => p.id === row.projectId)?.name || "—",
 				meta: { exportLabel: "Проект" },
 				cell: ({ getValue }) => (
-					<span className="text-xs text-gray-400">{getValue() as string}</span>
+					<span className="text-xs text-gray-600">{getValue() as string}</span>
 				),
 			},
 			{
@@ -474,7 +474,7 @@ export default function ConstructionOperations() {
 							{isIncome ? "+" : isTransfer ? "" : "−"}
 							{fmt(op.amountKgs)}
 							{op.currency !== "KGS" && (
-								<div className="text-[10px] text-gray-400 font-normal">
+								<div className="text-[10px] text-gray-600 font-normal">
 									{fmt(op.amount)} {op.currency}
 								</div>
 							)}
@@ -607,7 +607,7 @@ export default function ConstructionOperations() {
 					))}
 					<div className="flex-1" />
 					<div className="relative">
-						<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+						<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-600" />
 						<Input
 							className="pl-8 h-7 text-xs w-44 border-gray-200"
 							placeholder="Поиск по описанию"
@@ -619,7 +619,7 @@ export default function ConstructionOperations() {
 
 				{/* Summary row */}
 				{filteredArray.length > 0 && (
-					<div className="grid grid-cols-4 gap-4 mb-4">
+					<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 mb-4">
 						<div className="bg-white border border-gray-200 rounded-xl p-4">
 							<p className="text-xs font-medium text-gray-500 mb-1">Приходы</p>
 							<p className="text-xl font-bold text-emerald-600 font-mono">
@@ -701,7 +701,7 @@ export default function ConstructionOperations() {
 						</div>
 						<button
 							onClick={closePanel}
-							className="text-gray-400 hover:text-gray-600 transition-colors"
+							className="text-gray-600 hover:text-gray-600 transition-colors"
 						>
 							<X className="w-4 h-4" />
 						</button>

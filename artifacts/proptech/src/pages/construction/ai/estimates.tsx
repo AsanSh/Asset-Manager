@@ -10,7 +10,8 @@ import {
 	TrendingUp,
 	Upload,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
 	Select,
@@ -47,7 +48,7 @@ function fmt(v: number) {
 
 function DeviationBadge({ pct }: { pct: number }) {
 	if (Math.abs(pct) < 0.5) {
-		return <span className="text-xs text-gray-400">±0%</span>;
+		return <span className="text-xs text-gray-600">±0%</span>;
 	}
 	const over = pct > 0;
 	return (
@@ -72,17 +73,17 @@ function CategoryBlock({ category, items }: { category: string; items: BudgetIte
 				className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
 			>
 				<div className="flex items-center gap-2">
-					{open ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+					{open ? <ChevronDown className="w-4 h-4 text-gray-600" /> : <ChevronRight className="w-4 h-4 text-gray-600" />}
 					<span className="text-sm font-semibold text-gray-800">{category}</span>
-					<span className="text-xs text-gray-400">({items.length} позиций)</span>
+					<span className="text-xs text-gray-600">({items.length} позиций)</span>
 				</div>
 				<div className="flex items-center gap-6 text-right">
 					<div>
-						<p className="text-xs text-gray-400">План</p>
+						<p className="text-xs text-gray-600">План</p>
 						<p className="text-sm font-medium text-gray-700">{fmt(planned)}</p>
 					</div>
 					<div>
-						<p className="text-xs text-gray-400">Факт</p>
+						<p className="text-xs text-gray-600">Факт</p>
 						<p className="text-sm font-medium text-gray-700">{fmt(actual)}</p>
 					</div>
 					<div className="w-20 text-right">
@@ -131,6 +132,8 @@ function CategoryBlock({ category, items }: { category: string; items: BudgetIte
 
 export default function AIEstimates() {
 	const [projectId, setProjectId] = useState<string>("");
+	const [uploadedFileName, setUploadedFileName] = useState("");
+	const fileInputRef = useRef<HTMLInputElement>(null);
 
 	const { data: projects = [] } = useQuery<Project[]>({
 		queryKey: ["construction-projects-all"],
@@ -170,16 +173,25 @@ export default function AIEstimates() {
 		(i) => parseFloat(i.actualAmount || "0") > parseFloat(i.plannedAmount || "0"),
 	);
 
+	const handleFileSelected = (file?: File) => {
+		if (!file) return;
+		setUploadedFileName(file.name);
+		toast.info("Файл выбран", {
+			description: "Импорт сметы в бюджет пока требует подключения API. Файл зафиксирован в интерфейсе.",
+		});
+	};
+
 	return (
-		<div className="space-y-6">
-			<div className="flex items-center justify-between flex-wrap gap-3">
+		<div className="am-page space-y-6">
+			<div className="am-page-header">
 				<div>
-					<h1 className="text-2xl font-bold text-gray-900">AI Смета</h1>
-					<p className="text-sm text-gray-500 mt-1">Анализ и отклонения бюджета по проекту</p>
+					<p className="text-[11px] font-bold uppercase tracking-[0.22em] text-cyan-700">AI-инструмент</p>
+					<h1 className="am-page-title mt-1 text-[24px] sm:text-[30px]">AI Смета</h1>
+					<p className="am-page-subtitle text-sm">Анализ и отклонения бюджета по проекту</p>
 				</div>
-				<div className="flex items-center gap-2">
+				<div className="flex flex-wrap items-center gap-2">
 					<Select value={projectId} onValueChange={setProjectId}>
-						<SelectTrigger className="w-52">
+						<SelectTrigger className="w-full sm:w-52">
 							<SelectValue placeholder="Выберите проект" />
 						</SelectTrigger>
 						<SelectContent>
@@ -194,33 +206,45 @@ export default function AIEstimates() {
 						<RefreshCw className={cn("w-4 h-4 mr-1.5", isLoading && "animate-spin")} />
 						Обновить
 					</Button>
-					<Button variant="outline" size="sm" disabled title="Загрузка Excel — в разработке">
+					<input
+						ref={fileInputRef}
+						type="file"
+						accept=".xlsx,.xls,.csv"
+						className="hidden"
+						onChange={(event) => handleFileSelected(event.target.files?.[0])}
+					/>
+					<Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
 						<Upload className="w-4 h-4 mr-1.5" />
-						Загрузить смету
+						{uploadedFileName ? "Файл выбран" : "Загрузить смету"}
 					</Button>
 				</div>
 			</div>
+			{uploadedFileName && (
+				<div className="am-panel px-4 py-3 text-sm text-slate-600">
+					<span className="font-semibold text-slate-900">Выбран файл:</span> {uploadedFileName}
+				</div>
+			)}
 
 			{/* Summary cards */}
 			{projectId && (
-				<div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-					<div className="bg-white rounded-xl border border-gray-200 p-4">
+				<div className="am-kpi-grid">
+					<div className="am-kpi-card">
 						<p className="text-xs text-gray-500 mb-1">Позиций в смете</p>
 						<p className="text-2xl font-bold text-gray-900">{items.length}</p>
 					</div>
-					<div className="bg-white rounded-xl border border-gray-200 p-4">
+					<div className="am-kpi-card">
 						<p className="text-xs text-gray-500 mb-1">Плановый бюджет</p>
 						<p className="text-xl font-bold text-gray-900">{fmt(totalPlanned)} с</p>
 					</div>
-					<div className="bg-white rounded-xl border border-gray-200 p-4">
+					<div className="am-kpi-card">
 						<p className="text-xs text-gray-500 mb-1">Фактически</p>
 						<p className={cn("text-xl font-bold", totalActual > totalPlanned ? "text-rose-600" : "text-emerald-600")}>
 							{fmt(totalActual)} с
 						</p>
 					</div>
 					<div className={cn(
-						"rounded-xl border p-4",
-						totalPct > 0 ? "bg-rose-50 border-rose-200" : "bg-emerald-50 border-emerald-200"
+						"am-kpi-card",
+						totalPct > 0 ? "border-rose-200/80 bg-rose-50/80" : "border-emerald-200/80 bg-emerald-50/80"
 					)}>
 						<p className="text-xs text-gray-500 mb-1">Отклонение</p>
 						<p className={cn("text-xl font-bold", totalPct > 0 ? "text-rose-700" : "text-emerald-700")}>
@@ -255,12 +279,12 @@ export default function AIEstimates() {
 					<RefreshCw className="w-6 h-6 text-blue-500 animate-spin" />
 				</div>
 			) : !projectId ? (
-				<div className="text-center py-20 text-gray-400">
+				<div className="text-center py-20 text-gray-600">
 					<FileSpreadsheet className="w-10 h-10 mx-auto mb-3 text-gray-300" />
 					<p>Выберите проект для анализа сметы</p>
 				</div>
 			) : categories.length === 0 ? (
-				<div className="text-center py-20 text-gray-400">
+				<div className="text-center py-20 text-gray-600">
 					<BarChart3 className="w-10 h-10 mx-auto mb-3 text-gray-300" />
 					<p className="font-medium">Нет данных бюджета</p>
 					<p className="text-sm mt-1">Добавьте позиции в разделе «Бюджет»</p>
@@ -268,7 +292,7 @@ export default function AIEstimates() {
 			) : (
 				<div className="space-y-3">
 					{/* Table header */}
-					<div className="flex items-center gap-6 px-4 text-xs text-gray-400 font-medium">
+					<div className="flex items-center gap-6 px-4 text-xs text-gray-600 font-medium">
 						<div className="flex-1">Наименование</div>
 						<div className="w-24 text-right">План</div>
 						<div className="w-24 text-right">Факт</div>
@@ -279,7 +303,7 @@ export default function AIEstimates() {
 					))}
 
 					{/* % by category chart */}
-					<div className="bg-white rounded-xl border border-gray-200 p-5 mt-2">
+					<div className="am-panel p-5 mt-2">
 						<h3 className="text-sm font-semibold text-gray-800 mb-4">Структура по разделам (% от плана)</h3>
 						<div className="space-y-2.5">
 							{categories.map(([cat, catItems]) => {
@@ -302,7 +326,7 @@ export default function AIEstimates() {
 										<div className="w-12 text-xs text-right text-gray-500 flex-shrink-0">
 											{share.toFixed(1)}%
 										</div>
-										<div className={cn("w-20 text-xs text-right flex-shrink-0", a > p ? "text-rose-500" : "text-gray-400")}>
+										<div className={cn("w-20 text-xs text-right flex-shrink-0", a > p ? "text-rose-500" : "text-gray-600")}>
 											{a > p ? `+${fmt(a - p)}` : a < p ? `-${fmt(p - a)}` : "="}
 										</div>
 									</div>

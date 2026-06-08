@@ -80,7 +80,7 @@ export function CashSummary({ accounts }: { accounts: CashAccount[] }) {
 				</div>
 				<div className="max-h-72 overflow-y-auto py-1">
 					{list.length === 0 ? (
-						<div className="px-4 py-3 text-sm text-gray-400">Касс нет</div>
+						<div className="px-4 py-3 text-sm text-gray-600">Касс нет</div>
 					) : (
 						list.map((a) => {
 							const bal = parseFloat(String(a.currentBalance || "0")) || 0;
@@ -102,7 +102,7 @@ export function CashSummary({ accounts }: { accounts: CashAccount[] }) {
 									<span className="text-sm font-mono text-gray-900 whitespace-nowrap text-right">
 										{fmtMoney(bal, a.currency || "KGS")}
 										{showConverted && (
-											<span className="block text-[11px] text-gray-400">
+											<span className="block text-[11px] text-gray-600">
 												≈ {fmtMoney(inDefault, defaultCurrency)}
 											</span>
 										)}
@@ -113,7 +113,7 @@ export function CashSummary({ accounts }: { accounts: CashAccount[] }) {
 					)}
 				</div>
 				{nbkr?.date && (
-					<div className="px-4 py-2 border-t text-[11px] text-gray-400">
+					<div className="px-4 py-2 border-t text-[11px] text-gray-600">
 						Курс НБКР на {nbkr.date}
 					</div>
 				)}

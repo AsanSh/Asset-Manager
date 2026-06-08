@@ -70,7 +70,7 @@ export default function DesignSystemShowcase() {
 					<h2 className="text-base font-semibold text-am-text-strong mb-3">
 						Цветовая палитра
 					</h2>
-					<div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+					<div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 gap-3">
 						{[
 							{ cls: "bg-am-brand", token: "bg-am-brand", label: "Бренд (CTA)" },
 							{ cls: "bg-am-success", token: "bg-am-success", label: "Успех" },
@@ -300,7 +300,7 @@ export default function DesignSystemShowcase() {
 						<p className="text-[11px] uppercase tracking-wide text-am-text-muted font-semibold mb-2">
 							140 страниц по модулям
 						</p>
-						<div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+						<div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4 gap-2 text-xs">
 							{[
 								{ name: "Стройка", count: 41 },
 								{ name: "Аренда", count: 31 },

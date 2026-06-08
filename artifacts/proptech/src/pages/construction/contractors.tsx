@@ -306,8 +306,8 @@ function ContractorDialog({
 				</DialogHeader>
 				<form onSubmit={handleSubmit} className="space-y-4">
 					{/* Basic info */}
-					<div className="grid grid-cols-2 gap-3">
-						<div className="col-span-2 flex flex-col">
+					<div className="grid gap-3 sm:grid-cols-2">
+						<div className="sm:col-span-2 flex flex-col">
 							<Label className="leading-tight mb-1.5">Название / ФИО *</Label>
 							<Input
 								className="mt-auto"
@@ -378,7 +378,7 @@ function ContractorDialog({
 					</div>
 
 					{/* Contacts */}
-					<div className="grid grid-cols-2 gap-3">
+					<div className="grid gap-3 sm:grid-cols-2">
 						<div className="flex flex-col">
 							<Label className="leading-tight mb-1.5">Телефон</Label>
 							<Input className="mt-auto" value={form.phone} onChange={(e) => set("phone", e.target.value)} />
@@ -417,7 +417,7 @@ function ContractorDialog({
 					{/* Contract */}
 					<div className="border-t pt-3">
 						<p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Договор</p>
-						<div className="grid grid-cols-2 gap-3">
+						<div className="grid gap-3 sm:grid-cols-2">
 							<div className="flex flex-col">
 								<Label className="leading-tight mb-1.5">№ договора</Label>
 								<Input className="mt-auto" value={form.contractNumber} onChange={(e) => set("contractNumber", e.target.value)} />
@@ -472,7 +472,7 @@ function ContractorDialog({
 					)}
 
 					{/* Rating */}
-					<div className="grid grid-cols-2 gap-3">
+					<div className="grid gap-3 sm:grid-cols-2">
 						<div className="flex flex-col">
 							<Label className="leading-tight mb-1.5">Рейтинг (1–5)</Label>
 							<Select value={form.rating} onValueChange={(v) => set("rating", v)}>
@@ -579,10 +579,10 @@ function ContractorDialog({
 								</div>
 							) : (
 								<>
-									<p className="text-[11px] text-gray-400">
+									<p className="text-[11px] text-gray-600">
 										Войдёт по телефону из контактов выше ({form.phone || "укажите телефон"}) и SMS-коду
 									</p>
-									<div className="grid grid-cols-2 gap-3">
+									<div className="grid gap-3 sm:grid-cols-2">
 										<div className="flex flex-col">
 											<Label className="leading-tight mb-1.5">Имя *</Label>
 											<Input
@@ -603,7 +603,7 @@ function ContractorDialog({
 												}
 											/>
 										</div>
-										<div className="col-span-2 flex flex-col">
+										<div className="sm:col-span-2 flex flex-col">
 											<Label className="leading-tight mb-1.5">Email (необязательно)</Label>
 											<Input
 												className="mt-auto"
@@ -720,7 +720,7 @@ export default function ConstructionContractors() {
 							</div>
 							<div>
 								<p className="font-medium text-sm text-gray-900">{c.fullName}</p>
-								<p className="text-xs text-gray-400">
+								<p className="text-xs text-gray-600">
 									{c.type === "company" ? "Компания" : "ИП"}
 								</p>
 							</div>
@@ -751,8 +751,8 @@ export default function ConstructionContractors() {
 					return (
 						<div className="text-xs">
 							<p className="text-gray-600">{c.phone || "—"}</p>
-							{c.inn && <p className="text-gray-400">ИНН: {c.inn}</p>}
-							{c.okpo && <p className="text-gray-400">ОКПО: {c.okpo}</p>}
+							{c.inn && <p className="text-gray-600">ИНН: {c.inn}</p>}
+							{c.okpo && <p className="text-gray-600">ОКПО: {c.okpo}</p>}
 						</div>
 					);
 				},
@@ -772,7 +772,7 @@ export default function ConstructionContractors() {
 								<p className="font-medium text-gray-800">№{c.contractNumber}</p>
 							)}
 							{contractAmt > 0 && (
-								<p className="text-gray-400 text-xs">
+								<p className="text-gray-600 text-xs">
 									{contractAmt.toLocaleString("ru-KG")} сом
 								</p>
 							)}
@@ -805,7 +805,7 @@ export default function ConstructionContractors() {
 							</p>
 							<p
 								className={
-									outstanding > 0 ? "text-amber-600" : "text-gray-400"
+									outstanding > 0 ? "text-amber-600" : "text-gray-600"
 								}
 							>
 								ост. {outstanding.toLocaleString("ru-KG")} сом
@@ -839,7 +839,7 @@ export default function ConstructionContractors() {
 				cell: ({ row }) => {
 					const c = row.original;
 					if (!c.rating) {
-						return <span className="text-gray-400 text-sm">—</span>;
+						return <span className="text-gray-600 text-sm">—</span>;
 					}
 					return (
 						<div className="flex items-center gap-0.5">
@@ -900,7 +900,7 @@ export default function ConstructionContractors() {
 								className="h-7 w-7 p-0"
 								onClick={() => setDialog(c)}
 							>
-								<Edit2 className="w-3.5 h-3.5 text-gray-400" />
+								<Edit2 className="w-3.5 h-3.5 text-gray-600" />
 							</Button>
 							<Button
 								size="sm"
@@ -908,7 +908,7 @@ export default function ConstructionContractors() {
 								className="h-7 w-7 p-0"
 								onClick={() => handleDelete(c.id)}
 							>
-								<Trash2 className="w-3.5 h-3.5 text-gray-400 hover:text-rose-600" />
+								<Trash2 className="w-3.5 h-3.5 text-gray-600 hover:text-rose-600" />
 							</Button>
 						</div>
 					);
@@ -919,11 +919,11 @@ export default function ConstructionContractors() {
 	);
 
 	return (
-		<div className="space-y-6">
-			<div className="flex items-center justify-between">
+		<div className="am-page space-y-5">
+			<div className="am-page-header">
 				<div>
-					<h1 className="text-2xl font-bold text-gray-900">Подрядчики</h1>
-					<p className="text-sm text-gray-500 mt-0.5">
+					<h1 className="am-page-title text-2xl">Подрядчики</h1>
+					<p className="am-page-subtitle text-sm">
 						Подрядные организации и ИП со специализацией. Покупатели и поставщики — в{" "}
 						<a href="/counterparties" className="text-orange-600 hover:underline">
 							общем справочнике контрагентов

@@ -41,7 +41,6 @@ import {
 } from "@/components/ui/select";
 
 import { Textarea } from "@/components/ui/textarea";
-import { PageShell } from "@/components/am/PageShell";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -240,7 +239,7 @@ function LeadDialog({ open, onClose, lead, onSuccess }: LeadDialogProps) {
 						/>
 					</div>
 
-					<div className="grid grid-cols-2 gap-3">
+					<div className="grid gap-3 sm:grid-cols-2">
 						<div className="flex flex-col">
 							<Label className="leading-tight mb-1.5">Телефон *</Label>
 							<Input
@@ -267,7 +266,7 @@ function LeadDialog({ open, onClose, lead, onSuccess }: LeadDialogProps) {
 						</div>
 					</div>
 
-					<div className="grid grid-cols-2 gap-3">
+					<div className="grid gap-3 sm:grid-cols-2">
 						<div className="flex flex-col">
 							<Label className="leading-tight mb-1.5">Источник *</Label>
 							<Select
@@ -306,7 +305,7 @@ function LeadDialog({ open, onClose, lead, onSuccess }: LeadDialogProps) {
 						</div>
 					</div>
 
-					<div className="grid grid-cols-2 gap-3">
+					<div className="grid gap-3 sm:grid-cols-2">
 						<div className="flex flex-col">
 							<Label className="leading-tight mb-1.5">Тип недвижимости</Label>
 							<Select
@@ -341,7 +340,7 @@ function LeadDialog({ open, onClose, lead, onSuccess }: LeadDialogProps) {
 						</div>
 					</div>
 
-					<div className="grid grid-cols-2 gap-3">
+					<div className="grid gap-3 sm:grid-cols-2">
 						<div className="flex flex-col">
 							<Label className="leading-tight mb-1.5">Канал (соцсети)</Label>
 							<Select
@@ -664,11 +663,17 @@ export default function Leads() {
 	);
 
 	return (
-		<PageShell.List
-			title="Лиды"
-			subtitle="Управление потенциальными клиентами"
-			primaryAction={
-				<div className="flex gap-2 flex-wrap">
+		<div className="space-y-5">
+			<div className="flex justify-between items-start">
+				<div>
+					<h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+						<UserPlus className="w-6 h-6 text-blue-600" /> Лиды
+					</h1>
+					<p className="text-sm text-gray-500 mt-1">
+						Управление потенциальными клиентами
+					</p>
+				</div>
+				<div className="flex gap-2">
 					<Link href="/crm/leads/intake">
 						<Button variant="outline" className="gap-2">
 							<Rss className="w-4 h-4" /> Приём лидов
@@ -679,14 +684,14 @@ export default function Leads() {
 							setSelectedLead(undefined);
 							setDialogOpen(true);
 						}}
-						className="bg-amber-500 hover:bg-amber-600"
 					>
 						<Plus className="w-4 h-4 mr-2" /> Добавить лид
 					</Button>
 				</div>
-			}
-			filters={<PeriodPicker value={period} onChange={setPeriod} />}
-		>
+			</div>
+
+			<PeriodPicker value={period} onChange={setPeriod} />
+
 			<DataTable
 				tableId="crm-leads"
 				columns={columns}
@@ -733,7 +738,7 @@ export default function Leads() {
 				emptyState={
 					<div className="flex flex-col items-center gap-2">
 						<UserPlus className="w-8 h-8 text-gray-200" />
-						<span className="text-gray-400">Лиды не найдены</span>
+						<span className="text-gray-600">Лиды не найдены</span>
 					</div>
 				}
 			/>
@@ -788,6 +793,6 @@ export default function Leads() {
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
-		</PageShell.List>
+		</div>
 	);
 }

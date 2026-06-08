@@ -156,7 +156,7 @@ function AddDialog({
 							placeholder="2024 Q1 / Янв 2024–Мар 2024"
 						/>
 					</div>
-					<div className="grid grid-cols-2 gap-3">
+					<div className="grid gap-3 sm:grid-cols-2">
 						<div className="flex flex-col">
 							<Label className="leading-tight mb-1.5">Валовый доход (KGS)</Label>
 							<Input
@@ -394,7 +394,7 @@ export default function Distributions() {
 				</Button>
 			</div>
 
-			<div className="grid grid-cols-3 gap-4">
+			<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
 				<div className="bg-white rounded-xl border border-gray-200 p-4">
 					<p className="text-xs text-gray-500 mb-1">Всего периодов</p>
 					<p className="text-2xl font-bold text-blue-600">

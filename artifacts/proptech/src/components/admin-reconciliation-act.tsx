@@ -134,7 +134,7 @@ export function AdminReconciliationAct({
 				))}
 			</div>
 			{lines.length === 0 ? (
-				<p className="text-sm text-gray-400 text-center py-4">Нет операций</p>
+				<p className="text-sm text-gray-600 text-center py-4">Нет операций</p>
 			) : (
 				<div className="max-h-48 overflow-y-auto rounded-md border">
 					<table className="w-full text-xs">

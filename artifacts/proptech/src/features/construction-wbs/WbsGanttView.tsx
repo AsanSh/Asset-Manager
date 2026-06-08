@@ -51,7 +51,7 @@ export function WbsGanttView({
 							? "bg-rose-500"
 							: st === "at_risk"
 								? "bg-amber-500"
-								: "bg-emerald-500";
+								: "bg-emerald-600";
 
 			const budgetLabel =
 				row.node.metrics.budgetKgs > 0
@@ -78,7 +78,7 @@ export function WbsGanttView({
 
 	if (bars.length === 0) {
 		return (
-			<div className="rounded-xl border border-gray-200 bg-white py-12 text-center text-sm text-gray-400">
+			<div className="rounded-xl border border-gray-200 bg-white py-12 text-center text-sm text-gray-600">
 				Укажите даты начала и окончания этапов для диаграммы Ганта
 			</div>
 		);
@@ -86,7 +86,7 @@ export function WbsGanttView({
 
 	return (
 		<div className="rounded-xl border border-gray-200 bg-white p-3 space-y-2">
-			<p className="text-[11px] text-gray-400 px-1 mb-2">
+			<p className="text-[11px] text-gray-600 px-1 mb-2">
 				Заливка — освоение бюджета (расходы по этапу). Тёмная полоса — прогресс работ. Перерасход подсвечивается красным.
 			</p>
 			{bars.map((row) => (
@@ -100,7 +100,7 @@ export function WbsGanttView({
 				>
 					<div className="flex items-center justify-between gap-2 text-xs mb-1">
 						<div className="flex items-center gap-2 min-w-0">
-							<span className="font-mono text-[10px] text-gray-400 shrink-0">{row.node.wbsCode}</span>
+							<span className="font-mono text-[10px] text-gray-600 shrink-0">{row.node.wbsCode}</span>
 							<span className="truncate text-gray-800" style={{ paddingLeft: row.node.depth * 8 }}>
 								{row.node.stage.name}
 							</span>
@@ -108,7 +108,7 @@ export function WbsGanttView({
 								{row.meta.label}
 							</span>
 						</div>
-						<span className="text-gray-400 shrink-0 text-[10px]">
+						<span className="text-gray-600 shrink-0 text-[10px]">
 							{row.start} → {row.end}
 						</span>
 					</div>

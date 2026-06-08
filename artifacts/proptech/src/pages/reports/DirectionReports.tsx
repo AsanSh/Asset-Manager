@@ -169,7 +169,7 @@ const ROW_COLUMNS: ColumnDef<DirectionReportRow>[] = [
 			<div className="min-w-0">
 				<p className="font-medium text-gray-900 truncate">{row.original.name}</p>
 				{row.original.subtitle && (
-					<p className="text-xs text-gray-400 truncate">{row.original.subtitle}</p>
+					<p className="text-xs text-gray-600 truncate">{row.original.subtitle}</p>
 				)}
 			</div>
 		),
@@ -244,7 +244,7 @@ function KpiCard({
 			<p className={cn("text-xl font-bold mt-1 font-mono tabular-nums truncate", tone)}>
 				{value}
 			</p>
-			{sub && <p className="text-[10px] text-gray-400 mt-0.5">{sub}</p>}
+			{sub && <p className="text-[10px] text-gray-600 mt-0.5">{sub}</p>}
 		</div>
 	);
 }
@@ -402,11 +402,11 @@ export default function DirectionReportsPage() {
 
 				{/* KPI strip */}
 				{isLoading ? (
-					<div className="h-20 flex items-center justify-center text-gray-400 text-sm gap-2">
+					<div className="h-20 flex items-center justify-center text-gray-600 text-sm gap-2">
 						<RefreshCw className="w-4 h-4 animate-spin" /> Загрузка…
 					</div>
 				) : (
-					<div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+					<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5 gap-3">
 						<KpiCard
 							label="Контрагентов"
 							value={String(summary.entityCount)}
@@ -447,7 +447,7 @@ export default function DirectionReportsPage() {
 							Оплаты за период
 						</h3>
 						{barData.length === 0 ? (
-							<p className="text-sm text-gray-400 text-center py-16">Нет данных</p>
+							<p className="text-sm text-gray-600 text-center py-16">Нет данных</p>
 						) : (
 							<ResponsiveContainer width="100%" height={240}>
 								<BarChart data={barData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
@@ -470,7 +470,7 @@ export default function DirectionReportsPage() {
 								Оплачено по направлениям
 							</h3>
 							{paidPie.length === 0 ? (
-								<p className="text-xs text-gray-400 text-center py-8">—</p>
+								<p className="text-xs text-gray-600 text-center py-8">—</p>
 							) : (
 								<ResponsiveContainer width="100%" height={100}>
 									<PieChart>
@@ -512,7 +512,7 @@ export default function DirectionReportsPage() {
 								Остаток по направлениям
 							</h3>
 							{debtPie.length === 0 ? (
-								<p className="text-xs text-gray-400 text-center py-8">Нет задолженности</p>
+								<p className="text-xs text-gray-600 text-center py-8">Нет задолженности</p>
 							) : (
 								<ResponsiveContainer width="100%" height={100}>
 									<PieChart>
@@ -556,9 +556,9 @@ export default function DirectionReportsPage() {
 						<h3 className="text-sm font-semibold text-gray-800 mb-1">
 							Оплачено vs Остаток
 						</h3>
-						<p className="text-[10px] text-gray-400 mb-2">по контрагентам</p>
+						<p className="text-[10px] text-gray-600 mb-2">по контрагентам</p>
 						{scatterData.length === 0 ? (
-							<p className="text-sm text-gray-400 text-center py-16">Нет данных</p>
+							<p className="text-sm text-gray-600 text-center py-16">Нет данных</p>
 						) : (
 							<ResponsiveContainer width="100%" height={240}>
 								<ScatterChart margin={{ top: 8, right: 8, bottom: 8, left: 0 }}>
@@ -611,7 +611,7 @@ export default function DirectionReportsPage() {
 					Детализация по контрагентам
 				</h3>
 				{isLoading ? (
-					<div className="h-32 flex items-center justify-center text-gray-400 text-sm">
+					<div className="h-32 flex items-center justify-center text-gray-600 text-sm">
 						Загрузка…
 					</div>
 				) : (

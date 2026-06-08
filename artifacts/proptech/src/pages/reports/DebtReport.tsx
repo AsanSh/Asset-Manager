@@ -28,7 +28,7 @@ function StatCard({
 			<div>
 				<p className="text-sm text-gray-500">{title}</p>
 				<p className="text-xl font-bold text-gray-900 mt-0.5">{value}</p>
-				{sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+				{sub && <p className="text-xs text-gray-600 mt-0.5">{sub}</p>}
 			</div>
 		</div>
 	);
@@ -95,7 +95,7 @@ export default function DebtReport() {
 					<span className="text-sm text-gray-500">{rows.length} записей</span>
 				</div>
 				{rows.length === 0 ? (
-					<div className="text-center py-16 text-gray-400">
+					<div className="text-center py-16 text-gray-600">
 						<AlertTriangle className="w-10 h-10 mx-auto mb-3 text-gray-300" />
 						<p className="font-medium">Задолженностей нет</p>
 						<p className="text-sm mt-1">Все арендаторы оплачивают вовремя</p>
@@ -146,7 +146,7 @@ export default function DebtReport() {
 													{formatCurrency(row.overdueDebt)}
 												</span>
 											) : (
-												<span className="text-gray-400">—</span>
+												<span className="text-gray-600">—</span>
 											)}
 										</td>
 										<td className="px-6 py-4 text-gray-500 text-xs">

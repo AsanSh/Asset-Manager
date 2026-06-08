@@ -30,14 +30,14 @@ function DrillDownModal({
 					<h2 className="font-semibold text-gray-900">{title} — детализация</h2>
 					<button
 						onClick={onClose}
-						className="text-gray-400 hover:text-gray-600 transition-colors"
+						className="text-gray-600 hover:text-gray-600 transition-colors"
 					>
 						<X className="w-5 h-5" />
 					</button>
 				</div>
 				<div className="flex-1 overflow-y-auto divide-y divide-gray-50">
 					{rows.length === 0 ? (
-						<p className="text-center py-16 text-gray-400 text-sm">Нет данных</p>
+						<p className="text-center py-16 text-gray-600 text-sm">Нет данных</p>
 					) : (
 						rows.map((r: any, i: number) => (
 							<div key={r.id ?? i} className="px-5 py-3.5 hover:bg-gray-50 transition-colors">
@@ -48,7 +48,7 @@ function DrillDownModal({
 												? (r.tenantName || `Арендатор #${r.leaseContractId}`)
 												: (r.description || r.category || "Расход")}
 										</p>
-										<p className="text-xs text-gray-400 mt-0.5">
+										<p className="text-xs text-gray-600 mt-0.5">
 											{new Date(type === "inflow" ? r.paymentDate : r.expenseDate).toLocaleDateString("ru-RU")}
 											{type === "inflow" && r.paymentMethod
 												? ` · ${r.paymentMethod}`
@@ -171,7 +171,7 @@ export default function CashflowReport() {
 					<p className="text-2xl font-bold text-emerald-600">
 						{formatCurrency(summary?.totalInflow ?? 0)}
 					</p>
-					<p className="text-xs text-emerald-500 mt-1">Нажмите для детализации →</p>
+					<p className="text-xs text-emerald-700 mt-1">Нажмите для детализации →</p>
 				</button>
 				<button
 					onClick={() => setDrill("outflow")}
@@ -219,7 +219,7 @@ export default function CashflowReport() {
 						<RefreshCw className="w-6 h-6 text-blue-500 animate-spin" />
 					</div>
 				) : (byMonth?.length ?? 0) === 0 ? (
-					<p className="text-center text-gray-400 py-10 text-sm">Нет данных</p>
+					<p className="text-center text-gray-600 py-10 text-sm">Нет данных</p>
 				) : (
 					<div className="space-y-3">
 						{(byMonth ?? []).map((row: any) => (
@@ -295,7 +295,7 @@ export default function CashflowReport() {
 									<p className="text-sm font-medium text-gray-800">
 										{formatDate(p.paymentDate)}
 									</p>
-									<p className="text-xs text-gray-400">
+									<p className="text-xs text-gray-600">
 										{p.paymentMethod || "Без метода"}
 									</p>
 								</div>
@@ -305,7 +305,7 @@ export default function CashflowReport() {
 							</div>
 						))}
 						{(recentPayments ?? []).length === 0 && (
-							<p className="text-center text-gray-400 py-8 text-sm">
+							<p className="text-center text-gray-600 py-8 text-sm">
 								Нет платежей
 							</p>
 						)}
@@ -326,7 +326,7 @@ export default function CashflowReport() {
 									<p className="text-sm font-medium text-gray-800">
 										{e.description || "Расход"}
 									</p>
-									<p className="text-xs text-gray-400">
+									<p className="text-xs text-gray-600">
 										{formatDate(e.expenseDate)}
 									</p>
 								</div>
@@ -336,7 +336,7 @@ export default function CashflowReport() {
 							</div>
 						))}
 						{(recentExpenses ?? []).length === 0 && (
-							<p className="text-center text-gray-400 py-8 text-sm">
+							<p className="text-center text-gray-600 py-8 text-sm">
 								Нет расходов
 							</p>
 						)}

@@ -77,7 +77,7 @@ function StatCard({
 				<p className="text-lg font-bold text-gray-900 mt-0.5 truncate">
 					{value}
 				</p>
-				{sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+				{sub && <p className="text-xs text-gray-600 mt-0.5">{sub}</p>}
 			</div>
 		</div>
 	);
@@ -179,13 +179,13 @@ export default function InvestorDetail() {
 
 	if (isLoading)
 		return (
-			<div className="flex items-center justify-center h-64 text-gray-400">
+			<div className="flex items-center justify-center h-64 text-gray-600">
 				Загрузка...
 			</div>
 		);
 	if (!investor)
 		return (
-			<div className="flex items-center justify-center h-64 text-gray-400">
+			<div className="flex items-center justify-center h-64 text-gray-600">
 				Инвестор не найден
 			</div>
 		);
@@ -219,7 +219,7 @@ export default function InvestorDetail() {
 								>
 									{investor.status === "active" ? "Активный" : "Неактивный"}
 								</Badge>
-								<span className="text-xs text-gray-400">
+								<span className="text-xs text-gray-600">
 									{investor.type === "company" ? "Юр. лицо" : "Физ. лицо"}
 								</span>
 							</div>
@@ -267,7 +267,7 @@ export default function InvestorDetail() {
 							</div>
 							<button
 								onClick={() => setShowPortalDialog(false)}
-								className="text-gray-400 hover:text-gray-600"
+								className="text-gray-600 hover:text-gray-600"
 							>
 								<X className="w-5 h-5" />
 							</button>
@@ -277,7 +277,7 @@ export default function InvestorDetail() {
 								Инвестор получит отдельный логин для просмотра своих данных в
 								портале.
 							</p>
-							<div className="grid grid-cols-2 gap-3">
+							<div className="grid gap-3 sm:grid-cols-2">
 								<div className="flex flex-col">
 									<label className="text-xs font-medium text-gray-700 mb-1 block leading-tight">
 										Имя
@@ -380,7 +380,7 @@ export default function InvestorDetail() {
 								<Phone className="w-3.5 h-3.5 text-emerald-600" />
 							</div>
 							<div>
-								<p className="text-[10px] text-gray-400">Телефон</p>
+								<p className="text-[10px] text-gray-600">Телефон</p>
 								<p className="text-sm font-medium text-gray-900">
 									{investor.phone}
 								</p>
@@ -393,7 +393,7 @@ export default function InvestorDetail() {
 								<Mail className="w-3.5 h-3.5 text-blue-600" />
 							</div>
 							<div>
-								<p className="text-[10px] text-gray-400">Email</p>
+								<p className="text-[10px] text-gray-600">Email</p>
 								<p className="text-sm font-medium text-gray-900">
 									{investor.email}
 								</p>
@@ -406,7 +406,7 @@ export default function InvestorDetail() {
 								<Send className="w-3.5 h-3.5 text-sky-500" />
 							</div>
 							<div>
-								<p className="text-[10px] text-gray-400">Telegram</p>
+								<p className="text-[10px] text-gray-600">Telegram</p>
 								<p className="text-sm font-medium text-gray-900">
 									@{investor.telegramId}
 								</p>
@@ -419,7 +419,7 @@ export default function InvestorDetail() {
 								<User className="w-3.5 h-3.5 text-gray-500" />
 							</div>
 							<div>
-								<p className="text-[10px] text-gray-400">ИИН / БИН</p>
+								<p className="text-[10px] text-gray-600">ИИН / БИН</p>
 								<p className="text-sm font-medium text-gray-900">
 									{investor.iin}
 								</p>
@@ -428,14 +428,14 @@ export default function InvestorDetail() {
 					)}
 					{investor.notes && (
 						<div className="pt-2 border-t">
-							<p className="text-[10px] text-gray-400 mb-1">Примечания</p>
+							<p className="text-[10px] text-gray-600 mb-1">Примечания</p>
 							<p className="text-xs text-gray-600">{investor.notes}</p>
 						</div>
 					)}
 				</div>
 
 				{/* Stats */}
-				<div className="lg:col-span-2 grid grid-cols-2 gap-3">
+				<div className="lg:col-span-2 grid gap-3 sm:grid-cols-2">
 					<StatCard
 						icon={<Wallet className="w-5 h-5 text-blue-600" />}
 						label="Инвестировано"
@@ -483,7 +483,7 @@ export default function InvestorDetail() {
 					</span>
 				</div>
 				{myInvestments.length === 0 ? (
-					<div className="text-center py-10 text-gray-400 text-sm">
+					<div className="text-center py-10 text-gray-600 text-sm">
 						Нет связанных объектов
 					</div>
 				) : (
@@ -517,7 +517,7 @@ export default function InvestorDetail() {
 														{inv.propertyName || "—"}
 													</p>
 													{inv.propertyUnit && (
-														<p className="text-xs text-gray-400">
+														<p className="text-xs text-gray-600">
 															Ед. {inv.propertyUnit}
 														</p>
 													)}
@@ -572,7 +572,7 @@ export default function InvestorDetail() {
 				</div>
 
 				{myDistributions.length === 0 ? (
-					<div className="text-center py-10 text-gray-400 text-sm">
+					<div className="text-center py-10 text-gray-600 text-sm">
 						Нет выплат
 					</div>
 				) : (

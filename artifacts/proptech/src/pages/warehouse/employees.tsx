@@ -1,100 +1,121 @@
-import { Briefcase, Mail, Phone, Plus, Search, UserCircle } from "lucide-react";
-import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Briefcase, LockKeyhole, Mail, Plus, Search, ShieldCheck, UserCircle } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { api } from "@/lib/api";
+
+type CompanyUser = {
+	id: number;
+	firstName?: string | null;
+	lastName?: string | null;
+	email?: string | null;
+	role?: string | null;
+	isActive?: boolean | null;
+	modules?: string[] | null;
+};
+
+const ROLE_LABELS: Record<string, string> = {
+	admin: "Администратор",
+	company_admin: "Администратор компании",
+	manager: "Менеджер",
+	accountant: "Бухгалтер",
+	employee: "Сотрудник",
+};
+
+function userName(user: CompanyUser) {
+	const full = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
+	return full || user.email || `Пользователь #${user.id}`;
+}
+
+function hasWarehouseAccess(user: CompanyUser) {
+	if (user.role === "admin" || user.role === "company_admin") return true;
+	return Array.isArray(user.modules) && user.modules.includes("warehouse");
+}
 
 export default function WarehouseEmployees() {
 	const [search, setSearch] = useState("");
 
-	// Mock data
-	const employees = [
-		{
-			id: 1,
-			firstName: "Алексей",
-			lastName: "Петров",
-			position: "Заведующий складом",
-			phone: "+996 555 111 222",
-			email: "petrov@company.kg",
-			status: "active",
-			accessLevel: "full",
-		},
-		{
-			id: 2,
-			firstName: "Мария",
-			lastName: "Сидорова",
-			position: "Кладовщик",
-			phone: "+996 555 222 333",
-			email: "sidorova@company.kg",
-			status: "active",
-			accessLevel: "limited",
-		},
-		{
-			id: 3,
-			firstName: "Игорь",
-			lastName: "Смирнов",
-			position: "Грузчик",
-			phone: "+996 555 333 444",
-			email: "smirnov@company.kg",
-			status: "active",
-			accessLevel: "view_only",
-		},
-		{
-			id: 4,
-			firstName: "Елена",
-			lastName: "Кузнецова",
-			position: "Кладовщик",
-			phone: "+996 555 444 555",
-			email: "kuznetsova@company.kg",
-			status: "inactive",
-			accessLevel: "limited",
-		},
-	];
+	const { data: rawUsers = [], isLoading } = useQuery<CompanyUser[]>({
+		queryKey: ["users"],
+		queryFn: () => api.get("/users").then((r) => (Array.isArray(r.data) ? r.data : r.data?.data ?? [])),
+	});
 
-	const filtered = employees.filter((e) =>
-		search
-			? `${e.firstName} ${e.lastName} ${e.position}`
-					.toLowerCase()
-					.includes(search.toLowerCase())
-			: true,
+	const users = useMemo(
+		() =>
+			rawUsers
+				.filter(hasWarehouseAccess)
+				.filter((user) => {
+					const haystack = `${userName(user)} ${user.email ?? ""} ${user.role ?? ""}`.toLowerCase();
+					return haystack.includes(search.toLowerCase());
+				}),
+		[rawUsers, search],
 	);
 
-	const accessLevelLabels = {
-		full: "Полный доступ",
-		limited: "Ограниченный",
-		view_only: "Только просмотр",
-	};
-
-	const accessLevelColors = {
-		full: "bg-emerald-100 text-emerald-700",
-		limited: "bg-blue-100 text-blue-700",
-		view_only: "bg-gray-100 text-gray-700",
-	};
+	const activeCount = users.filter((user) => user.isActive !== false).length;
+	const adminsCount = users.filter((user) => user.role === "admin" || user.role === "company_admin").length;
 
 	return (
-		<div className="p-6 space-y-6">
-			{/* Header */}
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="text-3xl font-bold text-gray-900">
-						Сотрудники склада
-					</h1>
-					<p className="text-gray-500 mt-1">Управление персоналом и доступом</p>
+		<div className="space-y-6">
+			<section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+				<div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+					<div>
+						<div className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-700">
+							Доступ снабжения
+						</div>
+						<h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">
+							Сотрудники склада
+						</h1>
+						<p className="mt-1 max-w-2xl text-sm text-slate-500">
+							Список строится из реальных пользователей компании с доступом к модулю
+							снабжения. Новые сотрудники создаются в общем разделе пользователей.
+						</p>
+					</div>
+					<Link href="/users">
+						<Button className="gap-2 bg-slate-950 hover:bg-slate-800">
+							<Plus className="h-4 w-4" />
+							Открыть пользователей
+						</Button>
+					</Link>
 				</div>
-				<Button className="gap-2">
-					<Plus className="w-4 h-4" />
-					Новый сотрудник
-				</Button>
+			</section>
+
+			<div className="grid gap-4 md:grid-cols-3">
+				{[
+					{ label: "С доступом", value: users.length, icon: ShieldCheck, tone: "bg-cyan-50 text-cyan-700" },
+					{ label: "Активные", value: activeCount, icon: UserCircle, tone: "bg-emerald-50 text-emerald-700" },
+					{ label: "Администраторы", value: adminsCount, icon: LockKeyhole, tone: "bg-blue-50 text-blue-700" },
+				].map((metric) => (
+					<Card key={metric.label} className="rounded-3xl border-slate-200 shadow-sm">
+						<CardContent className="p-5">
+							<div className="flex items-start justify-between">
+								<div>
+									<div className="text-sm text-slate-500">{metric.label}</div>
+									{isLoading ? (
+										<Skeleton className="mt-3 h-8 w-20" />
+									) : (
+										<div className="mt-2 text-3xl font-black text-slate-950">{metric.value}</div>
+									)}
+								</div>
+								<div className={`rounded-2xl p-3 ${metric.tone}`}>
+									<metric.icon className="h-5 w-5" />
+								</div>
+							</div>
+						</CardContent>
+					</Card>
+				))}
 			</div>
 
-			{/* Search */}
-			<Card>
-				<CardContent className="pt-6">
-					<div className="relative">
-						<Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+			<Card className="rounded-3xl border-slate-200 shadow-sm">
+				<CardContent className="p-5">
+					<div className="relative max-w-xl">
+						<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
 						<Input
-							placeholder="Поиск по имени, должности..."
+							placeholder="Поиск по имени, email или роли..."
 							value={search}
 							onChange={(e) => setSearch(e.target.value)}
 							className="pl-10"
@@ -103,118 +124,66 @@ export default function WarehouseEmployees() {
 				</CardContent>
 			</Card>
 
-			{/* Employees List */}
-			<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-				{filtered.map((emp) => (
-					<Card key={emp.id} className="hover:shadow-lg transition-shadow">
-						<CardContent className="pt-6">
-							<div className="flex items-start gap-4">
-								<div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0">
-									<UserCircle className="w-7 h-7 text-white" />
+			<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+				{isLoading &&
+					Array.from({ length: 6 }).map((_, index) => (
+						<Skeleton key={index} className="h-48 rounded-3xl" />
+					))}
+				{!isLoading &&
+					users.map((user) => (
+						<Card key={user.id} className="rounded-3xl border-slate-200 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+							<CardContent className="p-5">
+								<div className="flex items-start gap-4">
+									<div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-950 to-cyan-700 text-white">
+										<UserCircle className="h-7 w-7" />
+									</div>
+									<div className="min-w-0 flex-1">
+										<div className="truncate text-lg font-bold text-slate-950">{userName(user)}</div>
+										<div className="mt-1 flex items-center gap-2 text-sm text-slate-500">
+											<Mail className="h-4 w-4" />
+											<span className="truncate">{user.email || "email не указан"}</span>
+										</div>
+									</div>
+									<Badge className={user.isActive === false ? "bg-slate-100 text-slate-600" : "bg-emerald-100 text-emerald-700"}>
+										{user.isActive === false ? "Отключен" : "Активен"}
+									</Badge>
 								</div>
-								<div className="flex-1 min-w-0">
-									<h3 className="font-semibold text-gray-900">
-										{emp.firstName} {emp.lastName}
-									</h3>
-									<div className="flex items-center gap-2 mt-1">
-										<Briefcase className="w-3.5 h-3.5 text-gray-400" />
-										<span className="text-sm text-gray-600">
-											{emp.position}
-										</span>
+								<div className="mt-5 rounded-2xl bg-slate-50 p-4">
+									<div className="mb-1 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-500">
+										<Briefcase className="h-4 w-4" />
+										Роль
+									</div>
+									<div className="font-semibold text-slate-900">
+										{ROLE_LABELS[user.role || ""] || user.role || "Не назначена"}
 									</div>
 								</div>
-								<Badge
-									variant={emp.status === "active" ? "default" : "secondary"}
-								>
-									{emp.status === "active" ? "Активен" : "Неактивен"}
-								</Badge>
-							</div>
-
-							<div className="mt-4 space-y-2">
-								<div className="flex items-center gap-2 text-sm text-gray-600">
-									<Phone className="w-4 h-4 flex-shrink-0" />
-									<span>{emp.phone}</span>
+								<div className="mt-4 flex gap-2">
+									<Link href="/users" className="flex-1">
+										<Button variant="outline" className="w-full">Редактировать</Button>
+									</Link>
+									<Link href="/users" className="flex-1">
+										<Button variant="outline" className="w-full">Права доступа</Button>
+									</Link>
 								</div>
-								<div className="flex items-center gap-2 text-sm text-gray-600">
-									<Mail className="w-4 h-4 flex-shrink-0" />
-									<span className="truncate">{emp.email}</span>
-								</div>
-							</div>
-
-							<div className="mt-4 pt-4 border-t border-gray-100">
-								<div className="text-xs text-gray-500 mb-2">
-									Уровень доступа
-								</div>
-								<Badge
-									className={
-										accessLevelColors[
-											emp.accessLevel as keyof typeof accessLevelColors
-										]
-									}
-								>
-									{
-										accessLevelLabels[
-											emp.accessLevel as keyof typeof accessLevelLabels
-										]
-									}
-								</Badge>
-							</div>
-
-							<div className="mt-4 flex gap-2">
-								<Button variant="outline" size="sm" className="flex-1">
-									Редактировать
-								</Button>
-								<Button variant="outline" size="sm" className="flex-1">
-									Права доступа
-								</Button>
-							</div>
-						</CardContent>
-					</Card>
-				))}
+							</CardContent>
+						</Card>
+					))}
 			</div>
 
-			{/* Empty State */}
-			{filtered.length === 0 && (
-				<Card>
-					<CardContent className="py-12 text-center">
-						<UserCircle className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-						<h3 className="text-lg font-medium text-gray-900 mb-2">
-							Сотрудники не найдены
-						</h3>
-						<p className="text-gray-500">
-							Попробуйте изменить параметры поиска
+			{!isLoading && users.length === 0 && (
+				<Card className="rounded-3xl border-dashed border-slate-200 shadow-sm">
+					<CardContent className="flex flex-col items-center gap-3 p-10 text-center">
+						<UserCircle className="h-10 w-10 text-slate-300" />
+						<div className="text-lg font-bold text-slate-950">Нет пользователей с доступом к складу</div>
+						<p className="max-w-md text-sm text-slate-500">
+							Откройте пользователей, назначьте роль или модуль снабжения, и сотрудник появится здесь.
 						</p>
+						<Link href="/users">
+							<Button className="mt-2">Настроить доступ</Button>
+						</Link>
 					</CardContent>
 				</Card>
 			)}
-
-			{/* Stats */}
-			<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-				<Card>
-					<CardContent className="pt-6">
-						<div className="text-sm text-gray-600">Всего сотрудников</div>
-						<div className="text-3xl font-bold text-gray-900 mt-2">
-							{employees.length}
-						</div>
-					</CardContent>
-				</Card>
-				<Card>
-					<CardContent className="pt-6">
-						<div className="text-sm text-gray-600">Активных</div>
-						<div className="text-3xl font-bold text-emerald-600 mt-2">
-							{employees.filter((e) => e.status === "active").length}
-						</div>
-					</CardContent>
-				</Card>
-				<Card>
-					<CardContent className="pt-6">
-						<div className="text-sm text-gray-600">С полным доступом</div>
-						<div className="text-3xl font-bold text-blue-600 mt-2">
-							{employees.filter((e) => e.accessLevel === "full").length}
-						</div>
-					</CardContent>
-				</Card>
-			</div>
 		</div>
 	);
 }

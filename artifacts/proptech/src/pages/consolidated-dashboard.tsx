@@ -9,8 +9,16 @@ import {
 	CheckSquare,
 	Circle,
 	Clock,
+	CreditCard,
+	FileText,
+	Grid3X3,
+	LockKeyhole,
+	Megaphone,
+	ReceiptText,
+	Scale,
 	ShieldAlert,
 	TrendingUp,
+	Users,
 } from "lucide-react";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +63,95 @@ const PROJECT_STATUS: Record<string, { label: string; className: string }> = {
 	paused: { label: "Пауза", className: "bg-amber-100 text-amber-800" },
 };
 
+const CORE_CHAIN = [
+	"Компания",
+	"Проект",
+	"Юнит",
+	"Контрагент",
+	"Договор",
+	"Начисления",
+	"Оплаты",
+	"Акт сверки",
+	"Портал",
+];
+
+const SALES_FLOW = [
+	{
+		title: "Шахматка",
+		text: "Единый источник доступности и статусов по каждому юниту.",
+		href: "/construction/chess",
+		icon: Grid3X3,
+	},
+	{
+		title: "Цена утверждена",
+		text: "Коммерческий директор задаёт базу, коэффициент и открывает продажу.",
+		href: "/construction/chess",
+		icon: LockKeyhole,
+	},
+	{
+		title: "Бронь и клиент",
+		text: "Продажник работает только с объектами, доступными для продажи.",
+		href: "/crm/deals",
+		icon: Users,
+	},
+	{
+		title: "Договор",
+		text: "Договор фиксирует покупателя, объект, сумму и график платежей.",
+		href: "/construction/contracts-sales",
+		icon: FileText,
+	},
+	{
+		title: "Начисления",
+		text: "Первый взнос, рассрочка и корректировки создаются автоматически.",
+		href: "/construction/accruals",
+		icon: ReceiptText,
+	},
+	{
+		title: "Оплаты",
+		text: "Платёж закрывает начисления, а не висит отдельной суммой.",
+		href: "/construction/cashier",
+		icon: CreditCard,
+	},
+	{
+		title: "Сверка",
+		text: "Финансист видит долг, просрочку и акт сверки по клиенту.",
+		href: "/construction/reconciliation",
+		icon: Scale,
+	},
+	{
+		title: "Портал клиента",
+		text: "Клиент видит объект, договор, платежи, документы и предложения.",
+		href: "/crm/client-relations",
+		icon: Megaphone,
+	},
+];
+
+const ROLE_FOCUS = [
+	{
+		role: "Коммерческий директор",
+		focus: "цены, коэффициенты, открытие юнитов, скидки, бронь",
+	},
+	{
+		role: "Продажник",
+		focus: "активные объекты, клиент, сделка, договор, статус оплаты",
+	},
+	{
+		role: "Финансист",
+		focus: "начисления, оплаты, просрочка, сверка, ОДДС/ОПУ",
+	},
+	{
+		role: "Клиентский сервис",
+		focus: "портал, новости, акции, обращения, сегменты и рассылки",
+	},
+];
+
+const SECOND_LAYER_MODULES = [
+	{ label: "Себестоимость", href: "/construction/budget", note: "этапы, задачи, материалы, подрядчики, план/факт" },
+	{ label: "Снабжение", href: "/warehouse/requests", note: "заявка → согласование → заказ → склад → списание" },
+	{ label: "Аренда", href: "/rental/contracts", note: "тот же core: объект, договор, начисление, оплата" },
+	{ label: "Marketplace", href: "/warehouse/marketplace", note: "внешний источник поставщиков и товаров для supply" },
+];
+
 export default function ConsolidatedDashboard() {
 	const { role, permissions, allowedModules } = useModuleAccess();
 	const { data, isLoading, isError, refetch } = useControlCenter();
@@ -73,6 +170,7 @@ export default function ConsolidatedDashboard() {
 			{ href: "/construction/operations", label: "Операции" },
 			{ href: "/construction/tasks", label: "Задачи" },
 			{ href: "/construction/chess", label: "Шахматка" },
+			{ href: "/crm/client-relations", label: "Клиентский сервис" },
 			{
 				href: getModuleDashboardHref(
 					"rental",
@@ -126,7 +224,7 @@ export default function ConsolidatedDashboard() {
 				cell: ({ row }) => (
 					<Link
 						href="/construction/projects"
-						className="font-medium text-am-text-strong hover:text-amber-600 truncate block"
+						className="font-medium text-am-text-strong hover:text-cyan-700 truncate block"
 						title={row.original.name}
 					>
 						{row.original.name}
@@ -281,7 +379,7 @@ export default function ConsolidatedDashboard() {
 				<button
 					type="button"
 					onClick={() => refetch()}
-					className="text-sm font-medium text-amber-700 hover:underline"
+					className="text-sm font-medium text-cyan-700 hover:underline"
 				>
 					Повторить
 				</button>
@@ -290,20 +388,124 @@ export default function ConsolidatedDashboard() {
 	}
 
 	return (
-		<div className="max-w-7xl">
-		<div className="flex flex-col lg:flex-row gap-6 items-start">
+		<div className="am-page">
+		<div className="flex flex-col gap-6">
 
 		<div className="flex-1 min-w-0 space-y-6 w-full">
+			<section className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+				<div className="border-b border-slate-100 bg-slate-950 px-5 py-5 text-white">
+					<div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
+						<div className="max-w-3xl">
+							<p className="text-xs font-semibold uppercase tracking-wide text-cyan-300">
+								Planalityc 1.0
+							</p>
+							<h1 className="mt-2 text-2xl font-bold tracking-tight">
+								Шахматка → договор → деньги → клиентский портал
+							</h1>
+							<p className="mt-2 text-sm leading-6 text-slate-300">
+								Первый продаваемый продукт: контроль продаж недвижимости для
+								строительной компании. Все модули собираются вокруг объекта,
+								договора, начислений, оплат и прозрачности для клиента.
+							</p>
+						</div>
+						<div className="grid gap-2 text-center sm:grid-cols-3">
+							<div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+								<p className="text-lg font-bold tabular-nums">
+									{kpis?.unitsSold ?? totals.sold}/{kpis?.unitsTotal ?? totals.units}
+								</p>
+								<p className="text-[10px] text-slate-400">юнитов</p>
+							</div>
+							<div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+								<p className="text-lg font-bold tabular-nums">
+									{kpis?.salesPct ?? (totals.units > 0 ? Math.round((totals.sold / totals.units) * 100) : 0)}%
+								</p>
+								<p className="text-[10px] text-slate-400">продаж</p>
+							</div>
+							<div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+								<p className="text-lg font-bold tabular-nums">
+									{fmtFull(kpis?.overdueAmount ?? totals.overdue)}
+								</p>
+								<p className="text-[10px] text-slate-400">просрочка</p>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<div className="px-5 py-4 border-b border-slate-100">
+					<p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+						Единое ядро данных
+					</p>
+					<div className="flex flex-wrap items-center gap-2">
+						{CORE_CHAIN.map((item, index) => (
+							<div key={item} className="flex items-center gap-2">
+								<span className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-700">
+									{item}
+								</span>
+								{index < CORE_CHAIN.length - 1 && (
+									<ArrowRight className="h-3.5 w-3.5 text-slate-300" />
+								)}
+							</div>
+						))}
+					</div>
+				</div>
+
+				<div className="grid gap-0 xl:grid-cols-[1fr_280px]">
+					<div className="grid sm:grid-cols-2 xl:grid-cols-4">
+						{SALES_FLOW.map((step, index) => {
+							const Icon = step.icon;
+							return (
+								<Link key={step.title} href={step.href}>
+									<div className="group h-full min-h-[154px] border-b border-r border-slate-100 p-4 transition-colors hover:bg-cyan-50/50 cursor-pointer">
+										<div className="flex items-start justify-between gap-3">
+											<div className="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-50 text-cyan-700 ring-1 ring-cyan-100 group-hover:bg-cyan-600 group-hover:text-white">
+												<Icon className="h-4 w-4" />
+											</div>
+											<span className="text-[10px] font-semibold text-slate-300">
+												{String(index + 1).padStart(2, "0")}
+											</span>
+										</div>
+										<h3 className="mt-3 text-sm font-semibold text-slate-950">
+											{step.title}
+										</h3>
+										<p className="mt-1.5 text-xs leading-5 text-slate-500">
+											{step.text}
+										</p>
+									</div>
+								</Link>
+							);
+						})}
+					</div>
+
+					<div className="border-l border-slate-100 bg-slate-50/70 p-4">
+						<p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+							Фокус по ролям
+						</p>
+						<div className="mt-3 space-y-3">
+							{ROLE_FOCUS.map((item) => (
+								<div key={item.role} className="rounded-lg border border-slate-200 bg-white p-3">
+									<p className="text-xs font-semibold text-slate-950">
+										{item.role}
+									</p>
+									<p className="mt-1 text-[11px] leading-4 text-slate-500">
+										{item.focus}
+									</p>
+								</div>
+							))}
+						</div>
+					</div>
+				</div>
+			</section>
+
 			<AttentionQueue />
 
-			<div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+			<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
 				{[
 					{
 						label: "Проектов",
 						value: String(kpis?.projectCount ?? projectRows.length),
 						sub: "в выборке",
 						icon: Building2,
-						color: "text-indigo-600 bg-indigo-50",
+						color: "text-cyan-700 bg-cyan-50",
 					},
 					{
 						label: "С риском",
@@ -319,7 +521,7 @@ export default function ConsolidatedDashboard() {
 						value: fmtFull(kpis?.overdueAmount ?? totals.overdue),
 						sub: "сом",
 						icon: AlertCircle,
-						color: "text-amber-600 bg-amber-50",
+						color: "text-rose-600 bg-rose-50",
 					},
 					{
 						label: "Продажи",
@@ -346,7 +548,7 @@ export default function ConsolidatedDashboard() {
 							<p className="text-xl font-bold text-gray-900 tabular-nums">
 								{c.value}
 							</p>
-							<p className="text-[10px] text-gray-400">{c.sub}</p>
+							<p className="text-[10px] text-gray-600">{c.sub}</p>
 						</div>
 					);
 				})}
@@ -356,7 +558,7 @@ export default function ConsolidatedDashboard() {
 			<div className="flex justify-end">
 				<Link
 					href={dashboardHref("finance")}
-					className="text-xs text-amber-600 hover:underline inline-flex items-center gap-1"
+					className="text-xs text-cyan-700 hover:underline inline-flex items-center gap-1"
 				>
 					Детальная финансовая аналитика <ArrowRight className="w-3 h-3" />
 				</Link>
@@ -367,7 +569,7 @@ export default function ConsolidatedDashboard() {
 				<div className="flex items-center justify-between px-1">
 					<h2 className="font-semibold text-gray-900">Свод по каждому проекту</h2>
 					<Link href="/construction/projects">
-						<span className="text-xs text-amber-600 hover:text-orange-600 inline-flex items-center gap-1 cursor-pointer">
+						<span className="text-xs text-cyan-700 hover:text-cyan-800 inline-flex items-center gap-1 cursor-pointer">
 							Все проекты <ArrowRight className="w-3 h-3" />
 						</span>
 					</Link>
@@ -385,58 +587,85 @@ export default function ConsolidatedDashboard() {
 					}
 					footer={
 						projectRows.length > 0 ? (
-							<div className="grid grid-cols-[minmax(140px,1fr)_repeat(7,minmax(80px,1fr))] gap-2 px-3 py-2.5 text-xs font-semibold bg-gray-50/90 border-t border-am-border">
-								<span className="col-span-3">Итого</span>
-								<span className="text-right tabular-nums text-emerald-700">
-									{fmtFull(totals.income)} сом
-								</span>
-								<span className="text-right tabular-nums text-rose-600">
-									{fmtFull(totals.expense)} сом
-								</span>
-								<span className="text-right tabular-nums">
-									{fmtFull(totalProfit)} сом
-								</span>
-								<span className="text-right tabular-nums">
-									{fmtFull(totals.sales)} сом
-								</span>
-								<span className="text-center tabular-nums">
-									{totals.sold} / {totals.units}
-								</span>
-								<span className="text-right tabular-nums text-rose-600">
-									{fmtFull(totals.overdue)} сом
-								</span>
-							</div>
+							<tr>
+								<td colSpan={projectColumns.length} className="p-0">
+									<div className="grid grid-cols-[minmax(140px,1fr)_repeat(7,minmax(80px,1fr))] gap-2 px-3 py-2.5 text-xs font-semibold bg-gray-50/90 border-t border-am-border">
+										<span className="col-span-3">Итого</span>
+										<span className="text-right tabular-nums text-emerald-700">
+											{fmtFull(totals.income)} сом
+										</span>
+										<span className="text-right tabular-nums text-rose-600">
+											{fmtFull(totals.expense)} сом
+										</span>
+										<span className="text-right tabular-nums">
+											{fmtFull(totalProfit)} сом
+										</span>
+										<span className="text-right tabular-nums">
+											{fmtFull(totals.sales)} сом
+										</span>
+										<span className="text-center tabular-nums">
+											{totals.sold} / {totals.units}
+										</span>
+										<span className="text-right tabular-nums text-rose-600">
+											{fmtFull(totals.overdue)} сом
+										</span>
+									</div>
+								</td>
+							</tr>
 						) : undefined
 					}
 				/>
 			</div>
 		</div>
 
-		<div className="w-full lg:w-72 flex-shrink-0 space-y-4 lg:sticky lg:top-4">
-			<div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+		<div className="grid w-full gap-4 lg:grid-cols-4">
+			<div className="bg-white rounded-lg border border-gray-100 shadow-sm p-4 lg:col-span-2">
+				<p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+					Подключаемые модули
+				</p>
+				<div className="mt-3 grid gap-2 sm:grid-cols-2">
+					{SECOND_LAYER_MODULES.map((module) => (
+						<Link key={module.label} href={module.href}>
+							<div className="rounded-lg border border-slate-200 p-3 hover:border-cyan-200 hover:bg-cyan-50/40 cursor-pointer transition-colors">
+								<div className="flex items-center justify-between gap-2">
+									<p className="text-xs font-semibold text-slate-900">
+										{module.label}
+									</p>
+									<ArrowRight className="h-3.5 w-3.5 text-slate-300" />
+								</div>
+								<p className="mt-1 text-[11px] leading-4 text-slate-500">
+									{module.note}
+								</p>
+							</div>
+						</Link>
+					))}
+				</div>
+			</div>
+
+			<div className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden">
 				<div className="px-4 py-3 border-b flex items-center justify-between">
 					<div className="flex items-center gap-2">
 						<CheckSquare className="w-4 h-4 text-blue-600" />
 						<span className="text-sm font-semibold text-gray-900">Задачи</span>
 					</div>
 					<Link href="/construction/tasks">
-						<span className="text-xs text-amber-600 hover:text-orange-600 cursor-pointer flex items-center gap-0.5">
+						<span className="text-xs text-cyan-700 hover:text-cyan-800 cursor-pointer flex items-center gap-0.5">
 							Все <ArrowRight className="w-3 h-3" />
 						</span>
 					</Link>
 				</div>
-				<div className="px-4 py-3 grid grid-cols-3 gap-2 text-center">
+				<div className="px-4 py-3 grid gap-2 text-center sm:grid-cols-3">
 					<div>
-						<p className="text-lg font-bold text-amber-600">{tasksSummary?.todo ?? 0}</p>
-						<p className="text-[10px] text-gray-400">В работе</p>
+						<p className="text-lg font-bold text-cyan-700">{tasksSummary?.todo ?? 0}</p>
+						<p className="text-[10px] text-gray-600">В работе</p>
 					</div>
 					<div>
 						<p className="text-lg font-bold text-rose-600">{tasksSummary?.overdue ?? 0}</p>
-						<p className="text-[10px] text-gray-400">Просрочено</p>
+						<p className="text-[10px] text-gray-600">Просрочено</p>
 					</div>
 					<div>
 						<p className="text-lg font-bold text-emerald-600">{tasksSummary?.done ?? 0}</p>
-						<p className="text-[10px] text-gray-400">Выполнено</p>
+						<p className="text-[10px] text-gray-600">Выполнено</p>
 					</div>
 				</div>
 				{overdueTasksPreview.length > 0 && (
@@ -464,20 +693,20 @@ export default function ConsolidatedDashboard() {
 				))}
 			</div>
 
-			<div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+			<div className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden">
 				<div className="px-4 py-3 border-b flex items-center justify-between">
 					<div className="flex items-center gap-2">
 						<TrendingUp className="w-4 h-4 text-gray-500" />
 						<span className="text-sm font-semibold text-gray-900">Последние операции</span>
 					</div>
 					<Link href="/construction/operations">
-						<span className="text-xs text-amber-600 hover:text-orange-600 cursor-pointer flex items-center gap-0.5">
+						<span className="text-xs text-cyan-700 hover:text-cyan-800 cursor-pointer flex items-center gap-0.5">
 							Все <ArrowRight className="w-3 h-3" />
 						</span>
 					</Link>
 				</div>
 				{recentOps.length === 0 ? (
-					<p className="px-4 py-6 text-xs text-gray-400 text-center">Нет операций</p>
+					<p className="px-4 py-6 text-xs text-gray-600 text-center">Нет операций</p>
 				) : (
 					<div>
 						{recentOps.map((op) => {
@@ -485,10 +714,10 @@ export default function ConsolidatedDashboard() {
 							const isTransfer = op.type === "transfer";
 							return (
 								<div key={op.id} className="flex items-center gap-2 px-4 py-2.5 border-b border-gray-50 last:border-0">
-									<div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isIncome ? "bg-emerald-500" : isTransfer ? "bg-blue-500" : "bg-rose-500"}`} />
+									<div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isIncome ? "bg-emerald-600" : isTransfer ? "bg-blue-500" : "bg-rose-500"}`} />
 									<div className="flex-1 min-w-0">
 										<p className="text-xs text-gray-800 truncate">{op.description}</p>
-										<p className="text-[10px] text-gray-400">{op.date}</p>
+										<p className="text-[10px] text-gray-600">{op.date}</p>
 									</div>
 									<span className={`text-xs font-mono font-semibold flex-shrink-0 ${isIncome ? "text-emerald-600" : isTransfer ? "text-blue-600" : "text-rose-600"}`}>
 										{isIncome ? "+" : isTransfer ? "⇄" : "−"}{fmtFull(op.amountKgs)}
@@ -500,11 +729,11 @@ export default function ConsolidatedDashboard() {
 				)}
 			</div>
 
-			<div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-2">
+			<div className="bg-white rounded-lg border border-gray-100 shadow-sm p-4 space-y-2">
 				<p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Быстрый переход</p>
 				{quickLinks.map((l) => (
 					<Link key={l.label} href={l.href}>
-						<div className="flex items-center gap-2 text-xs text-gray-600 hover:text-amber-600 py-1 cursor-pointer">
+						<div className="flex items-center gap-2 text-xs text-gray-600 hover:text-cyan-700 py-1 cursor-pointer">
 							<ArrowRight className="w-3 h-3 flex-shrink-0" />
 							{l.label}
 						</div>

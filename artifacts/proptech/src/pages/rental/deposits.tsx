@@ -170,7 +170,7 @@ function DepositDialog({ open, onClose }: DepositDialogProps) {
 							</SelectContent>
 						</Select>
 					</div>
-					<div className="grid grid-cols-3 gap-3">
+					<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
 						<div className="col-span-2 flex flex-col">
 							<Label className="leading-tight mb-1.5">Сумма *</Label>
 							<Input

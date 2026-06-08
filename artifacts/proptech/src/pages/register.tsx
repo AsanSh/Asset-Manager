@@ -11,7 +11,41 @@ import { BRAND } from "@/lib/brand";
 import { useAuth } from "@/lib/auth";
 
 const AUTH_GRADIENT =
-	"linear-gradient(160deg, #0f172a 0%, #1e1b4b 45%, #0e7490 100%)";
+	"linear-gradient(155deg, #06111f 0%, #0b1f2f 46%, #0e7490 100%)";
+
+type SignupModule = "construction" | "finance" | "rental" | "warehouse" | "crm";
+
+const SIGNUP_MODULES: Array<{
+	key: SignupModule;
+	title: string;
+	description: string;
+}> = [
+	{
+		key: "construction",
+		title: "Строительство",
+		description: "проекты, этапы, задачи, шахматка",
+	},
+	{
+		key: "finance",
+		title: "Финансы",
+		description: "операции, счета, бюджет, ОДДС и ОПУ",
+	},
+	{
+		key: "rental",
+		title: "Аренда",
+		description: "объекты, арендаторы, платежи, отчеты",
+	},
+	{
+		key: "warehouse",
+		title: "Закуп",
+		description: "заявки, поставщики, склад, списания",
+	},
+	{
+		key: "crm",
+		title: "CRM",
+		description: "лиды, клиенты, портал и объявления",
+	},
+];
 
 async function registerOrg(body: Record<string, string>) {
 	const { data } = await api.post("/auth/register", body);
@@ -24,6 +58,9 @@ export default function Register() {
 	const { toast } = useToast();
 	const [loading, setLoading] = useState(false);
 	const [step, setStep] = useState<"company" | "admin">("company");
+	const [selectedModules, setSelectedModules] = useState<SignupModule[]>([
+		"construction",
+	]);
 
 	const [form, setForm] = useState({
 		companyName: "",
@@ -40,6 +77,15 @@ export default function Register() {
 
 	const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
 		setForm((f) => ({ ...f, [field]: e.target.value }));
+
+	const toggleModule = (key: SignupModule) => {
+		setSelectedModules((current) => {
+			if (current.includes(key)) {
+				return current.length === 1 ? current : current.filter((m) => m !== key);
+			}
+			return [...current, key];
+		});
+	};
 
 	const handleNext = (e: React.FormEvent) => {
 		e.preventDefault();
@@ -141,10 +187,19 @@ export default function Register() {
 				password: form.password,
 			});
 
-			console.log("Registration successful:", data);
-
 			// Set new token
+			localStorage.setItem("auth_token", data.token);
 			login(data.token);
+			localStorage.setItem(
+				"planalityc_signup_modules",
+				JSON.stringify(selectedModules),
+			);
+			try {
+				await api.post("/modules/configure", { modules: selectedModules });
+			} catch {
+				// Настройка модулей не должна ломать регистрацию. Администратор
+				// сможет включить модули позже в настройках системы.
+			}
 
 			toast({
 				title: "Регистрация завершена",
@@ -156,7 +211,6 @@ export default function Register() {
 				setLocation("/dashboard");
 			}, 500);
 		} catch (err: any) {
-			console.error("Registration error details:", err);
 			toast({
 				title: "Ошибка регистрации",
 				description: err.message || "Неизвестная ошибка",
@@ -168,7 +222,10 @@ export default function Register() {
 	};
 
 	return (
-		<div className="min-h-screen flex" style={{ background: "#f4f6f9" }}>
+		<div
+			className="min-h-screen flex"
+			style={{ background: "linear-gradient(180deg, #f8fbfc 0%, #eef4f6 100%)" }}
+		>
 			{/* Branding panel */}
 			<div
 				className="hidden lg:flex w-1/2 flex-col justify-between p-12"
@@ -180,7 +237,7 @@ export default function Register() {
 					<h1 className="text-4xl font-bold leading-tight text-white">
 						Начните бесплатный период прямо сейчас
 					</h1>
-					<p className="text-blue-200 text-base leading-relaxed">
+					<p className="text-slate-100/85 text-base leading-relaxed">
 						Зарегистрируйте вашу строительную компанию или девелоперский бизнес
 						и получите полный доступ к управлению объектами, арендой и
 						финансами.
@@ -194,14 +251,14 @@ export default function Register() {
 							"Импорт данных из Excel",
 						].map((f) => (
 							<div key={f} className="flex items-center gap-2.5">
-								<CheckCircle2 className="h-4 w-4 text-blue-400 flex-shrink-0" />
-								<span className="text-blue-100 text-sm">{f}</span>
+								<CheckCircle2 className="h-4 w-4 text-cyan-300 flex-shrink-0" />
+								<span className="text-cyan-50/85 text-sm">{f}</span>
 							</div>
 						))}
 					</div>
 				</div>
 
-				<p className="text-sm text-indigo-300/70">{BRAND.copyright()}</p>
+				<p className="text-sm text-cyan-100/55">{BRAND.copyright()}</p>
 			</div>
 
 			{/* Form panel */}
@@ -215,19 +272,19 @@ export default function Register() {
 					{/* Step indicator */}
 					<div className="flex items-center gap-3 mb-6">
 						<div
-							className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${step === "company" ? "bg-blue-600 text-white" : "bg-blue-100 text-blue-600"}`}
+							className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold ${step === "company" ? "bg-cyan-700 text-white" : "bg-cyan-50 text-cyan-700"}`}
 						>
 							1
 						</div>
 						<div className="flex-1 h-px bg-gray-200" />
 						<div
-							className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${step === "admin" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700"}`}
+							className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold ${step === "admin" ? "bg-cyan-700 text-white" : "bg-slate-100 text-slate-700"}`}
 						>
 							2
 						</div>
 					</div>
 
-					<div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+					<div className="bg-white/95 rounded-xl shadow-[0_28px_80px_-52px_rgba(15,23,42,0.55)] border border-slate-200/80 p-8">
 						{step === "company" ? (
 							<>
 								<div className="mb-6">
@@ -248,7 +305,7 @@ export default function Register() {
 											onChange={set("companyName")}
 											placeholder="ООО «СтройИнвест»"
 											required
-											className="mt-1.5 h-11 rounded-xl border-gray-200 bg-gray-50 focus:bg-white"
+											className="mt-1.5 h-11 rounded-lg border-slate-200 bg-slate-50/80 focus:bg-white focus-visible:ring-cyan-600/20"
 										/>
 									</div>
 									<div>
@@ -259,10 +316,10 @@ export default function Register() {
 											value={form.legalName}
 											onChange={set("legalName")}
 											placeholder="Общество с ограниченной ответственностью «СтройИнвест»"
-											className="mt-1.5 h-11 rounded-xl border-gray-200 bg-gray-50 focus:bg-white"
+											className="mt-1.5 h-11 rounded-lg border-slate-200 bg-slate-50/80 focus:bg-white focus-visible:ring-cyan-600/20"
 										/>
 									</div>
-									<div className="grid grid-cols-2 gap-3">
+									<div className="grid gap-3 sm:grid-cols-2">
 										<div className="flex flex-col">
 											<Label className="text-sm font-medium text-gray-700 leading-tight mb-1.5">
 												ИНН / ИНО
@@ -271,7 +328,7 @@ export default function Register() {
 												value={form.bin}
 												onChange={set("bin")}
 												placeholder="12345678901234"
-												className="mt-1.5 h-11 rounded-xl border-gray-200 bg-gray-50 focus:bg-white"
+												className="mt-1.5 h-11 rounded-lg border-slate-200 bg-slate-50/80 focus:bg-white focus-visible:ring-cyan-600/20"
 											/>
 										</div>
 										<div className="flex flex-col">
@@ -282,7 +339,7 @@ export default function Register() {
 												value={form.phone}
 												onChange={set("phone")}
 												placeholder="+996 700 000 000"
-												className="mt-1.5 h-11 rounded-xl border-gray-200 bg-gray-50 focus:bg-white"
+												className="mt-1.5 h-11 rounded-lg border-slate-200 bg-slate-50/80 focus:bg-white focus-visible:ring-cyan-600/20"
 											/>
 										</div>
 									</div>
@@ -296,7 +353,7 @@ export default function Register() {
 											onChange={set("email")}
 											placeholder="info@company.kg"
 											required
-											className="mt-1.5 h-11 rounded-xl border-gray-200 bg-gray-50 focus:bg-white"
+											className="mt-1.5 h-11 rounded-lg border-slate-200 bg-slate-50/80 focus:bg-white focus-visible:ring-cyan-600/20"
 										/>
 									</div>
 									<div>
@@ -307,12 +364,55 @@ export default function Register() {
 											value={form.address}
 											onChange={set("address")}
 											placeholder="г. Бишкек, ул. Манаса 72"
-											className="mt-1.5 h-11 rounded-xl border-gray-200 bg-gray-50 focus:bg-white"
+											className="mt-1.5 h-11 rounded-lg border-slate-200 bg-slate-50/80 focus:bg-white focus-visible:ring-cyan-600/20"
 										/>
+									</div>
+									<div>
+										<Label className="text-sm font-medium text-gray-700">
+											Какие модули нужны компании? *
+										</Label>
+										<div className="mt-2 grid gap-2 sm:grid-cols-2">
+											{SIGNUP_MODULES.map((module) => {
+												const active = selectedModules.includes(module.key);
+												return (
+													<button
+														key={module.key}
+														type="button"
+														aria-pressed={active}
+														onClick={() => toggleModule(module.key)}
+														className={`rounded-2xl border p-3 text-left transition-all ${
+															active
+																? "border-cyan-300 bg-cyan-50 shadow-sm shadow-cyan-900/5"
+																: "border-slate-200 bg-slate-50/80 hover:border-slate-300 hover:bg-white"
+														}`}
+													>
+														<div className="flex items-center justify-between gap-3">
+															<p className="text-sm font-semibold text-slate-950">
+																{module.title}
+															</p>
+															<span
+																className={`h-4 w-4 rounded-full border ${
+																	active
+																		? "border-cyan-700 bg-cyan-700"
+																		: "border-slate-300 bg-white"
+																}`}
+															/>
+														</div>
+														<p className="mt-1 text-xs leading-5 text-slate-500">
+															{module.description}
+														</p>
+													</button>
+												);
+											})}
+										</div>
+										<p className="mt-2 text-xs leading-5 text-slate-500">
+											Позже администратор сможет подключить дополнительные модули
+											в настройках системы.
+										</p>
 									</div>
 									<Button
 										type="submit"
-										className="w-full h-11 rounded-xl text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white mt-2"
+										className="w-full h-11 rounded-lg text-sm font-semibold bg-cyan-700 hover:bg-cyan-800 text-white mt-2 shadow-sm shadow-cyan-900/10"
 									>
 										Далее →
 									</Button>
@@ -336,7 +436,7 @@ export default function Register() {
 									</p>
 								</div>
 								<form onSubmit={handleSubmit} className="space-y-4">
-									<div className="grid grid-cols-2 gap-3">
+									<div className="grid gap-3 sm:grid-cols-2">
 										<div className="flex flex-col">
 											<Label className="text-sm font-medium text-gray-700 leading-tight mb-1.5">
 												Имя *
@@ -346,7 +446,7 @@ export default function Register() {
 												onChange={set("firstName")}
 												placeholder="Айбек"
 												required
-												className="mt-1.5 h-11 rounded-xl border-gray-200 bg-gray-50 focus:bg-white"
+												className="mt-1.5 h-11 rounded-lg border-slate-200 bg-slate-50/80 focus:bg-white focus-visible:ring-cyan-600/20"
 											/>
 										</div>
 										<div className="flex flex-col">
@@ -358,7 +458,7 @@ export default function Register() {
 												onChange={set("lastName")}
 												placeholder="Асанов"
 												required
-												className="mt-1.5 h-11 rounded-xl border-gray-200 bg-gray-50 focus:bg-white"
+												className="mt-1.5 h-11 rounded-lg border-slate-200 bg-slate-50/80 focus:bg-white focus-visible:ring-cyan-600/20"
 											/>
 										</div>
 									</div>
@@ -371,9 +471,9 @@ export default function Register() {
 											type="email"
 											value={form.email}
 											readOnly
-											className="mt-1.5 h-11 rounded-xl border-gray-200 bg-gray-100 text-gray-500"
+											className="mt-1.5 h-11 rounded-lg border-slate-200 bg-slate-100 text-slate-500"
 										/>
-										<p className="text-xs text-gray-400 mt-1">
+										<p className="text-xs text-gray-600 mt-1">
 											Используется email организации
 										</p>
 									</div>
@@ -388,7 +488,7 @@ export default function Register() {
 											onChange={set("password")}
 											placeholder="Минимум 12 символов"
 											required
-											className="mt-1.5 h-11 rounded-xl border-gray-200 bg-gray-50 focus:bg-white"
+											className="mt-1.5 h-11 rounded-lg border-slate-200 bg-slate-50/80 focus:bg-white focus-visible:ring-cyan-600/20"
 										/>
 										<p className="text-xs text-gray-500 mt-1">
 											Требования: 12+ символов, заглавная, строчная, цифра,
@@ -406,13 +506,13 @@ export default function Register() {
 											onChange={set("confirmPassword")}
 											placeholder="Повторите пароль"
 											required
-											className="mt-1.5 h-11 rounded-xl border-gray-200 bg-gray-50 focus:bg-white"
+											className="mt-1.5 h-11 rounded-lg border-slate-200 bg-slate-50/80 focus:bg-white focus-visible:ring-cyan-600/20"
 										/>
 									</div>
 
 									<Button
 										type="submit"
-										className="w-full h-11 rounded-xl text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white mt-2"
+										className="w-full h-11 rounded-lg text-sm font-semibold bg-cyan-700 hover:bg-cyan-800 text-white mt-2 shadow-sm shadow-cyan-900/10"
 										disabled={loading}
 									>
 										{loading ? "Создание аккаунта..." : "Зарегистрироваться"}
@@ -425,7 +525,7 @@ export default function Register() {
 							Уже зарегистрированы?{" "}
 							<a
 								href="/login"
-								className="text-blue-600 font-medium hover:underline"
+								className="text-cyan-700 font-medium hover:underline"
 							>
 								Войти в систему
 							</a>

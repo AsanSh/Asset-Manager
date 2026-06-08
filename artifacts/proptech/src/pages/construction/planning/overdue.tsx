@@ -1,12 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
+import { DateRangePicker } from "@/components/am/DateRangePicker";
 import { DataTable } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
+import { defaultPeriod, isInPeriod, type PeriodValue } from "@/lib/period-utils";
 
 function fmtFull(n: any) {
 	const v = parseFloat(n || "0");
@@ -16,6 +18,7 @@ function fmtFull(n: any) {
 
 export default function ConstructionOverdue() {
 	const qc = useQueryClient();
+	const [period, setPeriod] = useState<PeriodValue>(() => defaultPeriod("month"));
 
 	const { data: accruals = [], isLoading } = useQuery({
 		queryKey: ["construction-accruals"],
@@ -36,7 +39,10 @@ export default function ConstructionOverdue() {
 	});
 
 	const overdue = accruals.filter(
-		(a: any) => a.status !== "paid" && new Date(a.dueDate) < new Date(),
+		(a: any) =>
+			a.status !== "paid" &&
+			new Date(a.dueDate) < new Date() &&
+			isInPeriod(a.dueDate, period),
 	);
 	const totalOverdue = overdue.reduce(
 		(s: number, a: any) => s + parseFloat(a.remainingAmount || "0"),
@@ -161,35 +167,43 @@ export default function ConstructionOverdue() {
 	);
 
 	return (
-		<div>
-			<div className="mb-6">
-				<h1 className="text-2xl font-bold text-gray-900">Просрочки</h1>
-				<p className="text-gray-500 text-sm mt-0.5">
-					Реестр просроченных платежей по договорам
-				</p>
+		<div className="rounded-[28px] bg-gradient-to-br from-slate-50 via-white to-rose-50/40 p-4">
+			<div className="mb-5 rounded-[24px] border border-slate-200 bg-white/90 p-5 shadow-sm">
+				<div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+					<div>
+						<p className="text-xs font-bold uppercase tracking-[0.12em] text-rose-700">
+							Контроль платежей
+						</p>
+						<h1 className="mt-1 text-3xl font-black tracking-tight text-slate-950">Просрочки</h1>
+						<p className="mt-1 text-sm text-slate-500">
+							Реестр просроченных платежей по договорам
+						</p>
+					</div>
+					<DateRangePicker value={period} onChange={setPeriod} />
+				</div>
 			</div>
 
-			<div className="grid grid-cols-3 gap-4 mb-6">
-				<div className="bg-rose-50 rounded-xl p-4 border border-rose-100 shadow-sm">
-					<div className="flex items-center gap-1 text-xs text-rose-600 mb-1">
+			<div className="mb-5 grid gap-3 md:grid-cols-3">
+				<div className="rounded-lg border border-rose-100 bg-rose-50 p-4 shadow-sm">
+					<div className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-rose-600">
 						<AlertTriangle className="w-3 h-3" />
 						Сумма просрочки
 					</div>
-					<div className="text-2xl font-bold text-rose-600">
+					<div className="text-2xl font-black text-rose-600">
 						{fmtFull(totalOverdue)}
 					</div>
 				</div>
-				<div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
-					<div className="text-xs text-gray-500 mb-1">Частично оплачено</div>
-					<div className="text-2xl font-bold text-amber-600">
+				<div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+					<div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Частично оплачено</div>
+					<div className="text-2xl font-black text-amber-600">
 						{fmtFull(totalPaid)}
 					</div>
 				</div>
-				<div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
-					<div className="text-xs text-gray-500 mb-1">
+				<div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+					<div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
 						Просроченных платежей
 					</div>
-					<div className="text-2xl font-bold text-rose-600">
+					<div className="text-2xl font-black text-rose-600">
 						{overdue.length} шт.
 					</div>
 				</div>

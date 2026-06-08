@@ -104,7 +104,7 @@ export default function ConstructionSettings() {
 					</CardTitle>
 				</CardHeader>
 				<CardContent className="space-y-6">
-					<div className="flex items-center justify-between">
+					<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 						<div>
 							<div className="font-medium text-gray-900">
 								Автоматическое создание этапов
@@ -116,7 +116,7 @@ export default function ConstructionSettings() {
 						<Switch defaultChecked />
 					</div>
 
-					<div className="flex items-center justify-between">
+					<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 						<div>
 							<div className="font-medium text-gray-900">
 								Требовать утверждение бюджета
@@ -128,7 +128,7 @@ export default function ConstructionSettings() {
 						<Switch defaultChecked />
 					</div>
 
-					<div className="flex items-center justify-between">
+					<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 						<div>
 							<div className="font-medium text-gray-900">Контроль сроков</div>
 							<div className="text-sm text-gray-500">
@@ -154,7 +154,7 @@ export default function ConstructionSettings() {
 					</CardTitle>
 				</CardHeader>
 				<CardContent className="space-y-6">
-					<div className="flex items-center justify-between">
+					<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 						<div>
 							<div className="font-medium text-gray-900">
 								Электронная подпись
@@ -166,7 +166,7 @@ export default function ConstructionSettings() {
 						<Switch />
 					</div>
 
-					<div className="flex items-center justify-between">
+					<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 						<div>
 							<div className="font-medium text-gray-900">
 								Архивирование документов
@@ -202,7 +202,7 @@ export default function ConstructionSettings() {
 					</CardTitle>
 				</CardHeader>
 				<CardContent className="space-y-6">
-					<div className="flex items-center justify-between">
+					<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 						<div>
 							<div className="font-medium text-gray-900">Учёт НДС</div>
 							<div className="text-sm text-gray-500">
@@ -217,7 +217,7 @@ export default function ConstructionSettings() {
 						<Input type="number" defaultValue="12" />
 					</div>
 
-					<div className="flex items-center justify-between">
+					<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 						<div>
 							<div className="font-medium text-gray-900">
 								Многовалютный учёт
@@ -254,7 +254,7 @@ export default function ConstructionSettings() {
 					</CardTitle>
 				</CardHeader>
 				<CardContent className="space-y-6">
-					<div className="flex items-center justify-between">
+					<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 						<div>
 							<div className="font-medium text-gray-900">
 								Уведомления о новых задачах
@@ -266,7 +266,7 @@ export default function ConstructionSettings() {
 						<Switch defaultChecked />
 					</div>
 
-					<div className="flex items-center justify-between">
+					<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 						<div>
 							<div className="font-medium text-gray-900">
 								Уведомления о перерасходе
@@ -278,7 +278,7 @@ export default function ConstructionSettings() {
 						<Switch defaultChecked />
 					</div>
 
-					<div className="flex items-center justify-between">
+					<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 						<div>
 							<div className="font-medium text-gray-900">
 								Еженедельные отчёты

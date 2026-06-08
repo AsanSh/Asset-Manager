@@ -94,7 +94,7 @@ function MarketValueCell({ propertyId, value, onSaved }: { propertyId: number; v
 					className="w-24 text-xs border border-blue-400 rounded px-1 py-0.5 outline-none tabular-nums text-right"
 				/>
 				<button onClick={save} disabled={saving} className="text-emerald-600 hover:text-emerald-700"><Check className="w-3 h-3" /></button>
-				<button onClick={() => setEditing(false)} className="text-gray-400 hover:text-gray-600"><X className="w-3 h-3" /></button>
+				<button onClick={() => setEditing(false)} className="text-gray-600 hover:text-gray-600"><X className="w-3 h-3" /></button>
 			</div>
 		);
 	}
@@ -287,9 +287,9 @@ export default function RentalOverview() {
 					<thead className="sticky top-0 z-20">
 						{/* Column letters */}
 						<tr>
-							<th className="border border-gray-300 bg-gray-100 text-center text-gray-400 font-normal select-none" style={{ width: 40, minWidth: 40 }} />
+							<th className="border border-gray-300 bg-gray-100 text-center text-gray-600 font-normal select-none" style={{ width: 40, minWidth: 40 }} />
 							{visibleDefs.map((col, i) => (
-								<th key={col.key} className="border border-gray-300 bg-gray-100 text-center text-gray-400 font-normal py-0.5 select-none" style={{ minWidth: col.width ?? 100 }}>
+								<th key={col.key} className="border border-gray-300 bg-gray-100 text-center text-gray-600 font-normal py-0.5 select-none" style={{ minWidth: col.width ?? 100 }}>
 									{String.fromCharCode(65 + i)}
 								</th>
 							))}
@@ -331,7 +331,7 @@ export default function RentalOverview() {
 								</tr>
 							))
 						) : sorted.length === 0 ? (
-							<tr><td colSpan={visibleDefs.length + 1} className="border border-gray-200 text-center text-gray-400 py-16">Нет данных</td></tr>
+							<tr><td colSpan={visibleDefs.length + 1} className="border border-gray-200 text-center text-gray-600 py-16">Нет данных</td></tr>
 						) : (
 							sorted.map((row, i) => {
 								const bg = i % 2 === 0 ? "bg-white" : "bg-[#F8F9FA]";
@@ -342,7 +342,7 @@ export default function RentalOverview() {
 								const isExpired = row.endDate && new Date(row.endDate) < new Date();
 								return (
 									<tr key={row.id} className={cn(bg, "hover:bg-[#EEF2FF] transition-colors")}>
-										<td className="border border-gray-200 text-center text-gray-400 py-1 px-2 sticky left-0 z-10 select-none" style={{ background: "inherit" }}>{i + 1}</td>
+										<td className="border border-gray-200 text-center text-gray-600 py-1 px-2 sticky left-0 z-10 select-none" style={{ background: "inherit" }}>{i + 1}</td>
 										{visibleDefs.map((col) => {
 											const v = (row as any)[col.key];
 											const alignClass = col.align === "right" ? "text-right tabular-nums" : col.align === "center" ? "text-center" : "text-left";
@@ -455,7 +455,7 @@ export default function RentalOverview() {
 				</table>
 			</MatrixTableFrame>
 
-			<p className="text-[11px] text-gray-400">
+			<p className="text-[11px] text-gray-600">
 				* Рыночная стоимость вводится вручную прямо в ячейке · ROI = Ежемес. взнос ÷ Рын. стоимость × 100%
 			</p>
 		</div>

@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Calendar } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
+import { DateRangePicker } from "@/components/am/DateRangePicker";
 import { DataTable } from "@/components/data-table";
 import {
 	Select,
@@ -11,6 +12,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
+import { defaultPeriod, isInPeriod, type PeriodValue } from "@/lib/period-utils";
 import { unwrapList } from "@/lib/unwrap-list";
 
 type ForecastRow = {
@@ -47,6 +49,7 @@ const MONTHS = [
 
 export default function ConstructionForecast() {
 	const [sortBy, setSortBy] = useState<ForecastSort>("date");
+	const [period, setPeriod] = useState<PeriodValue>(() => defaultPeriod("month"));
 
 	const { data: accrualsRaw } = useQuery({
 		queryKey: ["construction-accruals"],
@@ -69,7 +72,7 @@ export default function ConstructionForecast() {
 	const pending = useMemo(
 		() =>
 			accruals
-				.filter((a: any) => a.status !== "paid")
+				.filter((a: any) => a.status !== "paid" && isInPeriod(a.dueDate, period))
 				.map((a: any): ForecastRow => {
 					const contract = contractById.get(a.contractId);
 					return {
@@ -82,7 +85,7 @@ export default function ConstructionForecast() {
 							contract?.buyerName?.trim() || "Без контрагента",
 					};
 				}),
-		[accruals, contractById],
+		[accruals, contractById, period],
 	);
 
 	const tableSorting = useMemo(
@@ -167,7 +170,7 @@ export default function ConstructionForecast() {
 				size: 100,
 				meta: { exportLabel: "№ платежа" },
 				cell: ({ row }) => (
-					<span className="text-gray-400">#{row.original.installmentNumber}</span>
+					<span className="text-gray-600">#{row.original.installmentNumber}</span>
 				),
 			},
 			{
@@ -187,43 +190,51 @@ export default function ConstructionForecast() {
 	);
 
 	return (
-		<div>
-			<div className="mb-6">
-				<h1 className="text-2xl font-bold text-gray-900">
-					Будущие поступления
-				</h1>
-				<p className="text-gray-500 text-sm mt-0.5">
-					Прогноз cashflow на основе действующих договоров и графиков
-				</p>
+		<div className="rounded-[28px] bg-gradient-to-br from-slate-50 via-white to-cyan-50/40 p-4">
+			<div className="mb-5 rounded-[24px] border border-slate-200 bg-white/90 p-5 shadow-sm">
+				<div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+					<div>
+						<p className="text-xs font-bold uppercase tracking-[0.12em] text-cyan-700">
+							Платежный календарь
+						</p>
+						<h1 className="mt-1 text-3xl font-black tracking-tight text-slate-950">
+							Будущие поступления
+						</h1>
+						<p className="mt-1 text-sm text-slate-500">
+							Прогноз cashflow на основе действующих договоров и графиков
+						</p>
+					</div>
+					<DateRangePicker value={period} onChange={setPeriod} />
+				</div>
 			</div>
 
-			<div className="grid grid-cols-3 gap-4 mb-6">
-				<div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
-					<div className="text-xs text-gray-500 mb-1">Всего к получению</div>
-					<div className="text-2xl font-bold text-blue-600">
+			<div className="mb-5 grid gap-3 md:grid-cols-3">
+				<div className="rounded-lg border border-cyan-100 bg-white p-4 shadow-sm">
+					<div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Всего к получению</div>
+					<div className="text-2xl font-black text-cyan-700">
 						{fmtFull(totalForecast)}
 					</div>
 				</div>
-				<div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
-					<div className="text-xs text-gray-500 mb-1">Периодов</div>
-					<div className="text-2xl font-bold text-gray-900">
+				<div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+					<div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Периодов</div>
+					<div className="text-2xl font-black text-slate-950">
 						{monthsSorted.length}
 					</div>
 				</div>
-				<div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
-					<div className="text-xs text-gray-500 mb-1">Платежей</div>
-					<div className="text-2xl font-bold text-gray-900">
+				<div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+					<div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Платежей</div>
+					<div className="text-2xl font-black text-slate-950">
 						{pending.length}
 					</div>
 				</div>
 			</div>
 
-			<div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mb-6">
-				<div className="text-sm font-semibold text-gray-700 mb-4">
+			<div className="mb-5 rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+				<div className="mb-4 text-sm font-bold text-slate-800">
 					График поступлений
 				</div>
 				{monthsSorted.length === 0 ? (
-					<div className="text-center py-8 text-gray-400 text-sm">
+					<div className="text-center py-8 text-gray-600 text-sm">
 						<Calendar className="w-10 h-10 mx-auto mb-2 text-gray-200" />
 						Нет данных. Создайте договоры и сформируйте графики платежей.
 					</div>
@@ -240,12 +251,12 @@ export default function ConstructionForecast() {
 									<div className="flex items-center justify-between text-sm mb-1">
 										<div className="flex items-center gap-2">
 											<span
-												className={`font-medium ${isPast ? "text-gray-400" : "text-gray-700"}`}
+												className={`font-medium ${isPast ? "text-gray-600" : "text-gray-700"}`}
 											>
 												{MONTHS[parseInt(m, 10) - 1]} {y}
 											</span>
 											{isPast && (
-												<span className="text-[10px] bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded">
+												<span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
 													прошлый
 												</span>
 											)}
@@ -254,7 +265,7 @@ export default function ConstructionForecast() {
 											<span className="font-mono font-bold text-blue-600">
 												{fmtFull(v.total)}
 											</span>
-											<span className="text-xs text-gray-400 ml-2">
+											<span className="text-xs text-gray-600 ml-2">
 												{v.count} пл.
 											</span>
 										</div>

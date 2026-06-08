@@ -143,7 +143,7 @@ export default function ActivityLogPage() {
 			</div>
 
 			{/* Activity Feed */}
-			<div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+			<div className="bg-white rounded-lg border border-gray-100 shadow-sm">
 				{isLoading ? (
 					<div className="p-6 space-y-5">
 						{Array.from({ length: 6 }).map((_, i) => (
@@ -157,7 +157,7 @@ export default function ActivityLogPage() {
 						))}
 					</div>
 				) : Object.keys(grouped).length === 0 ? (
-					<div className="py-16 text-center text-gray-400 text-sm">
+					<div className="py-16 text-center text-gray-600 text-sm">
 						{dataArray.length === 0
 							? "Активность ещё не зафиксирована. Операции будут появляться здесь по мере работы с системой."
 							: "Нет записей, соответствующих фильтру"}
@@ -191,7 +191,7 @@ export default function ActivityLogPage() {
 													{item.description}
 												</p>
 												<div className="flex items-center gap-3 mt-0.5">
-													<p className="text-xs text-gray-400">
+													<p className="text-xs text-gray-600">
 														{new Date(item.createdAt).toLocaleTimeString(
 															"ru-KG",
 															{
@@ -201,7 +201,7 @@ export default function ActivityLogPage() {
 														)}
 													</p>
 													{item.entityType && (
-														<span className="text-xs text-gray-400">
+														<span className="text-xs text-gray-600">
 															{entityTypeLabels[item.entityType] ||
 																item.entityType}
 															{item.entityId ? ` #${item.entityId}` : ""}
@@ -209,7 +209,7 @@ export default function ActivityLogPage() {
 													)}
 												</div>
 											</div>
-											<span className="text-xs text-gray-400 flex-shrink-0 pt-0.5">
+											<span className="text-xs text-gray-600 flex-shrink-0 pt-0.5">
 												#{item.id}
 											</span>
 										</div>

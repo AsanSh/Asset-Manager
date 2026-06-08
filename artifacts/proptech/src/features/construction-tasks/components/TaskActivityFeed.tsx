@@ -22,7 +22,7 @@ export function TaskActivityFeed({
 }) {
 	if (activity.length === 0) {
 		return (
-			<p className="text-sm text-gray-400 text-center py-6">
+			<p className="text-sm text-gray-600 text-center py-6">
 				История изменений пока пуста
 			</p>
 		);
@@ -44,7 +44,7 @@ export function TaskActivityFeed({
 					<li key={a.id} className="text-sm border-l-2 border-gray-200 pl-3">
 						<div className="text-gray-900 font-medium">{label}</div>
 						{detail && <div className="text-gray-600 mt-0.5">{detail}</div>}
-						<div className="text-[11px] text-gray-400 mt-1">
+						<div className="text-[11px] text-gray-600 mt-1">
 							{name} ·{" "}
 							{new Date(a.createdAt).toLocaleString("ru-KG", {
 								day: "numeric",

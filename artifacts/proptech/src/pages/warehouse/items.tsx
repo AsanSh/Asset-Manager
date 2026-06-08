@@ -140,7 +140,7 @@ function ItemDialog({ open, onClose, item }: ItemDialogProps) {
 					</DialogTitle>
 				</DialogHeader>
 				<form onSubmit={handleSubmit} className="space-y-4">
-					<div className="grid grid-cols-2 gap-4">
+					<div className="grid gap-4 sm:grid-cols-2">
 						<div className="col-span-2 flex flex-col">
 							<Label className="leading-tight mb-1.5">Наименование *</Label>
 							<Input
@@ -187,7 +187,7 @@ function ItemDialog({ open, onClose, item }: ItemDialogProps) {
 						</div>
 					</div>
 
-					<div className="grid grid-cols-3 gap-4">
+					<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
 						<div className="flex flex-col">
 							<Label className="leading-tight mb-1.5">Текущий остаток *</Label>
 							<Input
@@ -227,7 +227,7 @@ function ItemDialog({ open, onClose, item }: ItemDialogProps) {
 						</div>
 					</div>
 
-					<div className="grid grid-cols-3 gap-4">
+					<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
 						<div className="col-span-2 flex flex-col">
 							<Label className="leading-tight mb-1.5">Цена за единицу *</Label>
 							<Input
@@ -270,7 +270,7 @@ function ItemDialog({ open, onClose, item }: ItemDialogProps) {
 						/>
 					</div>
 
-					<div className="grid grid-cols-2 gap-4">
+					<div className="grid gap-4 sm:grid-cols-2">
 						<div className="flex flex-col">
 							<Label className="leading-tight mb-1.5">Артикул (SKU)</Label>
 							<Input

@@ -154,8 +154,8 @@ function MaterialDialog({
 					</DialogTitle>
 				</DialogHeader>
 				<form onSubmit={handleSubmit} className="space-y-3">
-					<div className="grid grid-cols-2 gap-3">
-						<div className="col-span-2 flex flex-col">
+					<div className="grid gap-3 sm:grid-cols-2">
+						<div className="sm:col-span-2 flex flex-col">
 							<Label className="leading-tight mb-1.5">Название *</Label>
 							<Input
 								className="mt-auto"
@@ -448,11 +448,11 @@ export default function ConstructionMaterials() {
 	);
 
 	return (
-		<div className="space-y-6">
-			<div className="flex items-center justify-between">
+		<div className="am-page space-y-5">
+			<div className="am-page-header">
 				<div>
-					<h1 className="text-2xl font-bold text-gray-900">Материалы</h1>
-					<p className="text-sm text-gray-500 mt-0.5">
+					<h1 className="am-page-title text-2xl">Материалы</h1>
+					<p className="am-page-subtitle text-sm">
 						Стройматериалы и поставки
 					</p>
 				</div>
@@ -464,20 +464,20 @@ export default function ConstructionMaterials() {
 				</Button>
 			</div>
 
-			<div className="grid grid-cols-3 gap-4">
-				<div className="bg-white rounded-xl border border-gray-200 p-4">
+			<div className="am-kpi-grid">
+				<div className="am-kpi-card">
 					<p className="text-xs text-gray-500 mb-1">Позиций</p>
 					<p className="text-2xl font-bold text-amber-600">
 						{materials.length}
 					</p>
 				</div>
-				<div className="bg-white rounded-xl border border-gray-200 p-4">
+				<div className="am-kpi-card">
 					<p className="text-xs text-gray-500 mb-1">Доставлено</p>
 					<p className="text-2xl font-bold text-emerald-600">
 						{materials.filter((m) => m.status === "delivered").length}
 					</p>
 				</div>
-				<div className="bg-white rounded-xl border border-gray-200 p-4">
+				<div className="am-kpi-card">
 					<p className="text-xs text-gray-500 mb-1">Общая сумма</p>
 					<p className="text-xl font-bold text-blue-600">
 						{fmtNum(totalCost)} сом

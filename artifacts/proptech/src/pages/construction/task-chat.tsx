@@ -32,7 +32,7 @@ const STATUS_ICONS: Record<string, React.ElementType> = {
 	todo: Circle, in_progress: Clock, review: AlertCircle, done: CheckCircle2,
 };
 const STATUS_COLORS: Record<string, string> = {
-	todo: "text-gray-400", in_progress: "text-blue-500", review: "text-amber-500", done: "text-emerald-500",
+	todo: "text-gray-600", in_progress: "text-blue-500", review: "text-amber-500", done: "text-emerald-700",
 };
 const STATUS_LABELS: Record<string, string> = {
 	todo: "К выполнению", in_progress: "В работе", review: "На проверке", done: "Выполнено",
@@ -106,7 +106,7 @@ function ChatBubble({
 	if (isSystem) {
 		return (
 			<div className="flex justify-center my-2">
-				<span className="text-[11px] text-gray-400 bg-gray-100 px-3 py-1 rounded-full">
+				<span className="text-[11px] text-gray-600 bg-gray-100 px-3 py-1 rounded-full">
 					{typeIcon.status_change} {comment.content}
 				</span>
 			</div>
@@ -119,7 +119,7 @@ function ChatBubble({
 		<div className={`flex gap-2 ${isMe ? "flex-row-reverse" : "flex-row"} items-end`}>
 			<AvatarBubble name={name} size={7} />
 			<div className={`max-w-[70%] space-y-0.5 ${isMe ? "items-end" : "items-start"} flex flex-col`}>
-				<span className={`text-[10px] text-gray-400 ${isMe ? "text-right" : "text-left"}`}>
+				<span className={`text-[10px] text-gray-600 ${isMe ? "text-right" : "text-left"}`}>
 					{name} · {new Date(comment.createdAt).toLocaleString("ru-KG", { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" })}
 				</span>
 				<div className={`px-3 py-2 rounded-2xl text-sm ${
@@ -185,7 +185,7 @@ export default function TaskChat({ taskId }: { taskId: number }) {
 	};
 
 	if (taskLoading) return <Skeleton className="h-96 rounded-xl" />;
-	if (!task) return <div className="text-center text-gray-400 py-16">Задача не найдена</div>;
+	if (!task) return <div className="text-center text-gray-600 py-16">Задача не найдена</div>;
 
 	const StatusIcon = STATUS_ICONS[task.status] ?? Circle;
 	const assignee = task.assignedTo ? userMap[task.assignedTo] : null;
@@ -200,7 +200,7 @@ export default function TaskChat({ taskId }: { taskId: number }) {
 				<div className="flex items-start gap-3">
 					<button
 						onClick={() => navigate("/construction/tasks")}
-						className="text-gray-400 hover:text-gray-700 mt-0.5"
+						className="text-gray-600 hover:text-gray-700 mt-0.5"
 					>
 						<ArrowLeft className="w-4 h-4" />
 					</button>
@@ -218,7 +218,7 @@ export default function TaskChat({ taskId }: { taskId: number }) {
 						{task.description && (
 							<p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{task.description}</p>
 						)}
-						<div className="flex gap-3 mt-1 text-[10px] text-gray-400 flex-wrap">
+						<div className="flex gap-3 mt-1 text-[10px] text-gray-600 flex-wrap">
 							{creator && <span>Создал: {userName(creator)}</span>}
 							{assignee && <span>Исполнитель: {userName(assignee)}</span>}
 							{task.dueDate && (
@@ -236,7 +236,7 @@ export default function TaskChat({ taskId }: { taskId: number }) {
 				{commentsLoading ? (
 					<Skeleton className="h-32" />
 				) : comments.length === 0 ? (
-					<div className="text-center py-12 text-gray-400">
+					<div className="text-center py-12 text-gray-600">
 						<MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-20" />
 						<p className="text-sm">Пока нет сообщений. Начните обсуждение.</p>
 					</div>
@@ -306,7 +306,7 @@ export default function TaskChat({ taskId }: { taskId: number }) {
 						{sendType === "return" ? <CornerDownLeft className="w-4 h-4" /> : <Send className="w-4 h-4" />}
 					</Button>
 				</div>
-				<p className="text-[10px] text-gray-400 mt-1">Enter — отправить · Shift+Enter — перенос строки</p>
+				<p className="text-[10px] text-gray-600 mt-1">Enter — отправить · Shift+Enter — перенос строки</p>
 			</div>
 		</div>
 	);

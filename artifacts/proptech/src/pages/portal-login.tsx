@@ -128,7 +128,7 @@ export default function PortalLogin() {
 								onKeyDown={(e) => e.key === "Enter" && verify()}
 								autoFocus
 							/>
-							<p className="text-[11px] text-gray-400 mt-1 text-center">Номер: {phone}</p>
+							<p className="text-[11px] text-gray-600 mt-1 text-center">Номер: {phone}</p>
 							{devCode && (
 								<p className="text-[11px] text-amber-700 mt-2 text-center bg-amber-50 border border-amber-200 rounded px-2 py-1">
 									🛠 Тестовый код: <strong>{devCode}</strong>
@@ -154,7 +154,7 @@ export default function PortalLogin() {
 								type="button"
 								onClick={sendCode}
 								disabled={countdown > 0 || loading}
-								className="text-amber-600 hover:text-amber-700 disabled:text-gray-400"
+								className="text-amber-600 hover:text-amber-700 disabled:text-gray-600"
 							>
 								{countdown > 0 ? `Повторно через ${countdown}с` : "Отправить ещё раз"}
 							</button>

@@ -80,7 +80,7 @@ export default function ConstructionReports() {
 
 	return (
 		<div className="space-y-6">
-			<div className="flex items-center justify-between">
+			<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 				<div>
 					<h1 className="text-2xl font-bold text-gray-900">
 						Отчёты строительства
@@ -91,7 +91,7 @@ export default function ConstructionReports() {
 				</div>
 				<div className="flex gap-3 items-center">
 					<Select value={selectedProject} onValueChange={setSelectedProject}>
-						<SelectTrigger className="w-56">
+						<SelectTrigger className="w-full sm:w-56">
 							<SelectValue placeholder="Выберите проект" />
 						</SelectTrigger>
 						<SelectContent>
@@ -119,9 +119,9 @@ export default function ConstructionReports() {
 				</div>
 			</div>
 
-			<div className="grid grid-cols-2 gap-4">
+			<div className="grid gap-4 sm:grid-cols-2">
 				{/* Budget vs Actual */}
-				<div className="bg-white rounded-xl border border-gray-200 p-5 col-span-2">
+				<div className="bg-white rounded-xl border border-gray-200 p-5 sm:col-span-2">
 					<h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
 						<BarChart3 className="w-4 h-4 text-amber-600" /> Бюджет vs Факт
 					</h3>
@@ -133,19 +133,19 @@ export default function ConstructionReports() {
 								<div className="space-y-1">
 									<div className="flex gap-8">
 										<div>
-											<p className="text-xs text-gray-400">Плановый бюджет</p>
+											<p className="text-xs text-gray-600">Плановый бюджет</p>
 											<p className="text-2xl font-bold text-blue-600">
 												{fmtKgs(dash?.totalBudget || 0)}
 											</p>
 										</div>
 										<div>
-											<p className="text-xs text-gray-400">Потрачено</p>
+											<p className="text-xs text-gray-600">Потрачено</p>
 											<p className="text-2xl font-bold text-amber-600">
 												{fmtKgs(dash?.totalSpent || 0)}
 											</p>
 										</div>
 										<div>
-											<p className="text-xs text-gray-400">Остаток</p>
+											<p className="text-xs text-gray-600">Остаток</p>
 											<p
 												className={`text-2xl font-bold ${(dash?.budgetRemaining || 0) >= 0 ? "text-emerald-600" : "text-rose-600"}`}
 											>
@@ -155,9 +155,9 @@ export default function ConstructionReports() {
 									</div>
 								</div>
 								<div className="text-right">
-									<p className="text-xs text-gray-400">Освоение</p>
+									<p className="text-xs text-gray-600">Освоение</p>
 									<p
-										className={`text-3xl font-bold ${spentPct > 90 ? "text-rose-600" : spentPct > 70 ? "text-amber-600" : "text-emerald-500"}`}
+										className={`text-3xl font-bold ${spentPct > 90 ? "text-rose-600" : spentPct > 70 ? "text-amber-600" : "text-emerald-700"}`}
 									>
 										{spentPct.toFixed(1)}%
 									</p>
@@ -170,7 +170,7 @@ export default function ConstructionReports() {
 										style={{ width: `${Math.min(100, spentPct)}%` }}
 									/>
 								</div>
-								<div className="flex justify-between text-xs text-gray-400 mt-1">
+								<div className="flex justify-between text-xs text-gray-600 mt-1">
 									<span>0</span>
 									<span>{fmtKgs(dash?.totalBudget || 0)}</span>
 								</div>
@@ -190,13 +190,13 @@ export default function ConstructionReports() {
 						<div className="space-y-3">
 							<div className="flex justify-between items-end">
 								<div>
-									<p className="text-xs text-gray-400">Выполнено</p>
+									<p className="text-xs text-gray-600">Выполнено</p>
 									<p className="text-3xl font-bold text-emerald-600">
 										{dash?.doneTasks || 0}
 									</p>
 								</div>
 								<div className="text-right">
-									<p className="text-xs text-gray-400">Всего</p>
+									<p className="text-xs text-gray-600">Всего</p>
 									<p className="text-xl font-bold text-gray-700">
 										{dash?.totalTasks || 0}
 									</p>
@@ -225,13 +225,13 @@ export default function ConstructionReports() {
 						<div className="space-y-3">
 							<div className="flex justify-between items-end">
 								<div>
-									<p className="text-xs text-gray-400">Продано</p>
+									<p className="text-xs text-gray-600">Продано</p>
 									<p className="text-3xl font-bold text-indigo-600">
 										{dash?.soldUnits || 0}
 									</p>
 								</div>
 								<div className="text-right">
-									<p className="text-xs text-gray-400">Выручка</p>
+									<p className="text-xs text-gray-600">Выручка</p>
 									<p className="text-base font-bold text-emerald-600">
 										{fmtKgs(dash?.soldRevenue || 0)}
 									</p>
@@ -243,7 +243,7 @@ export default function ConstructionReports() {
 									style={{ width: `${soldPct}%` }}
 								/>
 							</div>
-							<p className="text-xs text-gray-400">
+							<p className="text-xs text-gray-600">
 								{soldPct.toFixed(1)}% от {dash?.totalUnits || 0} юнитов
 							</p>
 						</div>
@@ -251,11 +251,11 @@ export default function ConstructionReports() {
 				</div>
 
 				{/* Projects */}
-				<div className="bg-white rounded-xl border border-gray-200 p-5 col-span-2">
+				<div className="bg-white rounded-xl border border-gray-200 p-5 sm:col-span-2">
 					<h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
 						<Building2 className="w-4 h-4 text-amber-600" /> Сводка по проектам
 					</h3>
-					<div className="grid grid-cols-3 gap-4">
+					<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
 						{[
 							{
 								label: "Всего проектов",
@@ -278,7 +278,7 @@ export default function ConstructionReports() {
 								className="text-center p-4 bg-gray-50 rounded-xl"
 							>
 								<p className={`text-3xl font-bold ${s.color}`}>{s.value}</p>
-								<p className="text-xs text-gray-400 mt-1">{s.label}</p>
+								<p className="text-xs text-gray-600 mt-1">{s.label}</p>
 							</div>
 						))}
 					</div>

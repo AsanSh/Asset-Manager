@@ -183,7 +183,7 @@ function BudgetDialog({
 					</DialogTitle>
 				</DialogHeader>
 				<form onSubmit={handleSubmit} className="space-y-3">
-					<div className="grid grid-cols-2 gap-3">
+					<div className="grid gap-3 sm:grid-cols-2">
 						<div className="flex flex-col">
 							<Label className="leading-tight mb-1.5">Проект *</Label>
 							<Select
@@ -405,7 +405,7 @@ export default function ConstructionBudget() {
 
 	return (
 		<div className="space-y-6">
-			<div className="flex items-center justify-between">
+			<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 				<div>
 					<h1 className="text-2xl font-bold text-gray-900">
 						Бюджет строительства
@@ -445,7 +445,7 @@ export default function ConstructionBudget() {
 				</div>
 			</div>
 
-			<div className="grid grid-cols-3 gap-4">
+			<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
 				<div className="bg-white rounded-xl border border-gray-200 p-4">
 					<p className="text-xs text-gray-500 mb-1 flex items-center gap-1">
 						<Wallet className="w-3.5 h-3.5" /> Плановый бюджет
@@ -500,7 +500,7 @@ export default function ConstructionBudget() {
 						<Skeleton className="h-48 w-full" />
 					</div>
 				) : items.length === 0 ? (
-					<div className="text-center py-12 text-gray-400">
+					<div className="text-center py-12 text-gray-600">
 						<Wallet className="w-10 h-10 mx-auto mb-2 opacity-20" />
 						<p>Бюджет не задан</p>
 					</div>
@@ -520,7 +520,7 @@ export default function ConstructionBudget() {
 									<span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
 										{cat}
 									</span>
-									<span className="text-xs text-gray-400">
+									<span className="text-xs text-gray-600">
 										План: {fmtKgs(catPlanned)} · Факт: {fmtKgs(catActual)}
 									</span>
 								</div>
@@ -538,7 +538,7 @@ export default function ConstructionBudget() {
 															{item.name}
 														</p>
 														{projectFilter === "all" && (
-															<p className="text-xs text-gray-400">
+															<p className="text-xs text-gray-600">
 																{projectMap[item.projectId]}
 															</p>
 														)}
@@ -557,7 +557,7 @@ export default function ConstructionBudget() {
 																	style={{ width: `${Math.min(100, pct)}%` }}
 																/>
 															</div>
-															<span className="text-xs text-gray-400 w-8 text-right">
+															<span className="text-xs text-gray-600 w-8 text-right">
 																{pct.toFixed(0)}%
 															</span>
 														</div>
@@ -570,7 +570,7 @@ export default function ConstructionBudget() {
 																className="h-7 w-7 p-0"
 																onClick={() => setDialog(item)}
 															>
-																<Edit2 className="w-3.5 h-3.5 text-gray-400" />
+																<Edit2 className="w-3.5 h-3.5 text-gray-600" />
 															</Button>
 															<Button
 																size="sm"
@@ -580,7 +580,7 @@ export default function ConstructionBudget() {
 																	handleDelete(item.id)
 																}
 															>
-																<Trash2 className="w-3.5 h-3.5 text-gray-400 hover:text-rose-600" />
+																<Trash2 className="w-3.5 h-3.5 text-gray-600 hover:text-rose-600" />
 															</Button>
 														</div>
 													</TableCell>

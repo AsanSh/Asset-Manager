@@ -307,7 +307,7 @@ function SupplierDialog({ open, onClose, supplier }: SupplierDialogProps) {
 						/>
 					</div>
 
-					<div className="grid grid-cols-2 gap-4">
+					<div className="grid gap-4 sm:grid-cols-2">
 						<div className="flex flex-col">
 							<Label className="leading-tight mb-1.5">Контактное лицо</Label>
 							<Input
@@ -336,7 +336,7 @@ function SupplierDialog({ open, onClose, supplier }: SupplierDialogProps) {
 							<p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
 								Лимиты и отсрочка
 							</p>
-							<div className="grid grid-cols-2 gap-3">
+							<div className="grid gap-3 sm:grid-cols-2">
 								<div>
 									<Label>Кредитный лимит</Label>
 									<Input
@@ -404,7 +404,7 @@ function SupplierDialog({ open, onClose, supplier }: SupplierDialogProps) {
 						</Card>
 					)}
 
-					<div className="grid grid-cols-2 gap-4">
+					<div className="grid gap-4 sm:grid-cols-2">
 						<div className="flex flex-col">
 							<Label className="leading-tight mb-1.5">Email</Label>
 							<Input
@@ -441,7 +441,7 @@ function SupplierDialog({ open, onClose, supplier }: SupplierDialogProps) {
 						/>
 					</div>
 
-					<div className="grid grid-cols-2 gap-4">
+					<div className="grid gap-4 sm:grid-cols-2">
 						<div className="flex flex-col">
 							<Label className="leading-tight mb-1.5">Рейтинг (1-5 звёзд)</Label>
 							<Select
@@ -490,7 +490,7 @@ function SupplierDialog({ open, onClose, supplier }: SupplierDialogProps) {
 						/>
 					</div>
 
-					<div className="grid grid-cols-2 gap-4">
+					<div className="grid gap-4 sm:grid-cols-2">
 						<div className="flex flex-col">
 							<Label className="leading-tight mb-1.5">Сумма договора</Label>
 							<Input
@@ -639,10 +639,10 @@ function SupplierDialog({ open, onClose, supplier }: SupplierDialogProps) {
 								</div>
 							) : (
 								<>
-									<p className="text-[11px] text-gray-400">
+									<p className="text-[11px] text-gray-600">
 										Войдёт по телефону из контактов выше ({formData.phone || "укажите телефон"}) и SMS-коду
 									</p>
-									<div className="grid grid-cols-2 gap-3">
+									<div className="grid gap-3 sm:grid-cols-2">
 										<div className="flex flex-col">
 											<Label className="leading-tight mb-1.5">Имя *</Label>
 											<Input

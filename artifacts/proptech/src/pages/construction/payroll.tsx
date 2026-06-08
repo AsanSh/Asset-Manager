@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	Banknote,
+	Building2,
 	Check,
 	Lock,
 	Plus,
@@ -12,6 +13,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
 	Dialog,
@@ -47,6 +49,8 @@ type Access = {
 type Employee = {
 	id: number;
 	companyId: number;
+	legalEntityId: number | null;
+	legalEntityName?: string | null;
 	userId: number | null;
 	fullName: string;
 	position: string | null;
@@ -71,6 +75,7 @@ type SalaryChange = {
 	createdAt: string | null;
 	employeeName?: string | null;
 	department?: string | null;
+	legalEntityName?: string | null;
 };
 
 type ApprovalRequest = {
@@ -94,6 +99,14 @@ type CompanyUser = {
 	lastName?: string | null;
 	email?: string | null;
 	role?: string | null;
+};
+
+type LegalEntity = {
+	id: number;
+	name: string;
+	fullLegalName?: string | null;
+	inn?: string | null;
+	isActive?: boolean | null;
 };
 
 const EMPLOYMENT_LABELS: Record<string, string> = {
@@ -133,10 +146,12 @@ function userLabel(u: CompanyUser): string {
 
 function AddEmployeeDialog({
 	open,
+	legalEntities,
 	onClose,
 	onDone,
 }: {
 	open: boolean;
+	legalEntities: LegalEntity[];
 	onClose: () => void;
 	onDone: () => void;
 }) {
@@ -145,6 +160,7 @@ function AddEmployeeDialog({
 		fullName: "",
 		position: "",
 		department: "",
+		legalEntityId: "none",
 		employmentType: "staff",
 		hireDate: "",
 		baseSalary: "",
@@ -158,6 +174,10 @@ function AddEmployeeDialog({
 		mutationFn: () =>
 			api.post("/construction/payroll/employees", {
 				fullName: form.fullName,
+				legalEntityId:
+					form.legalEntityId && form.legalEntityId !== "none"
+						? Number(form.legalEntityId)
+						: undefined,
 				position: form.position || undefined,
 				department: form.department || undefined,
 				employmentType: form.employmentType,
@@ -171,6 +191,7 @@ function AddEmployeeDialog({
 				fullName: "",
 				position: "",
 				department: "",
+				legalEntityId: "none",
 				employmentType: "staff",
 				hireDate: "",
 				baseSalary: "",
@@ -196,8 +217,8 @@ function AddEmployeeDialog({
 						запросы на одобрение.
 					</DialogDescription>
 				</DialogHeader>
-				<div className="grid grid-cols-2 gap-3">
-					<div className="flex flex-col col-span-2">
+				<div className="grid gap-3 sm:grid-cols-2">
+					<div className="flex flex-col sm:col-span-2">
 						<Label className="leading-tight mb-1.5">ФИО *</Label>
 						<Input
 							className="mt-auto"
@@ -220,6 +241,26 @@ function AddEmployeeDialog({
 							value={form.department}
 							onChange={(e) => set("department", e.target.value)}
 						/>
+					</div>
+					<div className="flex flex-col sm:col-span-2">
+						<Label className="leading-tight mb-1.5">ОсОО</Label>
+						<Select
+							value={form.legalEntityId}
+							onValueChange={(v) => set("legalEntityId", v)}
+						>
+							<SelectTrigger className="mt-auto">
+								<SelectValue placeholder="Выберите ОсОО" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="none">Не распределён</SelectItem>
+								{legalEntities.map((entity) => (
+									<SelectItem key={entity.id} value={String(entity.id)}>
+										{entity.name}
+										{entity.inn ? ` · ИНН ${entity.inn}` : ""}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
 					</div>
 					<div className="flex flex-col">
 						<Label className="leading-tight mb-1.5">Тип занятости</Label>
@@ -347,6 +388,7 @@ function RequestDialog({
 								{employees.map((e) => (
 									<SelectItem key={e.id} value={String(e.id)}>
 										{e.fullName}
+										{e.legalEntityName ? ` · ${e.legalEntityName}` : ""}
 										{e.position ? ` · ${e.position}` : ""}
 									</SelectItem>
 								))}
@@ -358,7 +400,7 @@ function RequestDialog({
 							Текущая ЗП: {fmtMoney(selected.currentSalary, selected.currency ?? "KGS")}
 						</p>
 					)}
-					<div className="grid grid-cols-2 gap-3">
+					<div className="grid gap-3 sm:grid-cols-2">
 						<div className="flex flex-col">
 							<Label className="leading-tight mb-1.5">Новая ЗП *</Label>
 							<Input
@@ -430,7 +472,7 @@ function HistoryDialog({
 				<DialogHeader>
 					<DialogTitle>{employee.fullName}</DialogTitle>
 					<DialogDescription>
-						{employee.position || "—"} · приём:{" "}
+						{employee.position || "—"} · {employee.legalEntityName || "Без ОсОО"} · приём:{" "}
 						{employee.hireDate || "—"} · первоначальная ЗП:{" "}
 						{fmtMoney(employee.baseSalary, employee.currency ?? "KGS")}
 					</DialogDescription>
@@ -454,7 +496,7 @@ function HistoryDialog({
 								const delta = parseFloat(String(c.delta ?? "0"));
 								return (
 									<div key={c.id} className="rounded-md border p-2.5 text-sm">
-										<div className="flex items-center justify-between">
+										<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 											<span className="text-muted-foreground">
 												{c.effectiveDate || "—"}
 											</span>
@@ -503,6 +545,21 @@ function LedgerTab({
 }) {
 	const columns = useMemo<ColumnDef<Employee, unknown>[]>(
 		() => [
+			{
+				id: "legalEntity",
+				header: "ОсОО",
+				size: 160,
+				accessorFn: (row) => row.legalEntityName?.trim() || "Не распределён",
+				meta: { exportLabel: "ОсОО" },
+				cell: ({ row }) =>
+					row.original.legalEntityName ? (
+						<Badge variant="outline" className="font-normal">
+							{row.original.legalEntityName}
+						</Badge>
+					) : (
+						<span className="text-muted-foreground">Не распределён</span>
+					),
+			},
 			{
 				id: "department",
 				header: "Отдел",
@@ -644,6 +701,216 @@ function LedgerTab({
 	);
 }
 
+function StaffByLegalEntityTab({
+	employees,
+	legalEntities,
+	isLoading,
+	canEdit,
+	onRefresh,
+	onAdd,
+}: {
+	employees: Employee[];
+	legalEntities: LegalEntity[];
+	isLoading: boolean;
+	canEdit: boolean;
+	onRefresh: () => void;
+	onAdd: () => void;
+}) {
+	const { toast } = useToast();
+
+	const assignMut = useMutation({
+		mutationFn: ({
+			employeeId,
+			legalEntityId,
+		}: {
+			employeeId: number;
+			legalEntityId: number | null;
+		}) =>
+			api.patch(`/construction/payroll/employees/${employeeId}`, {
+				legalEntityId,
+			}),
+		onSuccess: () => {
+			toast({ title: "ОсОО сотрудника обновлено" });
+			onRefresh();
+		},
+		onError: (err) =>
+			toast({
+				title: getApiErrorMessage(err, "Не удалось распределить сотрудника"),
+				variant: "destructive",
+			}),
+	});
+
+	const totalPayroll = (items: Employee[]) =>
+		items.reduce((sum, employee) => {
+			const amount = parseFloat(String(employee.currentSalary ?? "0"));
+			return sum + (Number.isFinite(amount) ? amount : 0);
+		}, 0);
+
+	const groups = useMemo(() => {
+		const activeEntities = legalEntities.filter((entity) => entity.isActive !== false);
+		const base = activeEntities.map((entity) => ({
+			id: entity.id,
+			name: entity.name,
+			inn: entity.inn ?? null,
+			employees: employees.filter((employee) => employee.legalEntityId === entity.id),
+		}));
+		const unassigned = employees.filter((employee) => employee.legalEntityId == null);
+		return [
+			...base,
+			{
+				id: null,
+				name: "Не распределён",
+				inn: null,
+				employees: unassigned,
+			},
+		];
+	}, [employees, legalEntities]);
+
+	if (isLoading) return <Skeleton className="h-64 w-full" />;
+
+	if (employees.length === 0) {
+		return (
+			<div className="mx-auto max-w-md space-y-3 px-4 py-10 text-center">
+				<Building2 className="mx-auto h-9 w-9 text-muted-foreground" />
+				<p className="text-sm font-medium text-foreground">Штат пока не создан</p>
+				<p className="text-sm text-muted-foreground">
+					Создайте сотрудников и распределите их по ОсОО для управленческого и
+					юридического учета зарплаты.
+				</p>
+				{canEdit && (
+					<Button variant="outline" size="sm" className="gap-2" onClick={onAdd}>
+						<Plus className="h-4 w-4" />
+						Добавить сотрудника
+					</Button>
+				)}
+			</div>
+		);
+	}
+
+	return (
+		<div className="space-y-4">
+			<div className="grid gap-3 md:grid-cols-3">
+				<Card>
+					<CardHeader className="pb-2">
+						<CardTitle className="text-sm text-muted-foreground">Штат</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<div className="text-3xl font-bold">{employees.length}</div>
+						<p className="text-sm text-muted-foreground">сотрудников в ведомости</p>
+					</CardContent>
+				</Card>
+				<Card>
+					<CardHeader className="pb-2">
+						<CardTitle className="text-sm text-muted-foreground">ФОТ / месяц</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<div className="text-3xl font-bold">
+							{fmtMoney(totalPayroll(employees))}
+						</div>
+						<p className="text-sm text-muted-foreground">по текущим окладам</p>
+					</CardContent>
+				</Card>
+				<Card>
+					<CardHeader className="pb-2">
+						<CardTitle className="text-sm text-muted-foreground">Без ОсОО</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<div className="text-3xl font-bold">
+							{employees.filter((employee) => employee.legalEntityId == null).length}
+						</div>
+						<p className="text-sm text-muted-foreground">нужно распределить</p>
+					</CardContent>
+				</Card>
+			</div>
+
+			<div className="grid gap-4 lg:grid-cols-2">
+				{groups.map((group) => {
+					const payroll = totalPayroll(group.employees);
+					return (
+						<Card key={group.id ?? "unassigned"} className="overflow-hidden">
+							<CardHeader className="border-b bg-muted/30">
+								<div className="flex items-start justify-between gap-3">
+									<div>
+										<CardTitle className="flex items-center gap-2 text-base">
+											<Building2 className="h-4 w-4 text-cyan-600" />
+											{group.name}
+										</CardTitle>
+										<p className="mt-1 text-xs text-muted-foreground">
+											{group.inn ? `ИНН ${group.inn}` : "Юрлицо не выбрано"}
+										</p>
+									</div>
+									<div className="text-right">
+										<div className="text-lg font-semibold">
+											{fmtMoney(payroll)}
+										</div>
+										<p className="text-xs text-muted-foreground">
+											{group.employees.length} чел.
+										</p>
+									</div>
+								</div>
+							</CardHeader>
+							<CardContent className="p-0">
+								{group.employees.length === 0 ? (
+									<p className="px-4 py-6 text-center text-sm text-muted-foreground">
+										Нет сотрудников
+									</p>
+								) : (
+									<div className="divide-y">
+										{group.employees.map((employee) => (
+											<div
+												key={employee.id}
+												className="grid gap-3 px-4 py-3 sm:grid-cols-[1fr_190px] sm:items-center"
+											>
+												<div className="min-w-0">
+													<p className="truncate text-sm font-medium">
+														{employee.fullName}
+													</p>
+													<p className="truncate text-xs text-muted-foreground">
+														{employee.position || "Без должности"} ·{" "}
+														{employee.department || "Без отдела"} ·{" "}
+														{fmtMoney(employee.currentSalary, employee.currency ?? "KGS")}
+													</p>
+												</div>
+												<Select
+													value={
+														employee.legalEntityId == null
+															? "none"
+															: String(employee.legalEntityId)
+													}
+													onValueChange={(value) =>
+														assignMut.mutate({
+															employeeId: employee.id,
+															legalEntityId:
+																value === "none" ? null : Number(value),
+														})
+													}
+													disabled={!canEdit || assignMut.isPending}
+												>
+													<SelectTrigger>
+														<SelectValue />
+													</SelectTrigger>
+													<SelectContent>
+														<SelectItem value="none">Не распределён</SelectItem>
+														{legalEntities.map((entity) => (
+															<SelectItem key={entity.id} value={String(entity.id)}>
+																{entity.name}
+															</SelectItem>
+														))}
+													</SelectContent>
+												</Select>
+											</div>
+										))}
+									</div>
+								)}
+							</CardContent>
+						</Card>
+					);
+				})}
+			</div>
+		</div>
+	);
+}
+
 function RequestsTab({
 	requests,
 	employees,
@@ -781,7 +1048,8 @@ function RequestsTab({
 			base.push({
 				id: "__decision",
 				header: "Решение",
-				size: 200,
+				size: 330,
+				minSize: 300,
 				enableSorting: false,
 				cell: ({ row }) => {
 					const r = row.original;
@@ -790,21 +1058,21 @@ function RequestsTab({
 					}
 					return (
 						<div
-							className="flex flex-col gap-2 min-w-[180px]"
+							className="flex min-w-[290px] flex-col gap-2 pr-2"
 							onClick={(e) => e.stopPropagation()}
 						>
 							<Textarea
-								className="min-h-[36px] text-xs"
+								className="min-h-[42px] resize-none rounded-2xl text-xs"
 								placeholder="Комментарий руководителя"
 								value={comments[r.id] ?? ""}
 								onChange={(e) =>
 									setComments((c) => ({ ...c, [r.id]: e.target.value }))
 								}
 							/>
-							<div className="flex gap-2">
+							<div className="flex flex-wrap gap-2">
 								<Button
 									size="sm"
-									className="gap-1"
+									className="h-9 flex-1 gap-1 rounded-full"
 									disabled={decideMut.isPending}
 									onClick={() =>
 										decideMut.mutate({
@@ -820,7 +1088,7 @@ function RequestsTab({
 								<Button
 									size="sm"
 									variant="outline"
-									className="gap-1"
+									className="h-9 flex-1 gap-1 rounded-full"
 									disabled={decideMut.isPending}
 									onClick={() =>
 										decideMut.mutate({
@@ -888,6 +1156,13 @@ function HistoryTab() {
 				cell: ({ row }) => (
 					<span className="font-medium">{row.original.employeeName || "—"}</span>
 				),
+			},
+			{
+				accessorKey: "legalEntityName",
+				header: "ОсОО",
+				size: 150,
+				meta: { exportLabel: "ОсОО" },
+				cell: ({ row }) => row.original.legalEntityName || "—",
 			},
 			{
 				accessorKey: "department",
@@ -1071,6 +1346,12 @@ export default function ConstructionPayroll() {
 		enabled: canAccess,
 	});
 
+	const { data: legalEntities = [], isLoading: legalEntitiesLoading } = useQuery({
+		queryKey: ["payroll-legal-entities"],
+		queryFn: () => api.get("/legal-entities").then((r) => r.data as LegalEntity[]),
+		enabled: canAccess,
+	});
+
 	const { data: requests = [], isLoading: requestsLoading } = useQuery({
 		queryKey: ["payroll-requests"],
 		queryFn: () =>
@@ -1080,6 +1361,7 @@ export default function ConstructionPayroll() {
 
 	const refreshAll = () => {
 		qc.invalidateQueries({ queryKey: ["payroll-employees"] });
+		qc.invalidateQueries({ queryKey: ["payroll-legal-entities"] });
 		qc.invalidateQueries({ queryKey: ["payroll-requests"] });
 		qc.invalidateQueries({ queryKey: ["payroll-changes"] });
 	};
@@ -1129,6 +1411,10 @@ export default function ConstructionPayroll() {
 			<Tabs value={tab} onValueChange={setTab}>
 				<TabsList>
 					<TabsTrigger value="ledger">Ведомость</TabsTrigger>
+					<TabsTrigger value="staff">
+						<Building2 className="mr-1 h-4 w-4" />
+						Штат по ОсОО
+					</TabsTrigger>
 					<TabsTrigger value="requests">Запросы на одобрение</TabsTrigger>
 					<TabsTrigger value="history">
 						<TrendingUp className="mr-1 h-4 w-4" />
@@ -1144,6 +1430,17 @@ export default function ConstructionPayroll() {
 						canEdit={canEdit}
 						onAdd={() => setAddOpen(true)}
 						onRowClick={setHistoryEmployee}
+					/>
+				</TabsContent>
+
+				<TabsContent value="staff" className="mt-4">
+					<StaffByLegalEntityTab
+						employees={employees}
+						legalEntities={legalEntities}
+						isLoading={employeesLoading || legalEntitiesLoading}
+						canEdit={canEdit}
+						onRefresh={refreshAll}
+						onAdd={() => setAddOpen(true)}
 					/>
 				</TabsContent>
 
@@ -1173,6 +1470,7 @@ export default function ConstructionPayroll() {
 
 			<AddEmployeeDialog
 				open={addOpen}
+				legalEntities={legalEntities}
 				onClose={() => setAddOpen(false)}
 				onDone={refreshAll}
 			/>

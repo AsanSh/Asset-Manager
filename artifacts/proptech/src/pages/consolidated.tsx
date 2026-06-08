@@ -209,13 +209,13 @@ export default function ConsolidatedModule() {
 						Все операции из всех модулей · только просмотр
 					</p>
 				</div>
-				<div className="flex items-center gap-2 text-xs text-gray-400 bg-gray-100 rounded-lg px-3 py-1.5">
+				<div className="flex items-center gap-2 text-xs text-gray-600 bg-gray-100 rounded-lg px-3 py-1.5">
 					🔒 Режим только для чтения
 				</div>
 			</div>
 
 			{/* KPIs */}
-			<div className="grid grid-cols-3 gap-4">
+			<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
 				{[
 					{ label: "Поступления", value: totals.income, color: "text-emerald-700" },
 					{ label: "Расходы", value: totals.expense, color: "text-rose-700" },
@@ -273,13 +273,13 @@ export default function ConsolidatedModule() {
 				/>
 				{(moduleFilter !== "all" || opTypeFilter !== "all" || counterpartySearch || counterpartyFilter !== "all") && (
 					<button
-						className="text-xs text-gray-400 hover:text-gray-700"
+						className="text-xs text-gray-600 hover:text-gray-700"
 						onClick={() => { setModuleFilter("all"); setOpTypeFilter("all"); setCounterpartySearch(""); setCounterpartyFilter("all"); }}
 					>
 						✕ сбросить
 					</button>
 				)}
-				<span className="ml-auto text-xs text-gray-400">{filtered.length} записей</span>
+				<span className="ml-auto text-xs text-gray-600">{filtered.length} записей</span>
 			</div>
 
 			<DataTable

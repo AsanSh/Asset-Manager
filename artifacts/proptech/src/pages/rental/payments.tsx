@@ -482,7 +482,7 @@ function PaymentDialog({ open, onClose }: PaymentDialogProps) {
 										<div key={a.id} className="flex items-center gap-2">
 											<div className="flex-1 text-xs">
 												<span className="font-medium">{a.period}</span>
-												<span className="text-gray-400 ml-2">
+												<span className="text-gray-600 ml-2">
 													до {fmtCurrency(parseFloat(a.balance))}
 												</span>
 											</div>

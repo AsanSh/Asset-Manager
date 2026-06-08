@@ -1,19 +1,19 @@
-// @deprecated Используйте CSS-переменные `--am-*` в index.css и компоненты `@/components/am`.
-// Этот файл сохранён для обратной совместимости; новый код не должен импортировать отсюда.
+// Design System для PropTech платформы
+// Современная fintech-схема с холодными акцентами
 
 export const colors = {
-	// Primary - Deep Purple & Teal
+	// Primary - Sky / Cyan
 	primary: {
-		50: "#f5f3ff",
-		100: "#ede9fe",
-		200: "#ddd6fe",
-		300: "#c4b5fd",
-		400: "#a78bfa",
-		500: "#8b5cf6",
-		600: "#7c3aed",
-		700: "#6d28d9",
-		800: "#5b21b6",
-		900: "#4c1d95",
+		50: "#f0f9ff",
+		100: "#e0f2fe",
+		200: "#bae6fd",
+		300: "#7dd3fc",
+		400: "#38bdf8",
+		500: "#0ea5e9",
+		600: "#0284c7",
+		700: "#0369a1",
+		800: "#075985",
+		900: "#0c4a6e",
 	},
 
 	// Secondary - Teal
@@ -30,18 +30,18 @@ export const colors = {
 		900: "#134e4a",
 	},
 
-	// Accent - Orange (сохраняем для совместимости)
+	// Accent - Slate Blue
 	accent: {
-		50: "#fff7ed",
-		100: "#ffedd5",
-		200: "#fed7aa",
-		300: "#fdba74",
-		400: "#fb923c",
-		500: "#f97316",
-		600: "#ea580c",
-		700: "#c2410c",
-		800: "#9a3412",
-		900: "#7c2d12",
+		50: "#eff6ff",
+		100: "#dbeafe",
+		200: "#bfdbfe",
+		300: "#93c5fd",
+		400: "#60a5fa",
+		500: "#2563eb",
+		600: "#1d4ed8",
+		700: "#1e40af",
+		800: "#1e3a8a",
+		900: "#172554",
 	},
 
 	// Status colors
@@ -86,13 +86,13 @@ export const colors = {
 
 // Градиенты
 export const gradients = {
-	primary: "linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)",
+	primary: "linear-gradient(135deg, #0ea5e9 0%, #0e7490 100%)",
 	secondary: "linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)",
-	accent: "linear-gradient(135deg, #fb923c 0%, #f97316 100%)",
+	accent: "linear-gradient(135deg, #2563eb 0%, #0ea5e9 100%)",
 	success: "linear-gradient(135deg, #22c55e 0%, #16a34a 100%)",
-	sunset: "linear-gradient(135deg, #fb923c 0%, #8b5cf6 100%)",
-	ocean: "linear-gradient(135deg, #14b8a6 0%, #8b5cf6 100%)",
-	fire: "linear-gradient(135deg, #ef4444 0%, #fb923c 100%)",
+	sunset: "linear-gradient(135deg, #0f172a 0%, #0e7490 100%)",
+	ocean: "linear-gradient(135deg, #14b8a6 0%, #0ea5e9 100%)",
+	fire: "linear-gradient(135deg, #ef4444 0%, #f59e0b 100%)",
 };
 
 // Типографика

@@ -167,7 +167,7 @@ export default function RentalOwners() {
 				</p>
 			</div>
 
-			<div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+			<div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
 				<div className="bg-white border rounded-lg p-4">
 					<p className="text-xs text-gray-500 mb-1">Валовой доход</p>
 					<p className="text-xl font-bold text-emerald-600">{fmtSom(totalIncome)}</p>
@@ -200,7 +200,7 @@ export default function RentalOwners() {
 					<p className="text-sm text-gray-500">
 						Нет данных отчётов владельцев.
 					</p>
-					<p className="text-xs text-gray-400 mt-1">
+					<p className="text-xs text-gray-600 mt-1">
 						Отчёты создаются автоматически при добавлении платежей
 					</p>
 				</div>

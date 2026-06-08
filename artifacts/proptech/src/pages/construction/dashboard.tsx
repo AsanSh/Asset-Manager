@@ -3,7 +3,15 @@ import {
 	AlertCircle,
 	ArrowRight,
 	BarChart2,
+	Banknote,
 	Building2,
+	CalendarClock,
+	ClipboardCheck,
+	FileSpreadsheet,
+	Landmark,
+	ListChecks,
+	ReceiptText,
+	Scale,
 	TrendingDown,
 	TrendingUp,
 	Users,
@@ -12,6 +20,7 @@ import {
 import { useState } from "react";
 import { Link } from "wouter";
 import { CashSummary } from "@/components/cash-summary";
+import { ModuleCommandCenter } from "@/components/dashboard/module-command-center";
 import {
 	defaultPeriod,
 	inPeriod,
@@ -175,57 +184,183 @@ export default function ConstructionDashboard() {
 		.sort((a, b) => b[1] - a[1])
 		.slice(0, 5);
 	const maxContAmt = topContExp[0]?.[1] || 1;
+	const financeMetrics = [
+		{
+			label: "Деньги бизнеса",
+			value: fmtShort(totalAccountsKgs),
+			description: `${accountsArray.length} счетов под контролем`,
+			href: "/construction/accounts",
+			icon: Wallet,
+			tone: "blue" as const,
+		},
+		{
+			label: "Поступления",
+			value: fmtShort(totalIncome),
+			description: "Деньги по выбранному периоду",
+			href: "/construction/operations",
+			icon: TrendingUp,
+			tone: "emerald" as const,
+		},
+		{
+			label: "Расходы",
+			value: fmtShort(totalExpense),
+			description: "Оплаты, подрядчики, материалы",
+			href: "/construction/operations",
+			icon: TrendingDown,
+			tone: "amber" as const,
+		},
+		{
+			label: "Дебиторка",
+			value: fmtShort(overdueDebt),
+			description: "Просроченные обязательства клиентов",
+			href: "/construction/analytics/debt",
+			icon: AlertCircle,
+			tone: overdueDebt > 0 ? ("amber" as const) : ("emerald" as const),
+		},
+	];
+	const financeSteps = [
+		{
+			title: "Счета и кассы",
+			description: "Сначала видим деньги по банкам, кассе и валютам.",
+			href: "/construction/accounts",
+			icon: Landmark,
+			meta: "остатки",
+			tone: "blue" as const,
+		},
+		{
+			title: "Операции",
+			description: "Фиксируем приход и расход с проектом, статьей и контрагентом.",
+			href: "/construction/operations",
+			icon: Banknote,
+			meta: "первичный учет",
+			tone: "emerald" as const,
+		},
+		{
+			title: "Начисления",
+			description: "Договор автоматически превращается в график начислений.",
+			href: "/construction/accruals",
+			icon: ReceiptText,
+			meta: "график оплат",
+			tone: "cyan" as const,
+		},
+		{
+			title: "ОДДС",
+			description: "Движение денег по периодам: статья строкой, месяцы столбцами.",
+			href: "/construction/analytics/cashflow",
+			icon: FileSpreadsheet,
+			meta: "cash flow",
+			tone: "violet" as const,
+		},
+		{
+			title: "ОПУ",
+			description: "Доходы, расходы и прибыль без смешивания с кассовыми остатками.",
+			href: "/construction/analytics/pnl",
+			icon: BarChart2,
+			meta: "profit & loss",
+			tone: "amber" as const,
+		},
+		{
+			title: "План оплат",
+			description: "Будущие поступления, просрочки и задолженности в одном ритме.",
+			href: "/construction/planning/forecast",
+			icon: CalendarClock,
+			meta: "контроль сроков",
+			tone: "cyan" as const,
+		},
+	];
+	const financeLanes = [
+		{
+			title: "Финансист",
+			description: "операции, счета, сверки",
+			value: `${filteredOps.length}`,
+			progress: Math.min(100, filteredOps.length * 8),
+		},
+		{
+			title: "Коммерческий директор",
+			description: "цены, коэффициенты, договоры",
+			value: `${contractsArray.length}`,
+			progress: Math.min(100, contractsArray.length * 12),
+		},
+		{
+			title: "Бухгалтерия",
+			description: "1С, подтверждение, закрытие",
+			value: "1С",
+			progress: 62,
+		},
+	];
+	const financeQuickLinks = [
+		{
+			title: "Сверка 1С",
+			description: "банк, импорт, подтверждение",
+			href: "/construction/reconciliation",
+			icon: Scale,
+		},
+		{
+			title: "Согласование",
+			description: "платежи до проведения",
+			href: "/construction/planning/approvals",
+			icon: ClipboardCheck,
+		},
+		{
+			title: "Бюджет",
+			description: "план-факт по проектам",
+			href: "/construction/budget",
+			icon: ListChecks,
+		},
+	];
 
 	return (
-		<div className="space-y-4 -mt-1">
-			{/* Header */}
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="text-2xl font-bold text-gray-900">
-						{projectsArray[0]?.name?.split(" ")[0] || "Planalityc.ai"}
-					</h1>
-					<p className="text-sm text-gray-400">Строительный дашборд</p>
-				</div>
-				<div className="flex items-center gap-2">
-					<CashSummary accounts={accountsArray} />
-				</div>
-			</div>
+		<div className="am-page space-y-4 -mt-1">
+			<ModuleCommandCenter
+				eyebrow="Финансовый контур"
+				title="От договора до денег, ОДДС, ОПУ и контроля долгов"
+				description="Финансовый модуль должен вести пользователя по процессу: счета, операции, начисления, отчеты, будущие платежи и просрочки. Ниже остаются графики и детализация."
+				primaryHref="/construction/operations"
+				primaryLabel="Провести операцию"
+				metrics={financeMetrics}
+				steps={financeSteps}
+				lanes={financeLanes}
+				quickLinks={financeQuickLinks}
+			/>
 
 			{/* Period / project filter */}
-			<div className="flex items-center gap-2 flex-wrap">
-				<PeriodPicker value={period} onChange={setPeriod} />
-				<div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-					<button
-						onClick={() => setFilterProject("all")}
-						className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${filterProject === "all" ? "bg-white shadow text-gray-900" : "text-gray-500"}`}
-					>
-						Все проекты
-					</button>
-					{projectsArray.slice(0, 3).map((p: any) => (
+			<div className="flex items-center justify-between gap-3 rounded-[24px] border border-white/70 bg-white/85 p-3 shadow-sm backdrop-blur">
+				<div className="flex items-center gap-2 flex-wrap">
+					<PeriodPicker value={period} onChange={setPeriod} />
+					<div className="flex gap-1 bg-gray-100 rounded-lg p-1">
 						<button
-							key={p.id}
-							onClick={() => setFilterProject(String(p.id))}
-							className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${filterProject === String(p.id) ? "bg-white shadow text-gray-900" : "text-gray-500"}`}
+							onClick={() => setFilterProject("all")}
+							className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${filterProject === "all" ? "bg-white shadow text-gray-900" : "text-gray-500"}`}
 						>
-							{p.name}
+							Все проекты
 						</button>
-					))}
+						{projectsArray.slice(0, 3).map((p: any) => (
+							<button
+								key={p.id}
+								onClick={() => setFilterProject(String(p.id))}
+								className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${filterProject === String(p.id) ? "bg-white shadow text-gray-900" : "text-gray-500"}`}
+							>
+								{p.name}
+							</button>
+						))}
+					</div>
 				</div>
+				<CashSummary accounts={accountsArray} />
 			</div>
 
 			{/* KPI Cards - like Adesk */}
-			<div className="grid grid-cols-4 gap-4">
+			<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
 				{/* Доходы */}
 				<Link href="/construction/operations" className="block no-underline">
-				<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md hover:border-gray-200 transition-all cursor-pointer">
+				<div className="bg-white rounded-lg border border-gray-100 shadow-sm p-4 hover:shadow-md hover:border-gray-200 transition-all cursor-pointer">
 					<div className="flex items-center justify-between mb-1">
-						<span className="text-xs text-gray-400 font-medium">ДОХОДЫ</span>
+						<span className="text-xs text-gray-600 font-medium">ДОХОДЫ</span>
 						<TrendingUp className="w-4 h-4 text-emerald-400" />
 					</div>
 					<div className="text-2xl font-bold text-gray-900 mt-1">
 						{fmt(totalIncome)}
 					</div>
-					<div className="text-xs text-gray-400 mt-0.5">KGS</div>
+					<div className="text-xs text-gray-600 mt-0.5">KGS</div>
 					{/* Mini sparkline */}
 					<div className="flex items-end gap-0.5 h-6 mt-2">
 						{monthlyData.map(({ m, inc }) => (
@@ -243,15 +378,15 @@ export default function ConstructionDashboard() {
 
 				{/* Расходы */}
 				<Link href="/construction/operations" className="block no-underline">
-				<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md hover:border-gray-200 transition-all cursor-pointer">
+				<div className="bg-white rounded-lg border border-gray-100 shadow-sm p-4 hover:shadow-md hover:border-gray-200 transition-all cursor-pointer">
 					<div className="flex items-center justify-between mb-1">
-						<span className="text-xs text-gray-400 font-medium">РАСХОДЫ</span>
+						<span className="text-xs text-gray-600 font-medium">РАСХОДЫ</span>
 						<TrendingDown className="w-4 h-4 text-rose-600" />
 					</div>
 					<div className="text-2xl font-bold text-gray-900 mt-1">
 						{fmt(totalExpense)}
 					</div>
-					<div className="text-xs text-gray-400 mt-0.5">KGS</div>
+					<div className="text-xs text-gray-600 mt-0.5">KGS</div>
 					<div className="flex items-end gap-0.5 h-6 mt-2">
 						{monthlyData.map(({ m, exp }) => (
 							<div
@@ -311,9 +446,9 @@ export default function ConstructionDashboard() {
 
 				{/* Деньги бизнеса */}
 				<Link href="/construction/accounts" className="block no-underline">
-				<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md hover:border-gray-200 transition-all cursor-pointer">
+				<div className="bg-white rounded-lg border border-gray-100 shadow-sm p-4 hover:shadow-md hover:border-gray-200 transition-all cursor-pointer">
 					<div className="flex items-center justify-between mb-1">
-						<span className="text-xs text-gray-400 font-medium">
+						<span className="text-xs text-gray-600 font-medium">
 							ДЕНЬГИ БИЗНЕСА
 						</span>
 						<Wallet className="w-4 h-4 text-blue-400" />
@@ -321,14 +456,14 @@ export default function ConstructionDashboard() {
 					<div className="text-2xl font-bold text-gray-900 mt-1">
 						{fmt(totalAccountsKgs)}
 					</div>
-					<div className="text-xs text-gray-400 mt-0.5">
+					<div className="text-xs text-gray-600 mt-0.5">
 						KGS · {accountsArray.length} счетов
 					</div>
 					<div className="mt-2 space-y-0.5">
 						{accountsArray.slice(0, 3).map((a: any) => (
 							<div
 								key={a.id}
-								className="flex justify-between text-[10px] text-gray-400"
+								className="flex justify-between text-[10px] text-gray-600"
 							>
 								<span className="truncate max-w-[80px]">{a.name}</span>
 								<span className="font-mono">{fmtShort(a.currentBalance)}</span>
@@ -340,14 +475,14 @@ export default function ConstructionDashboard() {
 			</div>
 
 			{/* Second row */}
-			<div className="grid grid-cols-3 gap-4">
+			<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
 				{/* Cashflow chart */}
-				<div className="col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+				<div className="sm:col-span-2 bg-white rounded-lg border border-gray-100 shadow-sm p-5">
 					<div className="flex items-center justify-between mb-4">
 						<div className="text-sm font-semibold text-gray-700">
 							Деньги на счетах (за 6 мес.)
 						</div>
-						<div className="flex items-center gap-3 text-xs text-gray-400">
+						<div className="flex items-center gap-3 text-xs text-gray-600">
 							<span className="flex items-center gap-1">
 								<span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
 								Приходы
@@ -382,7 +517,7 @@ export default function ConstructionDashboard() {
 										/>
 									</div>
 									<div
-										className={`text-[10px] ${isCurrentMonth ? "text-gray-700 font-semibold" : "text-gray-400"}`}
+										className={`text-[10px] ${isCurrentMonth ? "text-gray-700 font-semibold" : "text-gray-600"}`}
 									>
 										{MONTHS_SHORT[mIdx]}
 									</div>
@@ -394,9 +529,9 @@ export default function ConstructionDashboard() {
 
 				{/* Рентабельность + Задолженность */}
 				<div className="flex flex-col gap-4">
-					<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex-1">
+					<div className="bg-white rounded-lg border border-gray-100 shadow-sm p-4 flex-1">
 						<div className="flex items-center justify-between mb-1">
-							<span className="text-xs text-gray-400 font-medium">
+							<span className="text-xs text-gray-600 font-medium">
 								РЕНТАБЕЛЬНОСТЬ
 							</span>
 							<span className="text-xs text-gray-300">→ 100%</span>
@@ -413,25 +548,25 @@ export default function ConstructionDashboard() {
 							/>
 						</div>
 					</div>
-					<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex-1">
+					<div className="bg-white rounded-lg border border-gray-100 shadow-sm p-4 flex-1">
 						<div className="flex items-center gap-1 mb-1">
 							<AlertCircle className="w-3 h-3 text-rose-600" />
-							<span className="text-xs text-gray-400 font-medium">
+							<span className="text-xs text-gray-600 font-medium">
 								ДЕБИТОРСКАЯ ЗАДОЛЖЕННОСТЬ
 							</span>
 						</div>
 						<div className="text-2xl font-bold text-rose-600 mt-1">
 							{fmt(overdueDebt)}
 						</div>
-						<div className="text-xs text-gray-400 mt-0.5">KGS просрочено</div>
+						<div className="text-xs text-gray-600 mt-0.5">KGS просрочено</div>
 					</div>
 				</div>
 			</div>
 
 			{/* Third row: expense dynamics + structure */}
-			<div className="grid grid-cols-3 gap-4">
+			<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
 				{/* Динамика расходов по статьям */}
-				<div className="col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+				<div className="sm:col-span-2 bg-white rounded-lg border border-gray-100 shadow-sm p-5">
 					<div className="text-sm font-semibold text-gray-700 mb-4">
 						Динамика расходов
 					</div>
@@ -474,7 +609,7 @@ export default function ConstructionDashboard() {
 				</div>
 
 				{/* Структура расходов (donut-style) */}
-				<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+				<div className="bg-white rounded-lg border border-gray-100 shadow-sm p-5">
 					<div className="text-sm font-semibold text-gray-700 mb-4">
 						Структура расходов
 					</div>
@@ -509,10 +644,10 @@ export default function ConstructionDashboard() {
 			</div>
 
 			{/* Bottom: Top clients + top expense */}
-			<div className="grid grid-cols-2 gap-4">
-				<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+			<div className="grid gap-4 sm:grid-cols-2">
+				<div className="bg-white rounded-lg border border-gray-100 shadow-sm p-5">
 					<div className="flex items-center gap-2 mb-4">
-						<Users className="w-4 h-4 text-emerald-500" />
+						<Users className="w-4 h-4 text-emerald-700" />
 						<div className="text-sm font-semibold text-gray-700">
 							Самые доходные клиенты
 						</div>
@@ -538,7 +673,7 @@ export default function ConstructionDashboard() {
 										</div>
 										<div className="flex items-center gap-2 text-xs font-mono mb-1">
 											<span className="text-emerald-600">✓ {fmt(data.paid)}</span>
-											<span className="text-gray-400">•</span>
+											<span className="text-gray-600">•</span>
 											<span className="text-red-500">{fmt(remaining)} осталось</span>
 										</div>
 										<div className="h-1.5 bg-gray-100 rounded-full overflow-hidden flex">
@@ -558,7 +693,7 @@ export default function ConstructionDashboard() {
 					)}
 				</div>
 
-				<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+				<div className="bg-white rounded-lg border border-gray-100 shadow-sm p-5">
 					<div className="flex items-center gap-2 mb-4">
 						<Building2 className="w-4 h-4 text-rose-600" />
 						<div className="text-sm font-semibold text-gray-700">
@@ -597,8 +732,8 @@ export default function ConstructionDashboard() {
 			</div>
 
 			{/* Recent ops */}
-			<div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-				<div className="px-5 py-3 border-b border-gray-50 flex items-center justify-between">
+			<div className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden">
+				<div className="px-5 py-3 border-b border-gray-50 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 					<div className="text-sm font-semibold text-gray-700">
 						Последние операции
 					</div>
@@ -609,7 +744,7 @@ export default function ConstructionDashboard() {
 					</Link>
 				</div>
 				{filteredOps.length === 0 ? (
-					<div className="px-5 py-8 text-center text-gray-400 text-sm">
+					<div className="px-5 py-8 text-center text-gray-600 text-sm">
 						Нет операций за период
 					</div>
 				) : (
@@ -628,7 +763,7 @@ export default function ConstructionDashboard() {
 										key={op.id}
 										className="flex items-center gap-4 px-5 py-2.5 border-b border-gray-50 hover:bg-gray-50/50"
 									>
-										<div className="text-xs text-gray-400 w-20 flex-shrink-0">
+										<div className="text-xs text-gray-600 w-20 flex-shrink-0">
 											{op.date}
 										</div>
 										<div className="flex-1 min-w-0">
@@ -636,12 +771,12 @@ export default function ConstructionDashboard() {
 												{op.description}
 											</div>
 											{op.category && (
-												<div className="text-xs text-gray-400">
+												<div className="text-xs text-gray-600">
 													{op.category}
 												</div>
 											)}
 										</div>
-										<div className="text-xs text-gray-400 flex-shrink-0">
+										<div className="text-xs text-gray-600 flex-shrink-0">
 											{proj?.name || ""}
 										</div>
 										<div

@@ -6,82 +6,48 @@ import {
 	type DashboardTabId,
 } from "./dashboard-access";
 import { parseCustomRoleId } from "./custom-role-id";
+import { getDashboardTabModuleId, getRouteModuleId, getSettingsKeyModuleId, MODULE_REGISTRY } from "./module-registry";
 
 export type ModuleId =
 	| "construction"
+	| "finance"
 	| "rental"
 	| "proptech"
 	| "warehouse"
 	| "consolidated";
 
-export const ALL_MODULE_IDS: ModuleId[] = [
-	"construction",
-	"rental",
-	"proptech",
-	"warehouse",
-	"consolidated",
-];
+export const ALL_MODULE_IDS: ModuleId[] = MODULE_REGISTRY.map((m) => m.id);
 
 /** Префиксы URL → модуль (должны совпадать с layout.tsx) */
-export const MODULE_URL_PREFIXES: Record<ModuleId, string[]> = {
-	construction: ["/construction"],
-	rental: ["/rental"],
-	proptech: ["/crm", "/proptech"],
-	warehouse: ["/warehouse"],
-	consolidated: [
-		"/dashboard",
-		"/consolidated",
-		"/counterparties",
-		"/client-relations",
-		"/properties",
-		"/users",
-		"/settings",
-		"/design-system",
-		"/import",
-		"/activity",
-		"/companies",
-		"/reports",
-	],
-};
+export const MODULE_URL_PREFIXES: Record<ModuleId, string[]> =
+	Object.fromEntries(MODULE_REGISTRY.map((m) => [m.id, m.routePrefixes])) as Record<ModuleId, string[]>;
 
 const SYSTEM_ROLE_MODULES: Record<string, ModuleId[] | "all"> = {
 	company_admin: "all",
 	admin: "all",
 	rental_manager: ["rental"],
 	sales_manager: ["proptech"],
-	finance: ["consolidated", "rental", "construction"],
+	finance: ["finance"],
 	staff: ["consolidated"],
 	pto: ["construction"],
 	engineer: ["construction"],
 };
 
 const PERMISSION_PREFIX_TO_MODULE: Record<string, ModuleId> = {
-	properties: "consolidated",
-	users: "consolidated",
-	rental: "rental",
-	construction: "construction",
-	finance: "consolidated",
-	counterparties: "consolidated",
-	settings: "consolidated",
-	admin: "consolidated",
-	warehouse: "warehouse",
+	properties: getSettingsKeyModuleId("properties") ?? "consolidated",
+	users: getSettingsKeyModuleId("users") ?? "consolidated",
+	rental: getSettingsKeyModuleId("rental") ?? "rental",
+	construction: getSettingsKeyModuleId("construction") ?? "construction",
+	finance: getSettingsKeyModuleId("reports") ?? "finance",
+	counterparties: getSettingsKeyModuleId("counterparties") ?? "consolidated",
+	settings: getSettingsKeyModuleId("settings") ?? "consolidated",
+	admin: getSettingsKeyModuleId("admin") ?? "consolidated",
+	warehouse: getSettingsKeyModuleId("warehouse") ?? "warehouse",
 };
 
 const DEFAULT_HOME_LEGACY: Record<string, string> = {
 	pto: "/construction/chess",
 	engineer: "/construction/chess",
-};
-
-/** Вкладка unified Dashboard → модуль для sidebar */
-const DASHBOARD_TAB_TO_MODULE: Record<string, ModuleId> = {
-	control: "consolidated",
-	analytics: "consolidated",
-	construction: "construction",
-	finance: "construction",
-	supply: "warehouse",
-	sales: "proptech",
-	investors: "rental",
-	rental: "rental",
 };
 
 function moduleFromDashboardPath(path: string): ModuleId | null {
@@ -90,9 +56,7 @@ function moduleFromDashboardPath(path: string): ModuleId | null {
 	const pathOnly = path.slice(0, qIdx);
 	if (pathOnly !== "/dashboard") return null;
 	const tab = new URLSearchParams(path.slice(qIdx)).get("tab");
-	if (tab && tab in DASHBOARD_TAB_TO_MODULE) {
-		return DASHBOARD_TAB_TO_MODULE[tab]!;
-	}
+	if (tab) return getDashboardTabModuleId(tab as DashboardTabId);
 	return "consolidated";
 }
 
@@ -101,11 +65,7 @@ export function detectModuleFromPath(path: string): ModuleId {
 	if (fromDashboard) return fromDashboard;
 
 	const pathOnly = path.split("?")[0] ?? path;
-	for (const id of ALL_MODULE_IDS) {
-		const prefixes = MODULE_URL_PREFIXES[id];
-		if (prefixes.some((p) => pathOnly.startsWith(p))) return id;
-	}
-	return "consolidated";
+	return getRouteModuleId(pathOnly) ?? "consolidated";
 }
 
 export function resolveAllowedModules(

@@ -182,7 +182,7 @@ export default function ConstructionCashier() {
 							<div className="font-mono text-xs text-amber-600">
 								{c?.contractNumber || `#${op.contractId}`}
 							</div>
-							<div className="text-xs text-gray-400">{c?.buyerName}</div>
+							<div className="text-xs text-gray-600">{c?.buyerName}</div>
 						</div>
 					);
 				},
@@ -219,27 +219,27 @@ export default function ConstructionCashier() {
 	);
 
 	return (
-		<div>
-			<div className="flex items-center justify-between mb-6">
+		<div className="am-page">
+			<div className="am-page-header">
 				<div>
-					<h1 className="text-2xl font-bold text-gray-900">
+					<h1 className="am-page-title text-2xl">
 						Приём платежей (Касса)
 					</h1>
-					<p className="text-gray-500 text-sm mt-0.5">
+					<p className="am-page-subtitle text-sm">
 						Принять оплату от покупателя и выдать квитанцию
 					</p>
 				</div>
 			</div>
 
-			<div className="grid grid-cols-12 gap-6">
+			<div className="grid gap-6 xl:grid-cols-12">
 				{/* Left: Contract list */}
-				<div className="col-span-5">
-					<div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+				<div className="xl:col-span-4">
+					<div className="am-panel p-4">
 						<div className="text-sm font-semibold text-gray-700 mb-3">
 							1. Выберите договор
 						</div>
 						<div className="relative mb-3">
-							<Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+							<Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" />
 							<Input
 								className="pl-9 h-8 text-sm"
 								placeholder="Поиск покупателя или №..."
@@ -249,7 +249,7 @@ export default function ConstructionCashier() {
 						</div>
 						<div className="space-y-2 max-h-96 overflow-y-auto">
 							{filteredContracts.length === 0 ? (
-								<div className="text-center py-8 text-gray-400 text-sm">
+								<div className="text-center py-8 text-gray-600 text-sm">
 									Нет активных договоров
 								</div>
 							) : (
@@ -267,7 +267,7 @@ export default function ConstructionCashier() {
 											onClick={() => selectContract(c)}
 											className={`p-3 rounded-lg border cursor-pointer transition-all ${isSelected ? "border-orange-400 bg-amber-50" : "border-gray-100 hover:border-amber-200 hover:bg-amber-50/30"}`}
 										>
-											<div className="flex items-center justify-between">
+											<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 												<div className="font-mono text-xs font-semibold text-amber-600">
 													{c.contractNumber}
 												</div>
@@ -297,15 +297,15 @@ export default function ConstructionCashier() {
 				</div>
 
 				{/* Right: Payment form */}
-				<div className="col-span-7">
+				<div className="xl:col-span-8">
 					{!selectedContract ? (
-						<div className="bg-white rounded-xl border border-gray-100 shadow-sm p-12 text-center text-gray-400">
+						<div className="am-panel p-8 text-center text-gray-600">
 							<User className="w-12 h-12 mx-auto mb-3 text-gray-200" />
 							<p>Выберите договор слева для приёма платежа</p>
 						</div>
 					) : success ? (
-						<div className="bg-white rounded-xl border border-emerald-200 shadow-sm p-8 text-center">
-							<CheckCircle2 className="w-14 h-14 text-emerald-500 mx-auto mb-4" />
+						<div className="rounded-lg border border-emerald-200 bg-white p-8 text-center shadow-sm">
+							<CheckCircle2 className="w-14 h-14 text-emerald-700 mx-auto mb-4" />
 							<div className="text-xl font-bold text-gray-900 mb-2">
 								Платёж принят!
 							</div>
@@ -357,13 +357,13 @@ export default function ConstructionCashier() {
 							</div>
 						</div>
 					) : (
-						<div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">
+						<div className="am-panel space-y-4 p-5">
 							<div className="text-sm font-semibold text-gray-700">
 								2. Оформить платёж
 							</div>
 
 							{/* Contract info */}
-							<div className="bg-amber-50 rounded-xl p-3 text-sm grid grid-cols-3 gap-2 text-center">
+							<div className="grid gap-2 rounded-xl bg-amber-50 p-3 text-center text-sm sm:grid-cols-3">
 								<div>
 									<div className="text-xs text-gray-500">Сумма договора</div>
 									<div className="font-bold">
@@ -425,7 +425,7 @@ export default function ConstructionCashier() {
 								</div>
 							)}
 
-							<div className="grid grid-cols-3 gap-3">
+							<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
 								<div className="flex flex-col">
 									<Label className="text-xs leading-tight mb-1.5">Сумма *</Label>
 									<Input
@@ -481,7 +481,7 @@ export default function ConstructionCashier() {
 								</div>
 							)}
 
-							<div className="grid grid-cols-2 gap-3">
+							<div className="grid gap-3 sm:grid-cols-2">
 								<div className="flex flex-col">
 									<Label className="text-xs leading-tight mb-1.5">Способ оплаты</Label>
 									<Select
@@ -567,7 +567,7 @@ export default function ConstructionCashier() {
 			</div>
 
 			<div className="mt-8 space-y-3">
-				<div className="flex items-center justify-between">
+				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 					<div>
 						<div className="text-sm font-semibold text-gray-900">
 							Принятые платежи
@@ -576,7 +576,7 @@ export default function ConstructionCashier() {
 							Из кассы и из раздела «Начисления»
 						</div>
 					</div>
-					<span className="text-xs text-gray-400">
+					<span className="text-xs text-gray-600">
 						{contractPayments.length} записей
 					</span>
 				</div>

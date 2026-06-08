@@ -50,7 +50,7 @@ export default function ForgotPassword() {
 			className="min-h-screen flex items-center justify-center p-6"
 			style={{ background: "#f4f6f9" }}
 		>
-			<div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+			<div className="w-full max-w-md bg-white rounded-lg shadow-sm border border-gray-100 p-8">
 				<div className="flex items-center gap-3 mb-6">
 					<PlanalitycLogo variant="mark" />
 					<div>
@@ -66,7 +66,7 @@ export default function ForgotPassword() {
 							на почту придёт ссылка для установки нового пароля. Ссылка
 							действует 1 час.
 						</p>
-						<p className="text-xs text-gray-400">
+						<p className="text-xs text-gray-600">
 							Не пришло письмо? Проверьте папку «Спам» или повторите запрос
 							через минуту.
 						</p>

@@ -329,13 +329,13 @@ export default function OwnerStatements() {
 			</div>
 
 			{/* Unified filters + generate row */}
-			<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+			<div className="bg-white rounded-lg border border-gray-100 shadow-sm p-5">
 				<p className="text-sm font-semibold text-gray-700 mb-3">
 					Фильтр и формирование актов
 				</p>
 				<div className="flex flex-wrap gap-3 items-center">
 					<Select value={propertyFilter} onValueChange={setPropertyFilter}>
-						<SelectTrigger className="w-56">
+						<SelectTrigger className="w-full sm:w-56">
 							<SelectValue placeholder="Все объекты" />
 						</SelectTrigger>
 						<SelectContent>
@@ -431,7 +431,7 @@ export default function OwnerStatements() {
 								</Button>
 								<button
 									onClick={() => setSelectedStatement(null)}
-									className="text-gray-400 hover:text-gray-600"
+									className="text-gray-600 hover:text-gray-600"
 								>
 									<X className="w-5 h-5" />
 								</button>
@@ -509,7 +509,7 @@ export default function OwnerStatements() {
 										})
 										.map((e: any) => (
 											<tr key={e.id} className="border-b text-xs">
-												<td className="px-3 py-2 text-gray-400 pl-8">
+												<td className="px-3 py-2 text-gray-600 pl-8">
 													— {e.description || e.category || "Расход"}
 												</td>
 												<td className="px-3 py-2 text-right text-rose-600">
@@ -553,7 +553,7 @@ export default function OwnerStatements() {
 								</p>
 							</div>
 
-							<div className="text-center text-xs text-gray-400 pt-2">
+							<div className="text-center text-xs text-gray-600 pt-2">
 								Сформирован:{" "}
 								{new Date(selectedStatement.generatedAt).toLocaleString(
 									"ru-KG",

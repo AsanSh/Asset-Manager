@@ -58,7 +58,7 @@ export default function ConstructionBroadcast() {
 			id: "whatsapp",
 			label: "WhatsApp",
 			icon: MessageCircle,
-			color: "text-emerald-500",
+			color: "text-emerald-700",
 		},
 		{ id: "telegram", label: "Telegram", icon: Send, color: "text-blue-500" },
 		{ id: "email", label: "Email", icon: Mail, color: "text-amber-600" },
@@ -103,7 +103,7 @@ export default function ConstructionBroadcast() {
 				</p>
 			</div>
 
-			<div className="grid grid-cols-2 gap-6">
+			<div className="grid gap-6 lg:grid-cols-2">
 				{/* Compose */}
 				<div className="space-y-4">
 					<div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
@@ -137,7 +137,7 @@ export default function ConstructionBroadcast() {
 
 							<div>
 								<Label className="text-xs">Канал отправки</Label>
-								<div className="grid grid-cols-4 gap-2 mt-1">
+								<div className="grid gap-2 sm:grid-cols-2 mt-1 sm:grid-cols-4">
 									{CHANNELS.map((ch) => {
 										const Icon = ch.icon;
 										return (
@@ -165,7 +165,7 @@ export default function ConstructionBroadcast() {
 									rows={5}
 									placeholder="Введите текст..."
 								/>
-								<div className="text-xs text-gray-400 mt-1">
+								<div className="text-xs text-gray-600 mt-1">
 									Переменные: {"{name}"}, {"{contract}"}, {"{date}"},{" "}
 									{"{amount}"}
 								</div>
@@ -217,7 +217,7 @@ export default function ConstructionBroadcast() {
 									<div className="font-medium text-sm text-gray-900 truncate">
 										{log.recipient}
 									</div>
-									<div className="text-xs text-gray-400">
+									<div className="text-xs text-gray-600">
 										{log.template} · {log.channel} · {log.date}
 									</div>
 								</div>

@@ -1,9 +1,12 @@
-/** Чистая утилита без React/API — для module-access и тестов. */
-export function parseCustomRoleId(role: string): number | null {
-	const match = /^custom_(\d+)$/.exec(role);
-	return match ? parseInt(match[1], 10) : null;
+const CUSTOM_ROLE_PREFIX = "custom:";
+
+export function parseCustomRoleId(role: string | null | undefined): number | null {
+	if (!role) return null;
+	if (!role.startsWith(CUSTOM_ROLE_PREFIX)) return null;
+	const id = Number(role.slice(CUSTOM_ROLE_PREFIX.length));
+	return Number.isInteger(id) && id > 0 ? id : null;
 }
 
-export function customRoleValue(id: number): string {
-	return `custom_${id}`;
+export function buildCustomRoleId(id: number): string {
+	return `${CUSTOM_ROLE_PREFIX}${id}`;
 }

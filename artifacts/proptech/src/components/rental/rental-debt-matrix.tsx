@@ -198,7 +198,7 @@ export function RentalDebtMatrix({
 						<tr>
 							<td
 								colSpan={allCols.length + 1}
-								className="border border-gray-300 px-4 py-12 text-center text-sm text-gray-400"
+								className="border border-gray-300 px-4 py-12 text-center text-sm text-gray-600"
 							>
 								{emptyMessage || "Нет просроченных долгов"}
 							</td>
@@ -211,7 +211,7 @@ export function RentalDebtMatrix({
 							return (
 								<tr key={row.key} className={cn(bg, "hover:bg-[#EEF2FF]")}>
 									<td
-										className="border border-gray-300 text-center text-gray-400 py-1 px-2 sticky left-0 z-10 text-[11px]"
+										className="border border-gray-300 text-center text-gray-600 py-1 px-2 sticky left-0 z-10 text-[11px]"
 										style={{ background: "inherit" }}
 									>
 										{i + 1}

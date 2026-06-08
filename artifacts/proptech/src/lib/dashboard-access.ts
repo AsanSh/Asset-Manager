@@ -1,5 +1,6 @@
 import type { ModuleId } from "./module-access";
 import { parseCustomRoleId } from "./custom-role-id";
+import { MODULE_REGISTRY } from "./module-registry";
 
 /** Вкладки единого Dashboard */
 export type DashboardTabId =
@@ -45,13 +46,9 @@ export const DASHBOARD_TAB_LABELS: Record<DashboardTabId, string> = {
 };
 
 /** Какие вкладки открывает модуль (пересечение с ролью) */
-const MODULE_TABS: Partial<Record<ModuleId, DashboardTabId[]>> = {
-	consolidated: ["control", "analytics"],
-	construction: ["construction", "finance"],
-	rental: ["rental", "investors"],
-	proptech: ["sales"],
-	warehouse: ["supply"],
-};
+const MODULE_TABS = Object.fromEntries(
+	MODULE_REGISTRY.map((moduleDef) => [moduleDef.id, moduleDef.dashboardTabs]),
+) as Partial<Record<ModuleId, DashboardTabId[]>>;
 
 /** Жёсткое ограничение по системной роли (пересекается с модулями) */
 const ROLE_TAB_CAP: Record<string, DashboardTabId[] | "all"> = {
@@ -91,13 +88,9 @@ const ROLE_DEFAULT_TAB: Record<string, DashboardTabId> = {
 	staff: "control",
 };
 
-const MODULE_DEFAULT_TAB: Record<ModuleId, DashboardTabId> = {
-	consolidated: "control",
-	construction: "construction",
-	rental: "rental",
-	proptech: "sales",
-	warehouse: "supply",
-};
+const MODULE_DEFAULT_TAB = Object.fromEntries(
+	MODULE_REGISTRY.map((moduleDef) => [moduleDef.id, moduleDef.dashboardTabs[0] ?? "control"]),
+) as Record<ModuleId, DashboardTabId>;
 
 function tabsFromModules(allowedModules: ModuleId[]): Set<DashboardTabId> {
 	const set = new Set<DashboardTabId>();

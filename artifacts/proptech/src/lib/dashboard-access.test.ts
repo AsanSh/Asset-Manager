@@ -17,11 +17,7 @@ describe("dashboard-access", () => {
 	});
 
 	it("finance role sees only finance tab", () => {
-		const tabs = resolveDashboardTabs("finance", [], [
-			"consolidated",
-			"rental",
-			"construction",
-		]);
+		const tabs = resolveDashboardTabs("finance", [], ["finance"]);
 		assert.deepEqual(tabs, ["finance"]);
 	});
 
@@ -34,6 +30,7 @@ describe("dashboard-access", () => {
 		const tabs = resolveDashboardTabs("company_admin", [], [
 			"consolidated",
 			"construction",
+			"finance",
 			"rental",
 			"warehouse",
 			"proptech",
@@ -49,6 +46,7 @@ describe("dashboard-access", () => {
 		const tabs = resolveDashboardTabs("company_admin", [], [
 			"consolidated",
 			"construction",
+			"finance",
 			"rental",
 			"warehouse",
 			"proptech",
@@ -56,6 +54,7 @@ describe("dashboard-access", () => {
 		const primary = resolvePrimaryDashboardTabs("company_admin", [], [
 			"consolidated",
 			"construction",
+			"finance",
 			"rental",
 			"warehouse",
 			"proptech",

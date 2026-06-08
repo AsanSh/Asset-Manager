@@ -2,9 +2,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	Building,
 	Calculator,
+	CalendarDays,
 	Edit2,
 	FileUp,
 	FileText,
+	Grid3X3,
 	HardHat,
 	MapPin,
 	Plus,
@@ -30,8 +32,6 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { PageShell } from "@/components/am/PageShell";
-import { EmptyState } from "@/components/am/misc";
 import { useToast } from "@/hooks/use-toast";
 import {
 	applyParsedToProjectForm,
@@ -98,7 +98,6 @@ interface Project {
 	totalUnits?: number;
 	totalArea?: string;
 	costPerSqm?: string;
-	baseSalePricePerSqm?: string;
 	currency: string;
 	exchangeRateSource: string;
 	exchangeRate?: string;
@@ -151,7 +150,6 @@ const emptyForm = () => ({
 	totalUnits: "",
 	totalArea: "",
 	costPerSqm: "",
-	baseSalePricePerSqm: "",
 	currency: "KGS",
 	exchangeRateSource: "nbkr",
 	exchangeRate: "1",
@@ -193,7 +191,6 @@ function ProjectDialog({
 				totalUnits: String(init.totalUnits || ""),
 				totalArea: init.totalArea || "",
 				costPerSqm: init.costPerSqm || "",
-				baseSalePricePerSqm: init.baseSalePricePerSqm || "",
 				currency: init.currency,
 				exchangeRateSource: init.exchangeRateSource,
 				exchangeRate: init.exchangeRate || "1",
@@ -253,9 +250,6 @@ function ProjectDialog({
 				totalUnits: form.totalUnits ? parseInt(form.totalUnits, 10) : null,
 				totalArea: form.totalArea ? parseFloat(form.totalArea) : null,
 				costPerSqm: form.costPerSqm ? parseFloat(form.costPerSqm) : null,
-				baseSalePricePerSqm: form.baseSalePricePerSqm
-					? parseFloat(form.baseSalePricePerSqm)
-					: null,
 				exchangeRate: form.exchangeRate ? parseFloat(form.exchangeRate) : 1,
 				totalBudget: estimatedKgs,
 				documentMeta: documentMeta || undefined,
@@ -330,8 +324,8 @@ function ProjectDialog({
 						<p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
 							Основное
 						</p>
-						<div className="grid grid-cols-2 gap-3">
-							<div className="col-span-2 flex flex-col">
+						<div className="grid gap-3 sm:grid-cols-2">
+							<div className="sm:col-span-2 flex flex-col">
 								<Label className="leading-tight mb-1.5">Название проекта *</Label>
 								<Input
 									className="mt-auto"
@@ -368,7 +362,7 @@ function ProjectDialog({
 									placeholder="Бишкек"
 								/>
 							</div>
-							<div className="col-span-2 flex flex-col">
+							<div className="sm:col-span-2 flex flex-col">
 								<Label className="leading-tight mb-1.5">Адрес</Label>
 								<Input
 									className="mt-auto"
@@ -385,7 +379,7 @@ function ProjectDialog({
 						<p className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
 							<Building className="w-3.5 h-3.5" /> Характеристики здания
 						</p>
-						<div className="grid grid-cols-2 gap-3">
+						<div className="grid gap-3 sm:grid-cols-2">
 							<div className="flex flex-col">
 								<Label className="leading-tight mb-1.5">Тип здания</Label>
 								<Select
@@ -447,7 +441,7 @@ function ProjectDialog({
 									При сохранении проекта квартиры появятся в шахматке автоматически
 								</p>
 							</div>
-							<div className="col-span-2 flex flex-col">
+							<div className="sm:col-span-2 flex flex-col">
 								<Label className="leading-tight mb-1.5">Общая площадь (кв.м)</Label>
 								<Input
 									className="mt-auto"
@@ -467,7 +461,7 @@ function ProjectDialog({
 						<p className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
 							<Calculator className="w-3.5 h-3.5" /> Расчёт себестоимости
 						</p>
-						<div className="grid grid-cols-2 gap-3">
+						<div className="grid gap-3 sm:grid-cols-2">
 							<div className="flex flex-col">
 								<Label className="leading-tight mb-1.5">Стоимость за 1 кв.м ({form.currency})</Label>
 								<Input
@@ -566,35 +560,12 @@ function ProjectDialog({
 						)}
 					</div>
 
-					<div className="space-y-3">
-						<p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-							Продажи (шахматка)
-						</p>
-						<div className="flex flex-col">
-							<Label className="leading-tight mb-1.5">
-								Базовая цена продажи за 1 м² (сом)
-							</Label>
-							<Input
-								className="mt-auto"
-								type="number"
-								min="0"
-								step="0.01"
-								value={form.baseSalePricePerSqm}
-								onChange={(e) => set("baseSalePricePerSqm", e.target.value)}
-								placeholder="120000"
-							/>
-							<p className="text-[11px] text-gray-500 mt-1">
-								Списочная цена = база × коэффициент × площадь; утверждает коммерческий директор.
-							</p>
-						</div>
-					</div>
-
 					{/* Сроки */}
 					<div className="space-y-3">
 						<p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
 							Сроки
 						</p>
-						<div className="grid grid-cols-2 gap-3">
+						<div className="grid gap-3 sm:grid-cols-2">
 							<div className="flex flex-col">
 								<Label className="leading-tight mb-1.5">Дата начала</Label>
 								<Input
@@ -768,6 +739,14 @@ export default function ConstructionProjects() {
 	> | null>(null);
 	const [search, setSearch] = useState("");
 
+	useEffect(() => {
+		const params = new URLSearchParams(window.location.search);
+		if (params.get("create") !== "1") return;
+		setPrefill(null);
+		setDialog("new");
+		window.history.replaceState(null, "", "/construction/projects");
+	}, []);
+
 	const handleDocumentParsed = (parsed: ParsedProjectDocument) => {
 		setPrefill(applyParsedToProjectForm(parsed));
 		setDialog("new");
@@ -822,11 +801,17 @@ export default function ConstructionProjects() {
 	);
 
 	return (
-		<PageShell.List
-			title="Строительные проекты"
-			subtitle="Управление проектами и расчёт себестоимости"
-			primaryAction={
-				<div className="flex gap-2 flex-wrap">
+		<div className="am-page space-y-5">
+			<div className="am-page-header">
+				<div>
+					<h1 className="am-page-title text-2xl">
+						Строительные проекты
+					</h1>
+					<p className="am-page-subtitle text-sm">
+						Управление проектами и расчёт себестоимости
+					</p>
+				</div>
+				<div className="flex flex-wrap gap-2">
 					<Button
 						variant="outline"
 						onClick={() => setDocUploadOpen(true)}
@@ -844,16 +829,17 @@ export default function ConstructionProjects() {
 						<Plus className="w-4 h-4" /> Новый проект
 					</Button>
 				</div>
-			}
-			filters={
+			</div>
+
+			<div className="mb-2">
 				<Input
 					placeholder="Поиск по названию или адресу..."
 					value={search}
 					onChange={(e) => setSearch(e.target.value)}
-					className="max-w-sm"
+					className="max-w-xl rounded-2xl bg-white shadow-sm"
 				/>
-			}
-		>
+			</div>
+
 			{isLoading ? (
 				<div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
 					{Array.from({ length: 3 }).map((_, i) => (
@@ -861,26 +847,15 @@ export default function ConstructionProjects() {
 					))}
 				</div>
 			) : filtered.length === 0 ? (
-				<EmptyState
-					icon={HardHat}
-					title={search ? "Ничего не найдено" : "Проектов пока нет"}
-					description="Нажмите «Новый проект», чтобы начать"
-					action={
-						!search ? (
-							<Button
-								onClick={() => {
-									setPrefill(null);
-									setDialog("new");
-								}}
-								className="bg-amber-500 hover:bg-orange-600"
-							>
-								<Plus className="w-4 h-4 mr-2" /> Новый проект
-							</Button>
-						) : undefined
-					}
-				/>
+				<div className="text-center py-16 text-gray-600">
+					<HardHat className="w-12 h-12 mx-auto mb-3 opacity-20" />
+					<p className="font-medium">
+						{search ? "Ничего не найдено" : "Проектов пока нет"}
+					</p>
+					<p className="text-sm mt-1">Нажмите «Новый проект» чтобы начать</p>
+				</div>
 			) : (
-				<div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+				<div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
 					{filtered.map((p) => {
 						const cost = projectCostInCurrency(p);
 						const breakdown = projectCostBreakdown(p);
@@ -896,70 +871,60 @@ export default function ConstructionProjects() {
 						return (
 							<div
 								key={p.id}
-								className="bg-white rounded-xl border border-gray-200 hover:border-orange-300 hover:shadow-md transition-all"
+								className="group overflow-hidden rounded-[28px] border border-white/80 bg-white/78 shadow-2xl shadow-slate-950/8 backdrop-blur-xl transition-all hover:-translate-y-1 hover:border-cyan-300/70 hover:shadow-cyan-950/12"
 							>
-								<div className="p-5">
-									{/* Header */}
-									<div className="flex items-start justify-between mb-3">
-										<div className="flex-1 min-w-0">
-											<h3 className="font-bold text-gray-900 text-base truncate">
+								<div className="grid gap-0 lg:grid-cols-[1.05fr_0.95fr]">
+									<div className="min-w-0 bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950 p-4 text-white">
+										<div className="flex items-start justify-between gap-3">
+											<div className="min-w-0">
+												<p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-300/85">
+													Проект / ЖК
+												</p>
+												<h3 className="mt-1 truncate text-xl font-black text-white">
 												{p.name}
 											</h3>
 											{(p.address || p.region) && (
-												<div className="flex items-center gap-1 mt-0.5">
-													<MapPin className="w-3 h-3 text-gray-400 flex-shrink-0" />
-													<p className="text-xs text-gray-400 truncate">
+													<div className="mt-1 flex items-center gap-1.5">
+														<MapPin className="h-3.5 w-3.5 flex-shrink-0 text-cyan-200/70" />
+														<p className="truncate text-sm text-slate-300">
 														{p.address || p.region}
 													</p>
 												</div>
 											)}
 										</div>
 										<Badge
-											className={STATUS_COLORS[p.status] || ""}
+												className={`${STATUS_COLORS[p.status] || ""} rounded-full px-3 py-1 text-xs`}
 											variant="secondary"
 										>
 											{STATUS_LABEL[p.status] || p.status}
 										</Badge>
-									</div>
-
-									{templateMeta?.fileName && (
-										<div className="mb-3">
-											<Badge
-												variant="outline"
-												className="text-[10px] border-orange-200 text-orange-700 bg-orange-50"
-											>
-												<FileText className="w-3 h-3 mr-1" />
-												Шаблон договора
-											</Badge>
 										</div>
-									)}
 
-									{/* Building characteristics */}
-									<div className="grid grid-cols-3 gap-2 mb-3">
-										<div className="bg-gray-50 rounded-lg p-2 text-center">
-											<p className="text-[10px] text-gray-400">Тип</p>
-											<p className="text-xs font-semibold text-gray-700 leading-tight mt-0.5 truncate">
+										<div className="mt-3 grid gap-2 sm:grid-cols-3">
+											<div className="rounded-2xl border border-white/10 bg-white/8 p-2.5 backdrop-blur">
+												<p className="text-[11px] text-slate-400">Тип</p>
+												<p className="mt-1 truncate text-sm font-bold text-white">
 												{BUILD_TYPE_LABELS[p.buildingType]
 													?.split("(")[0]
 													.trim() || p.buildingType}
 											</p>
 										</div>
-										<div className="bg-gray-50 rounded-lg p-2 text-center">
-											<p className="text-[10px] text-gray-400">Этажей</p>
-											<p className="text-sm font-bold text-gray-800">
+											<div className="rounded-2xl border border-white/10 bg-white/8 p-2.5 backdrop-blur">
+												<p className="text-[11px] text-slate-400">Этажей</p>
+												<p className="mt-1 text-lg font-black text-white">
 												{p.totalFloors || "—"}
 											</p>
 										</div>
-										<div className="bg-gray-50 rounded-lg p-2 text-center">
-											<p className="text-[10px] text-gray-400">Юнитов</p>
-											<p className="text-sm font-bold text-gray-800">
+											<div className="rounded-2xl border border-white/10 bg-white/8 p-2.5 backdrop-blur">
+												<p className="text-[11px] text-slate-400">Юнитов</p>
+												<p className="mt-1 text-lg font-black text-white">
 												{p.totalUnits || "—"}
 											</p>
 										</div>
 									</div>
 
 									{meta && (
-										<div className="bg-blue-50/80 border border-blue-100 rounded-lg p-2.5 mb-3 text-xs space-y-0.5">
+											<div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/70 p-3 text-xs">
 											{meta.stage != null && (
 												<p>
 													<span className="text-blue-600">Стадия:</span>{" "}
@@ -986,16 +951,43 @@ export default function ConstructionProjects() {
 										</div>
 									)}
 
+										<div className="mt-3 flex flex-wrap items-center gap-2 border-t border-white/10 pt-3">
+											<Button
+												size="sm"
+												variant="outline"
+												className="h-9 flex-1 border-white/15 bg-white/10 text-white hover:bg-white/15"
+												onClick={() => setDialog(p)}
+											>
+												<Edit2 className="mr-2 h-4 w-4" /> Редактировать
+											</Button>
+											<a
+												href={`/construction/chess?projectId=${p.id}`}
+												className="inline-flex h-9 items-center gap-2 rounded-full bg-cyan-400 px-4 text-sm font-bold text-slate-950 shadow-lg shadow-cyan-950/20 transition hover:bg-cyan-300"
+											>
+												<Grid3X3 className="h-4 w-4" /> Шахматка
+											</a>
+											<Button
+												size="icon"
+												variant="ghost"
+												className="h-9 w-9 rounded-xl text-rose-600 hover:text-rose-600"
+												onClick={() => handleDelete(p.id, p.name)}
+											>
+												<Trash2 className="h-4 w-4" />
+											</Button>
+										</div>
+									</div>
+
+									<div className="space-y-3 p-4">
 									{cost.total > 0 && (
-										<div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-amber-100 rounded-lg p-3 mb-3">
-											<p className="text-[10px] text-amber-600 font-semibold uppercase tracking-wider">
+											<div className="rounded-[24px] border border-amber-200/90 bg-gradient-to-br from-amber-50 via-white to-cyan-50 p-4 shadow-inner">
+												<p className="text-xs font-black uppercase tracking-[0.18em] text-orange-600">
 												{projectCostLabel(p.currency || "KGS")}
 											</p>
-											<p className="text-lg font-bold text-amber-700">
+												<p className="mt-2 text-2xl font-black text-slate-950">
 												{fmtProjectAmount(cost.total)} {sym}
 											</p>
 											{breakdown && (
-												<p className="text-xs text-amber-600 mt-0.5">
+													<p className="mt-1 text-sm text-orange-600">
 													{breakdown}
 													{p.currency !== "KGS" &&
 														p.exchangeRate &&
@@ -1005,25 +997,24 @@ export default function ConstructionProjects() {
 										</div>
 									)}
 
-									{/* Cost per sqm */}
 									{area > 0 && (plannedCostPerSqm > 0 || currentCostPerSqm > 0) && (
-										<div className="bg-gradient-to-r from-slate-50 to-gray-50 border border-gray-200 rounded-lg p-3 mb-3">
-											<p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider mb-1.5">
+											<div className="rounded-[22px] border border-slate-200/80 bg-white/70 p-3.5 shadow-sm shadow-slate-950/4">
+												<p className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
 												Стоимость за кв.м
 											</p>
-											<div className="space-y-1">
+												<div className="space-y-2">
 												{plannedCostPerSqm > 0 && (
-													<div className="flex items-center justify-between">
-														<span className="text-xs text-gray-600">Плановая:</span>
-														<span className="text-sm font-bold text-gray-800">
+													<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+															<span className="text-sm text-slate-500">Плановая</span>
+															<span className="text-base font-black text-slate-900">
 															{fmtProjectAmount(plannedCostPerSqm)} {sym}/м²
 														</span>
 													</div>
 												)}
 												{currentCostPerSqm > 0 && (
-													<div className="flex items-center justify-between">
-														<span className="text-xs text-gray-600">Текущая:</span>
-														<span className="text-sm font-bold text-orange-600">
+													<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+															<span className="text-sm text-slate-500">Текущая</span>
+															<span className="text-base font-black text-orange-600">
 															{fmtProjectAmount(currentCostPerSqm)} {sym}/м²
 														</span>
 													</div>
@@ -1032,34 +1023,33 @@ export default function ConstructionProjects() {
 										</div>
 									)}
 
-									{/* Dates */}
-									{(p.startDate || p.plannedEndDate) && (
-										<p className="text-xs text-gray-400 mb-3">
+										<div className="rounded-[22px] border border-cyan-100 bg-cyan-50/55 p-3.5">
+											<div className="flex items-start gap-3">
+												<div className="rounded-2xl bg-cyan-50 p-2 text-cyan-700">
+													<CalendarDays className="h-4 w-4" />
+												</div>
+												<div className="min-w-0 text-sm text-slate-500">
+													<p className="font-bold text-slate-900">Сроки проекта</p>
+													<p className="mt-1">
 											{p.startDate &&
 												`Нач: ${new Date(p.startDate).toLocaleDateString("ru-KG")}`}
 											{p.startDate && p.plannedEndDate && " — "}
 											{p.plannedEndDate &&
 												`Сдача: ${new Date(p.plannedEndDate).toLocaleDateString("ru-KG")}`}
-										</p>
-									)}
-
-									<div className="flex gap-2 pt-2 border-t border-gray-100">
-										<Button
-											size="sm"
-											variant="outline"
-											className="flex-1 text-xs"
-											onClick={() => setDialog(p)}
-										>
-											<Edit2 className="w-3 h-3 mr-1" /> Редактировать
-										</Button>
-										<Button
-											size="sm"
-											variant="ghost"
-											className="text-xs text-rose-600 hover:text-rose-600"
-											onClick={() => handleDelete(p.id, p.name)}
-										>
-											<Trash2 className="w-3.5 h-3.5" />
-										</Button>
+														{!p.startDate && !p.plannedEndDate && "Не заданы"}
+													</p>
+												</div>
+											</div>
+											{templateMeta?.fileName && (
+												<Badge
+													variant="outline"
+													className="mt-3 rounded-full border-orange-200 bg-orange-50 text-[10px] text-orange-700"
+												>
+													<FileText className="mr-1 h-3 w-3" />
+													Шаблон договора
+												</Badge>
+											)}
+										</div>
 									</div>
 								</div>
 							</div>
@@ -1088,6 +1078,6 @@ export default function ConstructionProjects() {
 				onClose={() => setDocUploadOpen(false)}
 				onParsed={(parsed) => handleDocumentParsed(parsed)}
 			/>
-		</PageShell.List>
+		</div>
 	);
 }

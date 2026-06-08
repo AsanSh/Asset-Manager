@@ -484,8 +484,8 @@ export function ContractTab({ salesContractId, projectId, initialPayload }: Prop
 						Подтягиваются из карточки контрагента и полей договора (телефон на
 						договоре приоритетнее).
 					</p>
-					<div className="grid grid-cols-2 gap-2">
-						<div className="col-span-2">
+					<div className="grid gap-2 sm:grid-cols-2">
+						<div className="sm:col-span-2">
 							<Label className="text-xs">ФИО</Label>
 							<Input
 								className="mt-1 h-8 text-sm"
@@ -493,7 +493,7 @@ export function ContractTab({ salesContractId, projectId, initialPayload }: Prop
 								onChange={(e) => setBuyerField("fullName", e.target.value)}
 							/>
 						</div>
-						<div className="col-span-2">
+						<div className="sm:col-span-2">
 							<Label className="text-xs">ФИО (родительный падеж)</Label>
 							<Input
 								className="mt-1 h-8 text-sm"
@@ -527,7 +527,7 @@ export function ContractTab({ salesContractId, projectId, initialPayload }: Prop
 								placeholder="21.03.1988"
 							/>
 						</div>
-						<div className="col-span-2">
+						<div className="sm:col-span-2">
 							<Label className="text-xs">ИНН / ПИН</Label>
 							<Input
 								className="mt-1 h-8 text-sm"
@@ -572,7 +572,7 @@ export function ContractTab({ salesContractId, projectId, initialPayload }: Prop
 								onChange={(e) => setBuyerField("phone", e.target.value)}
 							/>
 						</div>
-						<div className="col-span-2">
+						<div className="sm:col-span-2">
 							<Label className="text-xs">Адрес</Label>
 							<Input
 								className="mt-1 h-8 text-sm"
@@ -587,8 +587,8 @@ export function ContractTab({ salesContractId, projectId, initialPayload }: Prop
 					<p className="text-xs font-semibold text-gray-500 uppercase">
 						Помещение
 					</p>
-					<div className="grid grid-cols-2 gap-2">
-						<div className="col-span-2">
+					<div className="grid gap-2 sm:grid-cols-2">
+						<div className="sm:col-span-2">
 							<Label className="text-xs">Адрес объекта</Label>
 							<Input
 								className="mt-1 h-8 text-sm"

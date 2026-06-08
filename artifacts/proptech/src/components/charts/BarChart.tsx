@@ -18,7 +18,7 @@ interface BarChartProps {
 
 export function BarChart({
 	data,
-	color = "#8b5cf6",
+	color = "#0ea5e9",
 	height = 300,
 	showGrid = true,
 }: BarChartProps) {

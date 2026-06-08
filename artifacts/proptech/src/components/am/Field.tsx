@@ -95,7 +95,7 @@ export function FormGrid({
 	className?: string;
 }) {
 	const cn = [
-		"grid grid-cols-12 gap-x-4 gap-y-4",
+		"am-form-grid-core grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-12",
 		className,
 	].filter(Boolean).join(" ");
 	return <div className={cn}>{children}</div>;
