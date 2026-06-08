@@ -1783,14 +1783,18 @@ router.delete("/expenses/:id", async (req: AuthenticatedRequest, res): Promise<v
 // ── CHESS UNITS ───────────────────────────────────────────────────────────────
 
 router.get("/units", async (req: AuthenticatedRequest, res): Promise<void> => {
-  const { projectId } = req.query;
-  const rows = await db.select().from(constructionUnitsTable)
-    .where(and(
-      eq(constructionUnitsTable.companyId, req.scopedCompanyId!),
-      ...(projectId ? [eq(constructionUnitsTable.projectId, parseInt(projectId as string))] : [])
-    ))
-    .orderBy(constructionUnitsTable.floor, constructionUnitsTable.unitNumber);
-  res.json(rows);
+  try {
+    const { projectId } = req.query;
+    const rows = await db.select().from(constructionUnitsTable)
+      .where(and(
+        eq(constructionUnitsTable.companyId, req.scopedCompanyId!),
+        ...(projectId ? [eq(constructionUnitsTable.projectId, parseInt(projectId as string))] : [])
+      ))
+      .orderBy(asc(constructionUnitsTable.floor), asc(constructionUnitsTable.unitNumber));
+    res.json(rows);
+  } catch (e) {
+    sendServerError(res, e, "Ошибка загрузки квартир");
+  }
 });
 
 router.post("/units", async (req: AuthenticatedRequest, res): Promise<void> => {
@@ -2076,68 +2080,72 @@ router.post("/units/bulk", async (req: AuthenticatedRequest, res): Promise<void>
 
 /** Квартиры + активный договор (покупатель, оплачено, остаток) для шахматки */
 router.get("/units/overview", async (req: AuthenticatedRequest, res): Promise<void> => {
-  const projectId = parseInt(String(req.query.projectId || ""), 10);
-  if (!projectId) {
-    res.status(400).json({ error: "projectId обязателен" });
-    return;
-  }
-  const companyId = req.scopedCompanyId!;
+  try {
+    const projectId = parseInt(String(req.query.projectId || ""), 10);
+    if (!projectId) {
+      res.status(400).json({ error: "projectId обязателен" });
+      return;
+    }
+    const companyId = req.scopedCompanyId!;
 
-  const [units, contracts] = await Promise.all([
-    db.select().from(constructionUnitsTable).where(
-      and(
-        eq(constructionUnitsTable.companyId, companyId),
-        eq(constructionUnitsTable.projectId, projectId),
-      ),
-    ).orderBy(constructionUnitsTable.floor, constructionUnitsTable.unitNumber),
-    db.select().from(constructionSalesContractsTable).where(
-      and(
-        eq(constructionSalesContractsTable.companyId, companyId),
-        eq(constructionSalesContractsTable.projectId, projectId),
-      ),
-    ).orderBy(desc(constructionSalesContractsTable.createdAt)),
-  ]);
+    const [units, contracts] = await Promise.all([
+      db.select().from(constructionUnitsTable).where(
+        and(
+          eq(constructionUnitsTable.companyId, companyId),
+          eq(constructionUnitsTable.projectId, projectId),
+        ),
+      ).orderBy(asc(constructionUnitsTable.floor), asc(constructionUnitsTable.unitNumber)),
+      db.select().from(constructionSalesContractsTable).where(
+        and(
+          eq(constructionSalesContractsTable.companyId, companyId),
+          eq(constructionSalesContractsTable.projectId, projectId),
+        ),
+      ).orderBy(desc(constructionSalesContractsTable.createdAt)),
+    ]);
 
-  const contractByUnit = new Map<number, typeof contracts[0]>();
-  for (const c of contracts) {
-    if (!c.unitId || c.status === "cancelled") continue;
-    if (!contractByUnit.has(c.unitId)) contractByUnit.set(c.unitId, c);
-  }
+    const contractByUnit = new Map<number, typeof contracts[0]>();
+    for (const c of contracts) {
+      if (!c.unitId || c.status === "cancelled") continue;
+      if (!contractByUnit.has(c.unitId)) contractByUnit.set(c.unitId, c);
+    }
 
-  const [project] = await db
-    .select()
-    .from(constructionProjectsTable)
-    .where(
-      and(
-        eq(constructionProjectsTable.id, projectId),
-        eq(constructionProjectsTable.companyId, companyId),
-      ),
+    const [project] = await db
+      .select()
+      .from(constructionProjectsTable)
+      .where(
+        and(
+          eq(constructionProjectsTable.id, projectId),
+          eq(constructionProjectsTable.companyId, companyId),
+        ),
+      );
+
+    res.json(
+      units.map((u) => {
+        const c = contractByUnit.get(u.id);
+        const enriched = enrichUnitPricing(project ?? null, u);
+        return {
+          ...enriched,
+          contract: c
+            ? {
+                id: c.id,
+                contractNumber: c.contractNumber,
+                buyerName: c.buyerName,
+                buyerPhone: c.buyerPhone,
+                totalAmount: c.totalAmount,
+                paidAmount: c.paidAmount,
+                remainingAmount: c.remainingAmount,
+                downPayment: c.downPayment,
+                status: c.status,
+                contractDate: c.contractDate,
+                currency: c.currency,
+              }
+            : null,
+        };
+      }),
     );
-
-  res.json(
-    units.map((u) => {
-      const c = contractByUnit.get(u.id);
-      const enriched = enrichUnitPricing(project ?? null, u);
-      return {
-        ...enriched,
-        contract: c
-          ? {
-              id: c.id,
-              contractNumber: c.contractNumber,
-              buyerName: c.buyerName,
-              buyerPhone: c.buyerPhone,
-              totalAmount: c.totalAmount,
-              paidAmount: c.paidAmount,
-              remainingAmount: c.remainingAmount,
-              downPayment: c.downPayment,
-              status: c.status,
-              contractDate: c.contractDate,
-              currency: c.currency,
-            }
-          : null,
-      };
-    }),
-  );
+  } catch (e) {
+    sendServerError(res, e, "Ошибка загрузки обзора квартир");
+  }
 });
 
 /** Импорт квартир из Excel (JSON-строки) */
