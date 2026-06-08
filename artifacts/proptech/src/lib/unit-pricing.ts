@@ -1,5 +1,10 @@
+/** Парсит число из строки с учётом ru-KG: пробелы-разделители и запятая как десятичный разделитель. */
 export function parseNum(v: unknown): number {
-	const n = parseFloat(String(v ?? 0));
+	const normalized = String(v ?? "")
+		.trim()
+		.replace(/\s/g, "")
+		.replace(",", ".");
+	const n = parseFloat(normalized);
 	return Number.isFinite(n) ? n : 0;
 }
 
