@@ -55,6 +55,7 @@ export function UnitCommercialPriceDialog({
 	const { toast } = useToast();
 	const [basePrice, setBasePrice] = useState("");
 	const [coefficient, setCoefficient] = useState("1");
+	const [areaSqm, setAreaSqm] = useState("");
 	const [activeForSale, setActiveForSale] = useState(true);
 	const [loading, setLoading] = useState(false);
 
@@ -66,10 +67,11 @@ export function UnitCommercialPriceDialog({
 			"";
 		setBasePrice(base ? String(base) : "");
 		setCoefficient(unit.priceCoefficient || "1");
+		setAreaSqm(unit.area ? String(unit.area) : "");
 		setActiveForSale(unit.priceApproved ?? true);
 	}, [open, unit, project]);
 
-	const area = parseNum(unit?.area);
+	const area = parseNum(areaSqm);
 	const base = parseNum(basePrice);
 	const coef = parseNum(coefficient) || 1;
 	const approvedPerSqm = base > 0 ? base * coef : 0;
@@ -78,11 +80,18 @@ export function UnitCommercialPriceDialog({
 
 	const areaHint = useMemo(() => {
 		if (area > 0) return null;
-		return "Укажите площадь в карточке квартиры — без неё итог не считается.";
+		return "Укажите площадь — без неё итог по объекту не считается.";
 	}, [area]);
 
 	const handleSave = async () => {
 		if (!unit?.id || !project?.id) return;
+		if (area <= 0) {
+			toast({
+				title: "Укажите площадь, м²",
+				variant: "destructive",
+			});
+			return;
+		}
 		if (base <= 0) {
 			toast({
 				title: "Укажите базовую цену за м²",
@@ -102,6 +111,7 @@ export function UnitCommercialPriceDialog({
 			await api.put(`/construction/units/${unit.id}/commercial-price`, {
 				baseSalePricePerSqm: base,
 				priceCoefficient: coef,
+				area,
 				activeForSale,
 			});
 			toast({ title: activeForSale ? "Цена сохранена и утверждена" : "Цена сохранена" });
@@ -126,6 +136,19 @@ export function UnitCommercialPriceDialog({
 					<DialogTitle>Коммерческая цена · {unit.unitNumber}</DialogTitle>
 				</DialogHeader>
 				<div className="space-y-4">
+					<div className="flex flex-col">
+						<Label className="text-xs">Площадь, м²</Label>
+						<Input
+							type="number"
+							min="0.01"
+							step="0.01"
+							className="mt-1"
+							placeholder="Например, 65.4"
+							value={areaSqm}
+							onChange={(e) => setAreaSqm(e.target.value)}
+						/>
+					</div>
+
 					<div className="grid grid-cols-2 gap-3">
 						<div className="flex flex-col">
 							<Label className="text-xs">Базовая цена за м²</Label>

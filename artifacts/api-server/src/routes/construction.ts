@@ -1973,7 +1973,19 @@ router.put("/units/:id/commercial-price", async (req: AuthenticatedRequest, res)
 
   const baseRaw = req.body?.baseSalePricePerSqm;
   const coefRaw = req.body?.priceCoefficient;
+  const areaRaw = req.body?.area;
   const activeForSale = req.body?.activeForSale !== false;
+
+  if (areaRaw !== undefined && areaRaw !== null && String(areaRaw).trim() !== "") {
+    const areaVal = parseNum(areaRaw);
+    if (areaVal > 0) {
+      await db
+        .update(constructionUnitsTable)
+        .set({ area: String(areaVal) })
+        .where(eq(constructionUnitsTable.id, id));
+      existing.area = String(areaVal);
+    }
+  }
 
   if (baseRaw !== undefined && baseRaw !== null && String(baseRaw).trim() !== "") {
     const baseVal = parseNum(baseRaw);
