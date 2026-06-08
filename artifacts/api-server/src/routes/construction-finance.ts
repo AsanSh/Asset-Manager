@@ -37,6 +37,7 @@ import {
   companyModuleAccountByIdWhere,
   companyModuleAccountWhere,
 } from "../lib/bank-account-module";
+import { SALEABLE_UNIT_TYPES } from "../lib/unit-types";
 
 const router = Router();
 
@@ -1146,6 +1147,67 @@ router.get("/analytics/project-expenses", async (req: AuthenticatedRequest, res)
       sql`project_id is not null`
     ))
     .groupBy(constructionOperationsTable.projectId);
+  res.json(rows);
+});
+
+/** Сводка для карточек проектов: расходы и площади из юнитов шахматки. */
+router.get("/analytics/project-summaries", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
+  const saleableList = SALEABLE_UNIT_TYPES.map((t) => `'${t}'`).join(",");
+
+  const expenseRows = await db.select({
+    projectId: constructionOperationsTable.projectId,
+    totalSpent: sql<string>`coalesce(sum(amount_kgs::numeric), 0)`,
+  })
+    .from(constructionOperationsTable)
+    .where(and(
+      eq(constructionOperationsTable.companyId, companyId),
+      eq(constructionOperationsTable.type, "expense"),
+      sql`project_id is not null`,
+    ))
+    .groupBy(constructionOperationsTable.projectId);
+
+  const areaRows = await db.select({
+    projectId: constructionUnitsTable.projectId,
+    totalConstructionArea: sql<string>`coalesce(sum(${constructionUnitsTable.area}::numeric), 0)`,
+    totalSaleableArea: sql<string>`coalesce(sum(case when ${constructionUnitsTable.unitType} in (${sql.raw(saleableList)}) then ${constructionUnitsTable.area}::numeric else 0 end), 0)`,
+  })
+    .from(constructionUnitsTable)
+    .where(eq(constructionUnitsTable.companyId, companyId))
+    .groupBy(constructionUnitsTable.projectId);
+
+  const expenseByProject = new Map(
+    expenseRows.map((r) => [Number(r.projectId), parseFloat(String(r.totalSpent || "0"))]),
+  );
+  const areaByProject = new Map(
+    areaRows.map((r) => [
+      Number(r.projectId),
+      {
+        totalConstructionArea: parseFloat(String(r.totalConstructionArea || "0")),
+        totalSaleableArea: parseFloat(String(r.totalSaleableArea || "0")),
+      },
+    ]),
+  );
+
+  const projectIds = new Set([...expenseByProject.keys(), ...areaByProject.keys()]);
+  const rows = [...projectIds].map((projectId) => {
+    const totalSpent = expenseByProject.get(projectId) ?? 0;
+    const areas = areaByProject.get(projectId) ?? {
+      totalConstructionArea: 0,
+      totalSaleableArea: 0,
+    };
+    const { totalConstructionArea, totalSaleableArea } = areas;
+    const actualCostPerSqm =
+      totalConstructionArea > 0 ? totalSpent / totalConstructionArea : 0;
+    return {
+      projectId,
+      totalSpent,
+      totalConstructionArea,
+      totalSaleableArea,
+      actualCostPerSqm,
+    };
+  });
+
   res.json(rows);
 });
 

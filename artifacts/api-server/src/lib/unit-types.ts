@@ -22,6 +22,15 @@ const VALID_UNIT_TYPES = new Set([
   "storage",
 ]);
 
+/** Типы юнитов, участвующие в продажной площади (без паркинга и кладовых). */
+export const SALEABLE_UNIT_TYPES = [
+  "apartment",
+  "studio",
+  "office",
+  "commercial",
+  "house",
+] as const;
+
 /** Нормализует тип юнита из Excel (русские подписи) или API-кода. */
 export function resolveUnitType(raw: string | undefined): string {
   const s = String(raw || "").trim().toLowerCase();
