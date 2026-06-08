@@ -18,6 +18,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+import { getApiErrorMessage } from "@/lib/api-error";
 import { api } from "@/lib/api";
 import {
 	downloadUnitsTemplate,
@@ -75,13 +76,28 @@ export function ChessUnitsImportDialog({
 				errors: { row: number; message: string }[];
 			}>("/construction/units/import", { projectId, rows });
 			setResult(data);
+			const touched = data.created + data.updated;
+			if (touched === 0) {
+				toast({
+					title: "Ничего не импортировано",
+					description:
+						data.errors.length > 0
+							? `Ошибок: ${data.errors.length}. Проверьте файл и права доступа.`
+							: "Проверьте номера квартир и формат колонок в файле.",
+					variant: "destructive",
+				});
+			} else {
+				toast({
+					title: "Импорт завершён",
+					description: `Создано: ${data.created}, обновлено: ${data.updated}`,
+				});
+			}
+			if (touched > 0) onImported();
+		} catch (err: unknown) {
 			toast({
-				title: "Импорт завершён",
-				description: `Создано: ${data.created}, обновлено: ${data.updated}`,
+				title: getApiErrorMessage(err, "Ошибка импорта"),
+				variant: "destructive",
 			});
-			onImported();
-		} catch {
-			toast({ title: "Ошибка импорта", variant: "destructive" });
 		} finally {
 			setLoading(false);
 		}

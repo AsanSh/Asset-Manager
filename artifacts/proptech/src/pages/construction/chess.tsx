@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
+import { getApiErrorMessage } from "@/lib/api-error";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -188,8 +189,11 @@ function UnitDialog({
 			toast({ title: isEdit ? "Обновлено" : "Квартира добавлена" });
 			onSaved();
 			onClose();
-		} catch {
-			toast({ title: "Ошибка", variant: "destructive" });
+		} catch (err: unknown) {
+			toast({
+				title: getApiErrorMessage(err, "Ошибка сохранения"),
+				variant: "destructive",
+			});
 		} finally {
 			setLoading(false);
 		}

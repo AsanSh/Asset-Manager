@@ -98,6 +98,7 @@ import {
   resolveUnitStatus,
   slugifyStatusCode,
 } from "../lib/unit-statuses";
+import { resolveUnitType } from "../lib/unit-types";
 import { UNIT_STATUS_COLOR_PRESETS, type UnitStatusColorKey } from "../lib/default-unit-statuses";
 import {
   assertUnitStatusAllowed,
@@ -1860,10 +1861,17 @@ router.patch("/units/:id", async (req: AuthenticatedRequest, res): Promise<void>
     return;
   }
 
-  let pps = pricePerSqm !== undefined ? parseNum(pricePerSqm) : parseNum(existing.pricePerSqm);
+  const existingPps = parseNum(existing.pricePerSqm);
+  const existingCoef = parseNum(existing.priceCoefficient) || 1;
+  const recalcPrice = req.body.recalcPrice === true;
+  const pricePerSqmChanged =
+    pricePerSqm !== undefined && parseNum(pricePerSqm) !== existingPps;
+  const coefChanged = priceCoefficient !== undefined && coef !== existingCoef;
+
+  let pps = pricePerSqm !== undefined ? parseNum(pricePerSqm) : existingPps;
   let total = a > 0 && pps > 0 ? a * pps : parseNum(existing.totalPrice);
 
-  if (canPrice && (priceCoefficient !== undefined || body.recalcPrice)) {
+  if (canPrice && !pricePerSqmChanged && (recalcPrice || coefChanged)) {
     const list = computeListPrice(project, {
       ...existing,
       area: a > 0 ? String(a) : existing.area,
@@ -2069,7 +2077,7 @@ router.post("/units/import", async (req: AuthenticatedRequest, res): Promise<voi
 
     const floorRaw = row.floor ?? row["Этаж"];
     const block = String(row.block ?? row["Секция"] ?? "").trim() || null;
-    const unitType = String(row.unitType ?? row["Тип"] ?? "apartment").trim() || "apartment";
+    const unitType = resolveUnitType(String(row.unitType ?? row["Тип"] ?? "apartment"));
     const roomCountRaw = row.roomCount ?? row["Комнат"];
     const area = parseFloat(String(row.area ?? row["Площадь м²"] ?? row["Площадь"] ?? "0"));
     const pricePerSqm = parseFloat(String(row.pricePerSqm ?? row["Цена за м²"] ?? "0"));
