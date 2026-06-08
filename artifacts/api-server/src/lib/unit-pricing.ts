@@ -32,9 +32,16 @@ export function isSalesRole(role: string): boolean {
 }
 
 export function canManagePricing(role: string, permissions: string[] = []): boolean {
-  if (["admin", "company_admin", "owner"].includes(role)) return true;
-  if (permissions.some((p) => p === "construction" || p.startsWith("construction."))) return true;
-  if (role === "finance" || role === "pto") return true;
+  if (["super_admin", "admin", "company_admin", "owner", "commercial_director"].includes(role)) {
+    return true;
+  }
+  if (
+    permissions.some(
+      (p) => p === "construction.pricing" || p === "construction.pricing.approve",
+    )
+  ) {
+    return true;
+  }
   return false;
 }
 

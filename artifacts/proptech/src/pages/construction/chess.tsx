@@ -3,6 +3,7 @@ import {
 	Download,
 	Grid3X3,
 	Layers,
+	Lock,
 	Plus,
 	Settings2,
 	Upload,
@@ -53,7 +54,7 @@ import {
 	saleModeFor,
 	type UnitStatusDto,
 } from "@/lib/unit-statuses";
-import { canManageUnitPricing } from "@/lib/unit-pricing";
+import { canManageUnitPricing, isUnitApprovedForSale } from "@/lib/unit-pricing";
 
 function fmtNum(v: string | number | null | undefined) {
 	if (!v) return "—";
@@ -103,6 +104,10 @@ interface Project {
 	baseSalePricePerSqm?: string | null;
 	costPerSqm?: string | null;
 	currency?: string;
+}
+
+function unitCoefficient(unit: Pick<Unit, "priceCoefficient">) {
+	return unit.priceCoefficient || "1";
 }
 
 function UnitDialog({
@@ -844,18 +849,19 @@ export default function ConstructionChess() {
 	const { user } = useAuth();
 	const userRole = (user as any)?.role;
 	const isAdmin = userRole === "admin" || userRole === "super_admin" || userRole === "company_admin";
+	const isCommercialDirector = userRole === "commercial_director";
 	const isSalesOnly = userRole === "sales_manager";
 	const forcedRoleByUser = userRole === "pto" || userRole === "engineer";
-	// Админы могут вручную переключать режим ПТО/CRM
-	const [adminModeOverride, setAdminModeOverride] = useState<"crm" | "pto">("crm");
+	// Админы могут вручную переключать режим ПТО/CRM/цены
+	const [adminModeOverride, setAdminModeOverride] = useState<"crm" | "pto" | "pricing">("crm");
 	const [ptoEditUnit, setPtoEditUnit] = useState<Unit | null>(null);
 	const isPTO = forcedRoleByUser || (isAdmin && adminModeOverride === "pto");
+	const isPricingMode = isCommercialDirector || (isAdmin && adminModeOverride === "pricing");
 	const [projectId, setProjectId] = useState<number | null>(null);
 	const [selectedUnit, setSelectedUnit] = useState<Unit | null | "new">(null);
 	const [commercialPriceUnit, setCommercialPriceUnit] = useState<Unit | null>(
 		null,
 	);
-	const canPrice = canManageUnitPricing(userRole || "");
 	const [saleFlow, setSaleFlow] = useState<{
 		unit: Unit;
 		status: "reserved" | "sold";
@@ -918,6 +924,7 @@ export default function ConstructionChess() {
 		if (blockFilter !== "all" && (u.block || "Без секции") !== blockFilter)
 			return false;
 		if (statusFilter !== "all" && u.status !== statusFilter) return false;
+		if (isSalesOnly && !isUnitApprovedForSale(u as Unit)) return false;
 		return true;
 	};
 
@@ -970,8 +977,20 @@ export default function ConstructionChess() {
 
 	const openUnit = (u: OverviewUnit | Unit) => {
 		const unit = u as Unit;
-		if (canPrice && !isPTO && !isSalesOnly) {
+		if (isPTO) {
+			setPtoEditUnit(unit);
+			return;
+		}
+		if (isPricingMode) {
 			setCommercialPriceUnit(unit);
+			return;
+		}
+		if (isSalesOnly && !isUnitApprovedForSale(unit)) {
+			toast({
+				title: "Объект пока не открыт для продажи",
+				description: "Коммерческий директор должен утвердить цену и открыть объект.",
+				variant: "destructive",
+			});
 			return;
 		}
 		setSelectedUnit(unit);
@@ -1049,12 +1068,19 @@ export default function ConstructionChess() {
 								🔧 Режим ПТО
 							</span>
 						)}
+						{isPricingMode && (
+							<span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full text-xs font-medium align-middle">
+								Цены
+							</span>
+						)}
 					</h1>
 					<p className="text-sm text-gray-500 mt-0.5">
 						{isPTO
 							? "Управление площадями · клик по площади для редактирования"
+							: isPricingMode
+								? "Коммерческое утверждение базовой цены и коэффициента"
 							: isSalesOnly
-								? "Продажи · бронь и оформление договоров"
+								? "Продажи · только объекты с утверждённой ценой"
 								: "Визуальная карта квартир · договоры и финансы"}
 					</p>
 				</div>
@@ -1072,6 +1098,12 @@ export default function ConstructionChess() {
 								className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${adminModeOverride === "pto" ? "bg-white shadow text-amber-700" : "text-gray-500 hover:text-gray-700"}`}
 							>
 								ПТО
+							</button>
+							<button
+								onClick={() => setAdminModeOverride("pricing")}
+								className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${adminModeOverride === "pricing" ? "bg-white shadow text-emerald-700" : "text-gray-500 hover:text-gray-700"}`}
+							>
+								Цены
 							</button>
 						</div>
 					)}
@@ -1357,33 +1389,47 @@ export default function ConstructionChess() {
 															unit.status,
 														);
 														const cellModified = !!(unit as any).areaModified;
+														const published = isUnitApprovedForSale(unit);
+														const lockedForSales = isSalesOnly && !published;
 														const ptoBg = cellModified ? "bg-amber-100" : cfg.bg;
 														const ptoBorder = cellModified ? "border-amber-500" : cfg.border;
+														const cellBg = lockedForSales ? "bg-gray-100" : isPTO ? ptoBg : cfg.bg;
+														const cellBorder = lockedForSales ? "border-gray-200" : isPTO ? ptoBorder : cfg.border;
 														return (
 															<div
 																key={unit.id}
-																title={`${unit.unitNumber} · ${unit.area ? `${unit.area} м²` : ""} · ${cfg.label}`}
-																className={`w-14 rounded border-2 text-center transition-all flex flex-col items-center justify-center p-0.5 relative cursor-pointer ${isPTO ? `${ptoBg} ${ptoBorder}` : `${cfg.bg} ${cfg.border}`}`}
+																title={
+																	lockedForSales
+																		? `${unit.unitNumber} · не открыто для продажи`
+																		: `${unit.unitNumber} · ${unit.area ? `${unit.area} м²` : ""} · ${cfg.label}`
+																}
+																className={`w-14 rounded border-2 text-center transition-all flex flex-col items-center justify-center p-0.5 relative ${lockedForSales ? "cursor-not-allowed opacity-60" : "cursor-pointer"} ${cellBg} ${cellBorder}`}
 																style={{ minHeight: "48px" }}
 																onClick={() => {
 																	if (isPTO) setPtoEditUnit(unit);
-																	else if (canPrice && !isSalesOnly) {
-																		setCommercialPriceUnit(unit);
-																	} else setSelectedUnit(unit);
+																	else openUnit(unit);
 																}}
 															>
+																{lockedForSales && (
+																	<Lock className="absolute -top-1.5 -right-1.5 w-3 h-3 rounded-full bg-white p-0.5 text-gray-500 shadow" />
+																)}
 																{!isPTO && cellModified && (
 																	<div className="absolute -top-1.5 -right-1.5 bg-orange-500 text-white text-[7px] font-bold px-0.5 rounded z-10">Δ</div>
 																)}
-																<span className={`text-[10px] font-bold ${cfg.text}`}>
+																<span className={`text-[10px] font-bold ${lockedForSales ? "text-gray-500" : cfg.text}`}>
 																	{unit.unitNumber}
 																</span>
 																{isPTO ? (
 																	<PtoAreaDisplay unit={unit as any} />
 																) : (
 																	<>
-																		{unit.area && <span className={`text-[8px] ${cfg.text} opacity-70`}>{unit.area}м²</span>}
-																		{unit.roomCount && <span className={`text-[8px] ${cfg.text} opacity-70`}>{unit.roomCount}к</span>}
+																		{unit.area && <span className={`text-[8px] ${lockedForSales ? "text-gray-600" : cfg.text} opacity-70`}>{unit.area}м²</span>}
+																		{unit.roomCount && <span className={`text-[8px] ${lockedForSales ? "text-gray-600" : cfg.text} opacity-70`}>{unit.roomCount}к</span>}
+																		{isPricingMode && (
+																			<span className={`text-[8px] ${published ? "text-emerald-700" : "text-gray-600"} font-medium`}>
+																				{published ? `×${unitCoefficient(unit)}` : "нет цены"}
+																			</span>
+																		)}
 																	</>
 																)}
 															</div>
