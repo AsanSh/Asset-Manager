@@ -38,7 +38,9 @@ import {
 	ProjectDocumentUploadDialog,
 	type ParsedProjectDocument,
 } from "@/components/project-document-upload";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
+import { ProjectsProgressTab } from "@/pages/construction/projects-progress-tab";
 import {
 	currencySymbol,
 	fmtProjectAmount,
@@ -738,6 +740,7 @@ export default function ConstructionProjects() {
 		typeof applyParsedToProjectForm
 	> | null>(null);
 	const [search, setSearch] = useState("");
+	const [pageTab, setPageTab] = useState("cards");
 
 	useEffect(() => {
 		const params = new URLSearchParams(window.location.search);
@@ -831,6 +834,17 @@ export default function ConstructionProjects() {
 				</div>
 			</div>
 
+			<Tabs value={pageTab} onValueChange={setPageTab}>
+				<TabsList className="mb-4">
+					<TabsTrigger value="cards">Карточки</TabsTrigger>
+					<TabsTrigger value="progress">ПРОГРЕСС</TabsTrigger>
+				</TabsList>
+
+				<TabsContent value="progress" className="mt-0">
+					<ProjectsProgressTab />
+				</TabsContent>
+
+				<TabsContent value="cards" className="mt-0 space-y-4">
 			<div className="mb-2">
 				<Input
 					placeholder="Поиск по названию или адресу..."
@@ -1057,6 +1071,8 @@ export default function ConstructionProjects() {
 					})}
 				</div>
 			)}
+				</TabsContent>
+			</Tabs>
 
 			<ProjectDialog
 				key={dialog === "new" ? `new-${prefill?.name || "empty"}` : String(dialog)}

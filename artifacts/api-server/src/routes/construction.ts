@@ -36,6 +36,11 @@ import { getPaginationParams, createPaginatedResponse, getPaginationQuery } from
 import { validateQuery, commonSchemas } from "../middleware/validation";
 import { cache, cacheKeys } from "../lib/cache";
 import { seedProjectUnits, syncProjectUnits } from "../lib/seed-project-units";
+import { SALEABLE_UNIT_TYPES } from "../lib/unit-types";
+import {
+  constructionAccrualsTable,
+  constructionOperationsTable,
+} from "../lib/db";
 import {
   buildContractDocumentMeta,
   parseContractDocumentMeta,
@@ -124,6 +129,192 @@ router.get("/projects/all", async (req: AuthenticatedRequest, res): Promise<void
   const rows = await db.select().from(constructionProjectsTable)
     .where(eq(constructionProjectsTable.companyId, companyId))
     .orderBy(desc(constructionProjectsTable.createdAt));
+  res.json(rows);
+});
+
+/** Сводка для вкладки «ПРОГРЕСС» на странице проектов. */
+router.get("/projects/progress-summary", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
+  const today = new Date().toISOString().slice(0, 10);
+  const saleableList = SALEABLE_UNIT_TYPES.map((t) => `'${t}'`).join(",");
+  const soldStatuses = sql.raw(`'sold','registered'`);
+  const activeContractStatuses = sql.raw(`'signed','completed','review'`);
+
+  const projects = await db.select({
+    id: constructionProjectsTable.id,
+    name: constructionProjectsTable.name,
+    totalSaleableArea: constructionProjectsTable.totalSaleableArea,
+    totalConstructionArea: constructionProjectsTable.totalConstructionArea,
+    totalArea: constructionProjectsTable.totalArea,
+    costPerSqm: constructionProjectsTable.costPerSqm,
+    totalBudget: constructionProjectsTable.totalBudget,
+  })
+    .from(constructionProjectsTable)
+    .where(eq(constructionProjectsTable.companyId, companyId))
+    .orderBy(desc(constructionProjectsTable.createdAt));
+
+  const unitAgg = await db.select({
+    projectId: constructionUnitsTable.projectId,
+    totalConstructionArea: sql<string>`coalesce(sum(${constructionUnitsTable.area}::numeric), 0)`,
+    totalSaleableArea: sql<string>`coalesce(sum(case when ${constructionUnitsTable.unitType} in (${sql.raw(saleableList)}) then ${constructionUnitsTable.area}::numeric else 0 end), 0)`,
+    soldArea: sql<string>`coalesce(sum(case when ${constructionUnitsTable.status} in (${soldStatuses}) and ${constructionUnitsTable.unitType} in (${sql.raw(saleableList)}) then ${constructionUnitsTable.area}::numeric else 0 end), 0)`,
+    soldRevenue: sql<string>`coalesce(sum(case when ${constructionUnitsTable.status} in (${soldStatuses}) then ${constructionUnitsTable.totalPrice}::numeric else 0 end), 0)`,
+    futureSales: sql<string>`coalesce(sum(case when ${constructionUnitsTable.status} in ('available','reserved') and ${constructionUnitsTable.unitType} in (${sql.raw(saleableList)}) then ${constructionUnitsTable.totalPrice}::numeric else 0 end), 0)`,
+  })
+    .from(constructionUnitsTable)
+    .where(eq(constructionUnitsTable.companyId, companyId))
+    .groupBy(constructionUnitsTable.projectId);
+
+  const contractAgg = await db.select({
+    projectId: constructionSalesContractsTable.projectId,
+    contracted: sql<string>`coalesce(sum(case when ${constructionSalesContractsTable.status} in (${activeContractStatuses}) then ${constructionSalesContractsTable.totalAmount}::numeric else 0 end), 0)`,
+    collected: sql<string>`coalesce(sum(${constructionSalesContractsTable.paidAmount}::numeric), 0)`,
+    remainder: sql<string>`coalesce(sum(${constructionSalesContractsTable.remainingAmount}::numeric), 0)`,
+  })
+    .from(constructionSalesContractsTable)
+    .where(eq(constructionSalesContractsTable.companyId, companyId))
+    .groupBy(constructionSalesContractsTable.projectId);
+
+  const spentAgg = await db.select({
+    projectId: constructionOperationsTable.projectId,
+    totalSpent: sql<string>`coalesce(sum(amount_kgs::numeric), 0)`,
+  })
+    .from(constructionOperationsTable)
+    .where(and(
+      eq(constructionOperationsTable.companyId, companyId),
+      eq(constructionOperationsTable.type, "expense"),
+      sql`project_id is not null`,
+    ))
+    .groupBy(constructionOperationsTable.projectId);
+
+  const expenseRows = await db.select({
+    projectId: constructionExpensesTable.projectId,
+    category: constructionExpensesTable.category,
+    amountKgs: constructionExpensesTable.amountKgs,
+    amount: constructionExpensesTable.amount,
+  })
+    .from(constructionExpensesTable)
+    .where(eq(constructionExpensesTable.companyId, companyId));
+
+  const accrualRows = await db.select({
+    projectId: constructionAccrualsTable.projectId,
+    dueDate: constructionAccrualsTable.dueDate,
+    remainingAmount: constructionAccrualsTable.remainingAmount,
+    status: constructionAccrualsTable.status,
+  })
+    .from(constructionAccrualsTable)
+    .where(eq(constructionAccrualsTable.companyId, companyId));
+
+  const num = (v: unknown) => parseFloat(String(v ?? "0")) || 0;
+
+  const unitByProject = new Map(unitAgg.map((r) => [Number(r.projectId), r]));
+  const contractByProject = new Map(contractAgg.map((r) => [Number(r.projectId), r]));
+  const spentByProject = new Map(spentAgg.map((r) => [Number(r.projectId), num(r.totalSpent)]));
+
+  type ExpenseBuckets = { construction: number; land: number; documentation: number; other: number };
+  const emptyExpenseBuckets = (): ExpenseBuckets => ({
+    construction: 0,
+    land: 0,
+    documentation: 0,
+    other: 0,
+  });
+  const expenseByProject = new Map<number, ExpenseBuckets>();
+  const bucketExpense = (projectId: number, category: string, amount: number) => {
+    const cat = String(category || "").toLowerCase();
+    let bucket: keyof ExpenseBuckets;
+    if (/земл|land/.test(cat)) bucket = "land";
+    else if (/документ|проектир|разреш/.test(cat)) bucket = "documentation";
+    else if (/прочее|other|misc/.test(cat)) bucket = "other";
+    else bucket = "construction";
+    const entry = expenseByProject.get(projectId) ?? emptyExpenseBuckets();
+    entry[bucket] += amount;
+    expenseByProject.set(projectId, entry);
+  };
+
+  for (const e of expenseRows) {
+    const pid = Number(e.projectId);
+    const amt = num(e.amountKgs ?? e.amount);
+    if (amt <= 0) continue;
+    bucketExpense(pid, e.category, amt);
+  }
+
+  const overdueByProject = new Map<number, number>();
+  for (const a of accrualRows) {
+    const pid = Number(a.projectId);
+    if (!pid) continue;
+    const remaining = num(a.remainingAmount);
+    if (remaining <= 0) continue;
+    const overdue = a.status === "overdue" || (a.dueDate && a.dueDate < today);
+    if (!overdue) continue;
+    overdueByProject.set(pid, (overdueByProject.get(pid) ?? 0) + remaining);
+  }
+
+  const rows = projects.map((p) => {
+    const pid = Number(p.id);
+    const units = unitByProject.get(pid);
+    const contracts = contractByProject.get(pid);
+    const spent = spentByProject.get(pid) ?? 0;
+    const expenses = expenseByProject.get(pid) ?? emptyExpenseBuckets();
+
+    const manualSaleable = num(p.totalSaleableArea);
+    const manualConstruction = num(p.totalConstructionArea) || num(p.totalArea);
+    const unitSaleable = num(units?.totalSaleableArea);
+    const unitConstruction = num(units?.totalConstructionArea);
+    const totalSaleableArea = manualSaleable > 0 ? manualSaleable : unitSaleable;
+    const totalConstructionArea = manualConstruction > 0 ? manualConstruction : unitConstruction;
+    const soldArea = num(units?.soldArea);
+    const unsoldArea = Math.max(0, totalSaleableArea - soldArea);
+    const nonSaleableArea = Math.max(0, totalConstructionArea - totalSaleableArea);
+
+    const soldRevenue = num(units?.soldRevenue);
+    const avgSalePricePerSqm = soldArea > 0 ? soldRevenue / soldArea : 0;
+
+    const contracted = num(contracts?.contracted);
+    const collected = num(contracts?.collected);
+    const collectionsRemainder = num(contracts?.remainder);
+    const futureSales = num(units?.futureSales);
+    const totalRevenue = contracted > 0 ? contracted + futureSales : soldRevenue + futureSales;
+
+    const grossProfit = totalRevenue - spent;
+    const marginPerSqm = soldArea > 0 ? grossProfit / soldArea : 0;
+    const overdueDebt = overdueByProject.get(pid) ?? 0;
+    const pdPercent = contracted > 0 ? (overdueDebt / contracted) * 100 : 0;
+
+    const approvedCostPerSqm = num(p.costPerSqm);
+    const actualCostPerSqm = totalConstructionArea > 0 ? spent / totalConstructionArea : 0;
+    const projectBudget = num(p.totalBudget);
+    const requiredAmount = Math.max(0, projectBudget - spent);
+
+    return {
+      projectId: pid,
+      projectName: p.name,
+      totalSaleableArea,
+      nonSaleableArea,
+      soldArea,
+      unsoldArea,
+      avgSalePricePerSqm,
+      contracted,
+      collected,
+      collectionsRemainder,
+      futureSales,
+      totalRevenue,
+      grossProfit,
+      marginPerSqm,
+      overdueDebt,
+      pdPercent,
+      approvedCostPerSqm,
+      actualCostPerSqm,
+      currentCostPerSqm: actualCostPerSqm,
+      constructionCosts: expenses.construction,
+      landCosts: expenses.land,
+      documentationCosts: expenses.documentation,
+      otherCosts: expenses.other,
+      requiredAmount,
+      projectBudget,
+      totalSpent: spent,
+    };
+  });
+
   res.json(rows);
 });
 
