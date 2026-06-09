@@ -80,6 +80,7 @@ import ConstructionEmployees from "@/pages/construction/employees";
 import ConstructionExpenses from "@/pages/construction/expenses";
 import ConstructionMaterials from "@/pages/construction/materials";
 import ConstructionOperations from "@/pages/construction/operations";
+import ConstructionBarter from "@/pages/construction/barter";
 import ConstructionPhotoGallery from "@/pages/construction/photo-gallery";
 import ConstructionApprovals from "@/pages/construction/planning/approvals";
 import ConstructionBroadcast from "@/pages/construction/planning/broadcast";
@@ -482,6 +483,9 @@ function Router() {
 			</Route>
 			<Route path="/construction/operations">
 				<ProtectedRoute component={ConstructionOperations} />
+			</Route>
+			<Route path="/construction/barter">
+				<ProtectedRoute component={ConstructionBarter} />
 			</Route>
 			<Route path="/construction/contracts-sales">
 				<ProtectedRoute component={ConstructionContractsSales} />

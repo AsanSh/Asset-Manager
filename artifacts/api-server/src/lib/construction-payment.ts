@@ -8,6 +8,8 @@ import { and, desc, eq, like, or } from "drizzle-orm";
 import { allocatePaymentAcrossAccruals } from "./payment-allocation";
 import { applyOpBalances, reverseOpBalances } from "./construction-operation-balances";
 
+type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 export type ApplyContractPaymentInput = {
   companyId: number;
   contractId: number;
@@ -25,7 +27,10 @@ export type ApplyContractPaymentInput = {
   source?: string;
 };
 
-export async function applyContractPayment(input: ApplyContractPaymentInput) {
+export async function applyContractPayment(
+  input: ApplyContractPaymentInput,
+  existingTx?: DbTx,
+) {
   const {
     companyId,
     contractId,
@@ -56,10 +61,7 @@ export async function applyContractPayment(input: ApplyContractPaymentInput) {
       ? String(payAmount)
       : String(payAmount * parseFloat(String(exchangeRate || "1")));
 
-  // Все записи (распределение по начислениям + операция + баланс счёта + договор)
-  // выполняются в одной транзакции: при сбое на любом шаге ничего не сохраняется,
-  // частичного платежа (баланс изменён, а договор — нет) не возникает.
-  return await db.transaction(async (tx) => {
+  const run = async (tx: DbTx) => {
     const [contract] = await tx
       .select()
       .from(constructionSalesContractsTable)
@@ -164,7 +166,10 @@ export async function applyContractPayment(input: ApplyContractPaymentInput) {
     }
 
     return { operation, allocations };
-  });
+  };
+
+  if (existingTx) return run(existingTx);
+  return db.transaction(run);
 }
 
 /** Отмена платежа по начислению */

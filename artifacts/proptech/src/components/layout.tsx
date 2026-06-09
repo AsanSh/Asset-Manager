@@ -10,6 +10,7 @@ import {
 	Building,
 	Building2,
 	Calendar,
+	Car,
 	CheckSquare,
 	ChevronDown,
 	ChevronRight,
@@ -136,6 +137,11 @@ const MODULES: Module[] = [
 						href: "/construction/cashier",
 						label: "Приём платежей",
 						icon: DollarSign,
+					},
+					{
+						href: "/construction/barter",
+						label: "Бартер",
+						icon: Car,
 					},
 					{
 						href: "/construction/reconciliation",
@@ -279,6 +285,11 @@ const MODULES: Module[] = [
 						href: "/construction/cashier",
 						label: "Приём платежей",
 						icon: DollarSign,
+					},
+					{
+						href: "/construction/barter",
+						label: "Бартер",
+						icon: Car,
 					},
 					{
 						href: "/construction/reconciliation",
