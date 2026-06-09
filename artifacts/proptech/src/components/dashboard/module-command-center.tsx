@@ -1,5 +1,10 @@
 import { ArrowRight, type LucideIcon } from "lucide-react";
 import { Link } from "wouter";
+import {
+	AnimatedProgressBar,
+	HoverLiftCard,
+	StaggerReveal,
+} from "@/components/motion";
 
 type ModuleTone = "cyan" | "emerald" | "blue" | "violet" | "amber";
 
@@ -147,14 +152,19 @@ export function ModuleCommandCenter({
 				</div>
 
 				<div className="grid content-start gap-3 sm:grid-cols-2 xl:grid-cols-4">
+					<StaggerReveal className="contents" childSelector="[data-motion-metric]">
 					{metrics.map((metric) => {
 						const Icon = metric.icon;
 						const tone = toneMap[metric.tone || "cyan"];
 						return (
-							<Link
+							<HoverLiftCard
 								key={metric.label}
+								data-motion-metric
+								className={`construction-card-in group min-h-[132px] rounded-2xl border border-white/80 bg-white p-0 shadow-sm ${tone.card}`}
+							>
+							<Link
 								href={metric.href}
-								className={`construction-card-in group min-h-[132px] rounded-2xl border border-white/80 bg-white p-3.5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${tone.card}`}
+								className="block h-full p-3.5"
 							>
 								<div className="flex items-start justify-between gap-3">
 									<div className={`rounded-xl p-2.5 ${tone.icon}`}>
@@ -172,8 +182,10 @@ export function ModuleCommandCenter({
 									{metric.description}
 								</p>
 							</Link>
+							</HoverLiftCard>
 						);
 					})}
+					</StaggerReveal>
 				</div>
 			</div>
 
@@ -189,7 +201,7 @@ export function ModuleCommandCenter({
 							</h3>
 						</div>
 					</div>
-					<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+					<StaggerReveal className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" childSelector="[data-motion-step]">
 						{steps.map((step, index) => {
 							const Icon = step.icon;
 							const tone = toneMap[step.tone || "cyan"];
@@ -197,6 +209,7 @@ export function ModuleCommandCenter({
 								<Link
 									key={step.title}
 									href={step.href}
+									data-motion-step
 									className={`construction-press group relative min-h-[126px] overflow-hidden rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${tone.card}`}
 								>
 									<div className="flex items-start justify-between gap-3">
@@ -221,7 +234,7 @@ export function ModuleCommandCenter({
 								</Link>
 							);
 						})}
-					</div>
+					</StaggerReveal>
 				</div>
 
 				<div className="grid gap-5">
@@ -245,12 +258,7 @@ export function ModuleCommandCenter({
 											{lane.value}
 										</span>
 									</div>
-									<div className="mt-3 h-2 overflow-hidden rounded-full bg-white ring-1 ring-slate-100">
-										<div
-											className="h-full rounded-full bg-slate-950"
-											style={{ width: `${Math.min(100, Math.max(0, lane.progress))}%` }}
-										/>
-									</div>
+									<AnimatedProgressBar className="mt-3" progress={lane.progress} />
 								</div>
 							))}
 						</div>

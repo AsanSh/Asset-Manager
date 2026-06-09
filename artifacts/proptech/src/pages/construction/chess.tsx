@@ -41,6 +41,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { ChessUnitCell } from "@/components/motion/ChessUnitCell";
 import { MatrixTableFrame } from "@/components/matrix-table-frame";
 import { ChessStatusSettingsDialog } from "@/components/chess-status-settings-dialog";
 import { exportChessUnitsCsv } from "@/lib/chess-grid-export";
@@ -1396,7 +1397,7 @@ export default function ConstructionChess() {
 														const cellBg = lockedForSales ? "bg-gray-100" : isPTO ? ptoBg : cfg.bg;
 														const cellBorder = lockedForSales ? "border-gray-200" : isPTO ? ptoBorder : cfg.border;
 														return (
-															<div
+															<ChessUnitCell
 																key={unit.id}
 																title={
 																	lockedForSales
@@ -1405,6 +1406,7 @@ export default function ConstructionChess() {
 																}
 																className={`w-14 rounded border-2 text-center transition-all flex flex-col items-center justify-center p-0.5 relative ${lockedForSales ? "cursor-not-allowed opacity-60" : "cursor-pointer"} ${cellBg} ${cellBorder}`}
 																style={{ minHeight: "48px" }}
+																disabled={lockedForSales}
 																onClick={() => {
 																	if (isPTO) setPtoEditUnit(unit);
 																	else openUnit(unit);
@@ -1432,7 +1434,7 @@ export default function ConstructionChess() {
 																		)}
 																	</>
 																)}
-															</div>
+															</ChessUnitCell>
 														);
 													})}
 												</div>

@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { GlitchText } from "@/components/motion";
 import { api } from "@/lib/api";
 
 function CopyDownloadBar({ text }: { text: string }) {
@@ -581,7 +582,9 @@ export default function AITools() {
 	return (
 		<div className="p-6 max-w-5xl mx-auto space-y-6">
 			<div>
-				<h1 className="text-2xl font-bold">AI-Инструменты</h1>
+				<GlitchText as="h1" className="text-2xl font-bold">
+					AI-Инструменты
+				</GlitchText>
 				<p className="text-muted-foreground text-sm mt-1">
 					Генерация документов, анализ смет и тендеров с помощью искусственного
 					интеллекта

@@ -6,6 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import {
+	ConstructionCraneHero,
+	StaggerReveal,
+} from "@/components/motion";
 import { BRAND } from "@/lib/brand";
 import { useAuth } from "@/lib/auth";
 
@@ -55,28 +59,31 @@ export default function Login() {
 			>
 				<PlanalitycLogo variant="auth" inverse />
 
-				<div className="space-y-6 max-w-md">
-					<h1 className="text-4xl font-bold leading-tight text-white">
-						Управляйте недвижимостью&nbsp;эффективно
-					</h1>
-					<p className="text-slate-100/85 text-base leading-relaxed">
-						{BRAND.tagline}. Стройка, аренда, CRM и финансы в одной
-						аналитической платформе.
-					</p>
-					<div className="flex gap-8 pt-2">
-						<div>
-							<p className="text-2xl font-bold text-white">KGS</p>
-							<p className="text-xs text-cyan-200/80">Кыргызский сом</p>
+				<div className="flex flex-col items-start gap-8 lg:flex-row lg:items-center">
+					<ConstructionCraneHero className="shrink-0 opacity-95" />
+					<StaggerReveal className="space-y-6 max-w-md flex-1" stagger={0.1}>
+						<h1 className="text-4xl font-bold leading-tight text-white">
+							Управляйте недвижимостью&nbsp;эффективно
+						</h1>
+						<p className="text-slate-100/85 text-base leading-relaxed">
+							{BRAND.tagline}. Стройка, аренда, CRM и финансы в одной
+							аналитической платформе.
+						</p>
+						<div className="flex gap-8 pt-2">
+							<div>
+								<p className="text-2xl font-bold text-white">KGS</p>
+								<p className="text-xs text-cyan-200/80">Кыргызский сом</p>
+							</div>
+							<div>
+								<p className="text-2xl font-bold text-white">НБКР</p>
+								<p className="text-xs text-cyan-200/80">Курс валют</p>
+							</div>
+							<div>
+								<p className="text-2xl font-bold text-white">24/7</p>
+								<p className="text-xs text-cyan-200/80">Онлайн-доступ</p>
+							</div>
 						</div>
-						<div>
-							<p className="text-2xl font-bold text-white">НБКР</p>
-							<p className="text-xs text-cyan-200/80">Курс валют</p>
-						</div>
-						<div>
-							<p className="text-2xl font-bold text-white">24/7</p>
-							<p className="text-xs text-cyan-200/80">Онлайн-доступ</p>
-						</div>
-					</div>
+					</StaggerReveal>
 				</div>
 
 				<p className="text-sm text-cyan-100/55">{BRAND.copyright()}</p>
