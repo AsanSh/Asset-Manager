@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Link } from "wouter";
+import { EmptyState } from "@/components/am/misc";
 import { CashSummary } from "@/components/cash-summary";
 import { ModuleCommandCenter } from "@/components/dashboard/module-command-center";
 import {
@@ -29,10 +30,14 @@ import {
 } from "@/components/period-picker";
 import { api } from "@/lib/api";
 
+const CURRENCY_LABEL = "сом";
+
 function fmt(n: any) {
 	const v = parseFloat(n || "0");
 	if (Number.isNaN(v)) return "0";
-	return new Intl.NumberFormat("ru-RU").format(Math.round(v));
+	return new Intl.NumberFormat("ru-KG", { maximumFractionDigits: 0 }).format(
+		Math.round(v),
+	);
 }
 function fmtShort(n: any) {
 	const v = parseFloat(n || "0");
@@ -324,21 +329,31 @@ export default function ConstructionDashboard() {
 			/>
 
 			{/* Period / project filter */}
-			<div className="flex items-center justify-between gap-3 rounded-[24px] border border-white/70 bg-white/85 p-3 shadow-sm backdrop-blur">
-				<div className="flex items-center gap-2 flex-wrap">
+			<div className="am-shell-filter flex flex-wrap items-center justify-between gap-3 p-2.5">
+				<div className="flex flex-wrap items-center gap-2">
 					<PeriodPicker value={period} onChange={setPeriod} />
-					<div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+					<div className="flex flex-wrap gap-1.5">
 						<button
+							type="button"
 							onClick={() => setFilterProject("all")}
-							className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${filterProject === "all" ? "bg-white shadow text-gray-900" : "text-gray-500"}`}
+							className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
+								filterProject === "all"
+									? "bg-cyan-600 text-white shadow-sm"
+									: "bg-white/80 text-am-text-muted hover:bg-white"
+							}`}
 						>
 							Все проекты
 						</button>
 						{projectsArray.slice(0, 3).map((p: any) => (
 							<button
+								type="button"
 								key={p.id}
 								onClick={() => setFilterProject(String(p.id))}
-								className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${filterProject === String(p.id) ? "bg-white shadow text-gray-900" : "text-gray-500"}`}
+								className={`max-w-[140px] truncate rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
+									filterProject === String(p.id)
+										? "bg-cyan-600 text-white shadow-sm"
+										: "bg-white/80 text-am-text-muted hover:bg-white"
+								}`}
 							>
 								{p.name}
 							</button>
@@ -348,176 +363,191 @@ export default function ConstructionDashboard() {
 				<CashSummary accounts={accountsArray} />
 			</div>
 
-			{/* KPI Cards - like Adesk */}
-			<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-				{/* Доходы */}
-				<Link href="/construction/operations" className="block no-underline">
-				<div className="bg-white rounded-lg border border-gray-100 shadow-sm p-4 hover:shadow-md hover:border-gray-200 transition-all cursor-pointer">
-					<div className="flex items-center justify-between mb-1">
-						<span className="text-xs text-gray-600 font-medium">ДОХОДЫ</span>
-						<TrendingUp className="w-4 h-4 text-emerald-400" />
-					</div>
-					<div className="text-2xl font-bold text-gray-900 mt-1">
-						{fmt(totalIncome)}
-					</div>
-					<div className="text-xs text-gray-600 mt-0.5">KGS</div>
-					{/* Mini sparkline */}
-					<div className="flex items-end gap-0.5 h-6 mt-2">
-						{monthlyData.map(({ m, inc }) => (
-							<div
-								key={m}
-								className="flex-1 bg-emerald-100 rounded-sm"
-								style={{
-									height: `${maxMonthly > 0 ? Math.max(4, (inc / maxMonthly) * 24) : 4}px`,
-								}}
-							/>
-						))}
-					</div>
-					</div>
-				</Link>
-
-				{/* Расходы */}
-				<Link href="/construction/operations" className="block no-underline">
-				<div className="bg-white rounded-lg border border-gray-100 shadow-sm p-4 hover:shadow-md hover:border-gray-200 transition-all cursor-pointer">
-					<div className="flex items-center justify-between mb-1">
-						<span className="text-xs text-gray-600 font-medium">РАСХОДЫ</span>
-						<TrendingDown className="w-4 h-4 text-rose-600" />
-					</div>
-					<div className="text-2xl font-bold text-gray-900 mt-1">
-						{fmt(totalExpense)}
-					</div>
-					<div className="text-xs text-gray-600 mt-0.5">KGS</div>
-					<div className="flex items-end gap-0.5 h-6 mt-2">
-						{monthlyData.map(({ m, exp }) => (
-							<div
-								key={m}
-								className="flex-1 bg-rose-100 rounded-sm"
-								style={{
-									height: `${maxMonthly > 0 ? Math.max(4, (exp / maxMonthly) * 24) : 4}px`,
-								}}
-							/>
-						))}
-					</div>
-				</div>
-				</Link>
-
-				{/* Чистая прибыль */}
-				<Link href="/construction/operations" className="block no-underline">
-				<div
-					className={`rounded-2xl border shadow-sm p-4 cursor-pointer hover:shadow-md transition-all ${netProfit >= 0 ? "bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200" : "bg-gradient-to-br from-rose-50 to-rose-100 border-rose-200"}`}
-				>
-					<div className="flex items-center justify-between mb-1">
-						<span
-							className={`text-xs font-medium ${netProfit >= 0 ? "text-emerald-700" : "text-rose-700"}`}
-						>
-							ЧИСТАЯ ПРИБЫЛЬ
-						</span>
-						<BarChart2
-							className={`w-4 h-4 ${netProfit >= 0 ? "text-emerald-600" : "text-rose-600"}`}
-						/>
-					</div>
-					<div
-						className={`text-2xl font-bold mt-1 ${netProfit >= 0 ? "text-emerald-700" : "text-rose-700"}`}
-					>
-						{netProfit >= 0 ? "+" : ""}
-						{fmt(netProfit)}
-					</div>
-					<div
-						className={`text-xs mt-0.5 ${netProfit >= 0 ? "text-emerald-600" : "text-rose-600"}`}
-					>
-						KGS · рентабельность {margin.toFixed(1)}%
-					</div>
-					<div className="flex items-end gap-0.5 h-6 mt-2">
-						{monthlyData.map(({ m, inc, exp }) => {
-							const net = inc - exp;
-							return (
+			{/* KPI */}
+			<div className="am-kpi-grid">
+				<Link href="/construction/operations" className="group block no-underline">
+					<div className="am-kpi-card h-full transition-all group-hover:border-emerald-400/40">
+						<div className="flex items-center justify-between">
+							<span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-am-text-muted">
+								Доходы
+							</span>
+							<TrendingUp className="h-4 w-4 text-emerald-500" />
+						</div>
+						<div className="mt-2 font-mono text-2xl font-bold tabular-nums text-emerald-700">
+							{fmt(totalIncome)}
+						</div>
+						<div className="mt-0.5 text-xs text-am-text-muted">{CURRENCY_LABEL}</div>
+						<div className="mt-3 flex h-6 items-end gap-0.5">
+							{monthlyData.map(({ m, inc }) => (
 								<div
 									key={m}
-									className={`flex-1 rounded-sm ${netProfit >= 0 ? "bg-emerald-600/30" : "bg-rose-600/30"}`}
+									className="flex-1 rounded-sm bg-emerald-200/80"
 									style={{
-										height: `${maxMonthly > 0 ? Math.max(4, (Math.abs(net) / maxMonthly) * 24) : 4}px`,
+										height: `${maxMonthly > 0 ? Math.max(4, (inc / maxMonthly) * 24) : 4}px`,
 									}}
 								/>
-							);
-						})}
+							))}
+						</div>
 					</div>
-				</div>
 				</Link>
 
-				{/* Деньги бизнеса */}
-				<Link href="/construction/accounts" className="block no-underline">
-				<div className="bg-white rounded-lg border border-gray-100 shadow-sm p-4 hover:shadow-md hover:border-gray-200 transition-all cursor-pointer">
-					<div className="flex items-center justify-between mb-1">
-						<span className="text-xs text-gray-600 font-medium">
-							ДЕНЬГИ БИЗНЕСА
-						</span>
-						<Wallet className="w-4 h-4 text-blue-400" />
+				<Link href="/construction/operations" className="group block no-underline">
+					<div className="am-kpi-card h-full transition-all group-hover:border-rose-400/40">
+						<div className="flex items-center justify-between">
+							<span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-am-text-muted">
+								Расходы
+							</span>
+							<TrendingDown className="h-4 w-4 text-rose-500" />
+						</div>
+						<div className="mt-2 font-mono text-2xl font-bold tabular-nums text-rose-700">
+							{fmt(totalExpense)}
+						</div>
+						<div className="mt-0.5 text-xs text-am-text-muted">{CURRENCY_LABEL}</div>
+						<div className="mt-3 flex h-6 items-end gap-0.5">
+							{monthlyData.map(({ m, exp }) => (
+								<div
+									key={m}
+									className="flex-1 rounded-sm bg-rose-200/80"
+									style={{
+										height: `${maxMonthly > 0 ? Math.max(4, (exp / maxMonthly) * 24) : 4}px`,
+									}}
+								/>
+							))}
+						</div>
 					</div>
-					<div className="text-2xl font-bold text-gray-900 mt-1">
-						{fmt(totalAccountsKgs)}
-					</div>
-					<div className="text-xs text-gray-600 mt-0.5">
-						KGS · {accountsArray.length} счетов
-					</div>
-					<div className="mt-2 space-y-0.5">
-						{accountsArray.slice(0, 3).map((a: any) => (
-							<div
-								key={a.id}
-								className="flex justify-between text-[10px] text-gray-600"
+				</Link>
+
+				<Link href="/construction/operations" className="group block no-underline">
+					<div
+						className={`am-kpi-card h-full transition-all ${
+							netProfit >= 0
+								? "border-emerald-200/80 bg-emerald-50/70 group-hover:border-emerald-400/50"
+								: "border-rose-200/80 bg-rose-50/70 group-hover:border-rose-400/50"
+						}`}
+					>
+						<div className="flex items-center justify-between">
+							<span
+								className={`text-[11px] font-semibold uppercase tracking-[0.14em] ${
+									netProfit >= 0 ? "text-emerald-700" : "text-rose-700"
+								}`}
 							>
-								<span className="truncate max-w-[80px]">{a.name}</span>
-								<span className="font-mono">{fmtShort(a.currentBalance)}</span>
-							</div>
-						))}
+								Чистая прибыль
+							</span>
+							<BarChart2
+								className={`h-4 w-4 ${netProfit >= 0 ? "text-emerald-600" : "text-rose-600"}`}
+							/>
+						</div>
+						<div
+							className={`mt-2 font-mono text-2xl font-bold tabular-nums ${
+								netProfit >= 0 ? "text-emerald-700" : "text-rose-700"
+							}`}
+						>
+							{netProfit >= 0 ? "+" : ""}
+							{fmt(netProfit)}
+						</div>
+						<div
+							className={`mt-0.5 text-xs ${
+								netProfit >= 0 ? "text-emerald-600" : "text-rose-600"
+							}`}
+						>
+							{CURRENCY_LABEL} · рентабельность {margin.toFixed(1)}%
+						</div>
+						<div className="mt-3 flex h-6 items-end gap-0.5">
+							{monthlyData.map(({ m, inc, exp }) => {
+								const net = inc - exp;
+								return (
+									<div
+										key={m}
+										className={`flex-1 rounded-sm ${
+											netProfit >= 0 ? "bg-emerald-400/40" : "bg-rose-400/40"
+										}`}
+										style={{
+											height: `${maxMonthly > 0 ? Math.max(4, (Math.abs(net) / maxMonthly) * 24) : 4}px`,
+										}}
+									/>
+								);
+							})}
+						</div>
 					</div>
-				</div>
+				</Link>
+
+				<Link href="/construction/accounts" className="group block no-underline">
+					<div className="am-kpi-card h-full transition-all group-hover:border-cyan-400/40">
+						<div className="flex items-center justify-between">
+							<span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-am-text-muted">
+								Деньги бизнеса
+							</span>
+							<Wallet className="h-4 w-4 text-cyan-600" />
+						</div>
+						<div className="mt-2 font-mono text-2xl font-bold tabular-nums text-am-text-strong">
+							{fmt(totalAccountsKgs)}
+						</div>
+						<div className="mt-0.5 text-xs text-am-text-muted">
+							{CURRENCY_LABEL} · {accountsArray.length} счетов
+						</div>
+						<div className="mt-2 space-y-0.5">
+							{accountsArray.slice(0, 3).map((a: any) => (
+								<div
+									key={a.id}
+									className="flex justify-between text-[10px] text-am-text-muted"
+								>
+									<span className="max-w-[80px] truncate">{a.name}</span>
+									<span className="font-mono tabular-nums">{fmtShort(a.currentBalance)}</span>
+								</div>
+							))}
+						</div>
+					</div>
 				</Link>
 			</div>
 
-			{/* Second row */}
+			{/* Charts + side metrics */}
 			<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-				{/* Cashflow chart */}
-				<div className="sm:col-span-2 bg-white rounded-lg border border-gray-100 shadow-sm p-5">
-					<div className="flex items-center justify-between mb-4">
-						<div className="text-sm font-semibold text-gray-700">
+				<div className="am-panel p-5 sm:col-span-2">
+					<div className="mb-4 flex items-center justify-between gap-3">
+						<div className="text-sm font-semibold text-am-text-strong">
 							Деньги на счетах (за 6 мес.)
 						</div>
-						<div className="flex items-center gap-3 text-xs text-gray-600">
+						<div className="flex items-center gap-3 text-xs text-am-text-muted">
 							<span className="flex items-center gap-1">
-								<span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
+								<span className="inline-block h-2 w-2 rounded-full bg-emerald-400" />
 								Приходы
 							</span>
 							<span className="flex items-center gap-1">
-								<span className="w-2 h-2 rounded-full bg-red-400 inline-block" />
+								<span className="inline-block h-2 w-2 rounded-full bg-rose-400" />
 								Расходы
 							</span>
 						</div>
 					</div>
-					<div className="flex items-end gap-3 h-32">
-						{monthlyData.map(({ m, inc, exp }, _i) => {
+					<div className="flex h-32 items-end gap-3">
+						{monthlyData.map(({ m, inc, exp }) => {
 							const mIdx = parseInt(m.split("-")[1], 10) - 1;
 							const incH = Math.round((inc / maxMonthly) * 120);
 							const expH = Math.round((exp / maxMonthly) * 120);
 							const isCurrentMonth = m === currentMonth;
 							return (
-								<div
-									key={m}
-									className="flex-1 flex flex-col items-center gap-1"
-								>
-									<div className="flex items-end gap-0.5 h-28 w-full">
+								<div key={m} className="flex flex-1 flex-col items-center gap-1">
+									<div className="flex h-28 w-full items-end gap-0.5">
 										<div
-											className={`flex-1 rounded-t-sm transition-all ${isCurrentMonth ? "bg-emerald-400" : "bg-emerald-200"}`}
+											className={`flex-1 rounded-t-md transition-all ${
+												isCurrentMonth ? "bg-emerald-500" : "bg-emerald-200"
+											}`}
 											style={{ height: Math.max(2, incH) }}
-											title={`Приход: ${fmt(inc)}`}
+											title={`Приход: ${fmt(inc)} ${CURRENCY_LABEL}`}
 										/>
 										<div
-											className={`flex-1 rounded-t-sm transition-all ${isCurrentMonth ? "bg-red-400" : "bg-red-200"}`}
+											className={`flex-1 rounded-t-md transition-all ${
+												isCurrentMonth ? "bg-rose-500" : "bg-rose-200"
+											}`}
 											style={{ height: Math.max(2, expH) }}
-											title={`Расход: ${fmt(exp)}`}
+											title={`Расход: ${fmt(exp)} ${CURRENCY_LABEL}`}
 										/>
 									</div>
 									<div
-										className={`text-[10px] ${isCurrentMonth ? "text-gray-700 font-semibold" : "text-gray-600"}`}
+										className={`text-[10px] ${
+											isCurrentMonth
+												? "font-semibold text-am-text-strong"
+												: "text-am-text-muted"
+										}`}
 									>
 										{MONTHS_SHORT[mIdx]}
 									</div>
@@ -527,53 +557,58 @@ export default function ConstructionDashboard() {
 					</div>
 				</div>
 
-				{/* Рентабельность + Задолженность */}
 				<div className="flex flex-col gap-4">
-					<div className="bg-white rounded-lg border border-gray-100 shadow-sm p-4 flex-1">
-						<div className="flex items-center justify-between mb-1">
-							<span className="text-xs text-gray-600 font-medium">
-								РЕНТАБЕЛЬНОСТЬ
+					<div className="am-kpi-card flex-1">
+						<div className="flex items-center justify-between">
+							<span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-am-text-muted">
+								Рентабельность
 							</span>
-							<span className="text-xs text-gray-300">→ 100%</span>
+							<span className="text-[10px] text-am-text-subtle">→ 100%</span>
 						</div>
 						<div
-							className={`text-3xl font-bold mt-1 ${margin >= 0 ? "text-gray-900" : "text-rose-600"}`}
+							className={`mt-2 font-mono text-3xl font-bold tabular-nums ${
+								margin >= 0 ? "text-am-text-strong" : "text-rose-600"
+							}`}
 						>
 							{margin.toFixed(1)}%
 						</div>
-						<div className="mt-3 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+						<div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
 							<div
-								className="h-full bg-emerald-400 rounded-full"
+								className="h-full rounded-full bg-emerald-500"
 								style={{ width: `${Math.min(100, Math.max(0, margin))}%` }}
 							/>
 						</div>
 					</div>
-					<div className="bg-white rounded-lg border border-gray-100 shadow-sm p-4 flex-1">
-						<div className="flex items-center gap-1 mb-1">
-							<AlertCircle className="w-3 h-3 text-rose-600" />
-							<span className="text-xs text-gray-600 font-medium">
-								ДЕБИТОРСКАЯ ЗАДОЛЖЕННОСТЬ
+					<div className="am-kpi-card flex-1 border-rose-200/80 bg-rose-50/60">
+						<div className="mb-1 flex items-center gap-1">
+							<AlertCircle className="h-3.5 w-3.5 text-rose-600" />
+							<span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-rose-700">
+								Дебиторская задолженность
 							</span>
 						</div>
-						<div className="text-2xl font-bold text-rose-600 mt-1">
+						<div className="mt-2 font-mono text-2xl font-bold tabular-nums text-rose-600">
 							{fmt(overdueDebt)}
 						</div>
-						<div className="text-xs text-gray-600 mt-0.5">KGS просрочено</div>
+						<div className="mt-0.5 text-xs text-rose-600/80">
+							{CURRENCY_LABEL} просрочено
+						</div>
 					</div>
 				</div>
 			</div>
 
-			{/* Third row: expense dynamics + structure */}
+			{/* Expense dynamics + structure */}
 			<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-				{/* Динамика расходов по статьям */}
-				<div className="sm:col-span-2 bg-white rounded-lg border border-gray-100 shadow-sm p-5">
-					<div className="text-sm font-semibold text-gray-700 mb-4">
+				<div className="am-panel p-5 sm:col-span-2">
+					<div className="mb-4 text-sm font-semibold text-am-text-strong">
 						Динамика расходов
 					</div>
 					{expCatSorted.length === 0 ? (
-						<div className="text-center py-8 text-gray-300 text-sm">
-							Нет расходных операций
-						</div>
+						<EmptyState
+							compact
+							icon={<BarChart2 className="h-8 w-8" />}
+							title="Нет расходных операций"
+							description="Проведите расход в выбранном периоде — статьи появятся здесь."
+						/>
 					) : (
 						<div className="space-y-2">
 							{expCatSorted.slice(0, 8).map(([cat, amount], i) => {
@@ -581,24 +616,24 @@ export default function ConstructionDashboard() {
 								const color = CAT_COLORS[i % CAT_COLORS.length];
 								return (
 									<div key={cat} className="flex items-center gap-3">
-										<div className="w-24 text-xs text-gray-500 truncate text-right flex-shrink-0">
+										<div className="w-24 flex-shrink-0 truncate text-right text-xs text-am-text-muted">
 											{cat}
 										</div>
-										<div className="flex-1 h-6 bg-gray-50 rounded overflow-hidden">
+										<div className="h-6 flex-1 overflow-hidden rounded-lg bg-slate-50">
 											<div
-												className="h-full rounded flex items-center px-2"
+												className="flex h-full items-center rounded-lg px-2"
 												style={{
 													width: `${pct}%`,
 													backgroundColor: `${color}cc`,
 													minWidth: 8,
 												}}
 											>
-												<span className="text-[10px] text-white font-medium">
+												<span className="text-[10px] font-medium text-white">
 													{pct > 15 ? fmtShort(amount) : ""}
 												</span>
 											</div>
 										</div>
-										<div className="w-20 text-xs font-mono text-right text-gray-600">
+										<div className="w-20 text-right font-mono text-xs tabular-nums text-am-text-muted">
 											{fmt(amount)}
 										</div>
 									</div>
@@ -608,28 +643,28 @@ export default function ConstructionDashboard() {
 					)}
 				</div>
 
-				{/* Структура расходов (donut-style) */}
-				<div className="bg-white rounded-lg border border-gray-100 shadow-sm p-5">
-					<div className="text-sm font-semibold text-gray-700 mb-4">
+				<div className="am-panel p-5">
+					<div className="mb-4 text-sm font-semibold text-am-text-strong">
 						Структура расходов
 					</div>
 					{expCatSorted.length === 0 ? (
-						<div className="flex flex-col items-center justify-center h-32 text-gray-200">
-							<BarChart2 className="w-12 h-12" />
-						</div>
+						<EmptyState
+							compact
+							icon={<BarChart2 className="h-10 w-10" />}
+							title="Нет данных для диаграммы"
+						/>
 					) : (
 						<>
-							{/* Simple svg donut */}
 							<DonutChart data={expCatSorted.slice(0, 6)} />
-							<div className="space-y-1.5 mt-3">
+							<div className="mt-3 space-y-1.5">
 								{expCatSorted.slice(0, 5).map(([cat, amount], i) => (
 									<div key={cat} className="flex items-center gap-2 text-xs">
 										<div
-											className="w-2 h-2 rounded-full flex-shrink-0"
+											className="h-2 w-2 flex-shrink-0 rounded-full"
 											style={{ backgroundColor: CAT_COLORS[i] }}
 										/>
-										<span className="flex-1 truncate text-gray-600">{cat}</span>
-										<span className="font-mono text-gray-500">
+										<span className="flex-1 truncate text-am-text-muted">{cat}</span>
+										<span className="font-mono tabular-nums text-am-text-muted">
 											{totalExpense > 0
 												? Math.round((amount / totalExpense) * 100)
 												: 0}
@@ -643,19 +678,17 @@ export default function ConstructionDashboard() {
 				</div>
 			</div>
 
-			{/* Bottom: Top clients + top expense */}
+			{/* Top clients + top expense counterparties */}
 			<div className="grid gap-4 sm:grid-cols-2">
-				<div className="bg-white rounded-lg border border-gray-100 shadow-sm p-5">
-					<div className="flex items-center gap-2 mb-4">
-						<Users className="w-4 h-4 text-emerald-700" />
-						<div className="text-sm font-semibold text-gray-700">
+				<div className="am-panel p-5">
+					<div className="mb-4 flex items-center gap-2">
+						<Users className="h-4 w-4 text-emerald-600" />
+						<div className="text-sm font-semibold text-am-text-strong">
 							Самые доходные клиенты
 						</div>
 					</div>
 					{topClients.length === 0 ? (
-						<div className="text-center py-4 text-gray-300 text-sm">
-							Нет данных
-						</div>
+						<EmptyState compact title="Нет данных по договорам" />
 					) : (
 						<div className="space-y-3">
 							{topClients.map(([name, data]) => {
@@ -663,26 +696,26 @@ export default function ConstructionDashboard() {
 								const remaining = data.total - data.paid;
 								return (
 									<div key={name}>
-										<div className="flex items-center justify-between text-sm mb-1">
-											<span className="text-gray-700 truncate max-w-[180px]">
+										<div className="mb-1 flex items-center justify-between text-sm">
+											<span className="max-w-[180px] truncate text-am-text-strong">
 												{name}
 											</span>
-											<span className="font-mono text-xs text-gray-500">
+											<span className="font-mono text-xs tabular-nums text-am-text-muted">
 												{fmt(data.total)}
 											</span>
 										</div>
-										<div className="flex items-center gap-2 text-xs font-mono mb-1">
+										<div className="mb-1 flex items-center gap-2 font-mono text-xs">
 											<span className="text-emerald-600">✓ {fmt(data.paid)}</span>
-											<span className="text-gray-600">•</span>
-											<span className="text-red-500">{fmt(remaining)} осталось</span>
+											<span className="text-am-text-subtle">•</span>
+											<span className="text-rose-600">{fmt(remaining)} осталось</span>
 										</div>
-										<div className="h-1.5 bg-gray-100 rounded-full overflow-hidden flex">
+										<div className="flex h-1.5 overflow-hidden rounded-full bg-slate-100">
 											<div
 												className="h-full bg-emerald-400"
 												style={{ width: `${paidPct.toFixed(1)}%` }}
 											/>
 											<div
-												className="h-full bg-red-400"
+												className="h-full bg-rose-400"
 												style={{ width: `${(100 - paidPct).toFixed(1)}%` }}
 											/>
 										</div>
@@ -693,32 +726,30 @@ export default function ConstructionDashboard() {
 					)}
 				</div>
 
-				<div className="bg-white rounded-lg border border-gray-100 shadow-sm p-5">
-					<div className="flex items-center gap-2 mb-4">
-						<Building2 className="w-4 h-4 text-rose-600" />
-						<div className="text-sm font-semibold text-gray-700">
+				<div className="am-panel p-5">
+					<div className="mb-4 flex items-center gap-2">
+						<Building2 className="h-4 w-4 text-rose-600" />
+						<div className="text-sm font-semibold text-am-text-strong">
 							Контрагенты с наибольшими расходами
 						</div>
 					</div>
 					{topContExp.length === 0 ? (
-						<div className="text-center py-4 text-gray-300 text-sm">
-							Нет расходных операций
-						</div>
+						<EmptyState compact title="Нет расходных операций" />
 					) : (
 						<div className="space-y-2">
 							{topContExp.map(([name, amount]) => (
 								<div key={name}>
-									<div className="flex items-center justify-between text-sm mb-0.5">
-										<span className="text-gray-700 truncate max-w-[200px]">
+									<div className="mb-0.5 flex items-center justify-between text-sm">
+										<span className="max-w-[200px] truncate text-am-text-strong">
 											{name}
 										</span>
-										<span className="font-mono font-medium text-rose-600">
+										<span className="font-mono font-medium tabular-nums text-rose-600">
 											{fmt(amount)}
 										</span>
 									</div>
-									<div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+									<div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
 										<div
-											className="h-full bg-red-400 rounded-full"
+											className="h-full rounded-full bg-rose-400"
 											style={{
 												width: `${Math.round((amount / maxContAmt) * 100)}%`,
 											}}
@@ -731,22 +762,27 @@ export default function ConstructionDashboard() {
 				</div>
 			</div>
 
-			{/* Recent ops */}
-			<div className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden">
-				<div className="px-5 py-3 border-b border-gray-50 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-					<div className="text-sm font-semibold text-gray-700">
+			{/* Recent operations */}
+			<div className="am-panel overflow-hidden p-0">
+				<div className="flex flex-col gap-3 border-b border-am-border/60 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+					<div className="text-sm font-semibold text-am-text-strong">
 						Последние операции
 					</div>
 					<Link href="/construction/operations">
-						<button className="text-xs text-amber-600 hover:text-amber-600 flex items-center gap-1">
-							Все операции <ArrowRight className="w-3 h-3" />
+						<button
+							type="button"
+							className="flex items-center gap-1 text-xs font-medium text-cyan-700 hover:text-cyan-800"
+						>
+							Все операции <ArrowRight className="h-3 w-3" />
 						</button>
 					</Link>
 				</div>
 				{filteredOps.length === 0 ? (
-					<div className="px-5 py-8 text-center text-gray-600 text-sm">
-						Нет операций за период
-					</div>
+					<EmptyState
+						compact
+						title="Нет операций за период"
+						description="Измените период или проведите первую операцию."
+					/>
 				) : (
 					<div>
 						{[...filteredOps]
@@ -761,26 +797,30 @@ export default function ConstructionDashboard() {
 								return (
 									<div
 										key={op.id}
-										className="flex items-center gap-4 px-5 py-2.5 border-b border-gray-50 hover:bg-gray-50/50"
+										className="flex items-center gap-4 border-b border-am-border/40 px-5 py-2.5 last:border-b-0 hover:bg-cyan-50/40"
 									>
-										<div className="text-xs text-gray-600 w-20 flex-shrink-0">
+										<div className="w-20 flex-shrink-0 text-xs text-am-text-muted">
 											{op.date}
 										</div>
-										<div className="flex-1 min-w-0">
-											<div className="text-sm text-gray-800 truncate">
+										<div className="min-w-0 flex-1">
+											<div className="truncate text-sm text-am-text-strong">
 												{op.description}
 											</div>
 											{op.category && (
-												<div className="text-xs text-gray-600">
-													{op.category}
-												</div>
+												<div className="text-xs text-am-text-muted">{op.category}</div>
 											)}
 										</div>
-										<div className="text-xs text-gray-600 flex-shrink-0">
+										<div className="flex-shrink-0 text-xs text-am-text-muted">
 											{proj?.name || ""}
 										</div>
 										<div
-											className={`font-mono font-semibold text-sm flex-shrink-0 ${isIncome ? "text-emerald-600" : isTransfer ? "text-blue-600" : "text-rose-600"}`}
+											className={`flex-shrink-0 font-mono text-sm font-semibold tabular-nums ${
+												isIncome
+													? "text-emerald-600"
+													: isTransfer
+														? "text-blue-600"
+														: "text-rose-600"
+											}`}
 										>
 											{isIncome ? "+" : isTransfer ? "⇄" : "−"}
 											{fmt(op.amountKgs)}
