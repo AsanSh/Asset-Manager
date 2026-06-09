@@ -103,6 +103,7 @@ import { UNIT_STATUS_COLOR_PRESETS, type UnitStatusColorKey } from "../lib/defau
 import {
   assertUnitStatusAllowed,
   approveUnitPrice,
+  canEditUnitArea,
   canManagePricing,
   computeListPrice,
   enrichUnitPricing,
@@ -2759,6 +2760,170 @@ router.post("/units/import", async (req: AuthenticatedRequest, res): Promise<voi
   res.json({ created, updated, errors, total: rows.length });
 });
 
+/** SalesGrid: массовое обновление площади (и опционально цены/м²) по номеру квартиры */
+router.post("/projects/:id/units/bulk-update", async (req: AuthenticatedRequest, res): Promise<void> => {
+  const companyId = req.scopedCompanyId!;
+  const role = req.userRole || "";
+  const permissions = req.userPermissions || [];
+  const projectId = parseInt(String(req.params.id), 10);
+  const updates: Record<string, unknown>[] = Array.isArray(req.body?.updates)
+    ? req.body.updates
+    : Array.isArray(req.body?.rows)
+      ? req.body.rows
+      : [];
+
+  if (!projectId) {
+    res.status(400).json({ error: "projectId обязателен" });
+    return;
+  }
+  if (!canEditUnitArea(role, permissions)) {
+    res.status(403).json({ error: "Изменение площади доступно коммерческому директору или ПТО" });
+    return;
+  }
+  if (updates.length === 0) {
+    res.status(400).json({ error: "Нет строк для обновления" });
+    return;
+  }
+
+  const [projectRow] = await db
+    .select()
+    .from(constructionProjectsTable)
+    .where(
+      and(
+        eq(constructionProjectsTable.id, projectId),
+        eq(constructionProjectsTable.companyId, companyId),
+      ),
+    );
+  if (!projectRow) {
+    res.status(404).json({ error: "Проект не найден" });
+    return;
+  }
+
+  const existing = await db.select().from(constructionUnitsTable).where(
+    and(
+      eq(constructionUnitsTable.companyId, companyId),
+      eq(constructionUnitsTable.projectId, projectId),
+    ),
+  );
+
+  const byNumber = new Map<string, typeof existing>();
+  for (const u of existing) {
+    const key = String(u.unitNumber).trim().toLowerCase();
+    const list = byNumber.get(key) ?? [];
+    list.push(u);
+    byNumber.set(key, list);
+  }
+
+  const areaOnly = req.body?.mode === "area_only" || req.body?.areaOnly === true;
+  const canPrice = canManagePricing(role, permissions);
+  let updated = 0;
+  let skipped = 0;
+  const errors: { row: number; unitNumber?: string; message: string }[] = [];
+
+  for (let i = 0; i < updates.length; i++) {
+    const row = updates[i];
+    const unitNumber = String(row.unitNumber ?? row["Номер"] ?? "").trim();
+    if (!unitNumber) {
+      errors.push({ row: i + 2, message: "Не указан номер квартиры" });
+      skipped += 1;
+      continue;
+    }
+
+    const floorRaw = row.floor ?? row["Этаж"];
+    const floor =
+      floorRaw != null && floorRaw !== "" ? parseInt(String(floorRaw), 10) : undefined;
+    const areaVal = parseFloat(String(row.area ?? row["Площадь м²"] ?? row["Площадь"] ?? "0"));
+    const priceRaw = row.pricePerSqm ?? row["Цена за м²"] ?? row["Цена/м²"];
+    const hasPrice =
+      priceRaw !== undefined && priceRaw !== null && String(priceRaw).trim() !== "";
+    const pricePerSqm = hasPrice ? parseFloat(String(priceRaw)) : 0;
+
+    if (!areaVal || areaVal <= 0) {
+      if (!areaOnly || !hasPrice) {
+        errors.push({ row: i + 2, unitNumber, message: "Укажите корректную площадь" });
+        skipped += 1;
+        continue;
+      }
+    }
+
+    const candidates = byNumber.get(unitNumber.toLowerCase()) ?? [];
+    let unit = candidates.length === 1 ? candidates[0] : undefined;
+    if (!unit && floor !== undefined && !Number.isNaN(floor)) {
+      unit = candidates.find((u) => Number(u.floor) === floor);
+    }
+    if (!unit && candidates.length > 0) {
+      unit = candidates[0];
+    }
+
+    if (!unit) {
+      if (areaOnly) {
+        errors.push({ row: i + 2, unitNumber, message: "Квартира не найдена в проекте" });
+        skipped += 1;
+        continue;
+      }
+      errors.push({ row: i + 2, unitNumber, message: "Квартира не найдена" });
+      skipped += 1;
+      continue;
+    }
+
+    const newArea = areaVal > 0 ? areaVal : parseNum(unit.area);
+    const pps =
+      hasPrice && canPrice && pricePerSqm > 0
+        ? pricePerSqm
+        : parseNum(unit.pricePerSqm);
+    let total = newArea > 0 && pps > 0 ? newArea * pps : parseNum(unit.totalPrice);
+
+    if (canPrice && !hasPrice && newArea > 0) {
+      const list = computeListPrice(projectRow, {
+        ...unit,
+        area: String(newArea),
+      });
+      if (list > 0) {
+        total = list;
+      }
+    }
+
+    const patch: Record<string, unknown> = {
+      area: newArea > 0 ? String(newArea) : unit.area,
+      totalPrice: total > 0 ? String(total) : unit.totalPrice,
+    };
+    if (hasPrice && canPrice && pricePerSqm > 0) {
+      patch.pricePerSqm = String(pricePerSqm);
+      if (newArea > 0) patch.totalPrice = String(newArea * pricePerSqm);
+    }
+
+    if (["pto", "engineer"].includes(role) && newArea > 0) {
+      const oldArea = parseNum(unit.area);
+      if (Math.abs(newArea - oldArea) > 0.001) {
+        patch.originalArea = unit.originalArea ?? String(oldArea);
+        patch.areaModified = true;
+        patch.areaModifiedBy = req.userId ?? null;
+        patch.areaModifiedAt = new Date();
+        patch.areaDelta = String(newArea - oldArea);
+      }
+    }
+
+    try {
+      await db
+        .update(constructionUnitsTable)
+        .set(patch as typeof constructionUnitsTable.$inferInsert)
+        .where(
+          and(eq(constructionUnitsTable.id, unit.id), eq(constructionUnitsTable.companyId, companyId)),
+        );
+      updated += 1;
+    } catch (e) {
+      errors.push({
+        row: i + 2,
+        unitNumber,
+        message: e instanceof Error ? e.message : "Ошибка сохранения",
+      });
+      skipped += 1;
+    }
+  }
+
+  res.json({ updated, skipped, errors, total: updates.length });
+});
+
 // ── CURRENCY RATES ────────────────────────────────────────────────────────────
 
 router.get("/currency-rates", async (req: AuthenticatedRequest, res): Promise<void> => {
@@ -3038,9 +3203,15 @@ router.get("/dashboard", async (req: AuthenticatedRequest, res): Promise<void> =
 
 // ── PTO: ИЗМЕНЕНИЕ ПЛОЩАДИ ПОМЕЩЕНИЯ ─────────────────────────────────────────
 
-/** PATCH /units/:id/area — изменение площади от имени ПТО */
+/** PATCH /units/:id/area — изменение площади (ПТО / коммерческий директор) */
 router.patch("/units/:id/area", async (req: AuthenticatedRequest, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
+  const role = req.userRole || "";
+  const permissions = req.userPermissions || [];
+  if (!canEditUnitArea(role, permissions)) {
+    res.status(403).json({ error: "Изменение площади доступно коммерческому директору или ПТО" });
+    return;
+  }
   const { area, reason, document } = req.body;
   const newArea = parseFloat(area);
   if (!newArea || newArea <= 0) {

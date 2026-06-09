@@ -45,6 +45,13 @@ export function canManagePricing(role: string, permissions: string[] = []): bool
   return false;
 }
 
+/** Коммерческий директор, ПТО и админы могут менять площадь в шахматке / списке. */
+export function canEditUnitArea(role: string, permissions: string[] = []): boolean {
+  if (canManagePricing(role, permissions)) return true;
+  if (["pto", "engineer"].includes(role)) return true;
+  return false;
+}
+
 export async function getStatusSaleMode(
   companyId: number,
   statusCode: string,
