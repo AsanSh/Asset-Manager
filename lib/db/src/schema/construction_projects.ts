@@ -16,6 +16,8 @@ export const constructionProjectsTable = pgTable("construction_projects", {
   totalFloors: integer("total_floors"),
   totalUnits: integer("total_units"),
   totalArea: numeric("total_area", { precision: 12, scale: 2 }),
+  totalConstructionArea: numeric("total_construction_area", { precision: 12, scale: 2 }),
+  totalSaleableArea: numeric("total_saleable_area", { precision: 12, scale: 2 }),
 
   // Extended area breakdown
   residentialArea: numeric("residential_area", { precision: 12, scale: 2 }),

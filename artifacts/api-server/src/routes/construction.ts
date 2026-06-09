@@ -198,6 +198,8 @@ router.post("/projects", async (req: AuthenticatedRequest, res): Promise<void> =
     totalFloors: body.totalFloors ? parseInt(body.totalFloors) : null,
     totalUnits: body.totalUnits ? parseInt(body.totalUnits) : null,
     totalArea: body.totalArea ? String(totalArea) : null,
+    totalConstructionArea: body.totalConstructionArea ? String(parseFloat(body.totalConstructionArea)) : null,
+    totalSaleableArea: body.totalSaleableArea ? String(parseFloat(body.totalSaleableArea)) : null,
     costPerSqm: body.costPerSqm ? String(costPerSqm) : null,
     currency: body.currency || "KGS",
     exchangeRateSource: body.exchangeRateSource || "nbkr",
@@ -311,6 +313,8 @@ router.patch("/projects/:id", async (req: AuthenticatedRequest, res): Promise<vo
       totalFloors: body.totalFloors ? parseInt(body.totalFloors) : null,
       totalUnits: body.totalUnits ? parseInt(body.totalUnits) : null,
       totalArea: body.totalArea ? String(totalArea) : null,
+      totalConstructionArea: body.totalConstructionArea ? String(parseFloat(body.totalConstructionArea)) : null,
+      totalSaleableArea: body.totalSaleableArea ? String(parseFloat(body.totalSaleableArea)) : null,
       costPerSqm: body.costPerSqm ? String(costPerSqm) : null,
       baseSalePricePerSqm:
         body.baseSalePricePerSqm != null && body.baseSalePricePerSqm !== ""
