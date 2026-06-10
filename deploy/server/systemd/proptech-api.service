@@ -1,0 +1,15 @@
+[Unit]
+Description=PropTech API (Asset-Manager)
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/Asset-Manager/artifacts/api-server
+EnvironmentFile=/opt/Asset-Manager/deploy/server/.env
+ExecStart=/usr/bin/node --enable-source-maps /opt/Asset-Manager/artifacts/api-server/dist/index.mjs
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
