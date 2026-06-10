@@ -115,3 +115,7 @@ replit.md
 
 # Drizzle generated (keep migrations, skip studio cache)
 artifacts/api-server/drizzle/.drizzle/
+.gstack/
+.vercel
+graphify-out/
+.deploy-worktrees/
