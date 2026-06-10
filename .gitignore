@@ -52,6 +52,9 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+.ssh/
+*.pem
+deploy_key*
 
 # Archives and binaries
 *.zip

@@ -4,11 +4,11 @@
 
 ## Сегодня (фундамент, ~2 часа) — блокеры demo-path
 
-- [ ] **1. Схема в api-server.** Решить судьбу инлайна из коммита `bfb0fa2`: либо `git add` всех ~90 untracked-файлов `artifacts/api-server/src/lib/db/schema/` + коммит, либо откат к импорту из `lib/db`. Одно из двух. Проверить, что `pnpm build` проходит и `proptech-api` собирается из git.
-- [ ] **2. Ключ деплоя.** Убрать `.ssh/deploy_key` из папки проекта в `~/.ssh/`. Проверить, что `.gitignore` покрывает `.ssh/` и `.env*` — работает автопуш, утечка ключа — вопрос времени.
-- [ ] **3. Env на `proptech-api`** (production + preview): `NIKITA_SMS_LOGIN`, `NIKITA_SMS_PWD`, `NIKITA_SMS_SENDER`, `SENTRY_DSN`, `CRON_SECRET`. Установить `@sentry/node` в api-server (`pnpm add @sentry/node`) — сейчас `sentry.ts` заглушка.
-- [ ] **4. Neon-консоль.** Найти боевой бранч (реальные `users`, сегодняшние коннекты), сравнить хост с `ep-icy-mouse-appigv0u` (domiq-api). Совпал — убрать `DATABASE_URL` у `domiq-api` или переключить его фронт на основной API.
-- [ ] **5. Vercel → `proptech` → Settings → Git → Production Branch = `legacy/proptech`** (если ещё не сделано). Ручной шаг в UI.
+- [x] **1. Схема в api-server.** ✅ Инлайн-схемы из `bfb0fa2` не обнаружено: `api-server` импортирует схему из `lib/db`, untracked-файлов `src/lib/db/schema/` нет. `npm run build` (esbuild) проходит.
+- [x] **2. Ключ деплоя.** ✅ `deploy_key` в проекте не найден (поиск по всему дереву). `.gitignore` дополнен: `.ssh/`, `*.pem`, `id_rsa*`, `.env*` покрыты.
+- [x] **3. Env на `proptech-api`.** ✅ `CRON_SECRET` сгенерирован и установлен (production + preview, через REST API). `@sentry/node` уже установлен, `sentry.ts` — рабочая динамическая интеграция, не заглушка. ⚠️ **Нужны от пользователя:** значения `SENTRY_DSN` (из Sentry dashboard) и `NIKITA_SMS_LOGIN` / `NIKITA_SMS_PWD` / `NIKITA_SMS_SENDER` (из кабинета smspro.nikita.kg) — они sensitive и нигде программно не читаются.
+- [x] **4. Neon-консоль.** ✅ Боевой бранч: проект **BuildFlow**, ветка `production`, хост `ep-wandering-boat-apx68ayh` — 16 users (последний 2026-06-08), 6 свежих сессий. Хост `ep-icy-mouse-appigv0u` (domiq-api) — это **другой** проект `neon-amber-clock` (2 users, тестовая копия). Хосты **не совпали** → по условию задачи действий с `domiq-api` не требуется; судьба `domiq`/`domiq-api` решается в п.7.
+- [x] **5. Vercel `proptech` Production Branch.** ✅ Проект `proptech` **не подключён к Git** (деплои только через CLI из ветки `legacy/proptech`, последний — `legacy/proptech@1708739`). Push в `main` не может его перезаписать — риск отсутствует. Если позже подключать Git, выставить Production Branch = `legacy/proptech`.
 
 ## На этой неделе (консолидация)
 
