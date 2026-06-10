@@ -7,10 +7,15 @@ alwaysApply: true
 
 ## Куда деплоить
 
-| Приложение | Vercel project | Production URL |
-|------------|----------------|----------------|
-| Frontend | `proptech` | https://proptech-sigma-eight.vercel.app |
-| **API (реальный prod)** | **`proptech-api`** | alias **https://api-server-rho-six.vercel.app** |
+| Приложение | Vercel project | Git-ветка | Production URL |
+|------------|----------------|-----------|----------------|
+| Frontend **старый UI** | `proptech` | **`legacy/proptech`** | https://proptech-sigma-eight.vercel.app |
+| Frontend **новый UI** | `planalityc.ai` | **`main`** | planalityc.ai / planalitycai.vercel.app |
+| **API (реальный prod)** | **`proptech-api`** | `main` | alias **https://api-server-rho-six.vercel.app** |
+
+- В Vercel → **proptech** → Settings → Git → **Production Branch** = `legacy/proptech` (чтобы push в `main` не перезаписывал старый UI).
+- **planalityc.ai**: Root Directory = `artifacts/proptech`, деплой из **корня репо** (не из `artifacts/proptech` — иначе путь удваивается).
+- Не путать с проектом `planalitycai` (устаревший дубликат, root `.`).
 
 - Не деплоить API в project `api-server` для production — alias `api-server-rho-six` смотрит на **`proptech-api`**.
 - `VITE_API_URL` во frontend: `https://api-server-rho-six.vercel.app`.
@@ -53,7 +58,11 @@ npx vercel alias set <deployment-url> api-server-rho-six.vercel.app
 ## Деплой frontend
 
 ```bash
-cd artifacts/proptech && npx vercel deploy --prod --yes
+# Старый UI → proptech-sigma-eight
+./deploy/frontend-legacy.sh
+
+# Новый UI → planalityc.ai (из main)
+./deploy/frontend-new.sh
 ```
 
 ## Запреты

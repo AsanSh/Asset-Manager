@@ -1,0 +1,7 @@
+graphify-out/
+.deploy-worktrees/
+artifacts/api-server/
+node_modules/
+**/.git/
+**/*.md
+!artifacts/proptech/README.md
