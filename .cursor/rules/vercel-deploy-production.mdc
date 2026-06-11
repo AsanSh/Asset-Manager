@@ -22,13 +22,17 @@ alwaysApply: true
 
 ## Деплой API (рабочий сценарий)
 
+У проекта **Root Directory** = `artifacts/api-server` (относительно корня репо). Деплой **только из корня репозитория** — иначе CLI удваивает путь (`…/artifacts/api-server/artifacts/api-server`).
+
 ```bash
-cd artifacts/api-server
-npx vercel link --project proptech-api --yes
-npm run build
-npx vercel deploy --prod --yes --scope asans-projects-88edff6a
+# из корня Asset-Manager (не cd artifacts/api-server)
+npx vercel link --project proptech-api --yes --scope asans-projects-88edff6a
+npx vercel build --prod --yes --scope asans-projects-88edff6a
+npx vercel deploy --prebuilt --prod --yes --scope asans-projects-88edff6a
 # alias proptech-api.vercel.app назначается автоматически
 ```
+
+Удобная обёртка: `./deploy/api.sh`
 
 Если меняли только env vars (без кода) — достаточно `npx vercel redeploy <последний-prod-url> --scope asans-projects-88edff6a`.
 
