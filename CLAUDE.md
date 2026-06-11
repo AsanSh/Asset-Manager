@@ -16,7 +16,7 @@ Do not duplicate those guidelines here.
 
 - **Frontend:** `artifacts/proptech` — React, Vite, TanStack Query, Orval api-client
 - **API:** `artifacts/api-server` — Express, Drizzle, Vercel serverless
-- **Shared schemas (legacy duplicate):** `lib/db` vs `artifacts/api-server/src/lib/db` — runtime uses api-server copy
+- **Shared DB package:** `lib/db` (`@workspace/db`) — schema, `db`/`pool`, seed; `artifacts/api-server/src/lib/db` только re-export.
 
 ## Deploy
 

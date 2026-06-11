@@ -21,7 +21,7 @@
 ## После демо (долг, не раньше)
 
 - [x] **11. Baseline миграций:** ✅ `drizzle-kit introspect` против BuildFlow/production (98 таблиц); `drizzle-kit generate` → `0000_prod_baseline` + `meta/0000_snapshot.json`. Legacy 0000–0033 в `drizzle/migrations/_legacy/`. Снимок introspect: `drizzle/baseline/introspect-prod/`. `runMigrations()` помечает baseline на prod без повторного CREATE. Дальше только `drizzle-kit generate`.
-- [ ] **12. Схлопнуть двойную схему** `lib/db` ↔ `artifacts/api-server/src/lib/db` в один источник (выбор зависит от решения в п.1).
+- [x] **12. Схлопнуть двойную схему** ✅ Единый источник: `lib/db/src/` (schema + `db`/`pool` + seed). `api-server/src/lib/db/` — только re-export `index.ts` и `schema/index.ts`; дубликат `seed.ts` удалён; `lib/db/drizzle.config` и `drizzle-kit push` убраны (миграции только через `artifacts/api-server`).
 - [ ] **13. 10–15 интеграционных тестов на финансовое ядро:** payment-allocation, finance-reconciliation, payroll-расчёт, accruals — до того, как клиенты нальют реальные данные.
 - [ ] **14. Хеширование сессионных токенов** перед хранением в `sessions`.
 - [ ] **15. Дата пересадки legacy-клиента на новый UI** → удаление ветки `legacy/proptech` и проекта `proptech`.

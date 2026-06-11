@@ -1,4 +1,4 @@
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import { db } from "./index";
 import { companiesTable, usersTable, counterpartiesTable, propertiesTable, tenantsTable } from "./schema/index";
 import { eq } from "drizzle-orm";
