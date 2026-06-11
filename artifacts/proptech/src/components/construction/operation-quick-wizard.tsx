@@ -18,33 +18,24 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-
-const CATEGORIES_INCOME = [
-	"Платёж по договору",
-	"Первоначальный взнос",
-	"Аванс покупателя",
-	"Инвестиции",
-	"Прочие доходы",
-];
-const CATEGORIES_EXPENSE = [
-	"Строительство",
-	"Материалы",
-	"Подрядчики",
-	"OPEX",
-	"Прочие расходы",
-];
+import {
+	AccountSelectField,
+	CategorySelectField,
+	CounterpartySelectField,
+	ProjectSelectField,
+} from "@/components/construction/operation-reference-fields";
 
 type OpType = "income" | "expense" | "transfer";
 
 export type OperationQuickWizardProps = {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
-	accounts: { id: number; name: string }[];
-	projects: { id: number; name: string }[];
+	/** @deprecated списки подгружаются в полях с «Создать» */
+	accounts?: { id: number; name: string }[];
+	projects?: { id: number; name: string }[];
 	counterparties?: { id: number; fullName: string }[];
 	onSubmit: (payload: Record<string, unknown>) => void;
 	isPending?: boolean;
-	/** Быстрая операция с кнопки «Быстрая операция» или URL ?quick=income */
 	initialType?: OpType;
 };
 
@@ -53,9 +44,6 @@ const STEPS = ["Тип", "Сумма и счёт", "Детали"] as const;
 export function OperationQuickWizard({
 	open,
 	onOpenChange,
-	accounts,
-	projects,
-	counterparties = [],
 	onSubmit,
 	isPending,
 	initialType = "expense",
@@ -79,18 +67,15 @@ export function OperationQuickWizard({
 		setType(initialType);
 		setAmount("");
 		setCurrency("KGS");
-		const first = accounts[0] ? String(accounts[0].id) : "";
-		setAccountId(first);
-		setFromAccountId(first);
+		setAccountId("");
+		setFromAccountId("");
 		setToAccountId("");
 		setCategory("");
 		setDate(new Date().toISOString().slice(0, 10));
 		setDescription("");
 		setProjectId("none");
 		setCounterpartyId("none");
-	}, [open, accounts, initialType]);
-
-	const categories = type === "income" ? CATEGORIES_INCOME : CATEGORIES_EXPENSE;
+	}, [open, initialType]);
 
 	const canNextStep1 = Boolean(type);
 	const canNextStep2 =
@@ -217,53 +202,23 @@ export function OperationQuickWizard({
 						</div>
 						{type === "transfer" ? (
 							<>
-								<div>
-									<Label className="text-xs text-gray-500">Со счёта *</Label>
-									<Select value={fromAccountId} onValueChange={setFromAccountId}>
-										<SelectTrigger className="mt-1">
-											<SelectValue placeholder="Выберите счёт" />
-										</SelectTrigger>
-										<SelectContent>
-											{accounts.map((a) => (
-												<SelectItem key={a.id} value={String(a.id)}>
-													{a.name}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-								</div>
-								<div>
-									<Label className="text-xs text-gray-500">На счёт *</Label>
-									<Select value={toAccountId} onValueChange={setToAccountId}>
-										<SelectTrigger className="mt-1">
-											<SelectValue placeholder="Выберите счёт" />
-										</SelectTrigger>
-										<SelectContent>
-											{accounts.map((a) => (
-												<SelectItem key={a.id} value={String(a.id)}>
-													{a.name}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-								</div>
+								<AccountSelectField
+									label="Со счёта *"
+									value={fromAccountId}
+									onValueChange={setFromAccountId}
+								/>
+								<AccountSelectField
+									label="На счёт *"
+									value={toAccountId}
+									onValueChange={setToAccountId}
+								/>
 							</>
 						) : (
-							<div>
-								<Label className="text-xs text-gray-500">Счёт *</Label>
-								<Select value={accountId} onValueChange={setAccountId}>
-									<SelectTrigger className="mt-1">
-										<SelectValue placeholder="Выберите счёт" />
-									</SelectTrigger>
-									<SelectContent>
-										{accounts.map((a) => (
-											<SelectItem key={a.id} value={String(a.id)}>
-												{a.name}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</div>
+							<AccountSelectField
+								label="Счёт *"
+								value={accountId}
+								onValueChange={setAccountId}
+							/>
 						)}
 					</div>
 				)}
@@ -271,21 +226,11 @@ export function OperationQuickWizard({
 				{step === 2 && (
 					<div className="space-y-4">
 						{type !== "transfer" && (
-							<div>
-								<Label className="text-xs text-gray-500">Статья</Label>
-								<Select value={category} onValueChange={setCategory}>
-									<SelectTrigger className="mt-1">
-										<SelectValue placeholder="Выберите статью" />
-									</SelectTrigger>
-									<SelectContent>
-										{categories.map((c) => (
-											<SelectItem key={c} value={c}>
-												{c}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</div>
+							<CategorySelectField
+								type={type === "income" ? "income" : "expense"}
+								value={category}
+								onValueChange={setCategory}
+							/>
 						)}
 						<div>
 							<Label className="text-xs text-gray-500">Дата</Label>
@@ -296,44 +241,14 @@ export function OperationQuickWizard({
 								className="mt-1"
 							/>
 						</div>
-						<div>
-							<Label className="text-xs text-gray-500">Проект</Label>
-							<Select value={projectId} onValueChange={setProjectId}>
-								<SelectTrigger className="mt-1">
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="none">Не привязан</SelectItem>
-									{projects.map((p) => (
-										<SelectItem key={p.id} value={String(p.id)}>
-											{p.name}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</div>
-						{type !== "transfer" && counterparties.length > 0 && (
-							<div>
-								<Label className="text-xs text-gray-500">
-									{type === "income" ? "Кто вносит" : "Кому / получатель"}
-								</Label>
-								<Select
-									value={counterpartyId}
-									onValueChange={setCounterpartyId}
-								>
-									<SelectTrigger className="mt-1">
-										<SelectValue placeholder="Не указан" />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="none">Не указан</SelectItem>
-										{counterparties.map((c) => (
-											<SelectItem key={c.id} value={String(c.id)}>
-												{c.fullName}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</div>
+						<ProjectSelectField value={projectId} onValueChange={setProjectId} />
+						{type !== "transfer" && (
+							<CounterpartySelectField
+								label={type === "income" ? "Кто вносит" : "Кому / получатель"}
+								value={counterpartyId}
+								defaultRole={type === "income" ? "buyer" : "contractor"}
+								onValueChange={setCounterpartyId}
+							/>
 						)}
 						<div>
 							<Label className="text-xs text-gray-500">Описание *</Label>

@@ -22,6 +22,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { AccountSelectField } from "@/components/construction/operation-reference-fields";
 import { api } from "@/lib/api";
 
 function fmt(n: any) {
@@ -501,24 +502,13 @@ export default function ConstructionCashier() {
 									</Select>
 								</div>
 								<div className="flex flex-col">
-									<Label className="text-xs leading-tight mb-1.5">Счёт зачисления *</Label>
-									<Select
+									<AccountSelectField
+										label="СЧЁТ ЗАЧИСЛЕНИЯ *"
 										value={paymentForm.accountId}
 										onValueChange={(v) =>
 											setPaymentForm((f) => ({ ...f, accountId: v }))
 										}
-									>
-										<SelectTrigger className="mt-auto h-8 text-sm">
-											<SelectValue placeholder="Выберите счёт" />
-										</SelectTrigger>
-										<SelectContent>
-											{accountsList.map((a: any) => (
-												<SelectItem key={a.id} value={String(a.id)}>
-													{a.name} ({a.currency})
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
+									/>
 								</div>
 							</div>
 

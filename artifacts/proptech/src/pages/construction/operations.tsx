@@ -21,6 +21,12 @@ import { Button } from "@/components/ui/button";
 import { PageShell } from "@/components/am/PageShell";
 import { Breadcrumbs } from "@/components/am/Breadcrumbs";
 import { OperationQuickWizard } from "@/components/construction/operation-quick-wizard";
+import {
+	AccountSelectField,
+	CategorySelectField,
+	CounterpartySelectField,
+	ProjectSelectField,
+} from "@/components/construction/operation-reference-fields";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -58,29 +64,6 @@ function operationAmountInAccountCurrency(
 	const kgs = currency === "KGS" ? n : n * safeRate;
 	return accountCurrency === "KGS" ? kgs : kgs / safeRate;
 }
-const CATEGORIES_INCOME = [
-	"Платёж по договору",
-	"Первоначальный взнос",
-	"Аванс покупателя",
-	"Инвестиции",
-	"Возврат от поставщика",
-	"Перевод между счетами",
-	"Прочие доходы",
-];
-const CATEGORIES_EXPENSE = [
-	"Строительство",
-	"Зарплата бригады",
-	"Подрядчики",
-	"Материалы",
-	"Аренда техники",
-	"OPEX",
-	"Налоги и взносы",
-	"Документация",
-	"Земельный участок",
-	"Займы другим проектам",
-	"Подотчёт",
-	"Прочие расходы",
-];
 
 function fmt(n: any) {
 	const v = parseFloat(n);
@@ -345,9 +328,6 @@ export default function ConstructionOperations() {
 		form.currency === "KGS"
 			? parseFloat(form.amount || "0")
 			: parseFloat(form.amount || "0") * parseFloat(form.exchangeRate || "1");
-
-	const categories =
-		form.type === "income" ? CATEGORIES_INCOME : CATEGORIES_EXPENSE;
 
 	const opsList = Array.isArray(ops) ? ops : [];
 
@@ -710,8 +690,7 @@ export default function ConstructionOperations() {
 					<div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
 						{accounts.length === 0 && (
 							<div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-								Нет счетов в модуле «Стройка». Создайте счёт в разделе счетов
-								компании, затем обновите страницу.
+								Нет счетов — нажмите «Создать» у поля счёта ниже.
 							</div>
 						)}
 						{/* Type selector */}
@@ -811,65 +790,40 @@ export default function ConstructionOperations() {
 
 						{panelType === "transfer" ? (
 							<>
-								<div>
-									<Label className="text-xs text-gray-500">
-										СЧЁТ СПИСАНИЯ *
-									</Label>
-									<Select
-										value={form.fromAccountId || undefined}
-										onValueChange={(v) => {
-											const acc = accounts.find(
-												(a: { id: number }) => String(a.id) === v,
-											) as { currency?: string } | undefined;
-											setForm((f) => ({
-												...f,
-												fromAccountId: v,
-												currency: acc?.currency || f.currency,
-											}));
-										}}
-									>
-										<SelectTrigger className="mt-1 h-9 text-sm border-gray-200">
-											<SelectValue placeholder="Откуда" />
-										</SelectTrigger>
-										<SelectContent className={SIDE_PANEL_SELECT_CONTENT}>
-											{accounts.map((a: { id: number; name: string; currentBalance: string; currency: string }) => (
-												<SelectItem key={a.id} value={String(a.id)}>
-													{a.name} ({fmt(a.currentBalance)} {a.currency})
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-								</div>
-								<div>
-									<Label className="text-xs text-gray-500">
-										СЧЁТ ЗАЧИСЛЕНИЯ *
-									</Label>
-									<Select
-										value={form.toAccountId || undefined}
-										onValueChange={(v) =>
-											setForm((f) => ({ ...f, toAccountId: v }))
-										}
-									>
-										<SelectTrigger className="mt-1 h-9 text-sm border-gray-200">
-											<SelectValue placeholder="Куда" />
-										</SelectTrigger>
-										<SelectContent className={SIDE_PANEL_SELECT_CONTENT}>
-											{accounts.map((a: { id: number; name: string; currentBalance: string; currency: string }) => (
-												<SelectItem key={a.id} value={String(a.id)}>
-													{a.name} ({fmt(a.currentBalance)} {a.currency})
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-								</div>
+								<AccountSelectField
+									label="СЧЁТ СПИСАНИЯ *"
+									value={form.fromAccountId}
+									selectContentClassName={SIDE_PANEL_SELECT_CONTENT}
+									onValueChange={(v) => {
+										const acc = accounts.find(
+											(a: { id: number }) => String(a.id) === v,
+										) as { currency?: string } | undefined;
+										setForm((f) => ({
+											...f,
+											fromAccountId: v,
+											currency: acc?.currency || f.currency,
+										}));
+									}}
+								/>
+								<AccountSelectField
+									label="СЧЁТ ЗАЧИСЛЕНИЯ *"
+									value={form.toAccountId}
+									selectContentClassName={SIDE_PANEL_SELECT_CONTENT}
+									onValueChange={(v) =>
+										setForm((f) => ({ ...f, toAccountId: v }))
+									}
+								/>
 							</>
 						) : (
 							<div>
-								<Label className="text-xs text-gray-500">
-									{panelType === "income" ? "СЧЁТ ЗАЧИСЛЕНИЯ *" : "СЧЁТ СПИСАНИЯ *"}
-								</Label>
-								<Select
-									value={form.accountId || undefined}
+								<AccountSelectField
+									label={
+										panelType === "income"
+											? "СЧЁТ ЗАЧИСЛЕНИЯ *"
+											: "СЧЁТ СПИСАНИЯ *"
+									}
+									value={form.accountId}
+									selectContentClassName={SIDE_PANEL_SELECT_CONTENT}
 									onValueChange={(v) => {
 										const acc = accounts.find(
 											(a: { id: number }) => String(a.id) === v,
@@ -880,18 +834,7 @@ export default function ConstructionOperations() {
 											currency: acc?.currency || f.currency,
 										}));
 									}}
-								>
-									<SelectTrigger className="mt-1 h-9 text-sm border-gray-200">
-										<SelectValue placeholder="Выберите счёт" />
-									</SelectTrigger>
-									<SelectContent className={SIDE_PANEL_SELECT_CONTENT}>
-										{accounts.map((a: { id: number; name: string; currentBalance: string; currency: string }) => (
-											<SelectItem key={a.id} value={String(a.id)}>
-												{a.name} ({fmt(a.currentBalance)} {a.currency})
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
+								/>
 								{selectedAccount && panelType === "expense" && (
 									<p className="text-[11px] text-gray-500 mt-1">
 										Доступно на счёте:{" "}
@@ -939,57 +882,28 @@ export default function ConstructionOperations() {
 						)}
 
 						{panelType !== "transfer" && (
-							<div>
-								<Label className="text-xs text-gray-500">
-									{panelType === "income"
+							<CounterpartySelectField
+								label={
+									panelType === "income"
 										? "КТО ВНОСИТ (ПЛАТЕЛЬЩИК)"
-										: "КОМУ / ПОЛУЧАТЕЛЬ"}
-								</Label>
-								<Select
-									value={
-										form.counterpartyId === ""
-											? "none"
-											: form.counterpartyId
-									}
-									onValueChange={(v) =>
-										setForm((f) => ({ ...f, counterpartyId: v }))
-									}
-								>
-									<SelectTrigger className="mt-1 h-9 text-sm border-gray-200">
-										<SelectValue placeholder="Не указан" />
-									</SelectTrigger>
-									<SelectContent className={SIDE_PANEL_SELECT_CONTENT}>
-										<SelectItem value="none">Не указан</SelectItem>
-										{counterparties.map((c) => (
-											<SelectItem key={c.id} value={String(c.id)}>
-												{c.fullName}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</div>
+										: "КОМУ / ПОЛУЧАТЕЛЬ"
+								}
+								value={form.counterpartyId}
+								selectContentClassName={SIDE_PANEL_SELECT_CONTENT}
+								defaultRole={panelType === "income" ? "buyer" : "contractor"}
+								onValueChange={(v) =>
+									setForm((f) => ({ ...f, counterpartyId: v }))
+								}
+							/>
 						)}
 
-						{/* Category */}
 						{panelType !== "transfer" && (
-							<div>
-								<Label className="text-xs text-gray-500">СТАТЬЯ</Label>
-								<Select
-									value={form.category || undefined}
-									onValueChange={(v) => setForm((f) => ({ ...f, category: v }))}
-								>
-									<SelectTrigger className="mt-1 h-9 text-sm border-gray-200">
-										<SelectValue placeholder="Выберите статью" />
-									</SelectTrigger>
-									<SelectContent className={SIDE_PANEL_SELECT_CONTENT}>
-										{categories.map((c) => (
-											<SelectItem key={c} value={c}>
-												{c}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</div>
+							<CategorySelectField
+								type={panelType === "income" ? "income" : "expense"}
+								value={form.category}
+								selectContentClassName={SIDE_PANEL_SELECT_CONTENT}
+								onValueChange={(v) => setForm((f) => ({ ...f, category: v }))}
+							/>
 						)}
 
 						{/* Date */}
@@ -1005,28 +919,12 @@ export default function ConstructionOperations() {
 							/>
 						</div>
 
-						{/* Project */}
-						<div>
-							<Label className="text-xs text-gray-500">
-								ПРОЕКТ ИЛИ НАПРАВЛЕНИЕ
-							</Label>
-							<Select
-								value={form.projectId === "" ? "none" : form.projectId}
-								onValueChange={(v) => setForm((f) => ({ ...f, projectId: v }))}
-							>
-								<SelectTrigger className="mt-1 h-9 text-sm border-gray-200">
-									<SelectValue placeholder="Выберите проект..." />
-								</SelectTrigger>
-										<SelectContent className={SIDE_PANEL_SELECT_CONTENT}>
-									<SelectItem value="none">Не привязан</SelectItem>
-									{projects.map((p: any) => (
-										<SelectItem key={p.id} value={String(p.id)}>
-											{p.name}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</div>
+						<ProjectSelectField
+							label="ПРОЕКТ ИЛИ НАПРАВЛЕНИЕ"
+							value={form.projectId}
+							selectContentClassName={SIDE_PANEL_SELECT_CONTENT}
+							onValueChange={(v) => setForm((f) => ({ ...f, projectId: v }))}
+						/>
 
 						{/* Description */}
 						<div>
@@ -1112,18 +1010,6 @@ export default function ConstructionOperations() {
 			open={quickWizardOpen}
 			onOpenChange={setQuickWizardOpen}
 			initialType={quickWizardType}
-			accounts={accounts.map((a: { id: number; name: string }) => ({
-				id: a.id,
-				name: a.name,
-			}))}
-			projects={projects.map((p: { id: number; name: string }) => ({
-				id: p.id,
-				name: p.name,
-			}))}
-			counterparties={counterparties.map((c) => ({
-				id: c.id,
-				fullName: c.fullName,
-			}))}
 			isPending={saveMut.isPending}
 			onSubmit={(payload) => saveMut.mutate({ id: null, data: payload })}
 		/>

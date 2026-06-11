@@ -34,6 +34,10 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import {
+	CounterpartySelectField,
+	SalesContractSelectField,
+} from "@/components/construction/operation-reference-fields";
 import { getApiErrorMessage } from "@/lib/api-error";
 import { api } from "@/lib/api";
 
@@ -108,19 +112,9 @@ export default function ConstructionBarter() {
 		queryFn: () => api.get("/construction/projects/all").then((r) => r.data),
 	});
 
-	const { data: contracts = [] } = useQuery({
-		queryKey: ["construction-contracts-sales"],
-		queryFn: () => api.get("/construction/contracts-sales").then((r) => r.data),
-	});
-
 	const { data: accruals = [] } = useQuery({
 		queryKey: ["construction-accruals"],
 		queryFn: () => api.get("/construction/accruals").then((r) => r.data),
-	});
-
-	const { data: counterparties = [] } = useQuery({
-		queryKey: ["counterparties"],
-		queryFn: () => api.get("/counterparties").then((r) => r.data),
 	});
 
 	const { data: contractors = [] } = useQuery({
@@ -522,29 +516,17 @@ export default function ConstructionBarter() {
 						<DialogTitle>Принять бартер от покупателя</DialogTitle>
 					</DialogHeader>
 					<div className="grid gap-3 py-2">
-						<div className="space-y-1">
-							<Label>Договор продажи *</Label>
-							<Select
-								value={acceptForm.contractId}
-								onValueChange={(v) =>
-									setAcceptForm((f) => ({ ...f, contractId: v, accrualId: "none" }))
-								}
-							>
-								<SelectTrigger>
-									<SelectValue placeholder="Выберите договор" />
-								</SelectTrigger>
-								<SelectContent>
-									{(Array.isArray(contracts) ? contracts : []).map(
-										(c: { id: number; contractNumber?: string; buyerName?: string }) => (
-											<SelectItem key={c.id} value={String(c.id)}>
-												{c.contractNumber || `#${c.id}`}
-												{c.buyerName ? ` — ${c.buyerName}` : ""}
-											</SelectItem>
-										),
-									)}
-								</SelectContent>
-							</Select>
-						</div>
+						<p className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+							Счёт зачисления (бартерный склад) создаётся автоматически при проведении.
+							Нужен только договор продажи и описание актива.
+						</p>
+						<SalesContractSelectField
+							value={acceptForm.contractId}
+							prefillAmount={acceptForm.amount}
+							onValueChange={(v) =>
+								setAcceptForm((f) => ({ ...f, contractId: v, accrualId: "none" }))
+							}
+						/>
 						<div className="space-y-1">
 							<Label>Начисление (опционально)</Label>
 							<Select
@@ -611,29 +593,14 @@ export default function ConstructionBarter() {
 								}
 							/>
 						</div>
-						<div className="space-y-1">
-							<Label>Контрагент (покупатель)</Label>
-							<Select
-								value={acceptForm.counterpartyId}
-								onValueChange={(v) =>
-									setAcceptForm((f) => ({ ...f, counterpartyId: v }))
-								}
-							>
-								<SelectTrigger>
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="none">Не указан</SelectItem>
-									{(Array.isArray(counterparties) ? counterparties : []).map(
-										(c: { id: number; fullName: string }) => (
-											<SelectItem key={c.id} value={String(c.id)}>
-												{c.fullName}
-											</SelectItem>
-										),
-									)}
-								</SelectContent>
-							</Select>
-						</div>
+						<CounterpartySelectField
+							label="КОНТРАГЕНТ (ПОКУПАТЕЛЬ)"
+							value={acceptForm.counterpartyId}
+							defaultRole="buyer"
+							onValueChange={(v) =>
+								setAcceptForm((f) => ({ ...f, counterpartyId: v }))
+							}
+						/>
 						<div className="space-y-1">
 							<Label>Дата</Label>
 							<Input
@@ -692,29 +659,14 @@ export default function ConstructionBarter() {
 								placeholder="Оплата работ по договору подряда"
 							/>
 						</div>
-						<div className="space-y-1">
-							<Label>Контрагент</Label>
-							<Select
-								value={disposeForm.counterpartyId}
-								onValueChange={(v) =>
-									setDisposeForm((f) => ({ ...f, counterpartyId: v }))
-								}
-							>
-								<SelectTrigger>
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="none">Не указан</SelectItem>
-									{(Array.isArray(counterparties) ? counterparties : []).map(
-										(c: { id: number; fullName: string }) => (
-											<SelectItem key={c.id} value={String(c.id)}>
-												{c.fullName}
-											</SelectItem>
-										),
-									)}
-								</SelectContent>
-							</Select>
-						</div>
+						<CounterpartySelectField
+							label="КОНТРАГЕНТ"
+							value={disposeForm.counterpartyId}
+							defaultRole="contractor"
+							onValueChange={(v) =>
+								setDisposeForm((f) => ({ ...f, counterpartyId: v }))
+							}
+						/>
 						<div className="space-y-1">
 							<Label>Подрядчик</Label>
 							<Select
