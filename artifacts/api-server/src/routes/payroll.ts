@@ -13,6 +13,11 @@ import {
   getScopedCompanyId,
 } from "../middleware/tenant";
 import { sendServerError } from "../lib/http-errors";
+import {
+  computePayrollSalaryDelta,
+  normalizePayrollDate as normalizeDate,
+  toPayrollAmount as toAmount,
+} from "../lib/payroll-utils";
 
 const router = Router();
 router.use(requireAuth);
@@ -83,20 +88,6 @@ async function assertPayrollAccess(
     return null;
   }
   return access;
-}
-
-function toAmount(raw: unknown): string {
-  const n = parseFloat(String(raw ?? "0"));
-  return Number.isFinite(n) ? String(n) : "0";
-}
-
-function normalizeDate(raw: unknown): string | null {
-  const s = String(raw ?? "").trim();
-  if (!s) return null;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  const dmy = s.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})$/);
-  if (dmy) return `${dmy[3]}-${dmy[2].padStart(2, "0")}-${dmy[1].padStart(2, "0")}`;
-  return s.slice(0, 16);
 }
 
 const VALID_EMPLOYMENT = new Set(["staff", "parttime", "contract"]);
@@ -441,7 +432,7 @@ router.post(
 
     const previousAmount = employee.currentSalary ?? "0";
     const newAmount = request.requestedAmount ?? "0";
-    const delta = String(parseFloat(newAmount) - parseFloat(previousAmount));
+    const delta = computePayrollSalaryDelta(previousAmount, newAmount);
     const effectiveDate = request.effectiveDate ?? normalizeDate(new Date().toISOString());
 
     try {

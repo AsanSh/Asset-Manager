@@ -19,6 +19,11 @@ import {
   companyModuleAccountWhere,
 } from "../lib/bank-account-module";
 import { randomUUID } from "node:crypto";
+import {
+  absReconciliationAmount as absAmount,
+  buildReconciliationPairKey as buildPairKey,
+  normalizeReconciliationDate as normalizeDate,
+} from "../lib/finance-reconciliation-utils";
 
 const router = Router();
 router.use(requireAuth, requireTenantCompany);
@@ -26,23 +31,6 @@ router.use(requireAuth, requireTenantCompany);
 const CONSTRUCTION_ACCOUNTS = BANK_ACCOUNT_MODULE.construction;
 const VALID_SOURCES = new Set(["one_c", "bank", "manual"]);
 const HISTORY_STATUSES = new Set(["confirmed", "posted", "rejected"]);
-
-function normalizeDate(raw: unknown): string {
-  const s = String(raw || "").trim();
-  if (!s) return new Date().toISOString().slice(0, 10);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  const dmy = s.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})$/);
-  if (dmy) {
-    return `${dmy[3]}-${dmy[2].padStart(2, "0")}-${dmy[1].padStart(2, "0")}`;
-  }
-  return s.slice(0, 10);
-}
-
-function absAmount(raw: unknown): string {
-  const n = parseFloat(String(raw || "0"));
-  if (!Number.isFinite(n)) return "0";
-  return String(Math.abs(n));
-}
 
 async function lookupSuggestion(
   companyId: number,
@@ -73,10 +61,6 @@ async function lookupSuggestion(
     suggestionReason: `Ранее проведено по контрагенту «${name}»`,
     reviewStatus: "suggested" as const,
   };
-}
-
-function buildPairKey(date: string, amount: string): string {
-  return `${date}|${absAmount(amount)}`;
 }
 
 // GET /finance-reconciliation/inbox

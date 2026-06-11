@@ -27,6 +27,7 @@ import {
 import { investmentsTable } from "../lib/db";
 import { ensureCounterpartyWithRole } from "../lib/counterparty-sync";
 import { resolveRentalPaymentAccountCredit } from "../lib/rental-payment-fx";
+import { buildRentalAccrualRows } from "../lib/rental-accruals";
 
 const RENTAL_ACCOUNTS = BANK_ACCOUNT_MODULE.rental;
 
@@ -69,87 +70,6 @@ async function logOp(
 const router: ReturnType<typeof Router> = Router();
 
 router.use(requireAuth, requireTenantCompany);
-
-// ---------- HELPERS ----------
-
-/** Количество дней в месяце */
-function daysInMonth(year: number, month: number): number {
-  return new Date(year, month + 1, 0).getDate();
-}
-
-/**
- * Строит массив начислений для договора с пропорциональным расчётом
- * первого и последнего месяца (если начало/конец не совпадают с 1-м / последним днём месяца).
- */
-function buildAccrualRows(params: {
-  companyId: number;
-  leaseContractId: number;
-  startDate: Date;
-  endDate: Date | null;
-  rentAmount: number;
-  currency: string;
-  accrualDay: number;
-}) {
-  const { companyId, leaseContractId, startDate, endDate, rentAmount, currency, accrualDay } = params;
-  const rows: {
-    companyId: number; leaseContractId: number; period: string; amount: string;
-    currency: string; dueDate: string; paidAmount: string; balance: string; status: string;
-  }[] = [];
-
-  // Граница: если endDate не задана, генерируем 12 месяцев вперёд
-  const end = endDate
-    ? new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate())
-    : new Date(startDate.getFullYear(), startDate.getMonth() + 12, 0);
-
-  // Итерируем по месяцам, начиная с месяца startDate
-  const current = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
-  let isFirstMonth = true;
-
-  while (current <= end) {
-    const yr = current.getFullYear();
-    const mo = current.getMonth(); // 0-based
-    const dim = daysInMonth(yr, mo);
-    const moStr = String(mo + 1).padStart(2, "0");
-    const period = `${yr}-${moStr}`;
-
-    // День срока оплаты (не превышает кол-во дней в месяце)
-    const dueDay = Math.min(accrualDay || 1, dim);
-    const dueDateStr = `${yr}-${moStr}-${String(dueDay).padStart(2, "0")}`;
-
-    // --- Пропорциональный расчёт ---
-    let amount = rentAmount;
-
-    // Первый месяц: если начало не 1-е число
-    const isLastMonth = endDate
-      && current.getFullYear() === endDate.getFullYear()
-      && current.getMonth() === endDate.getMonth();
-
-    if (isFirstMonth && startDate.getDate() > 1 && !isLastMonth) {
-      // Дней в первом месяце с даты начала
-      const daysRented = dim - startDate.getDate() + 1;
-      amount = Math.round((rentAmount / dim) * daysRented * 100) / 100;
-    } else if (isFirstMonth && isLastMonth) {
-      // Договор начинается и заканчивается в одном месяце
-      const daysRented = endDate!.getDate() - startDate.getDate() + 1;
-      amount = Math.round((rentAmount / dim) * daysRented * 100) / 100;
-    } else if (isLastMonth && endDate && endDate.getDate() < dim) {
-      // Последний месяц: если конец не последнее число
-      amount = Math.round((rentAmount / dim) * endDate.getDate() * 100) / 100;
-    }
-
-    rows.push({
-      companyId, leaseContractId, period,
-      amount: String(amount), currency,
-      dueDate: dueDateStr,
-      paidAmount: "0", balance: String(amount), status: "pending",
-    });
-
-    isFirstMonth = false;
-    current.setMonth(current.getMonth() + 1);
-  }
-
-  return rows;
-}
 
 // ---------- END HELPERS ----------
 
@@ -428,7 +348,7 @@ router.post("/rental/contracts", async (req: AuthenticatedRequest, res): Promise
   await db.update(propertiesTable).set({ rentalStatus: "rented" }).where(eq(propertiesTable.id, propertyId));
 
   if (status === "active" || status === "draft") {
-    const accrualRows = buildAccrualRows({
+    const accrualRows = buildRentalAccrualRows({
       companyId: req.scopedCompanyId!,
       leaseContractId: row.id,
       startDate: new Date(startDate),
@@ -629,7 +549,7 @@ router.post("/rental/accruals/recalculate", async (req: AuthenticatedRequest, re
     )
   );
 
-  const accrualRows = buildAccrualRows({
+  const accrualRows = buildRentalAccrualRows({
     companyId: req.scopedCompanyId!,
     leaseContractId,
     startDate: new Date(contract.startDate),
