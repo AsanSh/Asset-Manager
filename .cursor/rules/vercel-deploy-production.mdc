@@ -11,14 +11,14 @@ alwaysApply: true
 |------------|----------------|-----------|----------------|
 | Frontend **старый UI** | `proptech` | **`legacy/proptech`** | https://proptech-sigma-eight.vercel.app |
 | Frontend **новый UI** | `planalityc.ai` | **`main`** | planalityc.ai / planalitycai.vercel.app |
-| **API (реальный prod)** | **`proptech-api`** | `main` | alias **https://api-server-rho-six.vercel.app** |
+| **API (реальный prod)** | **`proptech-api`** | `main` | **https://proptech-api.vercel.app** |
 
 - В Vercel → **proptech** → Settings → Git → **Production Branch** = `legacy/proptech` (чтобы push в `main` не перезаписывал старый UI).
 - **planalityc.ai**: Root Directory = `artifacts/proptech`, деплой из **корня репо** (не из `artifacts/proptech` — иначе путь удваивается).
 - Не путать с проектом `planalitycai` (устаревший дубликат, root `.`).
 
-- Не деплоить API в project `api-server` для production — alias `api-server-rho-six` смотрит на **`proptech-api`**.
-- `VITE_API_URL` во frontend: `https://api-server-rho-six.vercel.app`.
+- Проект `api-server` (и alias `api-server-rho-six.vercel.app`) **удалён** — production API только `proptech-api`.
+- `VITE_API_URL` во frontend: `https://proptech-api.vercel.app` (это же — fallback в `getApiBase()`).
 
 ## Деплой API (рабочий сценарий)
 
@@ -26,11 +26,11 @@ alwaysApply: true
 cd artifacts/api-server
 npx vercel link --project proptech-api --yes
 npm run build
-npx vercel pull --yes --environment=production
-npx vercel build --prod
-npx vercel deploy --prebuilt --prod --yes
-npx vercel alias set <deployment-url> api-server-rho-six.vercel.app
+npx vercel deploy --prod --yes --scope asans-projects-88edff6a
+# alias proptech-api.vercel.app назначается автоматически
 ```
+
+Если меняли только env vars (без кода) — достаточно `npx vercel redeploy <последний-prod-url> --scope asans-projects-88edff6a`.
 
 Проверка после деплоя:
 - `GET /health` → `{"status":"ok"}`
