@@ -12,7 +12,7 @@
 
 ## На этой неделе (консолидация)
 
-- [ ] **6. Правда по базе.** Скопировать connection string боевого Neon-бранча и явно перезаписать `DATABASE_URL` в `proptech-api`. Переключить `VITE_API_URL` обоих фронтов (нового и legacy) на `proptech-api`, передеплоить, проверить логин и шахматку руками на обоих.
+- [x] **6. Правда по базе.** ✅ `DATABASE_URL` в `proptech-api` (production + preview) перезаписан на боевой бранч BuildFlow/`production` (`ep-wandering-boat-apx68ayh`), API передеплоен (`vercel redeploy --scope`, alias `proptech-api.vercel.app` + `api-server-rho-six.vercel.app`, оба `/health` → 200). Логин-эндпоинт ходит в базу: `POST /auth/login` с неверным паролем → 401 (не 500). Бандлы обоих фронтов уже содержат `https://proptech-api.vercel.app` — передеплой фронтов не нужен. ⚠️ **Ручная проверка пользователем:** логин и шахматка на обоих UI (нужны реальные креды).
 - [ ] **7. Удалить лишние Vercel-проекты:** `dist`, `planalitycai`, `api-server` (после п.6, когда на него никто не смотрит). `domiq`/`domiq-api` — по итогам п.4.
 - [ ] **8. Правило в `.cursor/rules`:** пока жива legacy-ветка — изменения API только аддитивные; никаких переименований и удалений полей/эндпоинтов; миграции только с `IF NOT EXISTS` / без DROP.
 - [ ] **9. Перенос из Replit-копии:** barter и client-relations — как **новые миграции 0034+** и файлы поверх main, не копированием 0031–0033. Конфликт моделей цены юнита: живёт модель из main (`sale_coefficient`, `approved_sale_price_per_sqm`), реплитовская (`base_sale_price_per_sqm` + `price_coefficient`) умирает. После переноса Replit-окружение — read-only архив.
