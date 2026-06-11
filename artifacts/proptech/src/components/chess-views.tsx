@@ -46,12 +46,10 @@ export type OverviewUnit = {
 	roomCount?: number | null;
 	area?: string | null;
 	pricePerSqm?: string | null;
+	priceCoefficient?: string | null;
+	priceApproved?: boolean;
+	listPrice?: string | null;
 	totalPrice?: string | null;
-	basePricePerSqm?: string | null;
-	saleCoefficient?: string | null;
-	approvedSalePricePerSqm?: string | null;
-	approvedTotalPrice?: string | null;
-	isPublishedForSale?: boolean | null;
 	currency: string;
 	status: string;
 	notes?: string | null;

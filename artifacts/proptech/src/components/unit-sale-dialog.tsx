@@ -38,9 +38,8 @@ export type UnitForSale = {
 	floor?: number;
 	area?: string;
 	pricePerSqm?: string;
+	listPrice?: string | null;
 	totalPrice?: string;
-	approvedSalePricePerSqm?: string | null;
-	approvedTotalPrice?: string | null;
 	currency?: string;
 };
 
@@ -66,12 +65,12 @@ export function UnitSaleDialog({
 	const [schedule, setSchedule] = useState<ScheduleRow[]>([]);
 
 	const defaultTotal = useMemo(() => {
-		const approved = parseFloat(unit.approvedTotalPrice || "0");
-		if (approved > 0) return approved;
+		const list = parseFloat(unit.listPrice || "0");
+		if (list > 0) return list;
 		const tp = parseFloat(unit.totalPrice || "0");
 		if (tp > 0) return tp;
 		const area = parseFloat(unit.area || "0");
-		const pps = parseFloat(unit.approvedSalePricePerSqm || unit.pricePerSqm || "0");
+		const pps = parseFloat(unit.pricePerSqm || "0");
 		return area * pps;
 	}, [unit]);
 

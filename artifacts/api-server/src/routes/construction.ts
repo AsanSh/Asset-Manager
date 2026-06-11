@@ -2538,7 +2538,7 @@ function salesGridKpiBucket(statusCode: string): string {
 
 function sanitizeSalesGridUnit(role: string, row: Record<string, unknown>) {
   if (!isSalesRole(role)) return row;
-  const { priceCoefficient, saleCoefficient, basePricePerSqm, ...rest } = row;
+  const { priceCoefficient, ...rest } = row;
   return rest;
 }
 
