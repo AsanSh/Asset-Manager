@@ -57,6 +57,26 @@ Endpoint `POST /cashier/payment` принимает header `Idempotency-Key`. З
 - Anti-enumeration в `/auth/send-otp`: одинаковый ответ для существующих и несуществующих номеров.
 - Phone normalization: всегда E.164 (`+XXX`).
 - Idempotency-keys: TTL 24 часа.
+- Session token в `sessions.token` — SHA-256; plain token только у клиента (см. `session-auth.ts`).
+
+## Пересадка legacy UI → planalityc.ai (TASKS п.15)
+
+**Целевая дата cutover:** _не назначена_ (решение владельца продукта).
+
+**Критерии «можно резать legacy»:**
+- Все активные клиенты прошли UAT на https://planalityc.ai (логин, шахматка, CRM, аренда, финансы — по их реальным сценариям).
+- Нет открытых блокеров только в legacy UI (сверка с `main` / diff маршрутов).
+- SMS (`NIKITA_SMS_*`) и Sentry (`SENTRY_DSN`) проверены на prod API.
+
+**День переключения (runbook):**
+1. Зафиксировать commit на `legacy/proptech` (тег `legacy-final-YYYYMMDD`).
+2. Сообщить пользователям новый URL и способ входа (тот же API `proptech-api.vercel.app`).
+3. `./deploy/frontend-new.sh` — убедиться, что prod planalityc.ai на актуальном `main`.
+4. (Опционально) редирект с `proptech-sigma-eight.vercel.app` на planalityc.ai через `vercel.json` redirects на legacy-проекте — одна неделя overlap.
+5. Мониторинг: `/health`, login 401/200, Sentry 24–48 ч без всплеска 500.
+6. После стабилизации: удалить Vercel-проект `proptech`, ветку `legacy/proptech`, файл `.cursor/rules/legacy-api-compat.mdc`.
+
+**Откат:** redeploy последнего legacy из тега `legacy-final-*`; API общий — откат только фронта.
 
 ## Полезные SQL-запросы
 

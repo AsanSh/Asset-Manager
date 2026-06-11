@@ -24,7 +24,7 @@
 - [x] **12. Схлопнуть двойную схему** ✅ Единый источник: `lib/db/src/` (schema + `db`/`pool` + seed). `api-server/src/lib/db/` — только re-export `index.ts` и `schema/index.ts`; дубликат `seed.ts` удалён; `lib/db/drizzle.config` и `drizzle-kit push` убраны (миграции только через `artifacts/api-server`).
 - [x] **13. 10–15 интеграционных тестов на финансовое ядро:** ✅ 19 unit-тестов (mock БД): `payment-allocation`, `portal-reconciliation`, `finance-reconciliation-utils`, `payroll-utils`, `rental-accruals`. Чистые функции вынесены из роутов в `src/lib/*`.
 - [x] **14. Хеширование сессионных токенов** ✅ В `sessions.token` хранится SHA-256 (plain — только клиенту). Legacy plain-сессии мигрируют при следующем запросе. Модуль `session-auth.ts`.
-- [ ] **15. Дата пересадки legacy-клиента на новый UI** → удаление ветки `legacy/proptech` и проекта `proptech`.
+- [ ] **15. Дата пересадки legacy-клиента на новый UI** → удаление ветки `legacy/proptech` и проекта `proptech`. Runbook и критерии — `PRODUCTION-OPERATIONS.md` § «Пересадка legacy UI». **Дата cutover:** TBD.
 
 ## Контекст
 

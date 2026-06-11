@@ -29,6 +29,7 @@ const SYSTEM_ROUTES_ALLOWLIST = new Set([
   "auth.ts",
   "admin.ts",
   "platform-admin.ts",
+  "platform-admin-marketplace.ts", // super_admin, глобальный каталог (companyId только в createPortalUser(null))
   "companies.ts",
   "notifications.ts",
   "categories.ts",
