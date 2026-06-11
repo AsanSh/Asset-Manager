@@ -1,11 +1,10 @@
 import { Router } from "express";
 import { eq, and, lt } from "drizzle-orm";
 import { z } from "zod";
-import { db, usersTable, companiesTable, sessionsTable, emailVerificationsTable } from "../lib/db";
+import { db, usersTable, companiesTable, emailVerificationsTable } from "../lib/db";
 import {
   hashPassword,
   verifyPassword,
-  generateSecureToken,
   validatePassword,
 } from "../lib/security";
 import { validateBody } from "../middleware/validation";
@@ -17,6 +16,11 @@ import {
   requestPasswordResetByEmail,
 } from "../lib/password-reset";
 import { issueOtp, verifyOtp, normalizePhone } from "../lib/otp";
+import {
+  createSession,
+  deleteSessionByBearerToken,
+  getSessionUserId,
+} from "../lib/session-auth";
 
 function generateCode(): string {
   return String(Math.floor(100000 + Math.random() * 900000));
@@ -60,43 +64,6 @@ const updateProfileSchema = z.object({
   lastName: z.string().min(1).max(100).optional(),
   password: z.string().min(12).optional(),
 });
-
-/**
- * Создание сессии с истечением через 7 дней
- */
-async function createSession(userId: number): Promise<string> {
-  const token = generateSecureToken();
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 7); // 7 дней
-
-  await db.insert(sessionsTable).values({
-    token,
-    userId,
-    expiresAt,
-  });
-
-  return token;
-}
-
-/**
- * Получение userId по токену с проверкой истечения
- */
-export async function getSessionUserId(token: string): Promise<number | null> {
-  const [session] = await db
-    .select()
-    .from(sessionsTable)
-    .where(eq(sessionsTable.token, token));
-
-  if (!session) return null;
-
-  // Проверка истечения
-  if (session.expiresAt && session.expiresAt < new Date()) {
-    await db.delete(sessionsTable).where(eq(sessionsTable.token, token));
-    return null;
-  }
-
-  return session.userId;
-}
 
 // POST /auth/register — создание организации + admin пользователя
 router.post("/auth/register", validateBody(registerSchema), async (req, res): Promise<void> => {
@@ -443,8 +410,7 @@ router.post("/auth/password-reset", async (req, res): Promise<void> => {
 router.post("/auth/logout", async (req, res): Promise<void> => {
   const authHeader = req.headers.authorization;
   if (authHeader?.startsWith("Bearer ")) {
-    const token = authHeader.slice(7);
-    await db.delete(sessionsTable).where(eq(sessionsTable.token, token));
+    await deleteSessionByBearerToken(authHeader.slice(7));
   }
   res.json({ message: "Logged out" });
 });

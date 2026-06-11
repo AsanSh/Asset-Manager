@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { eq } from "drizzle-orm";
-import { db, usersTable, sessionsTable } from "../lib/db";
+import { db, usersTable } from "../lib/db";
+import { resolveSession } from "../lib/session-auth";
 
 export interface AuthenticatedRequest extends Request {
   userId?: number;
@@ -28,22 +29,10 @@ export async function requireAuth(
 
   const token = authHeader.slice(7);
 
-  // Поиск сессии в БД
-  const [session] = await db
-    .select()
-    .from(sessionsTable)
-    .where(eq(sessionsTable.token, token));
+  const session = await resolveSession(token);
 
   if (!session) {
     res.status(401).json({ error: "Invalid token" });
-    return;
-  }
-
-  // Проверка истечения токена
-  if (session.expiresAt && session.expiresAt < new Date()) {
-    // Удаляем истекшую сессию
-    await db.delete(sessionsTable).where(eq(sessionsTable.token, token));
-    res.status(401).json({ error: "Session expired" });
     return;
   }
 
