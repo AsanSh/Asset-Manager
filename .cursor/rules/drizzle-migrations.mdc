@@ -1,0 +1,17 @@
+---
+description: Drizzle migrations — только generate после baseline (п.11)
+alwaysApply: true
+globs: artifacts/api-server/drizzle/**,lib/db/**
+---
+
+# Drizzle migrations (post-baseline)
+
+После п.11 TASKS.md:
+
+- ✅ `npx drizzle-kit generate --config artifacts/api-server/drizzle.config.ts --name …`
+- ✅ `npx drizzle-kit check` / `introspect` для сверки с prod
+- ❌ рукописные `.sql` в `drizzle/migrations/` (кроме `_legacy/`)
+- ❌ правка `when` в `meta/_journal.json` вручную — только через generate
+- ❌ `drizzle-kit migrate` на prod из агента — пользователь применяет на Neon
+
+Новая миграция: generate → зарегистрировать в `meta/_journal.json` (generate делает сам) → deploy API → пользователь проверяет prod.

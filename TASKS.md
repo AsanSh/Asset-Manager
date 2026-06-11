@@ -20,7 +20,7 @@
 
 ## После демо (долг, не раньше)
 
-- [ ] **11. Baseline миграций:** `drizzle-kit introspect` против боевой базы → новый снапшот → дальше только `drizzle-kit generate`. Никаких рукописных SQL и фейковых timestamps в журнале.
+- [x] **11. Baseline миграций:** ✅ `drizzle-kit introspect` против BuildFlow/production (98 таблиц); `drizzle-kit generate` → `0000_prod_baseline` + `meta/0000_snapshot.json`. Legacy 0000–0033 в `drizzle/migrations/_legacy/`. Снимок introspect: `drizzle/baseline/introspect-prod/`. `runMigrations()` помечает baseline на prod без повторного CREATE. Дальше только `drizzle-kit generate`.
 - [ ] **12. Схлопнуть двойную схему** `lib/db` ↔ `artifacts/api-server/src/lib/db` в один источник (выбор зависит от решения в п.1).
 - [ ] **13. 10–15 интеграционных тестов на финансовое ядро:** payment-allocation, finance-reconciliation, payroll-расчёт, accruals — до того, как клиенты нальют реальные данные.
 - [ ] **14. Хеширование сессионных токенов** перед хранением в `sessions`.
